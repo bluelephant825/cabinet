@@ -34,7 +34,16 @@ import {
 } from "@/components/composer/agent-picker";
 import { useComposer, type MentionableItem } from "@/hooks/use-composer";
 import { useSkillMentionItems } from "@/hooks/use-skill-mention-items";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useLocale } from "@/i18n/use-locale";
+
+const AI_PANEL_MIN_WIDTH = 380;
+const AI_PANEL_MAX_WIDTH = 760;
+const AI_PANEL_DEFAULT_WIDTH = 480;
+
+function clampWidth(value: number) {
+  return Math.min(AI_PANEL_MAX_WIDTH, Math.max(AI_PANEL_MIN_WIDTH, value));
+}
 
 interface PastSession {
   id: string;
@@ -106,6 +115,64 @@ export function AIPanel() {
   const [selectedLiveSessionId, setSelectedLiveSessionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const previousCurrentPathRef = useRef<string | null>(null);
+
+  const isMobile = useIsMobile();
+  const [panelWidth, setPanelWidth] = useState(() => {
+    if (typeof window === "undefined") return AI_PANEL_DEFAULT_WIDTH;
+    const stored = window.localStorage.getItem("cabinet-ai-panel-width");
+    const parsed = stored ? Number(stored) : NaN;
+    return Number.isFinite(parsed) ? clampWidth(parsed) : AI_PANEL_DEFAULT_WIDTH;
+  });
+  const resizeStateRef = useRef<{
+    startX: number;
+    startWidth: number;
+    rtl: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("cabinet-ai-panel-width", String(panelWidth));
+  }, [panelWidth]);
+
+  useEffect(() => {
+    function handlePointerMove(event: PointerEvent) {
+      const drag = resizeStateRef.current;
+      if (!drag) return;
+      // Panel is docked to the inline-end; dragging its inline-start edge
+      // toward the page center widens it. RTL flips the screen-space sign.
+      const delta = drag.startX - event.clientX;
+      const next = drag.startWidth + (drag.rtl ? -delta : delta);
+      setPanelWidth(clampWidth(next));
+    }
+    function handlePointerUp() {
+      if (!resizeStateRef.current) return;
+      resizeStateRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, []);
+
+  const startResize = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      resizeStateRef.current = {
+        startX: event.clientX,
+        startWidth: panelWidth,
+        rtl:
+          typeof document !== "undefined" &&
+          document.documentElement.dir === "rtl",
+      };
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [panelWidth]
+  );
 
   const skillItems = useSkillMentionItems({ enabled: isOpen });
 
@@ -500,20 +567,35 @@ export function AIPanel() {
     <>
       {/* Mobile scrim — full-screen overlay backdrop */}
       <div
-        className="md:hidden fixed inset-0 z-40 bg-black/40"
+        className="ai-scrim-anim md:hidden fixed inset-0 z-40 bg-black/40"
         onClick={close}
         aria-hidden="true"
       />
       <div
         className={cn(
-          "bg-background flex flex-col",
-          // Desktop: fixed-width side panel docked to the right
-          "md:w-[480px] md:min-w-[420px] md:border-l md:border-border md:relative md:inset-auto",
+          "relative bg-background flex flex-col",
+          // Desktop: resizable side panel docked to the inline-end
+          "md:border-l md:border-border md:relative md:inset-auto",
+          isMobile ? "ai-drawer-anim-up" : "ai-drawer-anim-side",
           // Mobile: full-screen overlay
           "max-md:fixed max-md:inset-0 max-md:z-50",
           "max-md:pb-[max(env(safe-area-inset-bottom),0px)]"
         )}
+        style={!isMobile ? { width: panelWidth } : undefined}
       >
+        {/* Resize handle — a flush 1px hairline at the inline-start edge.
+            Drag to resize, double-click to reset. No padding/offset. */}
+        {!isMobile && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("sidebar:resizeHandle")}
+            title={t("sidebar:resetWidth")}
+            onPointerDown={startResize}
+            onDoubleClick={() => setPanelWidth(AI_PANEL_DEFAULT_WIDTH)}
+            className="absolute inset-y-0 start-0 z-30 w-px cursor-col-resize bg-border transition-colors hover:bg-primary/50"
+          />
+        )}
       {/* No navbar — the open page rides in the composer as a pinned @chip.
           Only the close affordance remains. */}
       <div className="flex items-center justify-end px-2 py-2 shrink-0">

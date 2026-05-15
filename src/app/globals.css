@@ -1117,3 +1117,40 @@ html[data-custom-theme="cyber"] :where(button:not([data-no-bevel])):hover {
     grid-template-columns: 280px 340px 1fr;
   }
 }
+
+/* ─── AI Editor drawer open animation ───────────────────────── */
+@keyframes ai-drawer-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes ai-drawer-slide-in-rtl {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes ai-drawer-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes ai-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.ai-drawer-anim-side {
+  animation: ai-drawer-slide-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+.ai-drawer-anim-side:dir(rtl) {
+  animation-name: ai-drawer-slide-in-rtl;
+}
+.ai-drawer-anim-up {
+  animation: ai-drawer-slide-up 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.ai-scrim-anim {
+  animation: ai-scrim-in 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-drawer-anim-side,
+  .ai-drawer-anim-up,
+  .ai-scrim-anim { animation: none; }
+}

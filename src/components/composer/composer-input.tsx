@@ -252,7 +252,7 @@ export function ComposerInput({
               {actionsStart}
             </div>
           ) : null}
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-3 ms-auto">
             <div className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground/35 select-none">
               <kbd className="rounded border border-border/40 bg-muted/40 px-1 py-0.5 font-mono text-[10px]">⌘</kbd>
               <kbd className="rounded border border-border/40 bg-muted/40 px-1 py-0.5 font-mono text-[10px]">↵</kbd>
