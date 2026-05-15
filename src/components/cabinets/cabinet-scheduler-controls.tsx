@@ -101,7 +101,7 @@ export function CabinetSchedulerControls({
               ? `Stop all ${activeOwn.length} active agent(s) — pauses their heartbeats and cron jobs. Only this cabinet, not sub-cabinets.`
               : `Activate all ${ownAgents.length} agent(s) — starts their heartbeats and cron jobs on schedule. Only this cabinet, not sub-cabinets.`
           }
-          className={cn(splitBase, "gap-2 rounded-l-md border-r-0 px-3 py-1.5 text-sm font-medium")}
+          className={cn(splitBase, "gap-2 rounded-s-md border-e-0 px-3 py-1.5 text-sm font-medium")}
         >
           {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -118,7 +118,7 @@ export function CabinetSchedulerControls({
           type="button"
           disabled={busy}
           onClick={() => setMenuOpen((o) => !o)}
-          className={cn(splitBase, "rounded-r-md border-l border-border/60 px-2 py-1.5")}
+          className={cn(splitBase, "rounded-e-md border-s border-border/60 px-2 py-1.5")}
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
@@ -126,7 +126,7 @@ export function CabinetSchedulerControls({
 
       {/* Dropdown menu */}
       {menuOpen ? (
-        <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-64 rounded-xl border border-border bg-popover shadow-lg">
+        <div className="absolute end-0 top-[calc(100%+6px)] z-30 w-64 rounded-xl border border-border bg-popover shadow-lg">
           <div className="py-1.5">
             {!allActive ? (
               <button

@@ -363,7 +363,7 @@ function RegistryAgentCard({ agent }: { agent: AgentInfo }) {
         <span className="text-lg">{agent.emoji}</span>
         <span className="font-medium text-sm" style={{ color: P.textPrimary }}>{agent.name}</span>
         <span
-          className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium"
+          className="ms-auto rounded-full px-2 py-0.5 text-[10px] font-medium"
           style={agent.type === "lead"
             ? { backgroundColor: P.accentBg, color: P.accent }
             : { backgroundColor: P.bgWarm, color: P.textTertiary }}
@@ -854,9 +854,9 @@ function DetailView({
                 disabled={!importName.trim() || importing}
               >
                 {importing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="me-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <Download className="mr-2 h-4 w-4" />
+                  <Download className="me-2 h-4 w-4" />
                 )}
                 Import
               </Button>
@@ -1004,13 +1004,13 @@ export function RegistryBrowser({
         <div className="max-w-3xl mx-auto px-6 py-6">
           {/* Search */}
           <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: P.textTertiary }} />
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: P.textTertiary }} />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("registry:searchPlaceholder")}
-              className="w-full rounded-lg border pl-9 pr-4 py-2.5 text-sm outline-none transition-colors"
+              className="w-full rounded-lg border ps-9 pe-4 py-2.5 text-sm outline-none transition-colors"
               style={{
                 borderColor: P.border,
                 backgroundColor: P.bgCard,

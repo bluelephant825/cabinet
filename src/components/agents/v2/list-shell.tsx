@@ -60,7 +60,7 @@ export function ListShell({
         </div>
         {filters}
         {trailingActions ? (
-          <div className="ml-auto flex items-center gap-1.5">{trailingActions}</div>
+          <div className="ms-auto flex items-center gap-1.5">{trailingActions}</div>
         ) : null}
       </div>
 
@@ -75,7 +75,7 @@ export function ListShell({
                 <div className="size-4 rounded-full bg-muted/60" />
                 <div className="size-5 shrink-0 rounded-full bg-muted/60" />
                 <div className="h-2.5 w-32 rounded bg-muted/60" />
-                <div className="ml-auto h-2.5 w-20 rounded bg-muted/40" />
+                <div className="ms-auto h-2.5 w-20 rounded bg-muted/40" />
               </div>
             ))}
           </div>

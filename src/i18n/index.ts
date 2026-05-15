@@ -126,8 +126,18 @@ export const REQUESTABLE_LOCALES: RequestableLocale[] = ([
   { code: "zu",     label: "isiZulu",          englishName: "Zulu",               dir: "ltr" },
 ] as RequestableLocale[]).sort((a, b) => a.englishName.localeCompare(b.englishName));
 
+// BCP-47 codes whose script is right-to-left. `he` ships today; the others
+// are still in REQUESTABLE_LOCALES (marked dir:"rtl") and would silently
+// render LTR the moment they're promoted into SUPPORTED_LOCALES if this
+// only special-cased `he`. Keep this list and the inline bootstrap in
+// src/app/layout.tsx in sync.
+export const RTL_LOCALE_PREFIXES = ["he", "ar", "fa", "ps", "ur"] as const;
+
 export function localeToDir(locale: Locale): "ltr" | "rtl" {
-  return locale === "he" ? "rtl" : "ltr";
+  const base = locale.toLowerCase().split("-")[0];
+  return (RTL_LOCALE_PREFIXES as readonly string[]).includes(base)
+    ? "rtl"
+    : "ltr";
 }
 
 function getInitialLocale(): Locale {

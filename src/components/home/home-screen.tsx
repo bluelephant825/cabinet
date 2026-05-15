@@ -295,8 +295,8 @@ function RegistryCarousel({
           );
         })}
       </div>
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-background to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r rtl:bg-gradient-to-l from-background to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l rtl:bg-gradient-to-r from-background to-transparent" />
     </div>
   );
 }
@@ -410,7 +410,7 @@ function ImportDialog({
               onClick={handleImport}
               disabled={importing || !name.trim()}
             >
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="me-2 h-4 w-4" />
               Import
             </Button>
           </div>

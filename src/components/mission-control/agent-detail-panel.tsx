@@ -150,7 +150,7 @@ function getFileIcon(name: string) {
 }
 
 export function AgentDetailPanel({ slug, onClose, onNavigateToAgent, onOpenFile }: AgentDetailPanelProps) {
-  const { t } = useLocale();
+  const { t, dir } = useLocale();
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [history, setHistory] = useState<HeartbeatRecord[]>([]);
   const [slackMessages, setSlackMessages] = useState<SlackMessage[]>([]);
@@ -354,7 +354,14 @@ export function AgentDetailPanel({ slug, onClose, onNavigateToAgent, onOpenFile 
       />
 
       {/* Slide-over panel */}
-      <div className="fixed right-0 top-0 bottom-0 w-[520px] max-w-[90vw] bg-background border-l border-border z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+      <div
+        className={cn(
+          "fixed top-0 bottom-0 w-[520px] max-w-[90vw] bg-background border-border z-50 flex flex-col shadow-2xl animate-in duration-200",
+          dir === "rtl"
+            ? "left-0 border-r slide-in-from-left"
+            : "right-0 border-l slide-in-from-right"
+        )}
+      >
         {loading || !agent ? (
           <div className="flex-1 flex items-center justify-center">
             <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground/40" />
@@ -862,7 +869,7 @@ export function AgentDetailPanel({ slug, onClose, onNavigateToAgent, onOpenFile 
                                     {formatDuration(h.duration)}
                                   </span>
                                   <ChevronRight className={cn(
-                                    "h-3 w-3 text-muted-foreground/30 transition-transform ml-auto",
+                                    "h-3 w-3 text-muted-foreground/30 transition-transform ms-auto",
                                     isExpanded && "rotate-90"
                                   )} />
                                 </div>

@@ -886,33 +886,36 @@ export function AIPanel() {
           </div>
         ))}
 
-      {/* Input */}
-      <div className="border-t border-border shrink-0">
-        <ComposerInput
-          composer={composer}
-          placeholder={
-            currentPath
-              ? "use @ to mention agents, skills & pages"
-              : "Select a page first..."
-          }
-          disabled={!currentPath}
-          variant="inline"
-          minHeight="56px"
-          maxHeight="160px"
-          items={mentionItems}
-          showKeyHint={false}
-          autoFocus={isOpen}
-          actionsStart={
-            <>
-              <AgentPicker
-                agents={agentPickerOptions}
-                selectedSlug={pickedAgentSlug}
-                onSelect={setPickedAgentSlug}
-              />
-              <TaskRuntimePicker value={taskRuntime} onChange={setTaskRuntime} />
-            </>
-          }
-        />
+      {/* Composer — no divider line; the whole input + its controls sit
+          in a rounded, theme-tinted surface that floats off the panel. */}
+      <div className="shrink-0 p-3">
+        <div className="rounded-2xl bg-muted/50 ring-1 ring-border/50">
+          <ComposerInput
+            composer={composer}
+            placeholder={
+              currentPath
+                ? "use @ to mention agents, skills & pages"
+                : "Select a page first..."
+            }
+            disabled={!currentPath}
+            variant="inline"
+            minHeight="56px"
+            maxHeight="160px"
+            items={mentionItems}
+            showKeyHint={false}
+            autoFocus={isOpen}
+            actionsStart={
+              <>
+                <AgentPicker
+                  agents={agentPickerOptions}
+                  selectedSlug={pickedAgentSlug}
+                  onSelect={setPickedAgentSlug}
+                />
+                <TaskRuntimePicker value={taskRuntime} onChange={setTaskRuntime} />
+              </>
+            }
+          />
+        </div>
       </div>
     </>
   );

@@ -110,7 +110,7 @@ export function WhatsNewCard() {
   if (!show || !release) return null;
 
   return (
-    <div className="pointer-events-auto fixed right-4 bottom-12 z-40 w-[360px] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-3 shadow-2xl ring-1 ring-foreground/10">
+    <div className="pointer-events-auto fixed end-4 bottom-12 z-40 w-[360px] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-3 shadow-2xl ring-1 ring-foreground/10">
       <div className="flex items-start gap-2">
         <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
         <div className="flex flex-1 flex-col gap-1">

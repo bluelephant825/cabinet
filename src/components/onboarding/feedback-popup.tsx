@@ -144,7 +144,7 @@ interface PopupProps {
 }
 
 function FeedbackForm({ trigger, launchCount, onClose }: PopupProps) {
-  const { t } = useLocale();
+  const { t, dir } = useLocale();
   const [rating, setRating] = useState<number>(0);
   const [q1, setQ1] = useState("");
   const [q2, setQ2] = useState("");
@@ -299,7 +299,7 @@ function FeedbackForm({ trigger, launchCount, onClose }: PopupProps) {
             key={i}
             className="absolute select-none"
             style={{
-              left: `${e.x}%`,
+              [dir === "rtl" ? "right" : "left"]: `${e.x}%`,
               top: `${e.y}%`,
               fontSize: e.size,
               transform: `rotate(${e.rotate}deg)`,

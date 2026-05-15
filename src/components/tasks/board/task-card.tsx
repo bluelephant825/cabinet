@@ -65,7 +65,7 @@ export function TaskCard({
           onRefresh={onRefresh}
           className={cn(
             "absolute z-10",
-            compact ? "right-1.5 top-1.5" : "right-2 top-2"
+            compact ? "end-1.5 top-1.5" : "end-2 top-2"
           )}
         />
       ) : null}
@@ -79,12 +79,12 @@ export function TaskCard({
       // separately readable but no longer inflate the card's name.
       aria-label={task.title}
       className={cn(
-        "relative w-full rounded-md border bg-card text-left transition-all",
+        "relative w-full rounded-md border bg-card text-start transition-all",
         "hover:border-foreground/30 hover:shadow-sm",
         compact ? "px-2 py-1.5" : "p-3",
         isActive ? "border-foreground/50 shadow-sm" : "border-border/60",
         isTerminal &&
-          "border-l-2 border-l-emerald-500/60 bg-[linear-gradient(to_right,rgba(16,185,129,0.035),transparent_30%)]"
+          "border-s-2 border-s-emerald-500/60 bg-[linear-gradient(to_right,rgba(16,185,129,0.035),transparent_30%)] rtl:bg-[linear-gradient(to_left,rgba(16,185,129,0.035),transparent_30%)]"
       )}
     >
       <div className="flex items-start gap-2">
@@ -95,7 +95,7 @@ export function TaskCard({
           title={task.title}
           className={cn(
             "flex-1 leading-snug text-foreground",
-            compact ? "line-clamp-1 text-[12px] pr-14" : "line-clamp-2 text-[13px] pr-[88px]"
+            compact ? "line-clamp-1 text-[12px] pe-14" : "line-clamp-2 text-[13px] pe-[88px]"
           )}
         >
           {task.title}
@@ -164,7 +164,7 @@ export function TaskCard({
             PTY
           </span>
         )}
-        <span className="ml-auto whitespace-nowrap tabular-nums">
+        <span className="ms-auto whitespace-nowrap tabular-nums">
           {relTime(lastActivity, now)}
         </span>
       </div>

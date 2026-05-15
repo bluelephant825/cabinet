@@ -219,7 +219,7 @@ export function WorkspaceGallery({ onClose }: { onClose: () => void }) {
                         <span>{formatSize(item.size)}</span>
                       </>
                     ) : null}
-                    <span className={cn("ml-auto px-1.5 py-0.5 rounded text-[9px] uppercase font-medium tracking-wider", config.bg, config.color)}>
+                    <span className={cn("ms-auto px-1.5 py-0.5 rounded text-[9px] uppercase font-medium tracking-wider", config.bg, config.color)}>
                       {config.label}
                     </span>
                   </div>

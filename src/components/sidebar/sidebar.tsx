@@ -181,7 +181,7 @@ export function Sidebar() {
             <NavArrows />
             <button
               onClick={() => setSection({ type: "home" })}
-              className="group ml-1 flex items-center gap-1.5 rounded px-1 font-logo text-[22px] italic tracking-[-0.01em] text-foreground hover:text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
+              className="group ms-1 flex items-center gap-1.5 rounded px-1 font-logo text-[22px] italic tracking-[-0.01em] text-foreground hover:text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
               title={t("sidebar:goHome")}
               aria-label={t("sidebar:goHome")}
             >
@@ -290,7 +290,7 @@ export function Sidebar() {
             title={t("sidebar:resetWidth")}
             onPointerDown={startResize}
             onDoubleClick={() => setSidebarWidth(SIDEBAR_DEFAULT_WIDTH)}
-            className="absolute inset-y-0 left-1/2 w-3 -translate-x-1/2 cursor-col-resize bg-transparent"
+            className="absolute inset-y-0 inset-x-0 mx-auto w-3 cursor-col-resize bg-transparent"
           />
         </div>
       )}

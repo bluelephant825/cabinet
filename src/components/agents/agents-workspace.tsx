@@ -1954,7 +1954,7 @@ export function AgentsWorkspace({
                     : "bg-card"
                 )}
               >
-                <div className="absolute right-3 top-3 flex items-center gap-2">
+                <div className="absolute end-3 top-3 flex items-center gap-2">
                   <ActivityBeacon active={isAgentWorking(orgRoot)} />
                   {chiefAgent ? (
                     <div
@@ -2833,7 +2833,7 @@ export function AgentsWorkspace({
                   <span className="text-muted-foreground">{groupedOrgAgents.length === 1 ? "department" : "departments"}</span>
                 </span>
               </div>
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ms-auto flex items-center gap-2">
                 <DepthDropdown
                   mode={effectiveVisibilityMode}
                   onChange={(mode) => {
@@ -2903,7 +2903,7 @@ export function AgentsWorkspace({
                       onClick={dismissIntro}
                       title={t("agents:workspace.hideIntro")}
                       aria-label={t("agents:workspace.hideIntro")}
-                      className="absolute right-0 top-1 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+                      className="absolute end-0 top-1 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <X className="size-4" />
                     </button>

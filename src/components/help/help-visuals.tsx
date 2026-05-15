@@ -220,10 +220,10 @@ export function CabinetsVisual() {
     <Stage>
       <div className="flex flex-col gap-2" style={{ width: 280 }}>
         <CabinetRow label={t("helpVisuals:cabinet")} emphasis />
-        <div className="ml-5 space-y-1.5">
+        <div className="ms-5 space-y-1.5">
           <CabinetRow label={t("helpVisuals:marketing")} sub />
           <CabinetRow label={t("helpVisuals:product")} sub />
-          <div className="ml-5 space-y-1.5">
+          <div className="ms-5 space-y-1.5">
             <CabinetRow label={t("helpVisuals:research")} muted />
             <CabinetRow label={t("helpVisuals:design")} muted />
           </div>
@@ -338,7 +338,7 @@ export function ConversationsVisual() {
         </div>
         <div className="space-y-2 px-3 pb-3">
           <div
-            className="rounded-lg rounded-bl-sm px-3 py-2 text-[10px] leading-relaxed"
+            className="rounded-lg rounded-es-sm px-3 py-2 text-[10px] leading-relaxed"
             style={{
               background: P.paperWarm,
               color: P.textSecondary,
@@ -348,7 +348,7 @@ export function ConversationsVisual() {
             {t("helpVisuals:userQuery")}
           </div>
           <div
-            className="ml-4 rounded-lg rounded-br-sm px-3 py-2 text-[10px] leading-relaxed"
+            className="ms-4 rounded-lg rounded-ee-sm px-3 py-2 text-[10px] leading-relaxed"
             style={{
               background: P.accentBg,
               color: P.text,

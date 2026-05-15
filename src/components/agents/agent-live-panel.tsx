@@ -23,6 +23,7 @@ import {
 } from "@/stores/ai-panel-store";
 import type { AgentPersona, HeartbeatRecord } from "@/lib/agents/persona-manager";
 import { useLocale } from "@/i18n/use-locale";
+import { DirIcon } from "@/components/ui/dir-icon";
 
 interface AgentLivePanelProps {
   persona: AgentPersona;
@@ -150,7 +151,7 @@ export function AgentLivePanel({ persona, onBack }: AgentLivePanelProps) {
             className="h-7 w-7 -ml-1"
             onClick={onBack}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <DirIcon ltr={ChevronLeft} rtl={ChevronRight} className="h-4 w-4" />
           </Button>
           <Bot className="h-4 w-4 text-primary" />
           <span className="text-[13px] font-semibold tracking-[-0.02em]">
@@ -233,7 +234,7 @@ export function AgentLivePanel({ persona, onBack }: AgentLivePanelProps) {
                     {expandedPast.has(hb.timestamp) ? (
                       <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
                     ) : (
-                      <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0 rtl:rotate-180" />
                     )}
                     {hb.status === "completed" ? (
                       <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />

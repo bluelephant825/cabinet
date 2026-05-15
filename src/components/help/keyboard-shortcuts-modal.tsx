@@ -132,7 +132,7 @@ export function KeyboardShortcutsModal() {
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
         <Dialog.Popup
           className={cn(
-            "fixed left-1/2 top-[12%] z-50 -translate-x-1/2",
+            "fixed start-1/2 top-[12%] z-50 -translate-x-1/2 rtl:translate-x-1/2",
             "w-[min(620px,calc(100vw-2rem))] max-h-[78vh]",
             "flex flex-col overflow-hidden rounded-xl bg-background text-sm shadow-2xl ring-1 ring-foreground/10 outline-none",
             "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
@@ -141,15 +141,15 @@ export function KeyboardShortcutsModal() {
           <Dialog.Title className="sr-only">{t("keyboardShortcuts:title")}</Dialog.Title>
           <div className="flex items-center gap-2 border-b border-border px-3 py-2">
             <span className="text-[13px] font-semibold">{t("keyboardShortcuts:title")}</span>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ms-auto flex items-center gap-2">
               <div className="relative">
-                <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                <SearchIcon className="pointer-events-none absolute start-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={t("keyboardShortcuts:filterPlaceholder")}
-                  className="h-7 w-44 rounded-md border border-border bg-background pl-6 pr-2 text-[12px] outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
+                  className="h-7 w-44 rounded-md border border-border bg-background ps-6 pe-2 text-[12px] outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
                   spellCheck={false}
                 />
               </div>

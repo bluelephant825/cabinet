@@ -6,6 +6,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DirIcon } from "@/components/ui/dir-icon";
 import {
   ScheduleCalendar,
   type CalendarMode,
@@ -113,7 +114,7 @@ export function ScheduleView({
             onClick={() => navigate(-1)}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
           >
-            <ChevronLeft className="size-4" />
+            <DirIcon ltr={ChevronLeft} rtl={ChevronRight} className="size-4" />
           </button>
           <button
             type="button"
@@ -127,7 +128,7 @@ export function ScheduleView({
             onClick={() => navigate(1)}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
           >
-            <ChevronRight className="size-4" />
+            <DirIcon ltr={ChevronRight} rtl={ChevronLeft} className="size-4" />
           </button>
         </div>
 

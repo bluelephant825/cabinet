@@ -410,7 +410,7 @@ export function PulseStrip({ metrics, onAlertClick, onGoalClick, onPlaybookClick
             <span>{ticker.emoji} </span>
             <span>{ticker.text}</span>
           </span>
-          <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums ml-auto">
+          <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums ms-auto">
             {ticker.time}
           </span>
         </div>

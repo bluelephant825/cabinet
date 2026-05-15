@@ -240,8 +240,8 @@ function HorizontalBranch({ count }: { count: number }) {
       <div
         className="absolute top-0 h-px"
         style={{
-          left: `${edgeInset}%`,
-          right: `${edgeInset}%`,
+          insetInlineStart: `${edgeInset}%`,
+          insetInlineEnd: `${edgeInset}%`,
           backgroundColor: CONNECTOR_COLOR,
         }}
       />
@@ -250,7 +250,7 @@ function HorizontalBranch({ count }: { count: number }) {
           key={index}
           className="absolute top-0 w-px"
           style={{
-            left: `${edgeInset + index * spacing}%`,
+            insetInlineStart: `${edgeInset + index * spacing}%`,
             height: 16,
             backgroundColor: CONNECTOR_COLOR,
           }}

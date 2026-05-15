@@ -136,7 +136,7 @@ export function SkillCatalogBrowser({ onPick }: SkillCatalogBrowserProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
         <input
           type="text"
           value={query}
@@ -144,12 +144,12 @@ export function SkillCatalogBrowser({ onPick }: SkillCatalogBrowserProps) {
           placeholder={t("skillCatalog:searchPlaceholder")}
           autoFocus
           className={cn(
-            "w-full text-xs pl-9 pr-9 py-2 bg-card border border-border rounded-md",
+            "w-full text-xs ps-9 pe-9 py-2 bg-card border border-border rounded-md",
             "focus:outline-none focus:ring-2 focus:ring-ring",
           )}
         />
         {loading && (
-          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 size-3.5 animate-spin text-muted-foreground" />
+          <Loader2 className="absolute end-3 top-1/2 -translate-y-1/2 size-3.5 animate-spin text-muted-foreground" />
         )}
       </div>
 

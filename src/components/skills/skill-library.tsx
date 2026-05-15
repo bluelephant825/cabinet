@@ -178,7 +178,7 @@ function SkillCard({
             scripts
           </div>
         )}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ms-auto flex items-center gap-3">
           {skill.allowedTools.length > 0 && (
             <div
               className="text-[10px] text-muted-foreground truncate min-w-0"
@@ -370,7 +370,7 @@ export function SkillLibrary({ cabinetPath }: SkillLibraryProps = {}) {
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
           </Button>
           <Button size="sm" onClick={() => setAddOpen(true)}>
-            <Plus className="size-3.5 mr-1" />
+            <Plus className="size-3.5 me-1" />
             Add Skill
           </Button>
         </div>
@@ -415,7 +415,7 @@ export function SkillLibrary({ cabinetPath }: SkillLibraryProps = {}) {
                 Discoverable in your workspace ({discovered.length}) — click to import
               </button>
               {discoverOpen && (
-                <div className="flex flex-col gap-1.5 mt-1 pl-2 border-l border-border">
+                <div className="flex flex-col gap-1.5 mt-1 ps-2 border-s border-border">
                   {discovered.map((entry) => {
                     const state = discoverState[entry.path] ?? { status: "idle" };
                     const isImporting = state.status === "importing";
@@ -451,9 +451,9 @@ export function SkillLibrary({ cabinetPath }: SkillLibraryProps = {}) {
                           className="shrink-0 h-7"
                         >
                           {isImporting ? (
-                            <Loader2 className="size-3 mr-1 animate-spin" />
+                            <Loader2 className="size-3 me-1 animate-spin" />
                           ) : isImported ? (
-                            <Check className="size-3 mr-1" />
+                            <Check className="size-3 me-1" />
                           ) : null}
                           {isImported ? t("skillLibrary:imported") : isImporting ? t("skillLibrary:importing") : t("skillLibrary:import")}
                         </Button>
@@ -480,7 +480,7 @@ export function SkillLibrary({ cabinetPath }: SkillLibraryProps = {}) {
                 Also available from your local install ({system.length})
               </button>
               {systemOpen && (
-                <div className="flex flex-col gap-2 mt-1 pl-2 border-l border-border">
+                <div className="flex flex-col gap-2 mt-1 ps-2 border-s border-border">
                   {system.map((entry) => (
                     <SkillCard
                       key={entry.path}

@@ -142,7 +142,7 @@ function ActionRuntimePicker({
         />
         <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto">
           <DropdownMenuItem onClick={() => setModel(undefined)}>
-            <span className="mr-2 inline-flex size-3 items-center justify-center">
+            <span className="me-2 inline-flex size-3 items-center justify-center">
               {!override?.model ? "✓" : ""}
             </span>
             Use default
@@ -152,7 +152,7 @@ function ActionRuntimePicker({
               key={model.id}
               onClick={() => setModel(model.id)}
             >
-              <span className="mr-2 inline-flex size-3 items-center justify-center">
+              <span className="me-2 inline-flex size-3 items-center justify-center">
                 {current.model === model.id ? "✓" : ""}
               </span>
               <span className="truncate">{model.name || model.id}</span>
@@ -184,7 +184,7 @@ function ActionRuntimePicker({
         />
         <DropdownMenuContent align="start" className="max-h-72 w-48 overflow-y-auto">
           <DropdownMenuItem onClick={() => setEffort(undefined)}>
-            <span className="mr-2 inline-flex size-3 items-center justify-center">
+            <span className="me-2 inline-flex size-3 items-center justify-center">
               {!override?.effort ? "✓" : ""}
             </span>
             Use default
@@ -194,7 +194,7 @@ function ActionRuntimePicker({
               key={effort.id}
               onClick={() => setEffort(effort.id)}
             >
-              <span className="mr-2 inline-flex size-3 items-center justify-center">
+              <span className="me-2 inline-flex size-3 items-center justify-center">
                 {current.effort === effort.id ? "✓" : ""}
               </span>
               <span className="truncate">

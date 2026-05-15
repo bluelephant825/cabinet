@@ -1565,7 +1565,7 @@ const STEP_NAMES: Record<number, string> = {
 };
 
 export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
-  const { t, locale } = useLocale();
+  const { t, locale, dir } = useLocale();
   const welcomeParagraph = t("onboarding:welcome.paragraph");
   const [step, setStep] = useState(0);
 
@@ -2198,7 +2198,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                         aria-hidden="true"
                         className="pointer-events-none absolute transition-opacity duration-300"
                         style={{
-                          right: -40,
+                          [dir === "rtl" ? "left" : "right"]: -40,
                           bottom: -40,
                           width: 190,
                           height: 190,
@@ -2771,7 +2771,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                         className={`waitlist-cloud-row absolute ${cloud.reverse ? "waitlist-cloud-row-reverse" : ""}`}
                         style={{
                           top: cloud.top,
-                          left: cloud.left,
+                          insetInlineStart: cloud.left,
                           opacity: cloud.opacity,
                           ["--cloud-row-duration" as string]: cloud.duration,
                           animationDelay: cloud.delay,

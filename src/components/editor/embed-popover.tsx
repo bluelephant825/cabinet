@@ -6,7 +6,7 @@ import { Sparkles, Globe } from "lucide-react";
 import { useLocale } from "@/i18n/use-locale";
 
 interface Props {
-  anchor: { top: number; left: number };
+  anchor: { top: number; left?: number; right?: number };
   onCancel: () => void;
   onInsert: (url: string) => void;
 }
@@ -32,7 +32,7 @@ export function EmbedPopover({ anchor, onCancel, onInsert }: Props) {
   return (
     <div
       className="absolute z-50 w-[420px] bg-popover border border-border rounded-lg shadow-xl overflow-hidden"
-      style={{ top: anchor.top, left: anchor.left }}
+      style={{ top: anchor.top, left: anchor.left, right: anchor.right }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
@@ -78,7 +78,7 @@ export function EmbedPopover({ anchor, onCancel, onInsert }: Props) {
             type="button"
             onClick={insert}
             disabled={!detected}
-            className="ml-auto px-2.5 py-1 text-[11px] rounded-md bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90"
+            className="ms-auto px-2.5 py-1 text-[11px] rounded-md bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90"
           >
             Insert
           </button>

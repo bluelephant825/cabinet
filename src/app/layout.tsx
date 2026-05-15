@@ -3,12 +3,16 @@ import { Inter, JetBrains_Mono, Instrument_Serif, Cardo } from "next/font/google
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeInitializer } from "@/components/layout/theme-initializer";
 import { LocaleInitializer } from "@/components/layout/locale-initializer";
+import { LocaleDirectionProvider } from "@/components/layout/locale-direction-provider";
 import "./globals.css";
 
 // Runs before hydration so RTL/LTR + lang are applied to <html> on first paint.
 // Mirrors next-themes' inline-script pattern. Keep this minified-ish; it ships
 // inline in every page load.
-const localeBootstrap = `(function(){try{var l=localStorage.getItem('cabinet-locale');if(l!=='en'&&l!=='he')l='en';var d=l==='he'?'rtl':'ltr';document.documentElement.lang=l;document.documentElement.dir=d;}catch(e){}})();`;
+// Keep the supported set + RTL prefixes in sync with src/i18n/index.ts
+// (SUPPORTED_LOCALES, RTL_LOCALE_PREFIXES). Inlined here because this runs
+// pre-hydration and can't import from the bundle.
+const localeBootstrap = `(function(){try{var S=['en','he','zh-CN','zh-TW'],R=['he','ar','fa','ps','ur'];var l=localStorage.getItem('cabinet-locale');if(S.indexOf(l)<0)l='en';var d=R.indexOf(String(l).toLowerCase().split('-')[0])>=0?'rtl':'ltr';document.documentElement.lang=l;document.documentElement.dir=d;}catch(e){}})();`;
 
 const inter = Inter({
   variable: "--font-sans",
@@ -69,7 +73,7 @@ export default function RootLayout({
         >
           <LocaleInitializer />
           <ThemeInitializer />
-          {children}
+          <LocaleDirectionProvider>{children}</LocaleDirectionProvider>
         </ThemeProvider>
       </body>
     </html>

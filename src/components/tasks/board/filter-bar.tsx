@@ -68,7 +68,7 @@ export function TriggerChip({
       {count != null && (
         <span
           className={cn(
-            "ml-0.5 tabular-nums",
+            "ms-0.5 tabular-nums",
             active ? "opacity-75" : "opacity-60"
           )}
         >
@@ -178,7 +178,7 @@ export function AgentFilterDropdown({
                 >
                   {agent.displayName ?? agent.name}
                   {!agent.active && (
-                    <span className="ml-1 text-[10px] text-muted-foreground/70">
+                    <span className="ms-1 text-[10px] text-muted-foreground/70">
                       (paused)
                     </span>
                   )}

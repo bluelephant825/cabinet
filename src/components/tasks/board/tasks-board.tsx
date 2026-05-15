@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   ArrowRightLeft,
   ChevronDown,
   Loader2,
@@ -12,6 +13,7 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
+import { DirIcon } from "@/components/ui/dir-icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -257,18 +259,18 @@ export function TasksBoard({
             href="/"
             className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <ArrowLeft className="size-4" />
+            <DirIcon ltr={ArrowLeft} rtl={ArrowRight} className="size-4" />
           </Link>
         )}
         <h1 className="text-[14px] font-semibold tracking-tight">{t("tasksBoard:title")}</h1>
         {refreshing && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
-        <div className="ml-4 flex items-center gap-2">
+        <div className="ms-4 flex items-center gap-2">
           <ViewToggle value={view} onChange={setView} />
           <DensityToggle value={density} onChange={setDensity} />
         </div>
 
         {/* right-side: depth, trigger, selection */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ms-auto flex items-center gap-2">
           {/* visibility depth dropdown */}
           <DepthDropdown
             mode={visibilityMode}
@@ -566,7 +568,7 @@ export function TasksBoard({
               density={density}
             />
             {selection.has(draggedTask.id) && selection.size > 1 && (
-              <span className="absolute -right-2 -top-2 inline-flex size-6 items-center justify-center rounded-full border border-border/60 bg-foreground text-[11px] font-semibold text-background shadow-md">
+              <span className="absolute -end-2 -top-2 inline-flex size-6 items-center justify-center rounded-full border border-border/60 bg-foreground text-[11px] font-semibold text-background shadow-md">
                 {selection.size}
               </span>
             )}

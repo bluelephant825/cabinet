@@ -358,7 +358,7 @@ export function TreeView() {
         {typeof opts.activeDot === "boolean" && (
           <span
             className={cn(
-              "ml-auto h-1.5 w-1.5 shrink-0 rounded-full",
+              "ms-auto h-1.5 w-1.5 shrink-0 rounded-full",
               opts.activeDot ? "bg-green-500" : "bg-muted-foreground/30"
             )}
           />
@@ -374,7 +374,7 @@ export function TreeView() {
         <ContextMenuTrigger>{row}</ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={() => setEditingAgent(editable)}>
-            <Pencil className="mr-2 h-3.5 w-3.5" />
+            <Pencil className="me-2 h-3.5 w-3.5" />
             Edit agent
           </ContextMenuItem>
         </ContextMenuContent>
@@ -389,7 +389,7 @@ export function TreeView() {
 
   return (
     <>
-    <ScrollArea className="flex-1 min-h-0 [&_[data-slot=scroll-area-scrollbar]]:w-1.5 [&_[data-slot=scroll-area-scrollbar]]:py-0 [&_[data-slot=scroll-area-scrollbar]]:pr-0 [&_[data-slot=scroll-area-scrollbar]]:pl-0.5 [&_[data-slot=scroll-area-scrollbar]]:border-l-0">
+    <ScrollArea className="flex-1 min-h-0 [&_[data-slot=scroll-area-scrollbar]]:w-1.5 [&_[data-slot=scroll-area-scrollbar]]:py-0 [&_[data-slot=scroll-area-scrollbar]]:pe-0 [&_[data-slot=scroll-area-scrollbar]]:ps-0.5 [&_[data-slot=scroll-area-scrollbar]]:border-s-0">
       <div className="flex min-h-full flex-col py-1">
         {/* ── Back to parent cabinet ────────────────────── */}
         {activeCabinet && parentCabinet ? (
@@ -431,16 +431,16 @@ export function TreeView() {
           <ContextMenuContent>
             <ContextMenuItem disabled className="flex-col items-start gap-0">
               <span className="flex items-center">
-                <Pencil className="h-4 w-4 mr-2" />
+                <Pencil className="h-4 w-4 me-2" />
                 Rename
               </span>
-              <span className="text-[10px] text-muted-foreground/60 ml-6">
+              <span className="text-[10px] text-muted-foreground/60 ms-6">
                 Coming soon
               </span>
             </ContextMenuItem>
             {cabinetPath !== ROOT_CABINET_PATH && (
               <ContextMenuItem onClick={() => navigator.clipboard.writeText(cabinetPath)}>
-                <Copy className="h-4 w-4 mr-2" />
+                <Copy className="h-4 w-4 me-2" />
                 Copy Relative Path
               </ContextMenuItem>
             )}
@@ -450,7 +450,7 @@ export function TreeView() {
                 cabinetPath === ROOT_CABINET_PATH ? dir : `${dir}/${cabinetPath}`
               );
             }}>
-              <ClipboardCopy className="h-4 w-4 mr-2" />
+              <ClipboardCopy className="h-4 w-4 me-2" />
               Copy Full Path
             </ContextMenuItem>
             <ContextMenuItem onClick={() => {
@@ -462,7 +462,7 @@ export function TreeView() {
                 }),
               });
             }}>
-              <FolderOpen className="h-4 w-4 mr-2" />
+              <FolderOpen className="h-4 w-4 me-2" />
               Open in Finder
             </ContextMenuItem>
             {cabinetPath !== ROOT_CABINET_PATH && (
@@ -472,7 +472,7 @@ export function TreeView() {
                   className="text-destructive"
                   onClick={() => setCabinetDeleteOpen(true)}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
+                  <Trash2 className="h-4 w-4 me-2" />
                   Delete
                 </ContextMenuItem>
               </>
@@ -486,7 +486,7 @@ export function TreeView() {
               setCabinetVisibilityMode(effectiveCabinetPath, mode)
             }
             compact
-            className="ml-auto"
+            className="ms-auto"
           />
         </div>
 
@@ -604,7 +604,7 @@ export function TreeView() {
                         <span
                           aria-hidden
                           className={cn(
-                            "absolute left-1/2 top-1 h-[2px] w-4 -translate-x-1/2 rounded-full transition-colors",
+                            "absolute inset-x-0 top-1 mx-auto h-[2px] w-4 rounded-full transition-colors",
                             active ? "bg-amber-400/50" : "bg-muted-foreground/30"
                           )}
                         />
@@ -628,7 +628,7 @@ export function TreeView() {
                           }}
                           title={drawer.addLabel}
                           aria-label={drawer.addLabel}
-                          className="absolute right-1 top-1 inline-flex size-4 items-center justify-center rounded text-muted-foreground/70 opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                          className="absolute end-1 top-1 inline-flex size-4 items-center justify-center rounded text-muted-foreground/70 opacity-0 transition-opacity duration-150 hover:bg-muted hover:text-foreground group-hover:opacity-100"
                         >
                           <AddIcon className="h-3 w-3" />
                         </button>
@@ -707,7 +707,7 @@ export function TreeView() {
                       }, 100);
                     }}
                   >
-                    <UserPlus className="h-4 w-4 mr-2" />
+                    <UserPlus className="h-4 w-4 me-2" />
                     New Agent
                   </ContextMenuItem>
                 </ContextMenuContent>
@@ -744,7 +744,7 @@ export function TreeView() {
                       }, 100);
                     }}
                   >
-                    <ListPlus className="h-4 w-4 mr-2" />
+                    <ListPlus className="h-4 w-4 me-2" />
                     New Task
                   </ContextMenuItem>
                 </ContextMenuContent>
@@ -795,11 +795,11 @@ export function TreeView() {
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem onClick={() => setKbSubPageOpen(true)}>
-                    <FilePlus className="h-4 w-4 mr-2" />
+                    <FilePlus className="h-4 w-4 me-2" />
                     Add Sub Page
                   </ContextMenuItem>
                   <ContextMenuItem onClick={() => setLinkRepoOpen(true)}>
-                    <GitBranch className="h-4 w-4 mr-2" />
+                    <GitBranch className="h-4 w-4 me-2" />
                     Load Knowledge
                   </ContextMenuItem>
                   <ContextMenuItem
@@ -810,7 +810,7 @@ export function TreeView() {
                       );
                     }}
                   >
-                    <ClipboardCopy className="h-4 w-4 mr-2" />
+                    <ClipboardCopy className="h-4 w-4 me-2" />
                     Copy Full Path
                   </ContextMenuItem>
                   <ContextMenuItem
@@ -822,7 +822,7 @@ export function TreeView() {
                       });
                     }}
                   >
-                    <FolderOpen className="h-4 w-4 mr-2" />
+                    <FolderOpen className="h-4 w-4 me-2" />
                     Open in Finder
                   </ContextMenuItem>
                 </ContextMenuContent>

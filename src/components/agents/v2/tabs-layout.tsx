@@ -74,10 +74,10 @@ function TopBar({
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
         )}
       </div>
-      <div className="order-3 w-full overflow-x-auto md:order-2 md:ml-2 md:w-auto md:overflow-visible">
+      <div className="order-3 w-full overflow-x-auto md:order-2 md:ms-2 md:w-auto md:overflow-visible">
         <TabStrip tab={tab} onTabChange={onTabChange} />
       </div>
-      <div className="order-2 ml-auto flex items-center gap-2 md:order-3">
+      <div className="order-2 ms-auto flex items-center gap-2 md:order-3">
         <DepthDropdown mode={visibilityMode} onChange={setVisibilityMode} />
         <Divider className="hidden md:block" />
         <button

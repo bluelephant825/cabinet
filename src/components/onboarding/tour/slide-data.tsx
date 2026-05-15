@@ -398,7 +398,7 @@ interface SlideDataProps {
 }
 
 export function SlideData({ sceneIdx, viewerRevealed }: SlideDataProps) {
-  const { t } = useLocale();
+  const { t, dir } = useLocale();
   const clampedIdx = Math.min(Math.max(sceneIdx, 0), SCENES.length - 1);
   const scene = SCENES[clampedIdx];
 
@@ -422,7 +422,7 @@ export function SlideData({ sceneIdx, viewerRevealed }: SlideDataProps) {
               style={
                 {
                   animation: "cabinet-tour-fade-in 0.35s ease-out",
-                  "--cursor-target-x": `${CURSOR_TARGET_X}px`,
+                  "--cursor-target-x": `${dir === "rtl" ? -CURSOR_TARGET_X : CURSOR_TARGET_X}px`,
                   "--cursor-target-y": `${cursorTargetY}px`,
                 } as CSSProperties
               }
@@ -494,7 +494,7 @@ export function SlideData({ sceneIdx, viewerRevealed }: SlideDataProps) {
                 className="pointer-events-none absolute rounded-full opacity-0"
                 style={{
                   top: `${cursorTargetY}px`,
-                  left: `${CURSOR_TARGET_X}px`,
+                  [dir === "rtl" ? "right" : "left"]: `${CURSOR_TARGET_X}px`,
                   width: "44px",
                   height: "44px",
                   background: P.accent,

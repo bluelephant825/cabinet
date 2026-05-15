@@ -9,7 +9,7 @@ import { useCallback, useRef, useState } from "react";
 import { useLocale } from "@/i18n/use-locale";
 
 export function TerminalTabs() {
-  const { t } = useLocale();
+  const { t, dir } = useLocale();
   const {
     terminalTabs,
     activeTerminalTab,
@@ -91,8 +91,16 @@ export function TerminalTabs() {
       const startX = e.clientX;
       const startWidth = width;
 
+      // In RTL the panel docks on the screen's left, so its resize handle
+      // is on the right (inner) edge — dragging toward the content (rightward,
+      // clientX increasing) must *grow* the panel, so flip the delta sign.
+      const dirSign = dir === "rtl" ? -1 : 1;
+
       const onMouseMove = (e: MouseEvent) => {
-        const newWidth = Math.max(250, Math.min(window.innerWidth * 0.5, startWidth + (startX - e.clientX)));
+        const newWidth = Math.max(
+          250,
+          Math.min(window.innerWidth * 0.5, startWidth + dirSign * (startX - e.clientX))
+        );
         setWidth(newWidth);
       };
 
@@ -108,7 +116,7 @@ export function TerminalTabs() {
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
-    [width]
+    [width, dir]
   );
 
   if (terminalTabs.length === 0) return null;
@@ -144,7 +152,7 @@ export function TerminalTabs() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 ml-1 text-muted-foreground hover:text-foreground"
+        className="h-6 w-6 ms-1 text-muted-foreground hover:text-foreground"
         onClick={() => addTerminalTab()}
         aria-label={t("terminalTabs:newTab")}
         title={t("terminalTabs:newTab")}
@@ -199,7 +207,7 @@ export function TerminalTabs() {
   if (terminalPosition === "right") {
     return (
       <div
-        className="flex flex-row h-full border-l border-border/70 bg-background shrink-0"
+        className="flex flex-row h-full border-s border-border/70 bg-background shrink-0"
         style={{ width: `${width}px` }}
       >
         {/* Audit #046: left-edge resize handle. Bumped from 1.5px to a

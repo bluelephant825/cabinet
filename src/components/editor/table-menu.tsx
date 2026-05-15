@@ -23,6 +23,7 @@ import {
 } from "@tiptap/pm/tables";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/i18n/use-locale";
+import { DirIcon } from "@/components/ui/dir-icon";
 
 interface TableMenuProps {
   editor: Editor | null;
@@ -69,6 +70,15 @@ function TableButton({
 
 function Separator() {
   return <div className="mx-1 h-5 w-px bg-border" />;
+}
+
+// "Move column toward start/end" — the physical arrow direction depends on
+// the UI direction, so swap the glyph in RTL (start is on the right).
+function MoveColumnStartIcon(props: { className?: string }) {
+  return <DirIcon ltr={ArrowLeft} rtl={ArrowRight} {...props} />;
+}
+function MoveColumnEndIcon(props: { className?: string }) {
+  return <DirIcon ltr={ArrowRight} rtl={ArrowLeft} {...props} />;
 }
 
 export function TableMenu({ editor }: TableMenuProps) {
@@ -180,13 +190,13 @@ export function TableMenu({ editor }: TableMenuProps) {
       />
       <TableButton
         label={t("editor:toolbar.table.moveColumnLeft")}
-        icon={ArrowLeft}
+        icon={MoveColumnStartIcon}
         disabled={!canMoveColumnLeft}
         onAction={() => moveColumn(-1)}
       />
       <TableButton
         label={t("editor:toolbar.table.moveColumnRight")}
-        icon={ArrowRight}
+        icon={MoveColumnEndIcon}
         disabled={!canMoveColumnRight}
         onAction={() => moveColumn(1)}
       />

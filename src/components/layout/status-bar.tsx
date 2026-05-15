@@ -459,7 +459,7 @@ export function StatusBar() {
           the pill so the narrow input stays readable; the same value is sent
           in the createConversation call (terminal mode swaps to legacy PTY). */}
       {showAIPill && (
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-auto">
+        <div className="absolute inset-x-0 mx-auto w-fit flex items-center gap-1.5 pointer-events-auto">
           <TaskRuntimePicker
             value={aiRuntime}
             onChange={setAiRuntime}
@@ -552,7 +552,7 @@ export function StatusBar() {
             </span>
           </button>
           {showServerPopup && (
-            <div className={`absolute bottom-full left-0 mb-2 z-50 w-80 rounded-lg border bg-background p-3 shadow-lg ${
+            <div className={`absolute bottom-full start-0 mb-2 z-50 w-80 rounded-lg border bg-background p-3 shadow-lg ${
               appAlive && daemonAlive && anyProviderReady
                 ? "border-green-500/30"
                 : !appAlive
@@ -860,7 +860,7 @@ export function StatusBar() {
               : t("status:git2.allCommitted")}
           </button>
           {showUncommittedPopup && uncommitted > 0 && (
-            <div className="absolute bottom-full left-0 mb-2 z-50 w-80 rounded-lg border border-border bg-background p-2 shadow-lg">
+            <div className="absolute bottom-full start-0 mb-2 z-50 w-80 rounded-lg border border-border bg-background p-2 shadow-lg">
               <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border/60 pb-1.5">
                 <span className="text-[11px] font-medium text-foreground/80">
                   {uncommitted} uncommitted file{uncommitted === 1 ? "" : "s"}
@@ -1037,7 +1037,7 @@ export function StatusBar() {
           )}
         </button>
         {showCommunityPopup && (
-          <div className="absolute bottom-full right-0 mb-2 z-50 w-64 rounded-lg border border-border bg-background p-1.5 shadow-lg">
+          <div className="absolute bottom-full end-0 mb-2 z-50 w-64 rounded-lg border border-border bg-background p-1.5 shadow-lg">
             <button
               type="button"
               onClick={() => {

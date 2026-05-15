@@ -5,7 +5,7 @@ import { Link as LinkIcon, ExternalLink, Trash2 } from "lucide-react";
 import { useLocale } from "@/i18n/use-locale";
 
 interface Props {
-  anchor: { top: number; left: number };
+  anchor: { top: number; left?: number; right?: number };
   initialUrl?: string;
   onCancel: () => void;
   onApply: (url: string) => void;
@@ -36,7 +36,7 @@ export function LinkPopover({ anchor, initialUrl = "", onCancel, onApply, onRemo
   return (
     <div
       className="absolute z-50 w-[340px] bg-popover border border-border rounded-lg shadow-xl overflow-hidden"
-      style={{ top: anchor.top, left: anchor.left }}
+      style={{ top: anchor.top, left: anchor.left, right: anchor.right }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">

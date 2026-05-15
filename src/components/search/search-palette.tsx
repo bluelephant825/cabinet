@@ -510,13 +510,13 @@ export function SearchPalette() {
               );
             })}
             {results && !results.indexReady && (
-              <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span className="ms-auto flex items-center gap-1 text-[11px] text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Indexing…
               </span>
             )}
             {results?.tookMs != null && query && hasAnyResults && (
-              <span className="ml-auto text-[11px] text-muted-foreground tabular-nums">
+              <span className="ms-auto text-[11px] text-muted-foreground tabular-nums">
                 {results.tookMs} ms
               </span>
             )}
@@ -854,7 +854,7 @@ function Row({
             {highlight(title, query)}
           </span>
           {badgeText && (
-            <span className="ml-auto rounded bg-muted px-1.5 py-[1px] text-[10px] tabular-nums text-muted-foreground">
+            <span className="ms-auto rounded bg-muted px-1.5 py-[1px] text-[10px] tabular-nums text-muted-foreground">
               {badgeText}
             </span>
           )}

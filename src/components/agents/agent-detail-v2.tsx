@@ -102,6 +102,7 @@ import { editorExtensions } from "@/components/editor/extensions";
 import { markdownToHtml } from "@/lib/markdown/to-html";
 import { htmlToMarkdown } from "@/lib/markdown/to-markdown";
 import { useLocale } from "@/i18n/use-locale";
+import { DirIcon } from "@/components/ui/dir-icon";
 
 interface AgentJob {
   id: string;
@@ -477,7 +478,7 @@ function TopBar({
           onClick={onBack}
           className="flex items-center gap-1 rounded-md px-2 py-1 hover:bg-accent hover:text-foreground transition-colors"
         >
-          <ArrowLeft className="h-3 w-3" />
+          <DirIcon ltr={ArrowLeft} rtl={ArrowRight} className="h-3 w-3" />
           Agents
         </button>
         <span aria-hidden>/</span>
@@ -598,7 +599,7 @@ function TopBar({
           />
           <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuItem onClick={onToggleCanDispatch}>
-              <span className="mr-2 inline-flex size-4 items-center justify-center font-mono text-[11px]">
+              <span className="me-2 inline-flex size-4 items-center justify-center font-mono text-[11px]">
                 {(
                   typeof persona.canDispatch === "boolean"
                     ? persona.canDispatch
@@ -611,7 +612,7 @@ function TopBar({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onExport}>
-              <Download className="h-3.5 w-3.5 mr-2" />
+              <Download className="h-3.5 w-3.5 me-2" />
               Export persona
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -619,7 +620,7 @@ function TopBar({
               onClick={onDelete}
               className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
             >
-              <Trash2 className="h-3.5 w-3.5 mr-2" />
+              <Trash2 className="h-3.5 w-3.5 me-2" />
               Delete agent
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -700,7 +701,7 @@ function AvatarEditorPopover({
   return (
     <div
       ref={ref}
-      className="absolute top-full left-0 mt-2 z-50 w-72 rounded-xl border border-border bg-popover shadow-xl"
+      className="absolute top-full start-0 mt-2 z-50 w-72 rounded-xl border border-border bg-popover shadow-xl"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Tab bar */}
@@ -713,7 +714,7 @@ function AvatarEditorPopover({
             className={cn(
               "flex-1 py-2 text-[12px] font-medium transition-colors relative",
               tab === t
-                ? "text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary"
+                ? "text-foreground after:absolute after:bottom-0 after:inset-inline-0 after:h-0.5 after:bg-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -1266,7 +1267,7 @@ function ConversationsSection({
             onClick={onSeeAll}
             className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
           >
-            See all <ArrowRight className="h-3 w-3" />
+            See all <ArrowRight className="h-3 w-3 rtl:rotate-180" />
           </button>
         )
       }
@@ -1323,7 +1324,7 @@ function ConversationsSection({
                     <span className="w-8 text-right">
                       {ds === "running" ? "—" : formatDuration(duration)}
                     </span>
-                    <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                    <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity rtl:rotate-180" />
                   </span>
                 </button>
               </li>
@@ -1356,7 +1357,7 @@ function RecentWorkSection({
       action={
         artifacts.length > top.length && (
           <button className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-            See all <ArrowRight className="h-3 w-3" />
+            See all <ArrowRight className="h-3 w-3 rtl:rotate-180" />
           </button>
         )
       }
@@ -1393,7 +1394,7 @@ function RecentWorkSection({
                   <span className="text-[11px] text-muted-foreground tabular-nums shrink-0 w-14 text-right">
                     {formatRelative(a.ts)}
                   </span>
-                  <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+                  <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0 rtl:rotate-180" />
                 </button>
               </li>
             );
@@ -1444,7 +1445,7 @@ function ScheduleSection({
           onClick={onManage}
           className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
         >
-          Manage <ArrowRight className="h-3 w-3" />
+          Manage <ArrowRight className="h-3 w-3 rtl:rotate-180" />
         </button>
       }
     >

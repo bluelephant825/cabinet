@@ -558,11 +558,11 @@ export function TreeNode({
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={() => setSubPageOpen(true)}>
-            <FilePlus className="h-4 w-4 mr-2" />
+            <FilePlus className="h-4 w-4 me-2" />
             Add Sub Page
           </ContextMenuItem>
           <ContextMenuItem onClick={() => setLinkRepoOpen(true)}>
-            <GitBranch className="h-4 w-4 mr-2" />
+            <GitBranch className="h-4 w-4 me-2" />
             Load Knowledge
           </ContextMenuItem>
           <ContextMenuItem
@@ -570,35 +570,35 @@ export function TreeNode({
             onClick={() => importFiles(importTargetPath)}
           >
             {importing ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-4 w-4 me-2 animate-spin" />
             ) : (
-              <Upload className="h-4 w-4 mr-2" />
+              <Upload className="h-4 w-4 me-2" />
             )}
             Import File…
           </ContextMenuItem>
           <ContextMenuItem onClick={() => setCreateCabinetOpen(true)}>
-            <Archive className="h-4 w-4 mr-2" />
+            <Archive className="h-4 w-4 me-2" />
             Create Cabinet Here
           </ContextMenuItem>
           <ContextMenuItem onClick={() => { setRenameTitle(title); setRenameOpen(true); }}>
-            <Pencil className="h-4 w-4 mr-2" />
+            <Pencil className="h-4 w-4 me-2" />
             Rename
           </ContextMenuItem>
           {onMoveToRequest && (
             <ContextMenuItem onClick={() => onMoveToRequest(node)}>
-              <ArrowRightLeft className="h-4 w-4 mr-2" />
+              <ArrowRightLeft className="h-4 w-4 me-2" />
               Move to…
             </ContextMenuItem>
           )}
           <ContextMenuItem onClick={() => navigator.clipboard.writeText(node.path)}>
-            <Copy className="h-4 w-4 mr-2" />
+            <Copy className="h-4 w-4 me-2" />
             Copy Relative Path
           </ContextMenuItem>
           <ContextMenuItem onClick={async () => {
             const dir = await getDataDir();
             navigator.clipboard.writeText(`${dir}/${node.path}`);
           }}>
-            <ClipboardCopy className="h-4 w-4 mr-2" />
+            <ClipboardCopy className="h-4 w-4 me-2" />
             Copy Full Path
           </ContextMenuItem>
           <ContextMenuItem onClick={() => {
@@ -608,15 +608,15 @@ export function TreeNode({
               body: JSON.stringify({ subpath: node.path }),
             });
           }}>
-            <FolderOpen className="h-4 w-4 mr-2" />
+            <FolderOpen className="h-4 w-4 me-2" />
             Open in Finder
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleDelete} className="text-destructive">
             {node.isLinked ? (
-              <Link2Off className="h-4 w-4 mr-2" />
+              <Link2Off className="h-4 w-4 me-2" />
             ) : (
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash2 className="h-4 w-4 me-2" />
             )}
             {node.isLinked ? "Unlink" : "Delete"}
           </ContextMenuItem>

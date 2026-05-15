@@ -34,10 +34,15 @@ type OpenPopover =
   | { type: "color"; range: { from: number; to: number } }
   | { type: "highlight"; range: { from: number; to: number } }
   | { type: "align"; range: { from: number; to: number } }
-  | { type: "link"; range: { from: number; to: number }; existing: string; anchor: { top: number; left: number } };
+  | {
+      type: "link";
+      range: { from: number; to: number };
+      existing: string;
+      anchor: { top: number; left?: number; right?: number };
+    };
 
 export function EditorBubbleMenu({ editor }: Props) {
-  const { t } = useLocale();
+  const { t, dir } = useLocale();
   const [popover, setPopover] = useState<OpenPopover>(null);
 
   useEffect(() => {
@@ -98,7 +103,10 @@ export function EditorBubbleMenu({ editor }: Props) {
       type: "link",
       range: captureRange(),
       existing,
-      anchor: { top: btnRect.bottom + 6, left: btnRect.left },
+      anchor:
+        dir === "rtl"
+          ? { top: btnRect.bottom + 6, right: window.innerWidth - btnRect.right }
+          : { top: btnRect.bottom + 6, left: btnRect.left },
     });
   };
 
@@ -225,7 +233,7 @@ export function EditorBubbleMenu({ editor }: Props) {
           {popover?.type === "color" && (
             <div
               data-bubble-popover="true"
-              className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg"
+              className="absolute top-full left-0 rtl:left-auto rtl:right-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg"
             >
               <ColorPalette
                 title={t("editor:toolbar.textColor")}
@@ -251,7 +259,7 @@ export function EditorBubbleMenu({ editor }: Props) {
           {popover?.type === "highlight" && (
             <div
               data-bubble-popover="true"
-              className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg"
+              className="absolute top-full left-0 rtl:left-auto rtl:right-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg"
             >
               <ColorPalette
                 title={t("editor:toolbar.background")}
@@ -287,7 +295,7 @@ export function EditorBubbleMenu({ editor }: Props) {
           {popover?.type === "align" && (
             <div
               data-bubble-popover="true"
-              className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-1 flex gap-0.5"
+              className="absolute top-full left-0 rtl:left-auto rtl:right-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-1 flex gap-0.5"
             >
               <button type="button" className={btn(editor.isActive({ textAlign: "left" }))} onMouseDown={(e) => e.preventDefault()} onClick={() => applyAlign("left")} aria-label={t("editor:toolbar.alignLeft")}><AlignLeft className="w-3.5 h-3.5" /></button>
               <button type="button" className={btn(editor.isActive({ textAlign: "center" }))} onMouseDown={(e) => e.preventDefault()} onClick={() => applyAlign("center")} aria-label={t("editor:toolbar.alignCenter")}><AlignCenter className="w-3.5 h-3.5" /></button>
@@ -305,6 +313,7 @@ export function EditorBubbleMenu({ editor }: Props) {
             position: "fixed",
             top: popover.anchor.top,
             left: popover.anchor.left,
+            right: popover.anchor.right,
             zIndex: 60,
           }}
         >

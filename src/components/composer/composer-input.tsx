@@ -172,7 +172,7 @@ export function ComposerInput({
         onDrop={attachmentsEnabled ? handleDrop : undefined}
       >
         {topRightOverlay ? (
-          <div className="absolute right-3 top-3 z-10">
+          <div className="absolute end-3 top-3 z-10">
             {topRightOverlay}
           </div>
         ) : null}
@@ -210,7 +210,7 @@ export function ComposerInput({
             style={{ minHeight, maxHeight }}
             className={cn(
               "w-full resize-none overflow-y-auto bg-transparent px-4 pt-4 pb-2 text-[13px] text-foreground caret-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed",
-              topRightOverlay && "pr-28",
+              topRightOverlay && "pe-28",
               textareaClassName
             )}
           />

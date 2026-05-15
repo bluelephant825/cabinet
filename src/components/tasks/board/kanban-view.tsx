@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Archive,
   ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   Inbox,
   Loader2,
@@ -13,6 +14,7 @@ import {
   Square,
   type LucideIcon,
 } from "lucide-react";
+import { DirIcon } from "@/components/ui/dir-icon";
 import { restartConversation, stopConversation } from "./board-actions";
 import { useDroppable } from "@dnd-kit/core";
 import {
@@ -75,7 +77,7 @@ function LaneHeader({
   const { t } = useLocale();
   const LaneIcon = lane.icon;
   return (
-    <div className="flex w-full items-center gap-2 px-3 py-2 text-left">
+    <div className="flex w-full items-center gap-2 px-3 py-2 text-start">
       <div className="flex flex-1 items-center gap-2">
         <LaneIcon
           className={cn("size-3.5 text-muted-foreground", lane.spin && "animate-spin [animation-duration:3s]")}
@@ -113,7 +115,7 @@ function LaneHeader({
         <button
           type="button"
           onClick={onAddTask}
-          className="ml-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="ms-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           title={t("kanban:newTask")}
         >
           <Plus className="size-3.5" />
@@ -126,7 +128,7 @@ function LaneHeader({
           className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           title={t("kanban:collapseColumn")}
         >
-          <ChevronLeft className="size-3.5" />
+          <DirIcon ltr={ChevronLeft} rtl={ChevronRight} className="size-3.5" />
         </button>
       ) : null}
     </div>
@@ -374,7 +376,7 @@ export function KanbanView({
   }
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-1 gap-3 overflow-x-auto overflow-y-hidden p-4 snap-x snap-mandatory md:snap-none">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 gap-3 overflow-x-auto overflow-y-hidden p-4 snap-x snap-mandatory md:snap-none rtl:flex-row-reverse">
       {LANES.map((lane) => {
         const allItems = byLane[lane.key];
         const isArchive = lane.key === "archive";
@@ -502,7 +504,7 @@ export function KanbanView({
                     <button
                       type="button"
                       onClick={onAddTask}
-                      className="mt-1 w-full rounded-md px-3 py-1.5 text-[11px] text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition-colors text-left"
+                      className="mt-1 w-full rounded-md px-3 py-1.5 text-[11px] text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition-colors text-start"
                     >
                       + Add task
                     </button>

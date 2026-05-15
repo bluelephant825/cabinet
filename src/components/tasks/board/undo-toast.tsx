@@ -47,7 +47,7 @@ export function UndoToast({
   const progress = Math.max(0, Math.min(100, (remaining / duration) * 100));
 
   return (
-    <div className="pointer-events-none fixed bottom-4 left-4 z-50 flex items-center gap-3">
+    <div className="pointer-events-none fixed bottom-4 start-4 z-50 flex items-center gap-3">
       <div className="pointer-events-auto flex min-w-[260px] items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2 shadow-lg">
         <span className="text-[13px] text-foreground">{pending.message}</span>
         <button
