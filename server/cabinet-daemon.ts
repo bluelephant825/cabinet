@@ -446,7 +446,12 @@ function emitSessionOutput(
   if (!chunk) return;
 
   session.output.push(chunk);
-  void syncConversationChunk(session.id, chunk).catch(() => {});
+  void syncConversationChunk(session.id, chunk).catch((err) => {
+    console.warn(
+      `[cabinet-daemon] failed to sync transcript chunk for session ${session.id}:`,
+      err
+    );
+  });
   if (session.ws && session.ws.readyState === WebSocket.OPEN) {
     session.ws.send(chunk);
   }
@@ -459,7 +464,12 @@ function emitSessionOutput(
 
 async function finalizeSessionConversation(session: ActiveSession): Promise<void> {
   const meta = await readConversationMeta(session.id);
-  if (!meta) return;
+  if (!meta) {
+    console.warn(
+      `[cabinet-daemon] cannot finalize session ${session.id}: meta.json missing/unreadable — run result not persisted`
+    );
+    return;
+  }
 
   const plain = stripAnsi(session.output.join(""));
   if (meta.status !== "running") {

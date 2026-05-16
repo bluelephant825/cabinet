@@ -2207,6 +2207,10 @@ export function AgentDetailV2({
   const [jobs, setJobs] = useState<AgentJob[]>([]);
   const [inboxTasks, setInboxTasks] = useState<AgentTask[]>([]);
   const [loading, setLoading] = useState(true);
+  // True when the persona fetch fails outright (HTTP error / network error).
+  // Distinguishes "still loading" from "could not load this agent" so a failed
+  // fetch shows a recoverable error instead of an infinite "Loading…".
+  const [loadError, setLoadError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [togglingActive, setTogglingActive] = useState(false);
@@ -2229,48 +2233,60 @@ export function AgentDetailV2({
 
   const effectiveCabinetPath = persona?.cabinetPath ?? cabinetPath;
 
-  const refresh = useCallback(async () => {
-    try {
-      const cabinetQuery = cabinetPath
-        ? `?cabinetPath=${encodeURIComponent(cabinetPath)}`
-        : "";
-      const agentConvosQuery =
-        `agent=${encodeURIComponent(slug)}&limit=50` +
-        (cabinetPath ? `&cabinetPath=${encodeURIComponent(cabinetPath)}` : "");
-      const tasksQuery =
-        `agent=${encodeURIComponent(slug)}` +
-        (cabinetPath ? `&cabinetPath=${encodeURIComponent(cabinetPath)}` : "");
-      const [personaRes, convoRes, jobsRes, tasksRes] = await Promise.all([
-        fetch(`/api/agents/personas/${slug}${cabinetQuery}`),
-        fetch(`/api/agents/conversations?${agentConvosQuery}`),
-        fetch(`/api/agents/${slug}/jobs${cabinetQuery}`),
-        fetch(`/api/agents/tasks?${tasksQuery}`),
-      ]);
-      if (personaRes.ok) {
-        const data = await personaRes.json();
-        setPersona(data.persona);
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const cabinetQuery = cabinetPath
+          ? `?cabinetPath=${encodeURIComponent(cabinetPath)}`
+          : "";
+        const agentConvosQuery =
+          `agent=${encodeURIComponent(slug)}&limit=50` +
+          (cabinetPath ? `&cabinetPath=${encodeURIComponent(cabinetPath)}` : "");
+        const tasksQuery =
+          `agent=${encodeURIComponent(slug)}` +
+          (cabinetPath ? `&cabinetPath=${encodeURIComponent(cabinetPath)}` : "");
+        const [personaRes, convoRes, jobsRes, tasksRes] = await Promise.all([
+          fetch(`/api/agents/personas/${slug}${cabinetQuery}`, { signal }),
+          fetch(`/api/agents/conversations?${agentConvosQuery}`, { signal }),
+          fetch(`/api/agents/${slug}/jobs${cabinetQuery}`, { signal }),
+          fetch(`/api/agents/tasks?${tasksQuery}`, { signal }),
+        ]);
+        // A response that arrives after the user navigated away (or after this
+        // load was superseded) must not clobber the new agent's state.
+        if (signal?.aborted) return;
+        if (personaRes.ok) {
+          const data = await personaRes.json();
+          setPersona(data.persona);
+          setLoadError(false);
+        } else {
+          setLoadError(true);
+        }
+        if (convoRes.ok) {
+          const data = await convoRes.json();
+          setConversations(data.conversations || []);
+        }
+        if (jobsRes.ok) {
+          const data = await jobsRes.json();
+          setJobs(data.jobs || []);
+        }
+        if (tasksRes.ok) {
+          const data = await tasksRes.json();
+          setInboxTasks(data.tasks || []);
+        }
+      } catch (err) {
+        if ((err as { name?: string } | null)?.name === "AbortError") return;
+        setLoadError(true);
+      } finally {
+        if (!signal?.aborted) setLoading(false);
       }
-      if (convoRes.ok) {
-        const data = await convoRes.json();
-        setConversations(data.conversations || []);
-      }
-      if (jobsRes.ok) {
-        const data = await jobsRes.json();
-        setJobs(data.jobs || []);
-      }
-      if (tasksRes.ok) {
-        const data = await tasksRes.json();
-        setInboxTasks(data.tasks || []);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [slug, cabinetPath]);
+    },
+    [slug, cabinetPath]
+  );
 
   useEffect(() => {
-    refresh();
+    const controller = new AbortController();
+    refresh(controller.signal);
+    return () => controller.abort();
   }, [refresh]);
 
   const handleComposerSubmit = useCallback(
@@ -2559,6 +2575,27 @@ export function AgentDetailV2({
     () => aggregateArtifacts(conversations),
     [conversations]
   );
+
+  if (!persona && loadError) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm">
+        <div className="text-muted-foreground">
+          {t("agents:detail.loadError")}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setLoadError(false);
+            setLoading(true);
+            void refresh();
+          }}
+        >
+          {t("agents:detail.retry")}
+        </Button>
+      </div>
+    );
+  }
 
   if (loading || !persona) {
     return (

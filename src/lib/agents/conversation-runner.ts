@@ -130,7 +130,7 @@ function buildLocaleInstructions(locale: string | undefined): string | null {
   ].join("\n");
 }
 
-async function buildCabinetEpilogueInstructions(options: {
+export async function buildCabinetEpilogueInstructions(options: {
   canDispatch?: boolean;
   cabinetPath?: string;
   selfSlug?: string;
@@ -191,7 +191,9 @@ async function buildCabinetEpilogueInstructions(options: {
       "",
       "Optionally pin a sub-task's runtime by appending `| providerId=<p> |",
       "adapterType=<a> | model=<m> | effort=<e>` segments to the inline line, e.g.",
-      "  LAUNCH_TASK: editor | Draft launch copy | outline the hero | effort=high",
+      "  LAUNCH_TASK: <agent-slug> | <title> | <one-line prompt> | effort=high",
+      "(Lines above are format templates: placeholders in <angle brackets>. Never",
+      "dispatch a template verbatim — fill every <...> with a real value first.)",
       "",
       "For multi-line prompts or large fan-out (more than ~5 actions), emit a",
       "separate ```cabinet-actions code block containing a JSON array:",

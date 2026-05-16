@@ -647,6 +647,7 @@ export function AppShell() {
         const agentScopedId = `${agentCabinetPath}::agent::${section.slug}`;
         return (
           <AgentDetailV2
+            key={agentScopedId}
             slug={section.slug}
             cabinetPath={agentCabinetPath}
             onBack={() =>

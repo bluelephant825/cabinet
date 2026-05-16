@@ -48,6 +48,7 @@ import {
   fileExists,
   listDirectory,
   readFileContent,
+  writeFileAtomic,
   writeFileContent,
 } from "../storage/fs-operations";
 
@@ -524,7 +525,7 @@ export async function createConversation(
       JSON.stringify(input.mentionedPaths || [], null, 2)
     ),
     writeFileContent(artifactsPathFs(id, cp), JSON.stringify([], null, 2)),
-    writeFileContent(metaPath(id, cp), JSON.stringify(meta, null, 2)),
+    writeFileAtomic(metaPath(id, cp), JSON.stringify(meta, null, 2)),
   ]);
 
   // Broadcast the freshly-created conversation so the task list/board can
@@ -582,9 +583,72 @@ export async function readConversationMeta(
       parsed.cabinetPath = undefined;
     }
     return parsed;
+  } catch (err) {
+    // A genuinely-absent file is normal (caller treats null as "not found").
+    // Anything else — empty/truncated file, invalid JSON — means a meta.json
+    // got corrupted (e.g. process killed mid-write). Surface it so the next
+    // occurrence is diagnosable instead of the task silently vanishing.
+    if ((err as { code?: string } | null)?.code !== "ENOENT") {
+      console.warn(
+        `[readConversationMeta] unreadable meta.json for conversation ${id}:`,
+        err
+      );
+    }
+    return null;
+  }
+}
+
+/**
+ * Best-effort reconstruction of a conversation whose meta.json is missing or
+ * corrupted (e.g. the process was killed mid-write after a provider credit
+ * error or a long context). Returns a minimal placeholder — marked failed —
+ * so the task still appears in the log instead of silently vanishing; the
+ * user can still open it to read whatever transcript was saved. Returns null
+ * only when the conversation directory itself is gone (nothing to recover).
+ */
+export async function recoverConversationMeta(
+  id: string,
+  cabinetPath?: string
+): Promise<ConversationMeta | null> {
+  const dir = conversationDir(id, cabinetPath);
+  let startedAt = new Date().toISOString();
+  try {
+    const st = await fs.stat(dir);
+    startedAt = st.mtime.toISOString();
   } catch {
     return null;
   }
+
+  let title = `Recovered task ${id.slice(0, 8)}`;
+  try {
+    if (await fileExists(promptPathFs(id, cabinetPath))) {
+      const prompt = await readFileContent(promptPathFs(id, cabinetPath));
+      const firstLine = prompt
+        .split("\n")
+        .map((line) => line.trim())
+        .find(Boolean);
+      if (firstLine) title = firstLine.slice(0, 120);
+    }
+  } catch {
+    // keep the default title
+  }
+
+  return {
+    id,
+    agentSlug: "unknown",
+    cabinetPath,
+    title,
+    trigger: "manual",
+    status: "failed",
+    startedAt,
+    promptPath: virtualPathFromFs(promptPathFs(id, cabinetPath)),
+    transcriptPath: virtualPathFromFs(transcriptPathFs(id, cabinetPath)),
+    mentionedPaths: [],
+    artifactPaths: [],
+    errorKind: "unknown",
+    errorHint:
+      "This task's metadata was unreadable — likely a crash mid-write. The transcript is whatever was saved before it failed.",
+  };
 }
 
 async function resolveConversationCabinetPath(
@@ -966,7 +1030,10 @@ async function maybeResolveCompletedConversation(
 
 export async function writeConversationMeta(meta: ConversationMeta): Promise<void> {
   await ensureDirectory(conversationDir(meta.id, meta.cabinetPath));
-  await writeFileContent(metaPath(meta.id, meta.cabinetPath), JSON.stringify(meta, null, 2));
+  await writeFileAtomic(
+    metaPath(meta.id, meta.cabinetPath),
+    JSON.stringify(meta, null, 2)
+  );
 }
 
 // Throttle state for transcript-driven task.updated events. Streaming stdout
@@ -1307,11 +1374,14 @@ export async function listConversationMetas(
         await Promise.all(
           entries
             .filter((entry) => entry.isDirectory)
-            .map(async (entry) =>
-              maybeResolveCompletedConversation(
-                await readConversationMeta(entry.name, cabinetPath)
-              )
-            )
+            .map(async (entry) => {
+              const meta = await readConversationMeta(entry.name, cabinetPath);
+              if (meta) return maybeResolveCompletedConversation(meta);
+              // meta.json is missing/corrupted — don't let the task silently
+              // vanish from the log. Surface a recovered placeholder so the
+              // user can still find and open it.
+              return recoverConversationMeta(entry.name, cabinetPath);
+            })
         )
       ).filter(Boolean) as ConversationMeta[];
     })
