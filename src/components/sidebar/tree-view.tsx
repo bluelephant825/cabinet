@@ -6,6 +6,7 @@ import { useEditorStore } from "@/stores/editor-store";
 import { useAppStore } from "@/stores/app-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TreeNode } from "./tree-node";
+import { SidebarSearch } from "./sidebar-search";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -756,7 +757,7 @@ export function TreeView() {
                     key="drawer-data"
                     className="flex flex-1 flex-col pt-1 animate-in fade-in slide-in-from-top-1 duration-200 ease-out"
                   >
-              <>
+              <SidebarSearch>
                 {visibleTreeNodes.length === 0 ? (
                   <button
                     onClick={() => {
@@ -788,7 +789,7 @@ export function TreeView() {
                     />
                   ))
                 )}
-              </>
+              </SidebarSearch>
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent>

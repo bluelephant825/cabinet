@@ -23,6 +23,9 @@ export function startWatcher(
 ): FSWatcher {
   const watcher = chokidar.watch(DATA_DIR, {
     ignoreInitial: true,
+    // Symlinked cabinet roots are part of the indexed tree (see walkDataDir);
+    // follow them so live add/change/remove inside linked roots reindex too.
+    followSymlinks: true,
     ignored: (p: string) => {
       const rel = p.slice(DATA_DIR.length).replace(/^\//, "");
       if (!rel) return false;
