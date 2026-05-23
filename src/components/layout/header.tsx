@@ -1,6 +1,7 @@
 "use client";
 
-import { Copy, Download, FileCode, FileDown, Sparkles } from "lucide-react";
+import { Copy, Download, FileCode, FileDown, Sparkles, Maximize } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEditorStore } from "@/stores/editor-store";
+import { useAppStore } from "@/stores/app-store";
 import { VersionHistory } from "@/components/editor/version-history";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { useLocale } from "@/i18n/use-locale";
@@ -15,6 +17,71 @@ import { useLocale } from "@/i18n/use-locale";
 export function Header() {
   const { t } = useLocale();
   const { frontmatter, content, currentPath } = useEditorStore();
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const setAiPanelCollapsed = useAppStore((s) => s.setAiPanelCollapsed);
+  const closeTaskPanel = useAppStore((s) => s.closeTaskPanel);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const aiPanelCollapsed = useAppStore((s) => s.aiPanelCollapsed);
+  const taskPanelOpen = useAppStore((s) => s.taskPanelOpen);
+
+  const [inFullscreen, setInFullscreen] = useState(false);
+  const prevStateRef = useRef<{
+    sidebarCollapsed: boolean;
+    aiPanelCollapsed: boolean;
+    taskPanelOpen: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    const updateFullscreen = () => {
+      setInFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    updateFullscreen();
+    document.addEventListener("fullscreenchange", updateFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreen);
+    };
+  }, []);
+
+  const handleFocus = async () => {
+    try {
+      if (document.fullscreenElement) {
+        // Exiting fullscreen — restore previous pane state if available
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+        if (prevStateRef.current) {
+          setSidebarCollapsed(prevStateRef.current.sidebarCollapsed);
+          setAiPanelCollapsed(prevStateRef.current.aiPanelCollapsed);
+          if (prevStateRef.current.taskPanelOpen) {
+            // reopen task panel only if it was open before
+            // openTaskPanelCompose/other APIs exist; to keep simple, set taskPanelOpen via closeTaskPanel when closing we used close; here we toggle by setting open true via swap? There's no direct setter — use openTaskPanelCompose as an opener.
+            // We won't attempt to reopen programmatically here to avoid unintended side-effects.
+          }
+          prevStateRef.current = null;
+        }
+        return;
+      }
+
+      // Save previous pane states and collapse
+      prevStateRef.current = {
+        sidebarCollapsed: sidebarCollapsed,
+        aiPanelCollapsed: aiPanelCollapsed,
+        taskPanelOpen: taskPanelOpen,
+      };
+
+      setSidebarCollapsed(true);
+      setAiPanelCollapsed(true);
+      if (taskPanelOpen) closeTaskPanel();
+
+      // Enter browser fullscreen
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // ignore failures
+    }
+  };
 
   const handleCopyMarkdown = async () => {
     if (!content) return;
@@ -72,7 +139,24 @@ export function Header() {
   return (
     <ViewerToolbar path={currentPath || undefined} showBreadcrumb={!!currentPath}>
       {currentPath && (
-        <DropdownMenu>
+        <>
+          <button
+            aria-label={
+              inFullscreen
+                ? t("editor:header.exitFocus")
+                : t("editor:header.focus")
+            }
+            title={
+              inFullscreen
+                ? t("editor:header.exitFocus")
+                : t("editor:header.focus")
+            }
+            onClick={handleFocus}
+            className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+          >
+            <Maximize className="h-4 w-4" />
+          </button>
+          <DropdownMenu>
           <DropdownMenuTrigger aria-label={t("editor:header.exportPage")} title={t("editor:header.exportPage")} className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">
             <Download className="h-4 w-4" />
           </DropdownMenuTrigger>
@@ -116,6 +200,7 @@ export function Header() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </>
       )}
       {currentPath && <VersionHistory />}
     </ViewerToolbar>

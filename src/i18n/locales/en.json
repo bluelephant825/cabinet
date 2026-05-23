@@ -916,6 +916,8 @@
   "editor": {
     "header": {
       "exportPage": "Export page",
+      "focus": "Focus",
+      "exitFocus": "Exit focus",
       "copyMarkdown": "Copy Markdown",
       "copyForLlms": "Copy for LLMs",
       "copyAsHtml": "Copy as HTML",

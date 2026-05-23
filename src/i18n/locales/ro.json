@@ -915,8 +915,9 @@
   },
   "editor": {
     "header": {
-      "exportPage": "Exportă pagina",
-      "copyMarkdown": "Copiază Markdown",
+      "exportPage": "Exporta pagina",
+      "focus": "Focalizare",
+      "exitFocus": "Ieșire din focalizare",
       "copyForLlms": "Copiază pentru LLM-uri",
       "copyAsHtml": "Copiază ca HTML",
       "downloadMarkdown": "Descarcă .md",
