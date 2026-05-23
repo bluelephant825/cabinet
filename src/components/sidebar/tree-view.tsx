@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTreeStore } from "@/stores/tree-store";
 import { useEditorStore } from "@/stores/editor-store";
 import { useAppStore } from "@/stores/app-store";
+import { useRoomsStore } from "@/stores/rooms-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TreeNode } from "./tree-node";
 import { SidebarSearch } from "./sidebar-search";
@@ -171,7 +172,28 @@ export function TreeView() {
   const effectiveCabinetPath = activeCabinet?.path || ROOT_CABINET_PATH;
   const cabinetVisibilityMode =
     cabinetVisibilityModes[effectiveCabinetPath] || "own";
-  const visibleTreeNodes = activeCabinet?.children || rootCabinet?.children || nodes;
+
+  // Rooms are the top-level cabinets. When you're in the root/home room, hide
+  // the *other* rooms from its tree so they don't appear nested underneath it
+  // (you switch into them via the room switcher). Sub-rooms already scope to
+  // their own subtree via `activeCabinet.children`.
+  const rooms = useRoomsStore((s) => s.rooms);
+  const loadRooms = useRoomsStore((s) => s.load);
+  useEffect(() => {
+    void loadRooms();
+  }, [loadRooms]);
+  const subRoomPaths = useMemo(
+    () => new Set(rooms.filter((r) => !r.isRoot).map((r) => r.path)),
+    [rooms]
+  );
+  const atRoot = !routeCabinetPath || routeCabinetPath === ROOT_CABINET_PATH;
+  const visibleTreeNodes = useMemo(() => {
+    const base = activeCabinet?.children || rootCabinet?.children || nodes;
+    if (atRoot && subRoomPaths.size > 0) {
+      return base.filter((node) => !subRoomPaths.has(node.path));
+    }
+    return base;
+  }, [activeCabinet, rootCabinet, nodes, atRoot, subRoomPaths]);
   const kbSectionLabel = "Data";
 
   /* ── agent polling ─────────────────────────────────────────── */

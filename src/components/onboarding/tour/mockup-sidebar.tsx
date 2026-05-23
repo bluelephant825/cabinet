@@ -9,6 +9,13 @@ export type MockupTab = "data" | "agents" | "tasks";
 
 interface MockupSidebarProps {
   activeTab?: MockupTab | null;
+  /**
+   * When provided, the tabs become clickable and call this on selection.
+   * Used by the onboarding rail's example preview so people can explore a
+   * sample cabinet's Data / Team / Tasks. The tour leaves it undefined, so
+   * the tabs stay decorative there.
+   */
+  onTabChange?: (tab: MockupTab) => void;
   children?: ReactNode;
   /**
    * Hide the tab rail entirely. Used by the intro slide when only the
@@ -61,6 +68,7 @@ const TAB_DEFS: Array<{ id: MockupTab; labelKey: string; icon: typeof BookOpen }
 
 export function MockupSidebar({
   activeTab,
+  onTabChange,
   children,
   hideTabs = false,
   hideBody = false,
@@ -89,7 +97,7 @@ export function MockupSidebar({
   return (
     <div
       className="cabinet-tour-animated relative flex h-full w-full flex-col px-2 pt-3"
-      aria-hidden="true"
+      aria-hidden={onTabChange ? undefined : "true"}
       style={rootStyle}
     >
       {/* ── Container 1: Cabinet header rail ─────────────────────── */}
@@ -135,6 +143,36 @@ export function MockupSidebar({
           {TAB_DEFS.map((tab, i) => {
             const Icon = tab.icon;
             const active = tab.id === activeTab;
+            const tabClass =
+              "relative flex w-full flex-col items-center gap-0.5 rounded-md px-1.5 pt-3 pb-2 transition-all duration-150";
+            const tabStyle: CSSProperties = active
+              ? {
+                  background: P.bgCard,
+                  color: P.text,
+                  transform: "translateY(-1px)",
+                  boxShadow: `0 1px 0 rgba(59,47,47,0.06), 0 6px 14px -10px rgba(59,47,47,0.35), 0 0 0 1px ${P.border}`,
+                }
+              : {
+                  color: P.textSecondary,
+                };
+            const tabInner = (
+              <>
+                {/* drawer pull handle — amber when active, muted when not */}
+                <span
+                  aria-hidden
+                  className="absolute left-1/2 top-1 h-[2px] w-4 -translate-x-1/2 rounded-full"
+                  style={{
+                    background: active
+                      ? P.iconAmberSoft
+                      : "rgba(168, 152, 136, 0.45)",
+                  }}
+                />
+                <Icon className="h-[18px] w-[18px] shrink-0" />
+                <span className="text-[8px] font-semibold uppercase tracking-[0.1em]">
+                  {t(tab.labelKey)}
+                </span>
+              </>
+            );
             return (
               <div
                 key={tab.id}
@@ -149,36 +187,22 @@ export function MockupSidebar({
                     : undefined
                 }
               >
-                <div
-                  className="relative flex w-full flex-col items-center gap-0.5 rounded-md px-1.5 pt-3 pb-2 transition-all duration-150"
-                  style={
-                    active
-                      ? {
-                          background: P.bgCard,
-                          color: P.text,
-                          transform: "translateY(-1px)",
-                          boxShadow: `0 1px 0 rgba(59,47,47,0.06), 0 6px 14px -10px rgba(59,47,47,0.35), 0 0 0 1px ${P.border}`,
-                        }
-                      : {
-                          color: P.textSecondary,
-                        }
-                  }
-                >
-                  {/* drawer pull handle — amber when active, muted when not */}
-                  <span
-                    aria-hidden
-                    className="absolute left-1/2 top-1 h-[2px] w-4 -translate-x-1/2 rounded-full"
-                    style={{
-                      background: active
-                        ? P.iconAmberSoft
-                        : "rgba(168, 152, 136, 0.45)",
-                    }}
-                  />
-                  <Icon className="h-[18px] w-[18px] shrink-0" />
-                  <span className="text-[8px] font-semibold uppercase tracking-[0.1em]">
-                    {t(tab.labelKey)}
-                  </span>
-                </div>
+                {onTabChange ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => onTabChange(tab.id)}
+                    className={`${tabClass} cursor-pointer`}
+                    style={tabStyle}
+                  >
+                    {tabInner}
+                  </button>
+                ) : (
+                  <div className={tabClass} style={tabStyle}>
+                    {tabInner}
+                  </div>
+                )}
               </div>
             );
           })}

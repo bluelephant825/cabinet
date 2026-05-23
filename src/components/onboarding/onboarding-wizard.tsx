@@ -22,6 +22,11 @@ import {
   Star,
   Terminal,
   Zap,
+  FileText,
+  Github,
+  MessageSquare,
+  Plug,
+  Puzzle,
 } from "lucide-react";
 import { HomeBlueprintBackground } from "@/components/onboarding/home-blueprint-background";
 import { isAgentProviderSelectable } from "@/lib/agents/provider-filters";
@@ -33,6 +38,9 @@ import {
   ROOM_TYPES,
   type RoomType,
 } from "@/lib/onboarding/rooms";
+import { slugifyPageName } from "@/lib/markdown/wiki-links";
+import { MockupSidebar, type MockupTab } from "./tour/mockup-sidebar";
+import { CABINET_SHOWCASES, ShowcaseWindow } from "./cabinet-showcases";
 import { getSuggestedProviderEffort } from "@/lib/agents/runtime-options";
 import { sendTelemetry } from "@/lib/telemetry/browser";
 import {
@@ -107,6 +115,14 @@ interface SuggestedAgent {
   checked: boolean;
 }
 
+// The single agent the user configures from scratch in the team step. No
+// pre-made room defaults; this becomes the room's first agent on launch.
+interface FirstAgentDraft {
+  name: string;
+  role: string;
+  instructions: string;
+}
+
 interface CommunityCard {
   title: string;
   description: string;
@@ -133,15 +149,20 @@ const WELCOME_TYPE_START_MS = 4800; // begin typing shortly after heading fades 
 const WELCOME_TYPE_CHAR_MS = 32;
 
 // Step indices after the compress pass:
-// 0 intro · 1 welcome-home · 2 room-setup (pick + name + describe) ·
-// 3 team · 4 provider · 5 github · 6 discord · 7 cloud · 8 launch
-const COMMUNITY_START_STEP = 5;
-const COMMUNITY_END_STEP = 7;
-const STEP_COUNT = 9;
+// 0 intro · 1 welcome-home · 2 what-is-cabinet · 3 room-setup (pick + name + describe) ·
+// 4 provider (connect AI) · 5 team (configure first agent) · 6 access · 7 heartbeat ·
+// 8 first-task · 9 github · 10 discord · 11 cloud · 12 launch
+const COMMUNITY_START_STEP = 9;
+const COMMUNITY_END_STEP = 11;
+const STEP_COUNT = 13;
 const STEP_WELCOME_HOME = 1;
-const STEP_ROOM_SETUP = 2;
-const STEP_TEAM = 3;
+const STEP_WHAT_IS_CABINET = 2;
+const STEP_ROOM_SETUP = 3;
 const STEP_PROVIDER = 4;
+const STEP_TEAM = 5;
+const STEP_ACCESS = 6;
+const STEP_HEARTBEAT = 7;
+const STEP_TASK = 8;
 
 /* ─── Colors from runcabinet.com ─── */
 const WEB = {
@@ -625,17 +646,503 @@ function WelcomeBackStep({
   );
 }
 
-function TeamBuildStep({
+// Shared Back / Next footer for the wizard step components.
+function StepNav({
+  onBack,
+  onNext,
+  nextLabel,
+}: {
+  onBack: () => void;
+  onNext: () => void;
+  nextLabel?: string;
+}) {
+  const { t } = useLocale();
+  return (
+    <div className="flex items-center justify-between pt-1">
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-medium transition-colors"
+        style={{ color: WEB.textSecondary }}
+      >
+        <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
+        {t("onboarding:actions.back")}
+      </button>
+      <button
+        onClick={onNext}
+        className="inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium text-white transition-all hover:-translate-y-0.5"
+        style={{ background: WEB.accent }}
+      >
+        {nextLabel || t("onboarding:actions.next")}
+        <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+      </button>
+    </div>
+  );
+}
+
+// Step 2 — "What is a Cabinet?" concept screen. Explains the object before we
+// ask the user to create one.
+
+function WhatIsCabinetStep({
+  selected,
+  onSelect,
   onBack,
   onNext,
 }: {
+  selected: number;
+  onSelect: (index: number) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const { t } = useLocale();
+  const railRef = useRef<HTMLDivElement>(null);
+
+  // Keep the selected showcase button scrolled into view in the horizontal rail.
+  useEffect(() => {
+    const el = railRef.current?.querySelector<HTMLElement>(`[data-idx="${selected}"]`);
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [selected]);
+
+  const showcase = CABINET_SHOWCASES[selected] ?? CABINET_SHOWCASES[0];
+
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 animate-in fade-in duration-300">
+      {/* Concept — top */}
+      <div className="text-center space-y-2">
+        <h1 className="font-logo text-2xl tracking-tight italic" style={{ color: WEB.text }}>
+          {t("onboarding:whatIsCabinet.heading")}
+        </h1>
+        <p className="mx-auto max-w-2xl text-sm leading-relaxed" style={{ color: WEB.textSecondary }}>
+          {t("onboarding:whatIsCabinet.body")}
+        </p>
+      </div>
+
+      {/* Showcases — horizontal rail of buttons */}
+      <div className="space-y-2.5">
+        <p
+          className="text-center text-[11px] font-semibold uppercase tracking-[0.15em]"
+          style={{ color: WEB.textTertiary }}
+        >
+          How people use Cabinet
+        </p>
+        <div
+          ref={railRef}
+          className="flex gap-2 overflow-x-auto pb-1.5"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {CABINET_SHOWCASES.map((s, i) => {
+            const on = i === selected;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                data-idx={i}
+                onClick={() => onSelect(i)}
+                className="flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
+                style={{
+                  background: on ? WEB.accent : WEB.bgCard,
+                  color: on ? "#FFFFFF" : WEB.textSecondary,
+                  border: `1px solid ${on ? WEB.accent : WEB.border}`,
+                }}
+              >
+                <span className="text-sm leading-none">{s.emoji}</span>
+                <span className="whitespace-nowrap">{s.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Real example — full window mockup */}
+      <ShowcaseWindow showcase={showcase} />
+
+      <StepNav onBack={onBack} onNext={onNext} />
+    </div>
+  );
+}
+
+// Step 5 — "What can this agent access?" PLACEHOLDER. Interactive toggles, not
+// yet wired to the agent's permissions/tools.
+function AgentAccessStep({
+  agentName,
+  access,
+  setAccess,
+  onBack,
+  onNext,
+}: {
+  agentName: string;
+  access: string[];
+  setAccess: (next: string[]) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const { t } = useLocale();
+  const options = [
+    { key: "files", label: t("onboarding:access.files"), icon: FileText },
+    { key: "github", label: t("onboarding:access.github"), icon: Github },
+    { key: "slack", label: t("onboarding:access.slack"), icon: MessageSquare },
+    { key: "mcp", label: t("onboarding:access.mcp"), icon: Plug },
+    { key: "plugins", label: t("onboarding:access.plugins"), icon: Puzzle },
+    { key: "skills", label: t("onboarding:access.skills"), icon: Sparkles },
+  ];
+  const toggle = (k: string) =>
+    setAccess(access.includes(k) ? access.filter((x) => x !== k) : [...access, k]);
+  const name = agentName.trim() || t("onboarding:access.defaultAgent");
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-7 animate-in fade-in duration-300">
+      <div className="text-center space-y-2">
+        <h1 className="font-logo text-2xl tracking-tight italic" style={{ color: WEB.text }}>
+          {t("onboarding:access.heading", { name })}
+        </h1>
+        <p className="text-sm leading-relaxed" style={{ color: WEB.textSecondary }}>
+          {t("onboarding:access.subtitle")}
+        </p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {options.map(({ key, label, icon: Icon }) => {
+          const on = access.includes(key);
+          return (
+            <button
+              key={key}
+              onClick={() => toggle(key)}
+              className="flex items-center gap-2.5 rounded-xl px-4 py-3 text-start transition-colors"
+              style={{
+                background: on ? WEB.accentBg : WEB.bgCard,
+                border: `1px solid ${on ? WEB.accent : WEB.border}`,
+              }}
+            >
+              <Icon className="size-4 shrink-0" style={{ color: on ? WEB.accent : WEB.textTertiary }} />
+              <span className="text-sm flex-1" style={{ color: WEB.text }}>{label}</span>
+              {on && <Check className="size-4 shrink-0" style={{ color: WEB.accent }} />}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-center text-xs" style={{ color: WEB.textTertiary }}>
+        {t("onboarding:access.placeholderNote")}
+      </p>
+      <StepNav onBack={onBack} onNext={onNext} />
+    </div>
+  );
+}
+
+// Step 6 — "Should it run on a heartbeat?" PLACEHOLDER. Off by default; not yet
+// wired to the agent's schedule.
+function HeartbeatStep({
+  agentName,
+  heartbeat,
+  setHeartbeat,
+  onBack,
+  onNext,
+}: {
+  agentName: string;
+  heartbeat: string;
+  setHeartbeat: (next: string) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const { t } = useLocale();
+  const options = [
+    { key: "off", label: t("onboarding:heartbeat.off"), hint: t("onboarding:heartbeat.offHint") },
+    { key: "daily", label: t("onboarding:heartbeat.daily"), hint: t("onboarding:heartbeat.dailyHint") },
+    { key: "weekly", label: t("onboarding:heartbeat.weekly"), hint: t("onboarding:heartbeat.weeklyHint") },
+  ];
+  const name = agentName.trim() || t("onboarding:access.defaultAgent");
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-7 animate-in fade-in duration-300">
+      <div className="text-center space-y-2">
+        <h1 className="font-logo text-2xl tracking-tight italic" style={{ color: WEB.text }}>
+          {t("onboarding:heartbeat.heading", { name })}
+        </h1>
+        <p className="text-sm leading-relaxed" style={{ color: WEB.textSecondary }}>
+          {t("onboarding:heartbeat.subtitle")}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2">
+        {options.map(({ key, label, hint }) => {
+          const on = heartbeat === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setHeartbeat(key)}
+              className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-start transition-colors"
+              style={{
+                background: on ? WEB.accentBg : WEB.bgCard,
+                border: `1px solid ${on ? WEB.accent : WEB.border}`,
+              }}
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-medium" style={{ color: WEB.text }}>{label}</span>
+                <span className="block text-xs" style={{ color: WEB.textSecondary }}>{hint}</span>
+              </span>
+              {on && <Check className="size-4 shrink-0" style={{ color: WEB.accent }} />}
+            </button>
+          );
+        })}
+      </div>
+      <div
+        className="rounded-xl p-3 text-xs leading-relaxed"
+        style={{ background: WEB.bgWarm, color: WEB.textSecondary }}
+      >
+        {t("onboarding:heartbeat.tokenNote")}
+      </div>
+      <StepNav onBack={onBack} onNext={onNext} />
+    </div>
+  );
+}
+
+function FirstTaskStep({
+  agentName,
+  firstTask,
+  setFirstTask,
+  onBack,
+  onNext,
+}: {
+  agentName: string;
+  firstTask: string;
+  setFirstTask: (next: string) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const { t } = useLocale();
+  const name = agentName.trim() || t("onboarding:access.defaultAgent");
+  const fieldStyle: CSSProperties = {
+    width: "100%",
+    padding: "10px 14px",
+    borderRadius: 12,
+    border: `1px solid ${WEB.border}`,
+    background: WEB.bgWarm,
+    color: WEB.text,
+    fontSize: 14,
+    lineHeight: 1.5,
+    outline: "none",
+    resize: "vertical",
+  };
+  const examples = [
+    t("onboarding:firstTask.example1"),
+    t("onboarding:firstTask.example2"),
+    t("onboarding:firstTask.example3"),
+  ];
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-7 animate-in fade-in duration-300">
+      <div className="text-center space-y-2">
+        <span
+          className="mx-auto flex size-12 items-center justify-center rounded-2xl"
+          style={{ background: WEB.accentBg }}
+        >
+          <ClipboardCheck className="size-6" style={{ color: WEB.accent }} />
+        </span>
+        <h1 className="font-logo text-2xl tracking-tight italic" style={{ color: WEB.text }}>
+          {t("onboarding:firstTask.heading")}
+        </h1>
+        <p className="text-sm leading-relaxed" style={{ color: WEB.textSecondary }}>
+          {t("onboarding:firstTask.subtitle", { name })}
+        </p>
+      </div>
+      <div
+        className="space-y-3 rounded-2xl p-5"
+        style={{ background: WEB.bgCard, border: `1px solid ${WEB.border}` }}
+      >
+        <label className="block text-sm font-medium" style={{ color: WEB.text }}>
+          {t("onboarding:firstTask.label", { name })}
+        </label>
+        <textarea
+          value={firstTask}
+          onChange={(e) => setFirstTask(e.target.value)}
+          placeholder={t("onboarding:firstTask.placeholder")}
+          rows={4}
+          autoFocus
+          style={fieldStyle}
+        />
+        <div className="flex flex-wrap gap-1.5">
+          {examples.map((ex) => (
+            <button
+              key={ex}
+              type="button"
+              onClick={() => setFirstTask(ex)}
+              className="rounded-full px-3 py-1 text-[12px] transition-colors hover:opacity-80"
+              style={{ background: WEB.bgWarm, color: WEB.textSecondary, border: `1px solid ${WEB.border}` }}
+            >
+              {ex}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs leading-relaxed" style={{ color: WEB.textTertiary }}>
+          {t("onboarding:firstTask.note")}
+        </p>
+      </div>
+      <StepNav onBack={onBack} onNext={onNext} />
+    </div>
+  );
+}
+
+// Live "cabinet" left rail shown during the configuration steps. Reuses the
+// tour's MockupSidebar and reflects the user's choices as they go: the title
+// becomes the cabinet name, Data shows the project's files, the Team tab fills
+// in once they configure their first agent, and the Tasks tab shows the first
+// task they file for that agent.
+function OnboardingCabinetRail({
+  cabinetName,
+  agentName,
+  userName,
+  firstTask,
+  step,
+}: {
+  cabinetName: string;
+  agentName: string;
+  userName: string;
+  firstTask: string;
+  step: number;
+}) {
+  const { t } = useLocale();
+  const person = userName.trim();
+
+  const footer = (
+    <div
+      className="flex items-center gap-2 border-t px-3 py-2.5"
+      style={{ borderColor: WEB.borderLight }}
+    >
+      <span
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+        style={{ background: WEB.accent }}
+      >
+        {(person || "?").charAt(0).toUpperCase()}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[12px] font-medium" style={{ color: WEB.text }}>
+        {person || t("onboarding:rail.you")}
+      </span>
+    </div>
+  );
+
+  const shell = (children: ReactNode) => (
+    <div className="hidden lg:flex w-[260px] shrink-0 self-stretch">
+      <div
+        className="flex h-[480px] w-full flex-col overflow-hidden rounded-2xl"
+        style={{
+          background: WEB.bgWarm,
+          border: `1px solid ${WEB.border}`,
+          boxShadow: "0 12px 32px -20px rgba(59,47,47,0.35)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+
+  // The user's own cabinet taking shape as they configure it.
+  const agent = agentName.trim();
+  const task = firstTask.trim();
+  // Data while picking the room; the Team tab opens on "Connect your AI";
+  // the Tasks tab opens on the first-task step.
+  const activeTab: MockupTab =
+    step >= STEP_TASK ? "tasks" : step >= STEP_PROVIDER ? "agents" : "data";
+  const title = cabinetName.trim() || t("onboarding:rail.untitled");
+  const files = ["index.md", "Getting Started", "Notes"];
+
+  return shell(
+    <>
+      <div className="min-h-0 flex-1">
+          <MockupSidebar title={title} activeTab={activeTab} headerBadge="">
+            {activeTab === "data" && (
+              <div className="space-y-1.5 px-3 pt-3">
+                {files.map((f) => (
+                  <div
+                    key={f}
+                    className="flex items-center gap-2 text-[12px]"
+                    style={{ color: WEB.textSecondary }}
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0" style={{ color: WEB.textTertiary }} />
+                    <span className="truncate">{f}</span>
+                  </div>
+                ))}
+                <p className="pt-2 text-[11px] leading-relaxed" style={{ color: WEB.textTertiary }}>
+                  {t("onboarding:rail.dataCaption")}
+                </p>
+              </div>
+            )}
+            {activeTab === "agents" && (
+              <div className="space-y-2 px-3 pt-3">
+                {agent ? (
+                  <div
+                    className="flex items-center gap-2 rounded-lg px-2.5 py-2"
+                    style={{ background: WEB.bgCard, border: `1px solid ${WEB.border}` }}
+                  >
+                    <span className="text-sm">🤖</span>
+                    <span className="min-w-0 flex-1 truncate text-[12px] font-medium" style={{ color: WEB.text }}>
+                      {agent}
+                    </span>
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "#22c55e" }} />
+                  </div>
+                ) : (
+                  <p className="text-[11px] leading-relaxed" style={{ color: WEB.textTertiary }}>
+                    {t("onboarding:rail.teamEmpty")}
+                  </p>
+                )}
+                <p className="pt-1 text-[11px] leading-relaxed" style={{ color: WEB.textTertiary }}>
+                  {t("onboarding:rail.teamCaption")}
+                </p>
+              </div>
+            )}
+            {activeTab === "tasks" && (
+              <div className="space-y-2 px-3 pt-3">
+                {task ? (
+                  <div
+                    className="space-y-1 rounded-lg px-2.5 py-2"
+                    style={{ background: WEB.bgCard, border: `1px solid ${WEB.border}` }}
+                  >
+                    <p className="text-[12px] leading-snug" style={{ color: WEB.text }}>
+                      {task}
+                    </p>
+                    {agent && (
+                      <p className="flex items-center gap-1 text-[10px]" style={{ color: WEB.textTertiary }}>
+                        <span>🤖</span>
+                        {t("onboarding:rail.assignedTo", { name: agent })}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] leading-relaxed" style={{ color: WEB.textTertiary }}>
+                    {t("onboarding:rail.tasksEmpty")}
+                  </p>
+                )}
+                <p className="pt-1 text-[11px] leading-relaxed" style={{ color: WEB.textTertiary }}>
+                  {t("onboarding:rail.tasksCaption")}
+                </p>
+              </div>
+            )}
+          </MockupSidebar>
+        </div>
+        {footer}
+    </>
+  );
+}
+
+function TeamBuildStep({
+  firstAgent,
+  setFirstAgent,
+  onBack,
+  onNext,
+}: {
+  firstAgent: FirstAgentDraft;
+  setFirstAgent: (next: FirstAgentDraft) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
   const { t } = useLocale();
 
+  const fieldStyle: React.CSSProperties = {
+    background: WEB.bgCard,
+    border: `1px solid ${WEB.border}`,
+    color: WEB.text,
+    borderRadius: 12,
+    fontSize: 15,
+    padding: "0 14px",
+    outline: "none",
+    width: "100%",
+    fontFamily: "inherit",
+  };
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-7 animate-in fade-in duration-300">
       {/* Title */}
       <div className="text-center space-y-2">
         <h1 className="font-logo text-2xl tracking-tight italic">
@@ -644,8 +1151,63 @@ function TeamBuildStep({
             components={{ accent: <span style={{ color: WEB.accent }} /> }}
           />
         </h1>
-        <p className="text-sm" style={{ color: WEB.textSecondary }}>
+        <p className="text-sm leading-relaxed" style={{ color: WEB.textSecondary }}>
           {t("onboarding:team.subtitle")}
+        </p>
+      </div>
+
+      {/* Create-one-agent-from-scratch form */}
+      <div
+        className="space-y-5 rounded-2xl p-5"
+        style={{ background: WEB.bgCard, border: `1px solid ${WEB.border}` }}
+      >
+        <div className="space-y-2">
+          <label className="text-sm font-medium" style={{ color: WEB.text }}>
+            {t("onboarding:team.nameLabel")}
+          </label>
+          <input
+            value={firstAgent.name}
+            onChange={(e) => setFirstAgent({ ...firstAgent, name: e.target.value })}
+            placeholder={t("onboarding:team.namePlaceholder")}
+            style={{ ...fieldStyle, height: 44 }}
+            autoFocus
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium" style={{ color: WEB.text }}>
+            {t("onboarding:team.roleLabel")}
+          </label>
+          <input
+            value={firstAgent.role}
+            onChange={(e) => setFirstAgent({ ...firstAgent, role: e.target.value })}
+            placeholder={t("onboarding:team.rolePlaceholder")}
+            style={{ ...fieldStyle, height: 44 }}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium" style={{ color: WEB.text }}>
+            {t("onboarding:team.instructionsLabel")}
+          </label>
+          <textarea
+            value={firstAgent.instructions}
+            onChange={(e) =>
+              setFirstAgent({ ...firstAgent, instructions: e.target.value })
+            }
+            placeholder={t("onboarding:team.instructionsPlaceholder")}
+            rows={4}
+            style={{
+              ...fieldStyle,
+              padding: "10px 14px",
+              resize: "vertical",
+              lineHeight: 1.5,
+            }}
+          />
+        </div>
+
+        <p className="text-xs" style={{ color: WEB.textSecondary }}>
+          {t("onboarding:team.agentOptionalHint")}
         </p>
       </div>
 
@@ -773,6 +1335,10 @@ const BLANK_ORDER: DepartmentOrder = [
 
 const DEPARTMENT_ORDERS: Record<RoomType, DepartmentOrder> = {
   office: OFFICE_ORDER,
+  sales: OFFICE_ORDER,
+  hr: OFFICE_ORDER,
+  product: OFFICE_ORDER,
+  rnd: OFFICE_ORDER,
   study: STUDY_ORDER,
   lab: LAB_ORDER,
   "family-room": FAMILY_ROOM_ORDER,
@@ -785,21 +1351,6 @@ function getDepartmentLabel(dept: string, roomType: RoomType): string {
   return entry ? entry[1] : "Other";
 }
 
-function computeChecked(answers: OnboardingAnswers): Set<string> {
-  const roomConfig = ROOMS[answers.roomType];
-  const checked = new Set<string>(roomConfig.mandatoryAgents);
-  // Pre-check the room's default suggestions.
-  for (const s of roomConfig.suggestedAgents) checked.add(s);
-  const desc = (answers.description + " " + answers.role + " " + answers.priority).toLowerCase();
-
-  for (const [pattern, slugs] of roomConfig.keywordMap) {
-    if (pattern.test(desc)) {
-      for (const s of slugs) checked.add(s);
-    }
-  }
-
-  return checked;
-}
 
 interface LibraryTemplate {
   slug: string;
@@ -844,6 +1395,80 @@ function groupByDepartment(
     .map((label) => [label, groups.get(label)!]);
 }
 
+/* ─── Knowledge-base tree (launch step) ─── */
+
+// Animated file tree of the cabinet's starting knowledge base. Reveals line by
+// line, terminal-style, so the launch screen shows the KB coming to life next
+// to the AI team chat.
+function LaunchKbTree({ cabinetName }: { cabinetName: string }) {
+  const { t } = useLocale();
+  const lines = useMemo(
+    () => [
+      { text: cabinetName || t("onboarding:launch.defaultCabinetName"), indent: 0, icon: "📦" },
+      { text: "index.md", indent: 1, icon: "📄" },
+      { text: "Getting Started", indent: 1, icon: "📖" },
+      { text: "Rooms", indent: 2, icon: "🚪" },
+      { text: "Skills", indent: 2, icon: "🧩" },
+      { text: "Apps and Repos", indent: 2, icon: "🔌" },
+    ],
+    [cabinetName, t]
+  );
+
+  const [visible, setVisible] = useState(0);
+  useEffect(() => {
+    if (visible >= lines.length) return;
+    const id = setTimeout(
+      () => setVisible((c) => c + 1),
+      visible === 0 ? 350 : 200
+    );
+    return () => clearTimeout(id);
+  }, [visible, lines.length]);
+
+  return (
+    <div
+      className="rounded-xl px-4 py-3 font-mono text-[12px]"
+      style={{ background: WEB.bgWarm, border: `1px solid ${WEB.borderLight}`, lineHeight: 1.5 }}
+    >
+      {lines.map((line, i) => {
+        const isVisible = i < visible;
+        const isRoot = i === 0;
+        let prefix = "";
+        if (!isRoot && line.indent === 1) {
+          const hasMore = lines.slice(i + 1).some((l) => l.indent === 1);
+          prefix = hasMore ? "├─ " : "└─ ";
+        } else if (line.indent === 2) {
+          const hasMoreSibling = lines
+            .slice(i + 1)
+            .some((l, j) => l.indent === 2 && !lines.slice(i + 1, i + 1 + j).some((x) => x.indent <= 1));
+          prefix = "│  " + (hasMoreSibling ? "├─ " : "└─ ");
+        }
+        return (
+          <div
+            key={i}
+            className="transition-all duration-300 whitespace-pre"
+            style={{
+              opacity: isVisible ? 1 : 0,
+              transform: isVisible ? "translateX(0)" : "translateX(-6px)",
+            }}
+          >
+            {isRoot ? (
+              <span style={{ color: WEB.accent, fontWeight: 600 }}>
+                {line.icon} {line.text}
+              </span>
+            ) : (
+              <span style={{ color: WEB.textSecondary }}>
+                <span style={{ color: WEB.borderDark }}>{prefix}</span>
+                {line.icon ? `${line.icon} ` : ""}
+                {line.text}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ─── Agent Chat Preview (launch step) ─── */
 
 function AgentChatPreview({
@@ -860,15 +1485,14 @@ function AgentChatPreview({
   const [visibleCount, setVisibleCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Build conversation script from the selected agents. The lead (first agent
-  // in ROOMS[roomType].mandatoryAgents) speaks first with a room-specific
-  // greeting; followups come from the specialists.
+  // Build conversation script. The first agent leads (the user's own agent when
+  // they made one), opening with a room-specific greeting; the rest are the
+  // room's suggested teammates replying.
   const messages = useMemo(() => {
     const config = ROOMS[roomType];
-    const leadSlug = config.mandatoryAgents[0];
-    const lead = agents.find((a) => a.slug === leadSlug) || agents[0];
-    const others = agents.filter((a) => a.slug !== lead?.slug);
+    const lead = agents[0];
     if (!lead) return [];
+    const others = agents.slice(1);
 
     const script: { agent: SuggestedAgent; text: string }[] = [
       {
@@ -1006,13 +1630,17 @@ const dotGridStyle: React.CSSProperties = {
 const STEP_NAMES: Record<number, string> = {
   0: "intro",
   [STEP_WELCOME_HOME]: "welcome-home",
+  [STEP_WHAT_IS_CABINET]: "what-is-cabinet",
   [STEP_ROOM_SETUP]: "room-setup",
   [STEP_TEAM]: "team",
+  [STEP_ACCESS]: "agent-access",
+  [STEP_HEARTBEAT]: "heartbeat",
+  [STEP_TASK]: "first-task",
   [STEP_PROVIDER]: "provider",
-  5: "github",
-  6: "discord",
-  7: "cloud",
-  8: "launch",
+  [COMMUNITY_START_STEP]: "github",
+  [COMMUNITY_START_STEP + 1]: "discord",
+  [COMMUNITY_END_STEP]: "cloud",
+  [COMMUNITY_END_STEP + 1]: "launch",
 };
 
 export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
@@ -1056,7 +1684,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
   const cloudStartedRef = useRef(false);
   const cloudViewedRef = useRef(false);
   useEffect(() => {
-    if (step === 7 && !cloudViewedRef.current) {
+    if (step === COMMUNITY_END_STEP && !cloudViewedRef.current) {
       cloudViewedRef.current = true;
       recordWaitlistView("cabinet-onboarding");
     }
@@ -1126,9 +1754,70 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
       if (interval) clearInterval(interval);
     };
   }, [step, welcomeParagraph.length]);
+  const [firstAgent, setFirstAgent] = useState<FirstAgentDraft>({
+    name: "",
+    role: "",
+    instructions: "",
+  });
+  // Placeholder state for the new "access" + "heartbeat" steps. Interactive but
+  // not yet wired to the agent config / setup — see STEP_ACCESS / STEP_HEARTBEAT.
+  const [agentAccess, setAgentAccess] = useState<string[]>(["files"]);
+  const [agentHeartbeat, setAgentHeartbeat] = useState<string>("off");
+  // Placeholder: the first task the user files for their agent (STEP_TASK).
+  const [firstTask, setFirstTask] = useState<string>("");
+  // Which real-world example is being previewed in the What-is-a-Cabinet step.
+  const [exampleIndex, setExampleIndex] = useState<number>(0);
   const [suggestedAgents, setSuggestedAgents] = useState<SuggestedAgent[]>([]);
-  const [libraryTemplates, setLibraryTemplates] = useState<LibraryTemplate[]>([]);
-  const [agentsLoading, setAgentsLoading] = useState(false);
+  // Keep the downstream preview/count in sync with the one agent the user is
+  // configuring in the team step. No pre-made room defaults.
+  useEffect(() => {
+    const name = firstAgent.name.trim();
+    setSuggestedAgents(
+      name
+        ? [
+            {
+              slug: slugifyPageName(name) || "agent",
+              name,
+              emoji: "\u{1F916}",
+              role: firstAgent.role.trim() || "Agent",
+              checked: true,
+            },
+          ]
+        : []
+    );
+  }, [firstAgent]);
+
+  // Cast for the launch-step chat animation: the user's own agent leads (when
+  // they made one), joined by a few of the room's suggested teammates so the
+  // preview feels like a real team at work. These teammates are illustrative —
+  // only the user's agent is actually created.
+  const demoAgents = useMemo<SuggestedAgent[]>(() => {
+    const config = ROOMS[answers.roomType];
+    const teammateSlugs = Array.from(
+      new Set([...config.mandatoryAgents, ...config.suggestedAgents])
+    );
+    const teammates: SuggestedAgent[] = teammateSlugs.map((slug) => ({
+      slug,
+      name: slug
+        .split("-")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" "),
+      emoji: "\u{1F916}",
+      role: "",
+      checked: true,
+    }));
+    const name = firstAgent.name.trim();
+    if (!name) return teammates.slice(0, 4);
+    const lead: SuggestedAgent = {
+      slug: slugifyPageName(name) || "agent",
+      name,
+      emoji: "\u{1F916}",
+      role: firstAgent.role.trim() || "Agent",
+      checked: true,
+    };
+    return [lead, ...teammates.filter((a) => a.slug !== lead.slug).slice(0, 3)];
+  }, [answers.roomType, firstAgent]);
+
   const [launching, setLaunching] = useState(false);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [githubStars, setGithubStars] = useState(GITHUB_STARS_FALLBACK);
@@ -1284,34 +1973,10 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
     }
   }, [step, checkProvider]);
 
-  const goToTeamSuggestion = async () => {
-    setStep(STEP_TEAM);
-    setAgentsLoading(true);
-    try {
-      const res = await fetch("/api/agents/library");
-      const data = await res.json();
-      const templates: LibraryTemplate[] = data.templates ?? [];
-      setLibraryTemplates(templates);
-      const checked = computeChecked(answers);
-      setSuggestedAgents(
-        templates.map((t) => ({
-          slug: t.slug,
-          name: t.name,
-          emoji: t.emoji,
-          role: t.role,
-          checked: checked.has(t.slug),
-        }))
-      );
-    } catch {
-      // Fallback: at least offer the room's mandatory pair
-      const [leadSlug, editorSlug] = ROOMS[answers.roomType].mandatoryAgents;
-      setSuggestedAgents([
-        { slug: leadSlug, name: leadSlug, emoji: "\u{1F916}", role: "Lead", checked: true },
-        { slug: editorSlug, name: editorSlug, emoji: "\u{1F4DD}", role: "Support", checked: true },
-      ]);
-    } finally {
-      setAgentsLoading(false);
-    }
+  // After picking a room, connect the AI provider first; the agent is
+  // configured next (it needs a provider to run).
+  const goToProvider = () => {
+    setStep(STEP_PROVIDER);
   };
 
   const MAX_AGENTS = 5;
@@ -1338,8 +2003,6 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
   const launch = useCallback(async () => {
     setLaunching(true);
     try {
-      const selected = suggestedAgents.filter((a) => a.checked).map((a) => a.slug);
-
       // Save provider + model preference
       if (selectedProvider) {
         await fetch("/api/agents/providers", {
@@ -1380,7 +2043,15 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
             teamSize: answers.teamSize,
             priority: answers.priority,
           },
-          selectedAgents: selected,
+          selectedAgents: [],
+          // The one agent the user configured from scratch. Created by the
+          // setup route (no pre-made team). Empty name → no agent.
+          firstAgent: {
+            name: firstAgent.name.trim(),
+            role: firstAgent.role.trim(),
+            instructions: firstAgent.instructions.trim(),
+            provider: selectedProvider || undefined,
+          },
           locale,
         }),
       });
@@ -1400,11 +2071,8 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
       console.error("Setup failed:", e);
       setLaunching(false);
     }
-  }, [answers, suggestedAgents, selectedProvider, selectedModel, selectedEffort, onComplete]);
+  }, [answers, firstAgent, selectedProvider, selectedModel, selectedEffort, locale, onComplete]);
 
-  const selectedAgentCount = suggestedAgents.filter(
-    (agent) => agent.checked
-  ).length;
   const communitySteps: CommunityStepConfig[] = [
     {
       eyebrow: "GitHub",
@@ -1470,8 +2138,14 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
       ? communitySteps[step - COMMUNITY_START_STEP]
       : null;
   const isGitHubCommunityStep = communityStep?.eyebrow === "GitHub";
-  const launchDisabled = launching || selectedAgentCount === 0;
+  // The agent is optional (the user can skip and add agents later), so launch
+  // is only blocked while a launch is in flight.
+  const launchDisabled = launching;
   const finalLaunchDisabled = launchDisabled || !disclaimerAccepted;
+  // Show the live "cabinet" left rail during the configuration steps.
+  // The live build rail runs from "Pick a room" through the first task. The
+  // What-is-a-Cabinet step shows the full window showcases instead (no rail).
+  const showRail = step >= STEP_ROOM_SETUP && step <= STEP_TASK;
   const starsLabel = t("onboarding:github.starsLabel", { stars: formatGithubStars(githubStars) });
 
   /* ─── Shared inline styles (website tokens) ─── */
@@ -1504,12 +2178,27 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
         </div>
       )}
       <div
-        className={`relative mx-auto flex min-h-screen w-full max-w-3xl items-center justify-center ${
+        className={`relative mx-auto flex min-h-screen w-full ${
+          showRail
+            ? "max-w-6xl gap-10"
+            : step === STEP_WHAT_IS_CABINET
+              ? "max-w-4xl"
+              : "max-w-3xl"
+        } items-center justify-center ${
           step === STEP_WELCOME_HOME ? "px-4 py-4" : "px-6 py-10"
         }`}
         style={step === STEP_WELCOME_HOME ? undefined : dotGridStyle}
       >
-        <div className="w-full">
+        {showRail && (
+          <OnboardingCabinetRail
+            cabinetName={answers.workspaceName}
+            agentName={firstAgent.name}
+            userName={answers.name}
+            firstTask={firstTask}
+            step={step}
+          />
+        )}
+        <div className={showRail ? "min-w-0 flex-1" : "w-full"}>
           {/* Progress indicator — hidden on Welcome home so the popup truly
               centers over the blueprint's patio. */}
           {step !== STEP_WELCOME_HOME && (
@@ -1625,7 +2314,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && answers.name.trim()) {
                         e.preventDefault();
-                        setStep(STEP_ROOM_SETUP);
+                        setStep(STEP_WHAT_IS_CABINET);
                       }
                     }}
                     placeholder={t("tinyExtras:namePlaceholder")}
@@ -1647,7 +2336,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                     {t("onboarding:actions.back")}
                   </button>
                   <button
-                    onClick={() => setStep(STEP_ROOM_SETUP)}
+                    onClick={() => setStep(STEP_WHAT_IS_CABINET)}
                     disabled={!answers.name.trim()}
                     className="inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium text-white transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
                     style={{ background: WEB.accent }}
@@ -1660,7 +2349,17 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
             </div>
           )}
 
-          {/* Step 2: Pick a room + name + describe the cabinet (merged) */}
+          {/* Step 2: What is a Cabinet? (concept) */}
+          {step === STEP_WHAT_IS_CABINET && (
+            <WhatIsCabinetStep
+              selected={exampleIndex}
+              onSelect={setExampleIndex}
+              onBack={() => setStep(STEP_WELCOME_HOME)}
+              onNext={() => setStep(STEP_ROOM_SETUP)}
+            />
+          )}
+
+          {/* Step 3: Pick a room + name + describe the cabinet (merged) */}
           {step === STEP_ROOM_SETUP && (
             <div className="mx-auto flex max-w-4xl flex-col gap-7 animate-in fade-in duration-300">
               <div className="text-center space-y-2">
@@ -1675,7 +2374,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {ROOM_TYPES.map((id) => {
                   const room = ROOMS[id];
                   const Icon = room.icon;
@@ -1777,7 +2476,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && answers.workspaceName.trim()) {
                         e.preventDefault();
-                        void goToTeamSuggestion();
+                        void goToProvider();
                       }
                     }}
                     placeholder={roomText(answers.roomType, "descriptionPlaceholder", activeRoom.descriptionPlaceholder)}
@@ -1789,7 +2488,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
 
               <div className="flex items-center justify-between pt-1">
                 <button
-                  onClick={() => setStep(STEP_WELCOME_HOME)}
+                  onClick={() => setStep(STEP_WHAT_IS_CABINET)}
                   className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-medium transition-colors"
                   style={{ color: WEB.textSecondary }}
                 >
@@ -1797,7 +2496,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                   {t("onboarding:actions.back")}
                 </button>
                 <button
-                  onClick={goToTeamSuggestion}
+                  onClick={goToProvider}
                   disabled={!answers.workspaceName.trim()}
                   className="inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium text-white transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
                   style={{ background: WEB.accent }}
@@ -1810,14 +2509,50 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
           )}
 
           {/* Step 4: Build your team — title only for now */}
+          {/* Step 5: Configure your first agent */}
           {step === STEP_TEAM && (
             <TeamBuildStep
-              onBack={() => setStep(STEP_ROOM_SETUP)}
-              onNext={() => setStep(STEP_PROVIDER)}
+              firstAgent={firstAgent}
+              setFirstAgent={setFirstAgent}
+              onBack={() => setStep(STEP_PROVIDER)}
+              onNext={() => setStep(STEP_ACCESS)}
             />
           )}
 
-          {/* Step 5: AI Provider Check */}
+          {/* Step 6: What can this agent access? (placeholder) */}
+          {step === STEP_ACCESS && (
+            <AgentAccessStep
+              agentName={firstAgent.name}
+              access={agentAccess}
+              setAccess={setAgentAccess}
+              onBack={() => setStep(STEP_TEAM)}
+              onNext={() => setStep(STEP_HEARTBEAT)}
+            />
+          )}
+
+          {/* Step 7: Should it run on a heartbeat? (placeholder) */}
+          {step === STEP_HEARTBEAT && (
+            <HeartbeatStep
+              agentName={firstAgent.name}
+              heartbeat={agentHeartbeat}
+              setHeartbeat={setAgentHeartbeat}
+              onBack={() => setStep(STEP_ACCESS)}
+              onNext={() => setStep(STEP_TASK)}
+            />
+          )}
+
+          {/* Step 8: File your first task for the agent (placeholder) */}
+          {step === STEP_TASK && (
+            <FirstTaskStep
+              agentName={firstAgent.name}
+              firstTask={firstTask}
+              setFirstTask={setFirstTask}
+              onBack={() => setStep(STEP_HEARTBEAT)}
+              onNext={() => setStep(COMMUNITY_START_STEP)}
+            />
+          )}
+
+          {/* Step 4: AI Provider Check */}
           {step === STEP_PROVIDER && (
             <div className="mx-auto flex max-w-3xl flex-col gap-6 animate-in fade-in duration-300">
               <div className="text-center space-y-2">
@@ -2266,7 +3001,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
 
               <div className="flex items-center justify-between pt-2">
                 <button
-                  onClick={() => setStep(STEP_TEAM)}
+                  onClick={() => setStep(STEP_ROOM_SETUP)}
                   className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-medium transition-colors"
                   style={{ color: WEB.textSecondary }}
                 >
@@ -2274,7 +3009,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                   {t("onboarding:actions.back")}
                 </button>
                 <button
-                  onClick={() => setStep(COMMUNITY_START_STEP)}
+                  onClick={() => setStep(STEP_TEAM)}
                   className="inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium text-white transition-all hover:-translate-y-0.5"
                   style={{ background: WEB.accent }}
                 >
@@ -2566,6 +3301,24 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                     style={{ background: WEB.borderLight }}
                   />
 
+                  {/* Knowledge base — animated file tree */}
+                  <div className="space-y-1.5">
+                    <p
+                      className="text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: WEB.textTertiary }}
+                    >
+                      {t("onboarding:launch.knowledgeBaseLabel")}
+                    </p>
+                    <LaunchKbTree cabinetName={answers.workspaceName} />
+                  </div>
+
+                  {/* AI team */}
+                  <p
+                    className="text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ color: WEB.textTertiary }}
+                  >
+                    {t("onboarding:launch.aiTeamLabel")}
+                  </p>
                   <div className="flex flex-col gap-1">
                     {suggestedAgents.filter((a) => a.checked).map((a) => (
                       <div
@@ -2607,7 +3360,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                   </div>
                   <div className="flex-1 overflow-y-auto scrollbar-thin p-3 pb-2 space-y-0.5">
                     <AgentChatPreview
-                      agents={suggestedAgents.filter((a) => a.checked)}
+                      agents={demoAgents}
                       workspaceName={answers.workspaceName}
                       homeName={answers.homeName || (answers.name ? `${answers.name}'s Home` : "Home")}
                       roomType={answers.roomType}

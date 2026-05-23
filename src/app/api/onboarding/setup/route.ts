@@ -6,7 +6,6 @@ import { DATA_DIR } from "@/lib/storage/path-utils";
 import { scaffoldCabinet } from "@/lib/storage/cabinet-scaffold";
 import {
   getMandatoryAgentSlugs,
-  mergeMandatoryAgentSlugs,
   resolveAgentLibraryDir,
 } from "@/lib/agents/library-manager";
 import { ensureAgentScaffold } from "@/lib/agents/scaffold";
@@ -30,6 +29,13 @@ interface OnboardingRequest {
     priority?: string;
   };
   selectedAgents: string[];
+  /** The single agent the user configured from scratch in the team step. */
+  firstAgent?: {
+    name?: string;
+    role?: string;
+    instructions?: string;
+    provider?: string;
+  };
   locale?: string;
 }
 
@@ -44,10 +50,13 @@ export async function POST(req: NextRequest) {
     const homeName =
       body.homeName?.trim() || (answers.name ? `${answers.name}'s Home` : "Home");
 
-    const selectedAgents = mergeMandatoryAgentSlugs(
-      body.selectedAgents || [],
-      roomType
-    );
+    // No pre-made team: create exactly the agents the user chose (which is
+    // none during onboarding now — the user configures their first agent in the
+    // wizard, created separately via /api/agents/personas). We no longer force
+    // the room's mandatory agents.
+    const selectedAgents = Array.isArray(body.selectedAgents)
+      ? body.selectedAgents
+      : [];
     const mandatorySlugs = getMandatoryAgentSlugs(roomType);
     const libraryDir = await resolveAgentLibraryDir();
 
@@ -171,13 +180,61 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 4b. Create the user's first agent (configured from scratch in the team
+    // step). We write persona.md directly — like the library templates above —
+    // so it doesn't depend on a configured provider (the user may skip provider
+    // setup). The agent simply won't run until a provider is connected.
+    let firstAgentSlug = "";
+    const firstAgent = body.firstAgent;
+    if (firstAgent && typeof firstAgent.name === "string" && firstAgent.name.trim()) {
+      const agentName = firstAgent.name.trim();
+      const slug =
+        agentName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") ||
+        "agent";
+      const agentDir = path.join(AGENTS_DIR, slug);
+      let exists = false;
+      try {
+        await fs.access(agentDir);
+        exists = true;
+      } catch {
+        // Doesn't exist yet — good.
+      }
+      if (!exists) {
+        await fs.mkdir(agentDir, { recursive: true });
+        const personaBody =
+          (firstAgent.instructions || "").trim() || `You are ${agentName}.`;
+        const personaMd = matter.stringify(`\n${personaBody}\n`, {
+          name: agentName,
+          slug,
+          emoji: "🤖",
+          type: "specialist",
+          role: (firstAgent.role || "").trim(),
+          provider: firstAgent.provider?.trim() || "claude-code",
+          heartbeat: "",
+          heartbeatEnabled: false,
+          budget: 100,
+          active: true,
+          workdir: "/data",
+          workspace: "/",
+          channels: ["general"],
+          focus: [],
+        });
+        await fs.writeFile(path.join(agentDir, "persona.md"), personaMd);
+        await ensureAgentScaffold(agentDir);
+        firstAgentSlug = slug;
+      }
+    }
+
     // 5. Create chat channels from all agent channel references
     await fs.mkdir(CHAT_DIR, { recursive: true });
 
     // Collect all channels referenced by agents + map members
     const channelMembers = new Map<string, Set<string>>();
-    // Always create #general with all agents
-    channelMembers.set("general", new Set(selectedAgents));
+    // Always create #general with the created agents.
+    channelMembers.set(
+      "general",
+      new Set(firstAgentSlug ? [...selectedAgents, firstAgentSlug] : selectedAgents)
+    );
 
     for (const slug of selectedAgents) {
       try {

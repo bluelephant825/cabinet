@@ -130,7 +130,21 @@ const managedDataDir = resolveManagedDataDir();
 const updateStatusPath = path.join(managedDataDir, ".cabinet-state", "update-status.json");
 let mainWindow = null;
 let backendChildren = [];
+// Base app URL (origin) of the embedded/dev Cabinet app. Captured the first
+// time we create a window so secondary windows (multi-window rooms) can be
+// spawned at `${baseAppUrl}${hash}` without re-bootstrapping the backend.
+let baseAppUrl = null;
 const DEV_APP_DISCOVERY_TIMEOUT_MS = 45_000;
+
+/** The primary window if it still exists and isn't destroyed, else null. */
+function liveMainWindow() {
+  return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+}
+
+/** Any live (non-destroyed) app window, or null. Multi-window aware. */
+function anyLiveWindow() {
+  return BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) ?? null;
+}
 
 function writeUpdateStatus(status) {
   fs.mkdirSync(path.dirname(updateStatusPath), { recursive: true });
@@ -497,7 +511,7 @@ function configureAutoUpdates() {
       message: "Restart Cabinet to finish applying the desktop update.",
     });
 
-    const prompt = await dialog.showMessageBox(mainWindow, {
+    const updateDialogOptions = {
       type: "info",
       buttons: ["Restart to update", "Later"],
       defaultId: 0,
@@ -506,7 +520,15 @@ function configureAutoUpdates() {
       message: "A new Cabinet desktop release is ready.",
       detail:
         "Your desktop data stays outside the app bundle, but keeping a copy is still recommended while Cabinet is moving fast.",
-    });
+    };
+    // Anchor to a live window. With multi-window, the original `mainWindow`
+    // may be closed/destroyed; passing a destroyed window to showMessageBox
+    // throws "Object has been destroyed". Fall back to any live window, else
+    // show the dialog unparented.
+    const dialogParent = liveMainWindow() ?? anyLiveWindow();
+    const prompt = dialogParent
+      ? await dialog.showMessageBox(dialogParent, updateDialogOptions)
+      : await dialog.showMessageBox(updateDialogOptions);
 
     if (prompt.response === 0) {
       autoUpdater.quitAndInstall();
@@ -591,10 +613,8 @@ ipcMain.handle("cabinet:get-preferred-languages", () => {
   }
 });
 
-async function createWindow() {
-  const runtime = await startEmbeddedCabinet();
-
-  mainWindow = new BrowserWindow({
+function buildBrowserWindow() {
+  return new BrowserWindow({
     width: 1480,
     height: 940,
     minWidth: 1180,
@@ -608,31 +628,59 @@ async function createWindow() {
       sandbox: false,
     },
   });
+}
 
-  if (isDev) {
-    mainWindow.webContents.on("did-fail-load", async (_event, errorCode, errorDescription) => {
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        return;
-      }
+// In dev, the Next server may not be ready the instant a window loads. Retry by
+// re-resolving the dev URL and re-appending the window's hash, so a secondary
+// (per-room) window keeps its scope across the retry.
+function attachDevReload(win, hash) {
+  if (!isDev) return;
+  win.webContents.on("did-fail-load", async (_event, errorCode, errorDescription) => {
+    if (!win || win.isDestroyed()) {
+      return;
+    }
 
-      if (errorCode === -3) {
-        return;
-      }
+    if (errorCode === -3) {
+      return;
+    }
 
-      try {
-        const nextUrl = await resolveDevAppUrl(15_000);
-        await mainWindow.loadURL(nextUrl);
-      } catch {
-        dialog.showErrorBox(
-          "Cabinet Dev Server Unavailable",
-          `Electron could not reach the local Cabinet dev app.\n\nLast Chromium error: ${errorDescription} (${errorCode})\n\nStart \`npm run dev\` and try again.`
-        );
-      }
-    });
-  }
+    try {
+      const nextUrl = await resolveDevAppUrl(15_000);
+      await win.loadURL(`${nextUrl}${hash || ""}`);
+    } catch {
+      dialog.showErrorBox(
+        "Cabinet Dev Server Unavailable",
+        `Electron could not reach the local Cabinet dev app.\n\nLast Chromium error: ${errorDescription} (${errorCode})\n\nStart \`npm run dev\` and try again.`
+      );
+    }
+  });
+}
 
+async function createWindow() {
+  const runtime = await startEmbeddedCabinet();
+  baseAppUrl = runtime.appUrl;
+
+  mainWindow = buildBrowserWindow();
+  attachDevReload(mainWindow, "");
   await mainWindow.loadURL(runtime.appUrl);
 }
+
+// Spawn an additional window scoped to a specific room/cabinet via its URL hash
+// (e.g. "#/cabinet/research"). Reuses the already-running backend.
+async function openRoomWindow(hash) {
+  const safeHash = typeof hash === "string" ? hash : "";
+  if (!baseAppUrl) {
+    await createWindow();
+    return { ok: true };
+  }
+  const win = buildBrowserWindow();
+  attachDevReload(win, safeHash);
+  await win.loadURL(`${baseAppUrl}${safeHash}`);
+  win.focus();
+  return { ok: true };
+}
+
+ipcMain.handle("cabinet:open-window", (_event, hash) => openRoomWindow(hash));
 
 app.on("window-all-closed", () => {
   cleanupBackends();
@@ -646,14 +694,18 @@ app.on("before-quit", () => {
 });
 
 app.on("second-instance", () => {
-  if (!mainWindow) {
+  // Focus a live window. The original `mainWindow` may be closed/destroyed
+  // (multi-window, or the user closed it), so prefer any live window and
+  // never touch a destroyed reference (that throws "Object has been destroyed").
+  const win = liveMainWindow() ?? anyLiveWindow();
+  if (!win) {
     return;
   }
 
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
+  if (win.isMinimized()) {
+    win.restore();
   }
-  mainWindow.focus();
+  win.focus();
 });
 
 app.whenReady().then(async () => {

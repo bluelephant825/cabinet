@@ -974,6 +974,25 @@
     "stored": "Stored",
     "resetOnboarding": "Reset onboarding"
   },
+  "rooms": {
+    "switcherTitle": "Switch room",
+    "switchRoom": "Rooms",
+    "loading": "Loading…",
+    "defaultTag": "Home",
+    "openInNewWindow": "Open in new window",
+    "opensBrowserWindow": "Opens a new browser window",
+    "customizeRoom": "Customize this room…",
+    "addRoom": "Add room…",
+    "editTitle": "Customize room",
+    "editSubtitle": "Set this room's name, icon, color, and theme.",
+    "nameLabel": "Name",
+    "iconLabel": "Icon",
+    "colorLabel": "Color",
+    "colorAuto": "Auto",
+    "themeLabel": "Theme",
+    "themeGlobal": "Use global default",
+    "editFailed": "Could not save the room. Please try again."
+  },
   "common": {
     "actions": {
       "save": "Save",
@@ -1218,6 +1237,8 @@
       "beforeYouLaunch": "Before you launch",
       "defaultCabinetName": "Your Cabinet",
       "defaultDescription": "Knowledge base + AI team",
+      "knowledgeBaseLabel": "Knowledge base",
+      "aiTeamLabel": "AI team",
       "launchCabinet": "Launch Cabinet",
       "settingUp": "Setting up...",
       "disclaimerAccess": "<strong>Agents run with full access.</strong> Cabinet uses <flag>--dangerously-skip-permissions</flag> (Claude Code) and equivalent flags in other providers. This is identical to running these CLI tools from your own terminal. Any MCP servers or tools you've configured may be invoked automatically by agents.",
@@ -1251,6 +1272,59 @@
     "roomSetup": {
       "subtitle": "What's this cabinet for? Each room comes with its own AI team.",
       "heading": "Pick a <accent>room</accent>"
+    },
+    "whatIsCabinet": {
+      "heading": "What is a Cabinet?",
+      "body": "A Cabinet is a focused workspace for one area of your life or work. It holds your files, notes, tools, agents, and tasks, so your AI team has the context it needs to actually help.",
+      "examplesLabel": "How people use Cabinet",
+      "example1": "your startup",
+      "example2": "a GitHub repo",
+      "example3": "your marketing work",
+      "example4": "a client project",
+      "example5": "your personal knowledge base"
+    },
+    "access": {
+      "heading": "What can {{name}} access?",
+      "subtitle": "Pick the knowledge and tools this agent can use. You can change this anytime.",
+      "defaultAgent": "your agent",
+      "files": "Files & knowledge",
+      "github": "GitHub",
+      "slack": "Slack",
+      "mcp": "MCP servers",
+      "plugins": "Plugins",
+      "skills": "Skills",
+      "placeholderNote": "You can fine-tune access later in the agent's settings."
+    },
+    "heartbeat": {
+      "heading": "Should {{name}} run on a heartbeat?",
+      "subtitle": "A heartbeat lets the agent check in and work on its own on a schedule.",
+      "off": "Off",
+      "offHint": "Runs only when you ask. Recommended to start.",
+      "daily": "Daily",
+      "dailyHint": "Checks in once a day.",
+      "weekly": "Weekly",
+      "weeklyHint": "Checks in once a week.",
+      "tokenNote": "Heads up: a heartbeat runs the agent automatically, which uses AI tokens (and your provider quota) every time it fires. You can change or turn this off anytime."
+    },
+    "firstTask": {
+      "heading": "File your first task",
+      "subtitle": "Tasks are how you hand work to {{name}}. Write one now and it lands in your cabinet, ready to run.",
+      "label": "What should {{name}} do first?",
+      "placeholder": "e.g. Draft a welcome email for new customers",
+      "example1": "Summarize my latest notes",
+      "example2": "Draft a project plan",
+      "example3": "Research our top 3 competitors",
+      "note": "You can leave this blank and add tasks later. Nothing runs until you connect an AI provider."
+    },
+    "rail": {
+      "untitled": "Your Cabinet",
+      "dataCaption": "All your project's files and notes live here.",
+      "teamEmpty": "No agents yet.",
+      "teamCaption": "Your AI team works here.",
+      "tasksEmpty": "No tasks yet.",
+      "tasksCaption": "Work you hand to your team shows up here.",
+      "assignedTo": "Assigned to {{name}}",
+      "you": "You"
     },
     "rooms": {
       "office": {
@@ -1436,8 +1510,15 @@
       "importTitle": "Import {{name}}",
       "pickAgents": "Pick your agents",
       "required": "Required",
-      "subtitle": "Each cabinet is an AI team — agents, tasks, and a shared knowledge base, working together as one.",
-      "heading": "Build <accent>your</accent> team",
+      "subtitle": "No pre-made team here. Set up one agent to start, and add more anytime from inside the room.",
+      "heading": "Create your first <accent>agent</accent>",
+      "nameLabel": "Agent name",
+      "namePlaceholder": "e.g. Editor, Researcher, Assistant",
+      "roleLabel": "Role",
+      "rolePlaceholder": "e.g. Writing assistant",
+      "instructionsLabel": "What should this agent do?",
+      "instructionsPlaceholder": "Describe how it should help. For example: Draft and edit my pages, keep the tone clear and friendly, and suggest improvements.",
+      "agentOptionalHint": "Optional. You can skip this and add agents later from inside the room.",
       "agentCount_one": "{{count}} agent",
       "agentCount_other": "{{count}} agents",
       "jobCount_one": "{{count}} job",
