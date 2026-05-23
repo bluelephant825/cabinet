@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Sehemu moja kwa kila kitu — ili wewe na timu yako ya AI msome, mhariri, na mpeleke kutoka ",
     "sameFiles": "faili zilezile",
     "secondParagraphSuffix": ", si nakala za nakala.",
-    "mockTitle": "Kabati la Hila"
+    "mockTitle": "Kabati la Jane"
   },
   "slideData": {
     "thailandRootLabel": "Safari ya Thailand",
@@ -557,7 +557,7 @@
     "close": "Funga",
     "rolePlaceholder": "k.m. indie hacker, PM wa SaaS, mwanafunzi wa usanifu, mpenda burudani…",
     "joinDiscord": "Jiunge na Discord",
-    "header": "Ujumbe mfupi kutoka kwa Hila",
+    "header": "Ujumbe mfupi kutoka kwa Jane",
     "howGoing": "Inaendaje hadi sasa?",
     "starsCount": "Nyota {{n}}",
     "starsCountPlural": "Nyota {{n}}",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Wasifu",
       "name": "Jina",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Jina la kuonyesha",
       "role": "Jukumu",
       "rolePlaceholder": "Mjenzi",

@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "すべてを1か所に — あなたとAIチームが",
     "sameFiles": "同じファイル",
     "secondParagraphSuffix": "から読み込み、編集し、公開できるように。コピーのコピーではなく。",
-    "mockTitle": "HilaのCabinet"
+    "mockTitle": "JaneのCabinet"
   },
   "slideData": {
     "thailandRootLabel": "タイ旅行",
@@ -557,7 +557,7 @@
     "close": "閉じる",
     "rolePlaceholder": "例：インディーハッカー、SaaSのPM、デザイン学生、趣味人…",
     "joinDiscord": "Discordに参加",
-    "header": "Hilaからのクイックチェックイン",
+    "header": "Janeからのクイックチェックイン",
     "howGoing": "ここまではいかがですか？",
     "starsCount": "{{n}}つ星",
     "starsCountPlural": "{{n}}つ星",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "プロフィール",
       "name": "名前",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "表示名",
       "role": "役割",
       "rolePlaceholder": "ビルダー",

@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "一切都在一個地方 — 這樣你和你的 AI 團隊都從",
     "sameFiles": "同一份檔案",
     "secondParagraphSuffix": "裡讀、寫、發佈,而不是一層層的副本。",
-    "mockTitle": "Hila 的凱比內特"
+    "mockTitle": "Jane 的凱比內特"
   },
   "slideData": {
     "thailandRootLabel": "泰國之旅",
@@ -557,7 +557,7 @@
     "close": "關閉",
     "rolePlaceholder": "如:獨立開發者、SaaS PM、設計系學生、業餘愛好者……",
     "joinDiscord": "加入 Discord",
-    "header": "Hila 的簡短問候",
+    "header": "Jane 的簡短問候",
     "howGoing": "目前用得怎麼樣?",
     "starsCount": "{{n}} 顆星",
     "starsCountPlural": "{{n}} 顆星",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "個人資料",
       "name": "姓名",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "顯示名稱",
       "role": "角色",
       "rolePlaceholder": "建造者",

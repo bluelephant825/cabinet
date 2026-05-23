@@ -43,7 +43,7 @@ interface MockupSidebarProps {
    */
   tabsPopInDelay?: number;
   /**
-   * Cabinet header title. Defaults to "Hila's Cabinet" to match the
+   * Cabinet header title. Defaults to "Jane's Cabinet" to match the
    * sidebar; the intro slide overrides to the generic "Cabinet".
    */
   title?: string;

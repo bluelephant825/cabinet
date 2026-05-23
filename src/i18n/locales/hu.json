@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Minden egy helyen — így te és az AI csapatod is olvas, szerkeszt és szállít a ",
     "sameFiles": "ugyanazokból a fájlokból",
     "secondParagraphSuffix": ", nem másolatok másolatai.",
-    "mockTitle": "Hila Cabinetje"
+    "mockTitle": "Jane Cabinetje"
   },
   "slideData": {
     "thailandRootLabel": "Thaiföldi utazás",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profil",
       "name": "Név",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Megjelenítési név",
       "role": "Szerep",
       "rolePlaceholder": "Építő",

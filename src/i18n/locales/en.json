@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "One place for everything — so you and your AI team read, edit, and ship from the ",
     "sameFiles": "same files",
     "secondParagraphSuffix": ", not copies of copies.",
-    "mockTitle": "Hila's Cabinet"
+    "mockTitle": "Jane's Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "Thailand Trip",
@@ -557,7 +557,7 @@
     "close": "Close",
     "rolePlaceholder": "e.g. indie hacker, PM at a SaaS, design student, hobbyist…",
     "joinDiscord": "Join the Discord",
-    "header": "Quick check-in from Hila",
+    "header": "Quick check-in from Jane",
     "howGoing": "How's it going so far?",
     "starsCount": "{{n}} star",
     "starsCountPlural": "{{n}} stars",
@@ -1702,7 +1702,7 @@
     "profile": {
       "title": "Profile",
       "name": "Name",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Display name",
       "role": "Role",
       "rolePlaceholder": "Builder",

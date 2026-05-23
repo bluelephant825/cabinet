@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Satu tempat untuk semuanya — agar Anda dan tim AI Anda membaca, mengedit, dan mengirim dari ",
     "sameFiles": "berkas yang sama",
     "secondParagraphSuffix": ", bukan salinan dari salinan.",
-    "mockTitle": "Cabinet Hila"
+    "mockTitle": "Cabinet Jane"
   },
   "slideData": {
     "thailandRootLabel": "Perjalanan Thailand",
@@ -557,7 +557,7 @@
     "close": "Tutup",
     "rolePlaceholder": "mis. indie hacker, PM di SaaS, mahasiswa desain, penghobi…",
     "joinDiscord": "Gabung Discord",
-    "header": "Pesan singkat dari Hila",
+    "header": "Pesan singkat dari Jane",
     "howGoing": "Bagaimana sejauh ini?",
     "starsCount": "{{n}} bintang",
     "starsCountPlural": "{{n}} bintang",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profil",
       "name": "Nama",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Nama tampilan",
       "role": "Peran",
       "rolePlaceholder": "Pembangun",

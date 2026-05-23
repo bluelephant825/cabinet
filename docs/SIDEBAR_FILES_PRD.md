@@ -22,7 +22,7 @@ This PRD covers six connected improvements:
    supports (native, Office, Google), so users discover capabilities and create files
    directly from the tree.
 4. **Chat-editor handoff** — after a new file is created, open it in the editor *and* pop
-   the AI composer pre-seeded with a friendly, file-aware prompt ("Hi Hila — what would
+   the AI composer pre-seeded with a friendly, file-aware prompt ("Hi Jane — what would
    you like to do in this file?").
 5. **Finder-parity menu + keyboard shortcuts** — restructure the menu to feel like macOS
    Finder and attach shortcuts to most actions.

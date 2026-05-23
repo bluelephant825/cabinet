@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Ein Ort für alles – damit Sie und Ihr KI-Team von den ",
     "sameFiles": "gleichen Dateien",
     "secondParagraphSuffix": ", nicht von Kopien von Kopien, lesen, bearbeiten und veröffentlichen.",
-    "mockTitle": "Hilas Cabinet"
+    "mockTitle": "Janes Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "Thailand-Reise",
@@ -557,7 +557,7 @@
     "close": "Schließen",
     "rolePlaceholder": "z.B. Indie-Hacker, PM bei einem SaaS, Designstudent, Hobbyist…",
     "joinDiscord": "Discord beitreten",
-    "header": "Kurzer Check-in von Hila",
+    "header": "Kurzer Check-in von Jane",
     "howGoing": "Wie läuft es bisher?",
     "starsCount": "{{n}} Stern",
     "starsCountPlural": "{{n}} Sterne",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profil",
       "name": "Name",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Anzeigename",
       "role": "Rolle",
       "rolePlaceholder": "Entwickler",

@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Eén plek voor alles — zodat jij en je AI-team lezen, bewerken en verzenden vanuit de ",
     "sameFiles": "zelfde bestanden",
     "secondParagraphSuffix": ", geen kopieën van kopieën.",
-    "mockTitle": "Hila's Cabinet"
+    "mockTitle": "Jane's Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "Reis naar Thailand",
@@ -557,7 +557,7 @@
     "close": "Sluiten",
     "rolePlaceholder": "bijv. indie hacker, PM bij een SaaS, designstudent, hobbyist…",
     "joinDiscord": "Word lid van Discord",
-    "header": "Snelle check-in van Hila",
+    "header": "Snelle check-in van Jane",
     "howGoing": "Hoe gaat het tot nu toe?",
     "starsCount": "{{n}} ster",
     "starsCountPlural": "{{n}} sterren",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profiel",
       "name": "Naam",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Weergavenaam",
       "role": "Rol",
       "rolePlaceholder": "Bouwer",

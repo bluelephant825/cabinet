@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "모든 것을 한곳에서 — 당신과 AI 팀이 다음에서 읽고, 편집하고, 배포할 수 있도록 ",
     "sameFiles": "동일한 파일",
     "secondParagraphSuffix": ", 복사본의 복사본이 아닌.",
-    "mockTitle": "Hila의 Cabinet"
+    "mockTitle": "Jane의 Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "태국 여행",
@@ -557,7 +557,7 @@
     "close": "닫기",
     "rolePlaceholder": "예: 인디 해커, SaaS PM, 디자인 학생, 취미 개발자…",
     "joinDiscord": "Discord 참여하기",
-    "header": "Hila의 빠른 확인 요청",
+    "header": "Jane의 빠른 확인 요청",
     "howGoing": "지금까지 어떠셨나요?",
     "starsCount": "별 {{n}}개",
     "starsCountPlural": "별 {{n}}개",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "프로필",
       "name": "이름",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "표시 이름",
       "role": "역할",
       "rolePlaceholder": "빌더",

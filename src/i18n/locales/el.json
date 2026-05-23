@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Ένα μέρος για τα πάντα — ώστε εσείς και η ομάδα AI σας να διαβάζετε, να επεξεργάζεστε και να παραδίδετε από τα ",
     "sameFiles": "ίδια αρχεία",
     "secondParagraphSuffix": ", όχι αντίγραφα αντιγράφων.",
-    "mockTitle": "Το Cabinet της Hila"
+    "mockTitle": "Το Cabinet της Jane"
   },
   "slideData": {
     "thailandRootLabel": "Ταξίδι στην Ταϊλάνδη",
@@ -557,7 +557,7 @@
     "close": "Κλείσιμο",
     "rolePlaceholder": "π.χ. indie hacker, PM σε SaaS, φοιτητής design, χομπίστας…",
     "joinDiscord": "Εγγραφή στο Discord",
-    "header": "Γρήγορη ενημέρωση από τη Hila",
+    "header": "Γρήγορη ενημέρωση από τη Jane",
     "howGoing": "Πώς πάει μέχρι στιγμής;",
     "starsCount": "{{n}} αστέρι",
     "starsCountPlural": "{{n}} αστέρια",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Προφίλ",
       "name": "Όνομα",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Όνομα εμφάνισης",
       "role": "Ρόλος",
       "rolePlaceholder": "Δημιουργός",

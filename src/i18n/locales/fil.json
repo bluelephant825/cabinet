@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Isang lugar para sa lahat — para ikaw at ang iyong AI team ay magbasa, mag-edit, at mag-ship mula sa ",
     "sameFiles": "parehong mga file",
     "secondParagraphSuffix": ", hindi kopya ng mga kopya.",
-    "mockTitle": "Cabinet ni Hila"
+    "mockTitle": "Cabinet ni Jane"
   },
   "slideData": {
     "thailandRootLabel": "Biyahe sa Thailand",
@@ -557,7 +557,7 @@
     "close": "Isara",
     "rolePlaceholder": "hal. indie hacker, PM sa isang SaaS, estudyante ng disenyo, hobbyist…",
     "joinDiscord": "Sumali sa Discord",
-    "header": "Mabilis na pag-check-in mula kay Hila",
+    "header": "Mabilis na pag-check-in mula kay Jane",
     "howGoing": "Kumusta na sa ngayon?",
     "starsCount": "{{n}} bituin",
     "starsCountPlural": "{{n}} bituin",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Propayl",
       "name": "Pangalan",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Pangalan sa display",
       "role": "Tungkulin",
       "rolePlaceholder": "Tagabuo",

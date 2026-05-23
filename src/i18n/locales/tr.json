@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Her şey için tek bir yer — böylece siz ve yapay zeka ekibiniz ",
     "sameFiles": "aynı dosyalar",
     "secondParagraphSuffix": ", kopyaların kopyaları değil.",
-    "mockTitle": "Hila'nın Cabinet'i"
+    "mockTitle": "Jane'nın Cabinet'i"
   },
   "slideData": {
     "thailandRootLabel": "Tayland Seyahati",
@@ -557,7 +557,7 @@
     "close": "Kapat",
     "rolePlaceholder": "örn. bağımsız geliştirici, SaaS'ta PM, tasarım öğrencisi, hobi sahibi…",
     "joinDiscord": "Discord'a Katıl",
-    "header": "Hila'dan kısa bir kontrol",
+    "header": "Jane'dan kısa bir kontrol",
     "howGoing": "Şu ana kadar nasıl gidiyor?",
     "starsCount": "{{n}} yıldız",
     "starsCountPlural": "{{n}} yıldız",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profil",
       "name": "Ad",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Görünen ad",
       "role": "Rol",
       "rolePlaceholder": "Oluşturucu",

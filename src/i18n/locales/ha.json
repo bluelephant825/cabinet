@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Wuri ɗaya don komai — don haka kai da ƙungiyar AI ɗinka ku karanta, gyara, kuma ku tura daga ",
     "sameFiles": "fayiloli ɗaya",
     "secondParagraphSuffix": ", ba kwafin kwafi ba.",
-    "mockTitle": "Cabinet na Hila"
+    "mockTitle": "Cabinet na Jane"
   },
   "slideData": {
     "thailandRootLabel": "Tafiyar Thailand",
@@ -557,7 +557,7 @@
     "close": "Rufe",
     "rolePlaceholder": "misali, mai kirkira mai zaman kansa, PM a SaaS, dalibin zane, mai sha'awa…",
     "joinDiscord": "Shiga Discord",
-    "header": "Gaisuwa daga Hila",
+    "header": "Gaisuwa daga Jane",
     "howGoing": "Yaya abubuwa ke tafiya kawo yanzu?",
     "starsCount": "{{n}} tauraro",
     "starsCountPlural": "{{n}} taurari",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Furofayil",
       "name": "Suna",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Sunan nunawa",
       "role": "Matsayi",
       "rolePlaceholder": "Mai ginawa",

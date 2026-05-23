@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Un unico posto per tutto — così tu e il tuo team AI leggete, modificate e distribuite dagli ",
     "sameFiles": "stessi file",
     "secondParagraphSuffix": ", non copie di copie.",
-    "mockTitle": "Cabinet di Hila"
+    "mockTitle": "Cabinet di Jane"
   },
   "slideData": {
     "thailandRootLabel": "Viaggio in Thailandia",
@@ -557,7 +557,7 @@
     "close": "Chiudi",
     "rolePlaceholder": "es. sviluppatore indipendente, PM in una SaaS, studente di design, hobbista…",
     "joinDiscord": "Unisciti a Discord",
-    "header": "Breve controllo da Hila",
+    "header": "Breve controllo da Jane",
     "howGoing": "Come sta andando finora?",
     "starsCount": "{{n}} stella",
     "starsCountPlural": "{{n}} stelle",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profilo",
       "name": "Nome",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Nome visualizzato",
       "role": "Ruolo",
       "rolePlaceholder": "Costruttore",

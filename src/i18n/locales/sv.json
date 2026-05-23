@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "En plats för allt — så att du och ditt AI-team läser, redigerar och levererar från ",
     "sameFiles": "samma filer",
     "secondParagraphSuffix": ", inte kopior av kopior.",
-    "mockTitle": "Hilas Cabinet"
+    "mockTitle": "Janes Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "Thailandresa",
@@ -557,7 +557,7 @@
     "close": "Stäng",
     "rolePlaceholder": "t.ex. indieutvecklare, PM på ett SaaS, designstudent, hobbyist…",
     "joinDiscord": "Gå med i Discord",
-    "header": "Snabb avstämning från Hila",
+    "header": "Snabb avstämning från Jane",
     "howGoing": "Hur går det hittills?",
     "starsCount": "{{n}} stjärna",
     "starsCountPlural": "{{n}} stjärnor",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profil",
       "name": "Namn",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Visningsnamn",
       "role": "Roll",
       "rolePlaceholder": "Byggare",

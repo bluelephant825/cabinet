@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Ibi kan ṣoṣo fún ohun gbogbo — kí ìwọ àti ẹgbẹ́ AI rẹ lè kà, ṣàtúnṣe, kí ẹ sì fi ránṣẹ́ láti ",
     "sameFiles": "àwọn fáìlì kan náà",
     "secondParagraphSuffix": ", kì í ṣe àwọn ẹ̀dà àwọn ẹ̀dà.",
-    "mockTitle": "Cabinet ti Hila"
+    "mockTitle": "Cabinet ti Jane"
   },
   "slideData": {
     "thailandRootLabel": "Ìrìn-àjò Thailand",
@@ -557,7 +557,7 @@
     "close": "Pàdé",
     "rolePlaceholder": "f.á. indie hacker, PM ní SaaS kan, akẹ́kọ̀ọ́ ìṣẹ̀dá, olùfẹ́ ìṣe kan…",
     "joinDiscord": "Darapọ̀ mọ́ Discord",
-    "header": "Ìwádìí kíákíá láti ọ̀dọ̀ Hila",
+    "header": "Ìwádìí kíákíá láti ọ̀dọ̀ Jane",
     "howGoing": "Báwo ni ó ṣe ń lọ títí di ìsinsìnyí?",
     "starsCount": "{{n}} ìràwọ̀",
     "starsCountPlural": "{{n}} àwọn ìràwọ̀",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profaili",
       "name": "Orukọ",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Orukọ ifihan",
       "role": "Ipa",
       "rolePlaceholder": "Olùkọ́",

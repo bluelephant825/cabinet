@@ -557,7 +557,7 @@
     "close": "Închide",
     "rolePlaceholder": "ex: indie hacker, PM la un SaaS, student la design, pasionat…",
     "joinDiscord": "Alătură-te pe Discord",
-    "header": "O scurtă verificare de la Hila",
+    "header": "O scurtă verificare de la Jane",
     "howGoing": "Cum merge până acum?",
     "starsCount": "{{n}} stea",
     "starsCountPlural": "{{n}} stele",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Profil",
       "name": "Nume",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Nume afișat",
       "role": "Rol",
       "rolePlaceholder": "Constructor",

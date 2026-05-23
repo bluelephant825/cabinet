@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Một nơi cho mọi thứ — để bạn và đội ngũ AI của bạn đọc, chỉnh sửa và xuất bản từ ",
     "sameFiles": "cùng một tệp",
     "secondParagraphSuffix": ", không phải bản sao của bản sao.",
-    "mockTitle": "Cabinet của Hila"
+    "mockTitle": "Cabinet của Jane"
   },
   "slideData": {
     "thailandRootLabel": "Chuyến đi Thái Lan",
@@ -557,7 +557,7 @@
     "close": "Đóng",
     "rolePlaceholder": "ví dụ: lập trình viên độc lập, PM tại SaaS, sinh viên thiết kế, người có sở thích…",
     "joinDiscord": "Tham gia Discord",
-    "header": "Hila hỏi thăm nhanh",
+    "header": "Jane hỏi thăm nhanh",
     "howGoing": "Mọi việc thế nào rồi?",
     "starsCount": "{{n}} sao",
     "starsCountPlural": "{{n}} sao",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Hồ sơ",
       "name": "Tên",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Tên hiển thị",
       "role": "Vai trò",
       "rolePlaceholder": "Người xây dựng",

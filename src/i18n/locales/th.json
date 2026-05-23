@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "ทุกสิ่งรวมอยู่ในที่เดียว — เพื่อให้คุณและทีม AI ของคุณอ่าน แก้ไข และส่งมอบจาก",
     "sameFiles": "ไฟล์เดียวกัน",
     "secondParagraphSuffix": " ไม่ใช่สำเนาของสำเนา",
-    "mockTitle": "Cabinet ของ Hila"
+    "mockTitle": "Cabinet ของ Jane"
   },
   "slideData": {
     "thailandRootLabel": "ทริปประเทศไทย",
@@ -557,7 +557,7 @@
     "close": "ปิด",
     "rolePlaceholder": "เช่น นักพัฒนาอิสระ, PM ที่ SaaS, นักเรียนออกแบบ, ผู้ที่ชื่นชอบ…",
     "joinDiscord": "เข้าร่วม Discord",
-    "header": "ตรวจสอบด่วนจาก Hila",
+    "header": "ตรวจสอบด่วนจาก Jane",
     "howGoing": "เป็นอย่างไรบ้าง?",
     "starsCount": "{{n}} ดาว",
     "starsCountPlural": "{{n}} ดาว",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "โปรไฟล์",
       "name": "ชื่อ",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "ชื่อที่แสดง",
       "role": "บทบาท",
       "rolePlaceholder": "ผู้สร้าง",

@@ -99,7 +99,7 @@ function inferOsName(): string {
 async function seedProfileFromOnboarding(): Promise<UserProfile> {
   const workspace = await readJson<WorkspaceJsonV2>(WORKSPACE_FILE);
   const home = workspace?.home?.name?.trim() || "";
-  // "Hila's Home" → "Hila"
+  // "Jane's Home" → "Jane"
   const inferredName = home.replace(/['’]s Home$/i, "").trim();
   return {
     name: inferredName || inferOsName() || "",

@@ -462,7 +462,7 @@
     "secondParagraphPrefix": "Un solo lugar para todo, para que tú y tu equipo de IA lean, editen y publiquen desde los ",
     "sameFiles": "mismos archivos",
     "secondParagraphSuffix": ", no copias de copias.",
-    "mockTitle": "Cabinet de Hila"
+    "mockTitle": "Cabinet de Jane"
   },
   "slideData": {
     "thailandRootLabel": "Viaje a Tailandia",
@@ -557,7 +557,7 @@
     "close": "Cerrar",
     "rolePlaceholder": "ej. desarrollador independiente, PM en SaaS, estudiante de diseño, aficionado…",
     "joinDiscord": "Únete a Discord",
-    "header": "Un rápido saludo de Hila",
+    "header": "Un rápido saludo de Jane",
     "howGoing": "¿Cómo va todo hasta ahora?",
     "starsCount": "{{n}} estrella",
     "starsCountPlural": "{{n}} estrellas",
@@ -1504,7 +1504,7 @@
     "profile": {
       "title": "Perfil",
       "name": "Nombre",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Nombre a mostrar",
       "role": "Rol",
       "rolePlaceholder": "Creador",
