@@ -1,10 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Archive, Globe, Layout } from "lucide-react";
 import { HeaderActions } from "@/components/layout/header-actions";
+import { NavArrows } from "@/components/layout/nav-arrows";
 import { ReturnToChip } from "@/components/layout/return-to-chip";
 import { ViewerBreadcrumb } from "@/components/layout/viewer-breadcrumb";
 import { NewTaskButton } from "@/components/composer/new-task-button";
+import { useAppStore } from "@/stores/app-store";
+import { useLocale } from "@/i18n/use-locale";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,6 +30,7 @@ export function ViewerToolbar({
   leading,
   children,
   className,
+  showModeButtons = true,
 }: {
   path?: string;
   badge?: string;
@@ -35,7 +40,77 @@ export function ViewerToolbar({
   leading?: ReactNode;
   children?: ReactNode;
   className?: string;
+  showModeButtons?: boolean;
 }) {
+  const { t } = useLocale();
+  const appMode = useAppStore((s) => s.appMode);
+  const setAppMode = useAppStore((s) => s.setAppMode);
+
+  const modeButtons = showModeButtons ? (
+    <>
+      {appMode === "edit" && (
+        <>
+          <button
+            aria-label={t("editor:header.browseMode")}
+            title={t("editor:header.browseMode")}
+            onClick={() => setAppMode("browse")}
+            className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+          >
+            <Globe className="h-4 w-4" />
+          </button>
+          <button
+            aria-label={t("editor:header.canvasMode")}
+            title={t("editor:header.canvasMode")}
+            onClick={() => setAppMode("canvas")}
+            className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+          >
+            <Layout className="h-4 w-4" />
+          </button>
+        </>
+      )}
+      {appMode === "browse" && (
+        <>
+          <button
+            aria-label={t("editor:header.editMode")}
+            title={t("editor:header.editMode")}
+            onClick={() => setAppMode("edit")}
+            className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+          >
+            <Archive className="h-4 w-4" />
+          </button>
+          <button
+            aria-label={t("editor:header.canvasMode")}
+            title={t("editor:header.canvasMode")}
+            onClick={() => setAppMode("canvas")}
+            className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+          >
+            <Layout className="h-4 w-4" />
+          </button>
+        </>
+      )}
+      {appMode === "canvas" && (
+        <>
+          <button
+            aria-label={t("editor:header.editMode")}
+            title={t("editor:header.editMode")}
+            onClick={() => setAppMode("edit")}
+            className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+          >
+            <Archive className="h-4 w-4" />
+          </button>
+          <button
+            aria-label={t("editor:header.browseMode")}
+            title={t("editor:header.browseMode")}
+            onClick={() => setAppMode("browse")}
+            className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+          >
+            <Globe className="h-4 w-4" />
+          </button>
+        </>
+      )}
+    </>
+  ) : null;
+
   return (
     <div
       className={cn(
@@ -60,7 +135,9 @@ export function ViewerToolbar({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        <NavArrows />
         {children}
+        {modeButtons}
         <HeaderActions />
         <NewTaskButton />
       </div>
