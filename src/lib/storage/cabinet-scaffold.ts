@@ -5,7 +5,9 @@ import { PROJECT_ROOT } from "@/lib/runtime/runtime-config";
 
 export interface ScaffoldCabinetOptions {
   name: string;
-  kind: "root" | "child";
+  // "room" = an isolated top-level workspace (Rooms v3); "child" = a cabinet
+  // nested inside a room; "home" = the neutral container; "root" = legacy.
+  kind: "room" | "child" | "home" | "root";
   description?: string;
   /** Extra markdown content written after the H1 in index.md */
   body?: string;

@@ -1669,24 +1669,37 @@ const server = http.createServer(async (req, res) => {
   const stopMatch = url.pathname.match(/^\/session\/([^/]+)\/stop$/);
   if (stopMatch && req.method === "POST") {
     const sessionId = stopMatch[1];
-    const session = sessions.get(sessionId);
-    if (!session || session.exited) {
+    // A conversation's live run may be keyed under the bare conversation id
+    // (turn 1 via startConversationRun; terminal-mode continues) OR under a
+    // per-turn run id of the shape `${conversationId}::t{n}::{uuid}` (native
+    // structured continues in executeViaDaemon). Stop must reach either, so
+    // match the exact id plus any `${id}::`-prefixed sessions. Without the
+    // prefix match, Stop silently 404'd on every native follow-up turn.
+    const prefix = `${sessionId}::`;
+    const targets: ActiveSession[] = [];
+    for (const [sid, s] of sessions) {
+      if (s.exited) continue;
+      if (sid === sessionId || sid.startsWith(prefix)) targets.push(s);
+    }
+    if (targets.length === 0) {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Session not found or already exited" }));
       return;
     }
     try {
-      // SIGTERM first, then SIGKILL after 2s if still alive
-      session.stop("SIGTERM");
-      session.stopFallbackTimer = setTimeout(() => {
-        if (!session.exited) {
-          try {
-            session.stop("SIGKILL");
-          } catch {}
-        }
-      }, 2000);
+      // SIGTERM first, then SIGKILL after 2s if still alive.
+      for (const session of targets) {
+        session.stop("SIGTERM");
+        session.stopFallbackTimer = setTimeout(() => {
+          if (!session.exited) {
+            try {
+              session.stop("SIGKILL");
+            } catch {}
+          }
+        }, 2000);
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, sessionId }));
+      res.end(JSON.stringify({ ok: true, sessionId, stopped: targets.length }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -1789,6 +1802,7 @@ const server = http.createServer(async (req, res) => {
         : "all";
       const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
       const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 50;
+      const cabinet = url.searchParams.get("cabinet") || undefined;
 
       const needsAgents = scope === "all" || scope === "agents";
       const needsTasks = scope === "all" || scope === "tasks";
@@ -1807,7 +1821,8 @@ const server = http.createServer(async (req, res) => {
         },
         q,
         scope,
-        limit
+        limit,
+        cabinet
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });

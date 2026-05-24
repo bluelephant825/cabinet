@@ -19,7 +19,7 @@
     },
     "metric": {
       "name": "Jina la Kipimo",
-      "namePlaceholder": "reddit_replies",
+      "namePlaceholder": "majibu_ya_reddit",
       "target": "Lengo",
       "targetPlaceholder": "majibu/wiki",
       "floor": "Kiwango cha Chini",
@@ -62,7 +62,7 @@
       "dismiss": "Funga",
       "lockedHeartbeatTip": "Ajenti huyu amesimamishwa. Muanzishe kwenye kichupo cha Ajenti ili kuwezesha heartbeat.",
       "lockedRoutineTip": "Ajenti huyu amesimamishwa. Muanzishe kwenye kichupo cha Ajenti ili kuwezesha taratibu zake.",
-      "avatar": "workspace.avatar"
+      "avatar": "avatar_ya_nafasi_kazi"
     },
     "detail": {
       "clickToTurnOff": "Bofya ili kuzima.",
@@ -316,9 +316,7 @@
     "stopHint": "Simamisha utekelezaji huu sasa (inatuma SIGTERM)",
     "restart": "Anzisha Upya",
     "restartHint": "Tekeleza tena kutoka kwenye kidokezo asili",
-    "runHint": "Anzisha kazi hii sasa",
-    "reassign": "Pangia Upya",
-    "reassignHint": "Kabidhi kazi hii kwa wakala tofauti"
+    "runHint": "Anzisha kazi hii sasa"
   },
   "schedulesPanel": {
     "title": "Kazi zilizopangwa",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Sehemu moja kwa kila kitu — ili wewe na timu yako ya AI msome, mhariri, na mpeleke kutoka ",
     "sameFiles": "faili zilezile",
     "secondParagraphSuffix": ", si nakala za nakala.",
-    "mockTitle": "Kabati la Hila"
+    "mockTitle": "Kabati la Jane"
   },
   "slideData": {
     "thailandRootLabel": "Safari ya Thailand",
@@ -559,7 +557,7 @@
     "close": "Funga",
     "rolePlaceholder": "k.m. indie hacker, PM wa SaaS, mwanafunzi wa usanifu, mpenda burudani…",
     "joinDiscord": "Jiunge na Discord",
-    "header": "Ujumbe mfupi kutoka kwa Hila",
+    "header": "Ujumbe mfupi kutoka kwa Jane",
     "howGoing": "Inaendaje hadi sasa?",
     "starsCount": "Nyota {{n}}",
     "starsCountPlural": "Nyota {{n}}",
@@ -1024,6 +1022,18 @@
       "tagline2": "Timu yako ya AI.",
       "getStarted": "Anza"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Ofisi",
+        "study": "Masomo",
+        "lab": "Maabara",
+        "library": "Maktaba",
+        "kitchen": "Jikoni",
+        "family": "Familia",
+        "dining": "Chakula",
+        "studio": "Studio"
+      }
+    },
     "welcome": {
       "paragraph": "Nyumbani kwako ni kwako. Ndani yake, utaweka vyumba kwa ajili ya sehemu mbalimbali za maisha yako: kazi, akili ya pili, utafiti, familia. Na kila chumba kina kabati: noti zako, faili zako, na timu ya AI inayofanya kazi kimya kimya nyuma ya pazia.",
       "namePrompt": "Unaitwa nani?",
@@ -1131,6 +1141,179 @@
       "subtitle": "Cabinet hii ni ya nini? Kila chumba huja na timu yake ya AI.",
       "heading": "Chagua <accent>chumba</accent>"
     },
+    "rooms": {
+      "office": {
+        "label": "Ofisi",
+        "tagline": "Endesha biashara, kampuni changa, au mradi wa ziada.",
+        "workspaceLabel": "Jina la kampuni au mradi",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "Unafanya nini?",
+        "descriptionPlaceholder": "Tunatengeneza podikasti kuhusu kampuni changa za AI",
+        "departmentNoun": "Idara",
+        "teamSizeLabel": "Ukubwa wa timu",
+        "exampleAgents": {
+          "0": "Mkurugenzi Mtendaji",
+          "1": "Mhariri"
+        }
+      },
+      "study": {
+        "label": "Masomo",
+        "tagline": "Akili yako ya pili — uandishi, madokezo, msaidizi binafsi.",
+        "workspaceLabel": "Taja cabinet yako",
+        "workspacePlaceholder": "Masomo Yangu",
+        "descriptionLabel": "Unahitaji msaada katika maeneo gani ya maisha?",
+        "descriptionPlaceholder": "Uandishi, upangaji barua pepe, kalenda, ufuatiliaji wa tabia",
+        "departmentNoun": "Eneo",
+        "exampleAgents": {
+          "0": "Msaidizi",
+          "1": "Msimamizi wa Maktaba"
+        }
+      },
+      "lab": {
+        "label": "Maabara ya Utafiti",
+        "tagline": "Kazi za kitaaluma, fasihi, ufundishaji, tasnifu.",
+        "workspaceLabel": "Jina la Eneo Kazi",
+        "workspacePlaceholder": "Falsafa ya Akili",
+        "descriptionLabel": "Uga wako ni upi au unachunguza nini?",
+        "descriptionPlaceholder": "Falsafa ya Matukio, Ufahamu, Kufundisha Utangulizi wa Falsafa",
+        "departmentNoun": "Eneo",
+        "exampleAgents": {
+          "0": "Kiongozi wa Utafiti",
+          "1": "Mkutubi"
+        }
+      },
+      "family-room": {
+        "label": "Chumba cha Familia",
+        "tagline": "Nyumbani, kalenda ya familia, milo, watoto.",
+        "workspaceLabel": "Jina la Kaya",
+        "workspacePlaceholder": "Familia ya Nguyen",
+        "descriptionLabel": "Nani anaishi hapa na mnasimamia nini?",
+        "descriptionPlaceholder": "Wazazi wawili, watoto watatu, shule mbili, mbwa mmoja",
+        "departmentNoun": "Eneo",
+        "teamSizeLabel": "Ukubwa wa Kaya",
+        "exampleAgents": {
+          "0": "Msimamizi wa Nyumbani",
+          "1": "Mpangaji"
+        }
+      },
+      "blank": {
+        "label": "Chumba Kitupu",
+        "tagline": "Bado hakuna. Leta mawakala wako, umbo lako.",
+        "workspaceLabel": "Taja cabinet yako",
+        "workspacePlaceholder": "Cabinet Yangu",
+        "descriptionLabel": "Ni kwa ajili ya nini?",
+        "descriptionPlaceholder": "Chochote — acha wazi kama bado hujajua",
+        "departmentNoun": "Kikundi",
+        "exampleAgents": {
+          "0": "Uamuzi wako"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "Uongozi",
+      "marketing": "Masoko",
+      "content": "Maudhui",
+      "engineering": "Uhandisi",
+      "product-and-design": "Bidhaa na Usanifu",
+      "business": "Biashara",
+      "research": "Utafiti",
+      "finance-and-ops": "Fedha na Uendeshaji",
+      "personal": "Binafsi",
+      "second-brain": "Akili ya Pili",
+      "writing": "Uandishi",
+      "tools": "Zana",
+      "life-admin": "Usimamizi wa Maisha",
+      "from-the-office": "Kutoka Ofisini",
+      "writing-and-notes": "Uandishi na Vidokezo",
+      "other": "Nyingine",
+      "household": "Kaya",
+      "admin": "Usimamizi",
+      "money": "Pesa",
+      "product": "Bidhaa",
+      "design": "Usanifu",
+      "sales": "Mauzo",
+      "support": "Msaada",
+      "analytics": "Uchanganuzi",
+      "finance": "Fedha",
+      "legal": "Sheria",
+      "people": "Watu"
+    },
+    "demo": {
+      "greeting": {
+        "office": "Habari za asubuhi timu! Karibu kwenye {{workspace}}. Tuanze kazi mara moja.",
+        "study": "Asubuhi. Akili yako ya pili iko mtandaoni — karibu tena kwenye {{home}}.",
+        "lab": "Eneo la utafiti liko tayari — \"{{workspace}}\". Tunachunguza nini leo?",
+        "family-room": "Makao Makuu ya Nyumbani yanaanza — {{home}}. Tuhakikishe kila mtu anafika mahali anapohitaji.",
+        "blank": "Ukurasa safi — \"{{workspace}}\". Unataka kujenga nini hapa, {{home}}?"
+      },
+      "assign": "{{name}}, unaweza kushughulikia {{topic}}?",
+      "fallbackTopic": "nini kinafuata",
+      "office": {
+        "replies": {
+          "0": "Niko nalo. Nitakuwa na muhtasari wa jumla tayari kufikia mwisho wa siku.",
+          "1": "Tayari ninaandaa mpango. Nitashiriki katika #content hivi karibuni.",
+          "2": "Ninaweka mifumo ya msingi ya kazi sasa. Inaonekana vizuri hadi sasa."
+        },
+        "topics": {
+          "0": "utafiti wa washindani",
+          "1": "kalenda ya maudhui",
+          "2": "mpango wa uzinduzi"
+        },
+        "closing": "Nguvu nzuri kila mtu. Tufanye hii iwe wiki ya kwanza yenye nguvu."
+      },
+      "study": {
+        "replies": {
+          "0": "Nitapanga kikasha na kuonyesha kinachokuhitaji.",
+          "1": "Kalenda inaonekana wazi hadi saa 9 alasiri — muda mzuri wa kuandika.",
+          "2": "Nimeunganisha noti tatu mpya kwenye faharisi ya 'Kila Siku' tayari."
+        },
+        "topics": {
+          "0": "upangaji wa kikasha cha leo",
+          "1": "uandishi wa wiki hii",
+          "2": "orodha yangu ya kusoma"
+        },
+        "closing": "Vizuri. Nitumie ujumbe ikiwa kuna chochote kinachonihitaji — vinginevyo sitakusumbua."
+      },
+      "lab": {
+        "replies": {
+          "0": "Ninavuta karatasi ya hivi punde kuhusu hili sasa — rasimu ya muhtasari ndani ya saa moja.",
+          "1": "Nitasawazisha bibliografia baada ya hili na kuweka alama kwenye nakala rudufu.",
+          "2": "Muhtasari wa somo la Alhamisi umekaribia kuwa tayari kwa ukaguzi."
+        },
+        "topics": {
+          "0": "ukaguzi wa fasihi",
+          "1": "maandalizi ya somo la Alhamisi",
+          "2": "orodha ya marejeleo"
+        },
+        "closing": "Nijulishe. Nitakagua chochote utakachotuma kufikia mwisho wa siku."
+      },
+      "family-room": {
+        "replies": {
+          "0": "Ratiba inaonekana wazi baada ya saa 10. Ninaweka alama kwenye kuachana kunakopishana.",
+          "1": "Menyu imeandaliwa kwa wiki — orodha ya mboga iko tayari kukaguliwa.",
+          "2": "Shughuli za watoto zimesawazishwa. Usiku wa DnD bado upo Ijumaa."
+        },
+        "topics": {
+          "0": "ratiba ya leo",
+          "1": "mpango wa chakula",
+          "2": "shughuli za watoto"
+        },
+        "closing": "Asante nyote. Nitumie ujumbe ikiwa kuna chochote kitabadilika mchana."
+      },
+      "blank": {
+        "replies": {
+          "0": "Nimeelewa. Tayari wakati wowote utakapo.",
+          "1": "Niko tayari.",
+          "2": "Nitasubiri maelekezo."
+        },
+        "topics": {
+          "0": "kitu cha kwanza",
+          "1": "chochote kinachofuata",
+          "2": "swali wazi"
+        },
+        "closing": "Wakati wowote utakapo kuwa tayari, tuambie tufanye nini."
+      }
+    },
     "team": {
       "browseAll": "Vinjari zote",
       "browseCabinets": "Vinjari cabinets",
@@ -1183,7 +1366,7 @@
       "english": "Kiingereza",
       "hebrew": "עברית",
       "chineseSimplified": "简体中文",
-      "chineseTraditional": "繁體中文",
+      "chineseTraditional": "Kichina cha Jadi",
       "moreLanguages": "Lugha zaidi",
       "moreLanguagesHint": "Bofya yoyote kutuambia ungependa Cabinet iwe katika lugha hiyo — tutatanguliza zile zilizoombwa zaidi.",
       "comingSoon": "Inakuja hivi karibuni",
@@ -1323,7 +1506,7 @@
     "profile": {
       "title": "Wasifu",
       "name": "Jina",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Jina la kuonyesha",
       "role": "Jukumu",
       "rolePlaceholder": "Mjenzi",

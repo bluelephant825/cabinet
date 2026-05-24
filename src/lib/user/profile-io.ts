@@ -5,6 +5,7 @@ import { DATA_DIR } from "@/lib/storage/path-utils";
 
 export interface UserProfile {
   name: string;
+  email?: string;       // captured in onboarding; PII, stored locally
   displayName?: string;
   role?: string;
   iconKey?: string;
@@ -72,7 +73,15 @@ export async function readUserProfile(): Promise<UserProfile> {
   }
 
   const seeded = await seedProfileFromOnboarding();
-  await writeJson(USER_FILE, seeded);
+  // Only persist when the name came from onboarding (the workspace home name).
+  // A pure OS-username fallback (e.g. a profile read during the wizard, before
+  // onboarding has written workspace.json) must stay transient — otherwise it
+  // sticks and overrides the name the user actually types. (Bug: the starter
+  // task showed "Hi, I'm <os-username>!" instead of the onboarding name.)
+  const workspace = await readJson<WorkspaceJsonV2>(WORKSPACE_FILE);
+  if (workspace?.home?.name?.trim()) {
+    await writeJson(USER_FILE, seeded);
+  }
   return seeded;
 }
 
@@ -90,7 +99,7 @@ function inferOsName(): string {
 async function seedProfileFromOnboarding(): Promise<UserProfile> {
   const workspace = await readJson<WorkspaceJsonV2>(WORKSPACE_FILE);
   const home = workspace?.home?.name?.trim() || "";
-  // "Hila's Home" → "Hila"
+  // "Jane's Home" → "Jane"
   const inferredName = home.replace(/['’]s Home$/i, "").trim();
   return {
     name: inferredName || inferOsName() || "",

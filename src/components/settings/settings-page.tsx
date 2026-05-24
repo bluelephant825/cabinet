@@ -1673,8 +1673,26 @@ export function SettingsPage() {
           {tab === "integrations" && (
             <div className="space-y-8">
               <ApiKeysSection />
-              <IntegrationsHubSection />
-              <BuiltInToolsSection />
+
+              {/* Integrations + Built-in tools — coming soon (blurred preview) */}
+              <div className="relative">
+                <div className="pointer-events-none select-none blur-[2px] opacity-70 space-y-8" aria-hidden="true">
+                  <IntegrationsHubSection />
+                  <BuiltInToolsSection />
+                </div>
+
+                {/* Coming Soon overlay */}
+                <div className="absolute inset-0 flex items-start justify-center pt-10">
+                  <div className="flex flex-col items-center gap-2 bg-background/80 backdrop-blur-sm rounded-xl px-8 py-6 border border-border shadow-lg">
+                    <Plug className="h-6 w-6 text-muted-foreground/50" />
+                    <span className="text-[13px] font-semibold">{t("settings:integrationsPreview.comingSoon")}</span>
+                    <p className="text-[12px] text-muted-foreground text-center max-w-[220px]">
+                      {t("settings:integrationsPreview.hint")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <CliMcpSection />
             </div>
           )}

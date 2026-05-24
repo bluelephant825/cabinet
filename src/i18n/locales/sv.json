@@ -19,7 +19,7 @@
     },
     "metric": {
       "name": "Mätvärdesnamn",
-      "namePlaceholder": "reddit_replies",
+      "namePlaceholder": "reddit_svar",
       "target": "Mål",
       "targetPlaceholder": "svar/vecka",
       "floor": "Minimivärde",
@@ -62,7 +62,7 @@
       "dismiss": "Stäng",
       "lockedHeartbeatTip": "Denna agent är stoppad. Starta den på fliken Agenter för att aktivera heartbeat.",
       "lockedRoutineTip": "Denna agent är stoppad. Starta den på fliken Agenter för att aktivera dess rutiner.",
-      "avatar": "workspace.avatar"
+      "avatar": "arbetsyta.avatar"
     },
     "detail": {
       "clickToTurnOff": "Klicka för att stänga av.",
@@ -316,9 +316,7 @@
     "stopHint": "Stoppa denna körning nu (skickar SIGTERM)",
     "restart": "Starta om",
     "restartHint": "Kör igen från den ursprungliga prompten",
-    "runHint": "Starta denna uppgift nu",
-    "reassign": "Omfördela",
-    "reassignHint": "Överlämna denna uppgift till en annan agent"
+    "runHint": "Starta denna uppgift nu"
   },
   "schedulesPanel": {
     "title": "Schemalagda jobb",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "En plats för allt — så att du och ditt AI-team läser, redigerar och levererar från ",
     "sameFiles": "samma filer",
     "secondParagraphSuffix": ", inte kopior av kopior.",
-    "mockTitle": "Hilas Cabinet"
+    "mockTitle": "Janes Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "Thailandresa",
@@ -559,7 +557,7 @@
     "close": "Stäng",
     "rolePlaceholder": "t.ex. indieutvecklare, PM på ett SaaS, designstudent, hobbyist…",
     "joinDiscord": "Gå med i Discord",
-    "header": "Snabb avstämning från Hila",
+    "header": "Snabb avstämning från Jane",
     "howGoing": "Hur går det hittills?",
     "starsCount": "{{n}} stjärna",
     "starsCountPlural": "{{n}} stjärnor",
@@ -1024,6 +1022,18 @@
       "tagline2": "Ditt AI-team.",
       "getStarted": "Kom igång"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Kontor",
+        "study": "Arbetsrum",
+        "lab": "Lab",
+        "library": "Bibliotek",
+        "kitchen": "Kök",
+        "family": "Familj",
+        "dining": "Matplats",
+        "studio": "Studio"
+      }
+    },
     "welcome": {
       "paragraph": "Ditt Hem är ditt eget. Här skapar du rum för olika delar av ditt liv: arbete, 'second brain', forskning, familj. Och varje rum har skåp: dina anteckningar, dina filer och ett AI-team som tyst arbetar i bakgrunden.",
       "namePrompt": "Vad heter du?",
@@ -1131,6 +1141,179 @@
       "subtitle": "Vad är detta kabinett till för? Varje rum har ett eget AI-team.",
       "heading": "Välj ett <accent>rum</accent>"
     },
+    "rooms": {
+      "office": {
+        "label": "Kontoret",
+        "tagline": "Driv ett företag, en startup eller ett sidoprojekt.",
+        "workspaceLabel": "Företags- eller projektnamn",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "Vad gör ni?",
+        "descriptionPlaceholder": "Vi gör en podcast om AI-startups",
+        "departmentNoun": "Avdelning",
+        "teamSizeLabel": "Teamstorlek",
+        "exampleAgents": {
+          "0": "VD",
+          "1": "Redaktör"
+        }
+      },
+      "study": {
+        "label": "Studie",
+        "tagline": "Din andra hjärna — skrivande, anteckningar, personlig assistent.",
+        "workspaceLabel": "Namnge ditt cabinet",
+        "workspacePlaceholder": "Min Studie",
+        "descriptionLabel": "Vilka livsområden vill du ha hjälp med?",
+        "descriptionPlaceholder": "Skrivande, e-postsortering, kalender, vanespårning",
+        "departmentNoun": "Område",
+        "exampleAgents": {
+          "0": "Assistent",
+          "1": "Bibliotekarie"
+        }
+      },
+      "lab": {
+        "label": "Forskningslabb",
+        "tagline": "Akademiskt arbete, litteratur, undervisning, avhandling.",
+        "workspaceLabel": "Arbetsytans namn",
+        "workspacePlaceholder": "Medvetandefilosofi",
+        "descriptionLabel": "Vad är ditt område eller vad forskar du om?",
+        "descriptionPlaceholder": "Fenomenologi, medvetande, undervisning i Introduktion till filosofi",
+        "departmentNoun": "Område",
+        "exampleAgents": {
+          "0": "Forskningsledare",
+          "1": "Bibliotekarie"
+        }
+      },
+      "family-room": {
+        "label": "Familjerum",
+        "tagline": "Hushåll, familjekalender, måltider, barn.",
+        "workspaceLabel": "Hushållsnamn",
+        "workspacePlaceholder": "Familjen Nguyen",
+        "descriptionLabel": "Vem bor här och vad jonglerar ni med?",
+        "descriptionPlaceholder": "Två föräldrar, tre barn, två skolor, en hund",
+        "departmentNoun": "Område",
+        "teamSizeLabel": "Hushållsstorlek",
+        "exampleAgents": {
+          "0": "Hemansvarig",
+          "1": "Planerare"
+        }
+      },
+      "blank": {
+        "label": "Tomt rum",
+        "tagline": "Inget än. Ta med egna agenter, din egen form.",
+        "workspaceLabel": "Namnge ditt cabinet",
+        "workspacePlaceholder": "Mitt Cabinet",
+        "descriptionLabel": "Vad är det till för?",
+        "descriptionPlaceholder": "Vad som helst — lämna tomt om du inte är säker än",
+        "departmentNoun": "Grupp",
+        "exampleAgents": {
+          "0": "Ditt val"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "Ledarskap",
+      "marketing": "Marknadsföring",
+      "content": "Innehåll",
+      "engineering": "Teknik",
+      "product-and-design": "Produkt & Design",
+      "business": "Affärer",
+      "research": "Forskning",
+      "finance-and-ops": "Ekonomi & Drift",
+      "personal": "Personligt",
+      "second-brain": "Andra hjärnan",
+      "writing": "Skrivande",
+      "tools": "Verktyg",
+      "life-admin": "Livsadministration",
+      "from-the-office": "Från kontoret",
+      "writing-and-notes": "Skrivande & anteckningar",
+      "other": "Övrigt",
+      "household": "Hushåll",
+      "admin": "Administration",
+      "money": "Pengar",
+      "product": "Produkt",
+      "design": "Design",
+      "sales": "Försäljning",
+      "support": "Support",
+      "analytics": "Analys",
+      "finance": "Ekonomi",
+      "legal": "Juridik",
+      "people": "Personal"
+    },
+    "demo": {
+      "greeting": {
+        "office": "God morgon team! Välkommen till {{workspace}}. Nu kör vi igång direkt.",
+        "study": "God morgon. Din andra hjärna är online — välkommen tillbaka till {{home}}.",
+        "lab": "Forskardesken är redo — \"{{workspace}}\". Vad ska vi gräva i idag?",
+        "family-room": "Hemmakontoret startar — {{home}}. Låt oss få alla dit de behöver vara.",
+        "blank": "Tomt blad — \"{{workspace}}\". Vad vill du bygga här, {{home}}?"
+      },
+      "assign": "{{name}}, kan du ta dig an {{topic}}?",
+      "fallbackTopic": "vad är nästa",
+      "office": {
+        "replies": {
+          "0": "Fixar. Jag har en översikt klar i slutet av dagen.",
+          "1": "Håller redan på att utarbeta en plan. Jag delar den i #content snart.",
+          "2": "Ställer in de grundläggande arbetsflödena nu. Ser bra ut hittills."
+        },
+        "topics": {
+          "0": "konkurrentanalys",
+          "1": "innehållskalendern",
+          "2": "lanseringsplanen"
+        },
+        "closing": "Bra energi alla. Låt oss göra detta till en stark första vecka."
+      },
+      "study": {
+        "replies": {
+          "0": "Jag sorterar inkorgen och lyfter fram det som är viktigt för dig.",
+          "1": "Kalendern ser tom ut fram till kl. 15 — bra tillfälle för skrivande.",
+          "2": "Jag har redan länkat tre nya anteckningar till 'Daglig'-indexet."
+        },
+        "topics": {
+          "0": "dagens inkorgssortering",
+          "1": "veckans skrivande",
+          "2": "min läslista"
+        },
+        "closing": "Bra. Pinga mig om något behöver mig — annars håller jag mig undan."
+      },
+      "lab": {
+        "replies": {
+          "0": "Hämtar den senaste artikeln om detta nu — utkast till sammanfattning om en timme.",
+          "1": "Jag synkar bibliografin efter detta och flaggar dubbletter.",
+          "2": "Föreläsningsöversikten för torsdag är nästan redo för granskning."
+        },
+        "topics": {
+          "0": "litteraturöversikten",
+          "1": "Torsdagens föreläsningsförberedelser",
+          "2": "referenslistan"
+        },
+        "closing": "Håll mig uppdaterad. Jag granskar allt du skickar in före dagens slut."
+      },
+      "family-room": {
+        "replies": {
+          "0": "Schemat ser klart ut efter 16. Markerade överlappande lämningar.",
+          "1": "Meny utkastad för veckan — inköpslistan är redo att granskas.",
+          "2": "Barnens aktiviteter synkade. DnD-kvällen är fortfarande på fredag."
+        },
+        "topics": {
+          "0": "dagens schema",
+          "1": "matplanen",
+          "2": "barnens aktiviteter"
+        },
+        "closing": "Tack alla. Pinga mig om något ändras under dagen."
+      },
+      "blank": {
+        "replies": {
+          "0": "Fattar. Redo när du är.",
+          "1": "Står redo.",
+          "2": "Jag väntar på instruktioner."
+        },
+        "topics": {
+          "0": "det första",
+          "1": "nästa sak",
+          "2": "den öppna frågan"
+        },
+        "closing": "När du är redo, säg vad vi ska göra."
+      }
+    },
     "team": {
       "browseAll": "Bläddra bland alla",
       "browseCabinets": "Bläddra bland kabinett",
@@ -1181,9 +1364,9 @@
       "title": "Språk",
       "description": "Ändrar språk och läsriktning. Befintliga sidor behåller sin dokumentbaserade riktning.",
       "english": "Engelska",
-      "hebrew": "עברית",
-      "chineseSimplified": "简体中文",
-      "chineseTraditional": "繁體中文",
+      "hebrew": "Hebreiska",
+      "chineseSimplified": "Förenklad kinesiska",
+      "chineseTraditional": "Traditionell kinesiska",
       "moreLanguages": "Fler språk",
       "moreLanguagesHint": "Klicka på valfritt språk för att berätta att du vill ha Cabinet på det språket – vi prioriterar de mest efterfrågade.",
       "comingSoon": "Kommer snart",
@@ -1270,7 +1453,7 @@
       "alertRules": "Varningsregler",
       "alwaysOn": "Alltid på",
       "comingSoon": "Kommer snart",
-      "emailPlaceholder": "you@company.com",
+      "emailPlaceholder": "du@företag.com",
       "channelsHint": "Konfigurera hur du får aviseringar när agenter behöver din uppmärksamhet.",
       "rulesHint": "Aviseringar utlöses automatiskt för dessa händelser:",
       "previewHint": "Webbläsarpush, Telegram, Slack och e-postaviseringar.",
@@ -1323,7 +1506,7 @@
     "profile": {
       "title": "Profil",
       "name": "Namn",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Visningsnamn",
       "role": "Roll",
       "rolePlaceholder": "Byggare",

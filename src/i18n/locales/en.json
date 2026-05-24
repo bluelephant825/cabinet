@@ -316,9 +316,7 @@
     "stopHint": "Stop this run now (sends SIGTERM)",
     "restart": "Restart",
     "restartHint": "Run again from the original prompt",
-    "runHint": "Start this task now",
-    "reassign": "Reassign",
-    "reassignHint": "Hand this task off to a different agent"
+    "runHint": "Start this task now"
   },
   "schedulesPanel": {
     "title": "Scheduled jobs",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "One place for everything — so you and your AI team read, edit, and ship from the ",
     "sameFiles": "same files",
     "secondParagraphSuffix": ", not copies of copies.",
-    "mockTitle": "Hila's Cabinet"
+    "mockTitle": "Jane's Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "Thailand Trip",
@@ -559,7 +557,7 @@
     "close": "Close",
     "rolePlaceholder": "e.g. indie hacker, PM at a SaaS, design student, hobbyist…",
     "joinDiscord": "Join the Discord",
-    "header": "Quick check-in from Hila",
+    "header": "Quick check-in from Jane",
     "howGoing": "How's it going so far?",
     "starsCount": "{{n}} star",
     "starsCountPlural": "{{n}} stars",
@@ -595,7 +593,9 @@
     "migrationFailed": "Migration failed"
   },
   "linkRepo": {
-    "title": "Load Knowledge",
+    "title": "Connect Knowledge",
+    "intro": "Point Cabinet to any folder on your machine. Cabinet creates a symlink so the folder's contents appear in your Knowledge Base and are available to AI agents as context. The original folder is never moved or copied.",
+    "symlinkNote": "This creates a symbolic link — the files stay where they are.",
     "autoDetectPlaceholder": "Auto-detect from git remote (optional)",
     "shortSummaryPlaceholder": "Optional short summary for agents"
   },
@@ -608,7 +608,115 @@
     "openCabinet": "Open cabinet view",
     "pageTitlePlaceholder": "Page title…",
     "rename": "Rename",
-    "openBadge": "Open"
+    "openBadge": "Open",
+    "sectionAdd": "Add to this item",
+    "sectionThis": "This item",
+    "addSubPage": "Add Sub Page",
+    "newFolder": "New Folder",
+    "createFile": "Create New File…",
+    "connectKnowledge": "Connect Knowledge…",
+    "symlinkTag": "Symlink",
+    "importFile": "Import File…",
+    "importFolder": "Import Folder…",
+    "createCabinet": "Create Cabinet Here",
+    "editSymlink": "Edit Symlink…",
+    "settings": "Settings…",
+    "moveTo": "Move to…",
+    "copyRelativePath": "Copy Relative Path",
+    "copyFullPath": "Copy Full Path",
+    "openInFinder": "Open in Finder",
+    "delete": "Delete",
+    "unlink": "Unlink",
+    "folderNamePlaceholder": "Folder name",
+    "creating": "Creating…",
+    "create": "Create",
+    "addSubPageTitle": "Add Sub Page to “{{name}}”",
+    "newFolderTitle": "New Folder in “{{name}}”"
+  },
+  "newFile": {
+    "title": "Create New File",
+    "subtitle": "Pick a file type. Cabinet opens it in the editor when it's ready.",
+    "groupNative": "Edit in Cabinet",
+    "groupOffice": "Office (blank — edit externally)",
+    "groupGoogle": "Google (linked)",
+    "namePlaceholder": "File name",
+    "create": "Create",
+    "creating": "Creating…",
+    "googleUrlLabel": "Google URL (optional)",
+    "googleUrlPlaceholder": "Paste a shareable Google link, or leave blank to add later",
+    "officeNote": "Cabinet shows Office files read-only. Use “Open in Finder” to edit in the desktop app.",
+    "types": {
+      "markdown": "Markdown Page",
+      "markdownDesc": "Rich text notes, editable in Cabinet",
+      "code": "Code File",
+      "codeDesc": "Any source/text file — pick the extension",
+      "mermaid": "Mermaid Diagram",
+      "mermaidDesc": "Flowcharts and diagrams as code",
+      "csv": "CSV Table",
+      "csvDesc": "Comma-separated spreadsheet data",
+      "docx": "Word Document",
+      "docxDesc": "Blank .docx",
+      "xlsx": "Excel Spreadsheet",
+      "xlsxDesc": "Blank .xlsx",
+      "pptx": "PowerPoint",
+      "pptxDesc": "Blank .pptx",
+      "gdoc": "Google Doc",
+      "gdocDesc": "Embed a Google Doc",
+      "gsheet": "Google Sheet",
+      "gsheetDesc": "Embed a Google Sheet",
+      "gslides": "Google Slides",
+      "gslidesDesc": "Embed Google Slides"
+    },
+    "codeExtLabel": "Extension",
+    "googleTag": "Google",
+    "extHint": "Just type the name — Cabinet adds the {{ext}} extension.",
+    "createFailed": "Couldn't create the file."
+  },
+  "fileSettings": {
+    "googleTitle": "Google Embed Settings",
+    "googleKindLabel": "Type",
+    "googleUrlLabel": "Google URL",
+    "googleUrlPlaceholder": "https://docs.google.com/…",
+    "googleNote": "The doc's sharing must be “Anyone with the link” or “Published to web” for the embed to load.",
+    "openLink": "Open in Google",
+    "googleKinds": {
+      "docs": "Docs",
+      "sheets": "Sheets",
+      "slides": "Slides",
+      "forms": "Forms",
+      "drive": "Drive"
+    },
+    "appTitle": "Web App Settings",
+    "modeLabel": "How should this open?",
+    "modeWebsite": "Page view",
+    "modeWebsiteDesc": "Opens inline with the sidebar and AI panel visible.",
+    "modeApp": "Web App",
+    "modeAppDesc": "Opens full-screen; sidebar and AI panel auto-collapse.",
+    "convertNote": "This toggles the .app marker file in the folder. Your files aren't changed.",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "saveFailed": "Couldn't save settings."
+  },
+  "editSymlink": {
+    "title": "Edit Symlink",
+    "intro": "This Knowledge Base entry is a symbolic link to a folder elsewhere on your machine.",
+    "kbPathLabel": "Knowledge Base path",
+    "targetLabel": "Links to (on disk)",
+    "brokenWarning": "The target folder no longer exists. Re-point it to a valid folder below.",
+    "repointLabel": "Re-point to a new folder",
+    "repointHint": "Cabinet will replace the link to point here. Files are never moved.",
+    "browse": "Browse",
+    "nameLabel": "Name",
+    "descriptionLabel": "Description",
+    "save": "Save",
+    "saving": "Saving…",
+    "copyTarget": "Copy target path",
+    "saveFailed": "Couldn't update the symlink."
+  },
+  "importFolder": {
+    "importing": "Importing folder…",
+    "failed": "Folder import failed: {{message}}"
   },
   "boardSkeleton": {
     "loadingTasks": "Loading tasks"
@@ -758,7 +866,9 @@
     "noSkills": "No skills yet."
   },
   "taskDetail": {
-    "close": "Close (Esc)"
+    "close": "Close (Esc)",
+    "muteTask": "Mute this task — its done runs go straight to Archive",
+    "unmuteTask": "Unmute this task — its done runs resurface in Just Finished"
   },
   "rowActionsPlus": {
     "edit": "Edit",
@@ -863,6 +973,25 @@
     "revealInFinder": "Reveal in file manager",
     "stored": "Stored",
     "resetOnboarding": "Reset onboarding"
+  },
+  "rooms": {
+    "switcherTitle": "Switch room",
+    "switchRoom": "Rooms",
+    "loading": "Loading…",
+    "defaultTag": "Home",
+    "openInNewWindow": "Open in new window",
+    "opensBrowserWindow": "Opens a new browser window",
+    "customizeRoom": "Customize this room…",
+    "addRoom": "Add room…",
+    "editTitle": "Customize room",
+    "editSubtitle": "Set this room's name, icon, color, and theme.",
+    "nameLabel": "Name",
+    "iconLabel": "Icon",
+    "colorLabel": "Color",
+    "colorAuto": "Auto",
+    "themeLabel": "Theme",
+    "themeGlobal": "Use global default",
+    "editFailed": "Could not save the room. Please try again."
   },
   "common": {
     "actions": {
@@ -1024,6 +1153,18 @@
       "tagline2": "Your AI team.",
       "getStarted": "Get started"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Office",
+        "study": "Study",
+        "lab": "Lab",
+        "library": "Library",
+        "kitchen": "Kitchen",
+        "family": "Family",
+        "dining": "Dining",
+        "studio": "Studio"
+      }
+    },
     "welcome": {
       "paragraph": "Your Home is yours. Inside it, you'll set up rooms for different parts of your life: work, second brain, research, family. And every room has cabinets: your notes, your files, and an AI team quietly getting things done in the background.",
       "namePrompt": "What's your name?",
@@ -1098,19 +1239,23 @@
       "beforeYouLaunch": "Before you launch",
       "defaultCabinetName": "Your Cabinet",
       "defaultDescription": "Knowledge base + AI team",
+      "knowledgeBaseLabel": "Knowledge base",
+      "aiTeamLabel": "AI team",
       "launchCabinet": "Launch Cabinet",
       "settingUp": "Setting up...",
       "disclaimerAccess": "<strong>Agents run with full access.</strong> Cabinet uses <flag>--dangerously-skip-permissions</flag> (Claude Code) and equivalent flags in other providers. This is identical to running these CLI tools from your own terminal. Any MCP servers or tools you've configured may be invoked automatically by agents.",
       "disclaimerBackup": "<strong>Back up your data regularly.</strong> Agents can read, write, and delete files across your KB and linked repos. Cabinet is not responsible for data loss. You are responsible for the AI providers you choose and their terms of service.",
       "disclaimerBeta": "<strong>Beta software. Things may break.</strong> We ship fast. Breaking changes can land without notice.",
-      "legalNotice": "By continuing you agree to our <terms>Terms</terms> and <privacy>Privacy</privacy>. Cabinet is an <oss>open-source project</oss>."
+      "legalNotice": "By continuing you agree to our <terms>Terms</terms> and <privacy>Privacy</privacy>. Cabinet is an <oss>open-source project</oss>.",
+      "keepInTouch": "Keep me in touch. Cabinet is open source and built in the open, and we'd love to learn what to build next. No spam, we promise."
     },
     "provider": {
       "agentType": "{{type}} agent",
       "close": "Close",
       "comingSoon": "Coming soon",
       "guide": "Guide",
-      "heading": "Agent Provider",
+      "heading": "Connect your AI",
+      "moreModels": "More AIs",
       "install": "Install",
       "logIn": "Log in",
       "openTerminalButton": "Open terminal",
@@ -1122,7 +1267,7 @@
       "runVerify": "Run verify",
       "setupTitle": "{{name}} setup",
       "skipForNow": "Skip for now",
-      "subtitle": "Cabinet needs an AI CLI to power your agents.",
+      "subtitle": "Pick an AI assistant to power your agents.",
       "verifyExplanation": "Verify runs the provider's headless prompt end-to-end and classifies any failure so you know which step to revisit.",
       "verifying": "Verifying…",
       "failedAtStep": "Failed at step: <strong>{{step}}</strong>"
@@ -1130,6 +1275,59 @@
     "roomSetup": {
       "subtitle": "What's this cabinet for? Each room comes with its own AI team.",
       "heading": "Pick a <accent>room</accent>"
+    },
+    "whatIsCabinet": {
+      "heading": "What is a Cabinet?",
+      "body": "A Cabinet is a focused workspace for one area of your life or work. It holds your files, notes, tools, agents, and tasks, so your AI team has the context it needs to actually help.",
+      "examplesLabel": "How people use Cabinet",
+      "example1": "your startup",
+      "example2": "a GitHub repo",
+      "example3": "your marketing work",
+      "example4": "a client project",
+      "example5": "your personal knowledge base"
+    },
+    "access": {
+      "heading": "What can {{name}} access?",
+      "subtitle": "Pick the knowledge and tools this agent can use. You can change this anytime.",
+      "defaultAgent": "your agent",
+      "files": "Files & knowledge",
+      "github": "GitHub",
+      "slack": "Slack",
+      "mcp": "MCP servers",
+      "plugins": "Plugins",
+      "skills": "Skills",
+      "placeholderNote": "You can fine-tune access later in the agent's settings."
+    },
+    "heartbeat": {
+      "heading": "Should {{name}} run on a heartbeat?",
+      "subtitle": "A heartbeat lets the agent check in and work on its own on a schedule.",
+      "off": "Off",
+      "offHint": "Runs only when you ask. Recommended to start.",
+      "daily": "Daily",
+      "dailyHint": "Checks in once a day.",
+      "weekly": "Weekly",
+      "weeklyHint": "Checks in once a week.",
+      "tokenNote": "Heads up: a heartbeat runs the agent automatically, which uses AI tokens (and your provider quota) every time it fires. You can change or turn this off anytime."
+    },
+    "firstTask": {
+      "heading": "File your first task",
+      "subtitle": "Tasks are how you hand work to {{name}}. Write one now and it lands in your cabinet, ready to run.",
+      "label": "What should {{name}} do first?",
+      "placeholder": "e.g. Draft a welcome email for new customers",
+      "example1": "Summarize my latest notes",
+      "example2": "Draft a project plan",
+      "example3": "Research our top 3 competitors",
+      "note": "You can leave this blank and add tasks later. Nothing runs until you connect an AI provider."
+    },
+    "rail": {
+      "untitled": "Your Cabinet",
+      "dataCaption": "All your project's files and notes live here.",
+      "teamEmpty": "No agents yet.",
+      "teamCaption": "Your AI team works here.",
+      "tasksEmpty": "No tasks yet.",
+      "tasksCaption": "Work you hand to your team shows up here.",
+      "assignedTo": "Assigned to {{name}}",
+      "you": "You"
     },
     "rooms": {
       "office": {
@@ -1313,11 +1511,17 @@
       "importFailed": "Import failed",
       "importFailedConnection": "Import failed. Check your connection.",
       "importTitle": "Import {{name}}",
-      "orPickAgents": "Or pick your agents",
+      "pickAgents": "Pick your agents",
       "required": "Required",
-      "startFromTemplate": "Start from a template",
-      "subtitle": "Each cabinet is an AI team — agents, tasks, and a shared knowledge base, working together as one.",
-      "heading": "Build <accent>your</accent> team",
+      "subtitle": "No pre-made team here. Set up one agent to start, and add more anytime from inside the room.",
+      "heading": "Create your first <accent>agent</accent>",
+      "nameLabel": "Agent name",
+      "namePlaceholder": "e.g. Editor, Researcher, Assistant",
+      "roleLabel": "Role",
+      "rolePlaceholder": "e.g. Writing assistant",
+      "instructionsLabel": "What should this agent do?",
+      "instructionsPlaceholder": "Describe how it should help. For example: Draft and edit my pages, keep the tone clear and friendly, and suggest improvements.",
+      "agentOptionalHint": "Optional. You can skip this and add agents later from inside the room.",
       "agentCount_one": "{{count}} agent",
       "agentCount_other": "{{count}} agents",
       "jobCount_one": "{{count}} job",
@@ -1402,6 +1606,10 @@
       "loading": "Loading…",
       "connect": "Connect",
       "recommended": "Recommended"
+    },
+    "integrationsPreview": {
+      "comingSoon": "Coming soon",
+      "hint": "Connecting external integrations and built-in tools is on the way."
     },
     "storage": {
       "dataDirectory": "Data Directory",
@@ -1496,7 +1704,7 @@
     "profile": {
       "title": "Profile",
       "name": "Name",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Display name",
       "role": "Role",
       "rolePlaceholder": "Builder",

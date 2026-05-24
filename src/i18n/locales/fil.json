@@ -316,9 +316,7 @@
     "stopHint": "Ihinto ang pagpapatakbo na ito ngayon (nagpapadala ng SIGTERM)",
     "restart": "I-restart",
     "restartHint": "Patakbuhin muli mula sa orihinal na prompt",
-    "runHint": "Simulan ang gawaing ito ngayon",
-    "reassign": "Muling Italaga",
-    "reassignHint": "Ipasa ang gawaing ito sa ibang ahente"
+    "runHint": "Simulan ang gawaing ito ngayon"
   },
   "schedulesPanel": {
     "title": "Naka-iskedyul na mga trabaho",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Isang lugar para sa lahat — para ikaw at ang iyong AI team ay magbasa, mag-edit, at mag-ship mula sa ",
     "sameFiles": "parehong mga file",
     "secondParagraphSuffix": ", hindi kopya ng mga kopya.",
-    "mockTitle": "Cabinet ni Hila"
+    "mockTitle": "Cabinet ni Jane"
   },
   "slideData": {
     "thailandRootLabel": "Biyahe sa Thailand",
@@ -559,7 +557,7 @@
     "close": "Isara",
     "rolePlaceholder": "hal. indie hacker, PM sa isang SaaS, estudyante ng disenyo, hobbyist…",
     "joinDiscord": "Sumali sa Discord",
-    "header": "Mabilis na pag-check-in mula kay Hila",
+    "header": "Mabilis na pag-check-in mula kay Jane",
     "howGoing": "Kumusta na sa ngayon?",
     "starsCount": "{{n}} bituin",
     "starsCountPlural": "{{n}} bituin",
@@ -1024,6 +1022,18 @@
       "tagline2": "Ang iyong AI team.",
       "getStarted": "Simulan"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Opisina",
+        "study": "Pag-aaral",
+        "lab": "Lab",
+        "library": "Aklatan",
+        "kitchen": "Kusina",
+        "family": "Pamilya",
+        "dining": "Kainan",
+        "studio": "Studio"
+      }
+    },
     "welcome": {
       "paragraph": "Ang iyong Home ay pag-aari mo. Dito, magse-set up ka ng mga silid para sa iba't ibang bahagi ng iyong buhay: trabaho, second brain, pananaliksik, pamilya. At bawat silid ay may mga cabinet: ang iyong mga tala, ang iyong mga file, at isang AI team na tahimik na gumagawa sa background.",
       "namePrompt": "Ano ang pangalan mo?",
@@ -1120,7 +1130,7 @@
       "recheck": "Muling suriin ang mga provider",
       "rerunVerify": "Muling patakbuhin ang pag-verify",
       "runVerify": "Patakbuhin ang pag-verify",
-      "setupTitle": "{{name}} setup",
+      "setupTitle": "Setup ni {{name}}",
       "skipForNow": "Laktawan muna",
       "subtitle": "Kailangan ng Cabinet ng isang AI CLI para paganahin ang iyong mga ahente.",
       "verifyExplanation": "Pinapatakbo ng pag-verify ang headless prompt ng provider mula simula hanggang dulo at kinakategorya ang anumang pagkabigo para malaman mo kung aling hakbang ang babalikan.",
@@ -1130,6 +1140,179 @@
     "roomSetup": {
       "subtitle": "Para saan ang cabinet na ito? Bawat silid ay may sariling AI team.",
       "heading": "Pumili ng <accent>silid</accent>"
+    },
+    "rooms": {
+      "office": {
+        "label": "Ang Opisina",
+        "tagline": "Magpatakbo ng negosyo, startup, o side project.",
+        "workspaceLabel": "Pangalan ng kumpanya o proyekto",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "Ano ang ginagawa mo?",
+        "descriptionPlaceholder": "Gumagawa kami ng podcast tungkol sa mga AI startup",
+        "departmentNoun": "Departamento",
+        "teamSizeLabel": "Laki ng team",
+        "exampleAgents": {
+          "0": "CEO",
+          "1": "Editor"
+        }
+      },
+      "study": {
+        "label": "Pag-aaral",
+        "tagline": "Ang iyong pangalawang utak — pagsusulat, tala, personal na assistant.",
+        "workspaceLabel": "Pangalanan ang iyong cabinet",
+        "workspacePlaceholder": "Aking Pag-aaral",
+        "descriptionLabel": "Anong mga aspeto ng buhay ang gusto mong tulungan?",
+        "descriptionPlaceholder": "Pagsusulat, pag-triage ng email, kalendaryo, pagsubaybay sa gawi",
+        "departmentNoun": "Larangan",
+        "exampleAgents": {
+          "0": "Assistant",
+          "1": "Librarian"
+        }
+      },
+      "lab": {
+        "label": "Research Lab",
+        "tagline": "Gawaing pang-akademiko, literatura, pagtuturo, tesis.",
+        "workspaceLabel": "Pangalan ng workspace",
+        "workspacePlaceholder": "Pilosopiya ng Isip",
+        "descriptionLabel": "Ano ang iyong larangan o ano ang iyong sinasaliksik?",
+        "descriptionPlaceholder": "Phenomenology, kamalayan, pagtuturo ng Intro to Philosophy",
+        "departmentNoun": "Larangan",
+        "exampleAgents": {
+          "0": "Research Lead",
+          "1": "Librarian"
+        }
+      },
+      "family-room": {
+        "label": "Silid-Pamilya",
+        "tagline": "Sambahayan, kalendaryo ng pamilya, pagkain, mga bata.",
+        "workspaceLabel": "Pangalan ng Sambahayan",
+        "workspacePlaceholder": "Ang Pamilya Nguyen",
+        "descriptionLabel": "Sino ang nakatira dito at ano ang iyong pinagsasabay-sabay?",
+        "descriptionPlaceholder": "Dalawang magulang, tatlong anak, dalawang paaralan, isang aso",
+        "departmentNoun": "Lugar",
+        "teamSizeLabel": "Laki ng Sambahayan",
+        "exampleAgents": {
+          "0": "Tagapamahala ng Bahay",
+          "1": "Tagaplano"
+        }
+      },
+      "blank": {
+        "label": "Walang Lamang Kwarto",
+        "tagline": "Wala pa. Dalhin ang sariling ahente, sariling hugis.",
+        "workspaceLabel": "Pangalanan ang iyong cabinet",
+        "workspacePlaceholder": "Aking Cabinet",
+        "descriptionLabel": "Para saan ito?",
+        "descriptionPlaceholder": "Kahit ano — iwanang blangko kung hindi pa sigurado",
+        "departmentNoun": "Grupo",
+        "exampleAgents": {
+          "0": "Ikaw ang bahala"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "Pamumuno",
+      "marketing": "Marketing",
+      "content": "Nilalaman",
+      "engineering": "Inhinyeriya",
+      "product-and-design": "Produkto at Disenyo",
+      "business": "Negosyo",
+      "research": "Pananaliksik",
+      "finance-and-ops": "Pananalapi at Operasyon",
+      "personal": "Personal",
+      "second-brain": "Pangalawang utak",
+      "writing": "Pagsusulat",
+      "tools": "Mga Kagamitan",
+      "life-admin": "Pangangasiwa sa buhay",
+      "from-the-office": "Mula sa Opisina",
+      "writing-and-notes": "Pagsusulat at mga tala",
+      "other": "Iba pa",
+      "household": "Sambahayan",
+      "admin": "Admin",
+      "money": "Pera",
+      "product": "Produkto",
+      "design": "Disenyo",
+      "sales": "Benta",
+      "support": "Suporta",
+      "analytics": "Analytics",
+      "finance": "Pananalapi",
+      "legal": "Legal",
+      "people": "Mga Tao"
+    },
+    "demo": {
+      "greeting": {
+        "office": "Magandang umaga, team! Maligayang pagdating sa {{workspace}}. Simulan na natin agad.",
+        "study": "Umaga. Online na ang iyong pangalawang utak — maligayang pagbabalik sa {{home}}.",
+        "lab": "Handa na ang research desk — \"{{workspace}}\". Ano ang ating sasaliksikin ngayon?",
+        "family-room": "Nagbubukas na ang Home HQ — {{home}}. Ilagay natin ang bawat isa kung saan sila nararapat.",
+        "blank": "Walang laman — \"{{workspace}}\". Ano ang gusto mong buuin dito, {{home}}?"
+      },
+      "assign": "{{name}}, kaya mo bang asikasuhin ang {{topic}}?",
+      "fallbackTopic": "susunod",
+      "office": {
+        "replies": {
+          "0": "Ginagawa na. Ihaharap ko ang pangkalahatang-ideya bago matapos ang araw.",
+          "1": "Gumagawa na ng plano. Ibaba ko ito sa #content sa lalong madaling panahon.",
+          "2": "Inaayos na ang mga pangunahing daloy ng trabaho. Maganda ang takbo sa ngayon."
+        },
+        "topics": {
+          "0": "pananaliksik sa kakumpitensya",
+          "1": "ang kalendaryo ng nilalaman",
+          "2": "ang plano sa paglulunsad"
+        },
+        "closing": "Magandang enerhiya, lahat. Gawin nating matagumpay ang unang linggo."
+      },
+      "study": {
+        "replies": {
+          "0": "Aayusin ko ang inbox at ilalabas ang mga kailangan mo.",
+          "1": "Malinaw ang kalendaryo hanggang 3pm — magandang oras para magsulat.",
+          "2": "Nai-link ko na ang tatlong bagong tala sa 'Daily' index."
+        },
+        "topics": {
+          "0": "pag-aayos ng inbox ngayon",
+          "1": "mga isusulat ngayong linggo",
+          "2": "aking listahan ng babasahin"
+        },
+        "closing": "Sige. I-ping mo ako kung may kailangan — kung hindi, hindi ako manggugulo."
+      },
+      "lab": {
+        "replies": {
+          "0": "Kinukuha ko na ang pinakabagong papel tungkol dito — draft ng buod sa loob ng isang oras.",
+          "1": "I-sync ko ang bibliograpiya pagkatapos nito at markahan ang mga doble.",
+          "2": "Ang balangkas ng lektura para sa Huwebes ay halos handa na para sa pagsusuri."
+        },
+        "topics": {
+          "0": "ang pagsusuri ng literatura",
+          "1": "paghahanda sa lektura ng Huwebes",
+          "2": "ang listahan ng mga sanggunian"
+        },
+        "closing": "Panatilihin akong updated. Susuriin ko ang anumang ipasa mo bago matapos ang araw."
+      },
+      "family-room": {
+        "replies": {
+          "0": "Malinaw ang iskedyul pagkatapos ng 4. Minamarkahan ang mga magkakapatong na drop-off.",
+          "1": "Nagawa na ang menu para sa linggo — handa na ang listahan ng grocery para suriin.",
+          "2": "Nai-sync na ang mga aktibidad ng mga bata. Tuloy pa rin ang DnD night sa Biyernes."
+        },
+        "topics": {
+          "0": "iskedyul ngayon",
+          "1": "ang plano ng pagkain",
+          "2": "ang mga aktibidad ng mga bata"
+        },
+        "closing": "Salamat, lahat. I-ping ako kung may magbago sa araw."
+      },
+      "blank": {
+        "replies": {
+          "0": "Sige. Handa na ako kung kailan ka handa.",
+          "1": "Nakahanda.",
+          "2": "Hihintayin ko ang direksyon."
+        },
+        "topics": {
+          "0": "ang unang bagay",
+          "1": "anumang susunod",
+          "2": "ang bukas na tanong"
+        },
+        "closing": "Kung kailan ka handa, sabihin mo sa amin kung ano ang gagawin."
+      }
     },
     "team": {
       "browseAll": "I-browse lahat",
@@ -1149,7 +1332,7 @@
       "agentCount_other": "{{count}} mga ahente",
       "jobCount_one": "{{count}} gawain",
       "jobCount_other": "{{count}} mga gawain",
-      "subCabinetCount_one": "{{count}} sub-cabinet",
+      "subCabinetCount_one": "{{count}} sub-kabinet",
       "subCabinetCount_other": "{{count}} mga sub-cabinet",
       "cabinetsImported_one": "{{count}} cabinet na na-import",
       "cabinetsImported_other": "{{count}} mga cabinet na na-import",
@@ -1181,9 +1364,9 @@
       "title": "Wika",
       "description": "Binabago ang wika at direksyon ng pagbasa. Ang mga kasalukuyang pahina ay mananatili sa kanilang direksyon bawat dokumento.",
       "english": "Ingles",
-      "hebrew": "עברית",
-      "chineseSimplified": "简体中文",
-      "chineseTraditional": "繁體中文",
+      "hebrew": "Hebreo",
+      "chineseSimplified": "Pinapayak na Tsino",
+      "chineseTraditional": "Tradisyonal na Tsino",
       "moreLanguages": "Higit pang mga wika",
       "moreLanguagesHint": "I-click ang alinman upang ipaalam sa amin na gusto mo ang Cabinet sa wikang iyon — uunahin namin ang mga pinakamaraming hiling.",
       "comingSoon": "Malapit na",
@@ -1295,7 +1478,7 @@
       "cabinet": "Cabinet",
       "version": "Bersyon",
       "release": "Bersyon",
-      "framework": "Framework",
+      "framework": "Balangkas",
       "storage": "Imbakan",
       "privacy": "Pribasya",
       "telemetry": "Di-kilalang telemetry ng paggamit",
@@ -1309,7 +1492,7 @@
       "privacyLink": "Ano ang kinokolekta?",
       "telemetryEnvDisabled": "Naka-disable ng CABINET_TELEMETRY_DISABLED=1 (env var).",
       "telemetryHint": "Bilang ng event, bersyon, at impormasyon ng platform lang. I-off para ihinto ang pagpapadala.",
-      "cabinetCloud": "Cabinet Cloud",
+      "cabinetCloud": "Cabinet Ulap",
       "cloudBody": "Kumonekta sa iyong Cabinet mula saanman, habang ang iyong AI team ay nagtatrabaho 24/7 para sa iyo. Ilagay ang iyong email sa ibaba at ipapaalam namin sa iyo kapag bukas na ang Cabinet Cloud.",
       "cloudAlready": "Nasa listahan ka na — makikipag-ugnayan kami.",
       "cloudSuccess": "Nasa listahan ka. Mag-e-email kami sa iyo kapag bukas na ang Cabinet Cloud.",
@@ -1323,7 +1506,7 @@
     "profile": {
       "title": "Propayl",
       "name": "Pangalan",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Pangalan sa display",
       "role": "Tungkulin",
       "rolePlaceholder": "Tagabuo",
@@ -1580,12 +1763,12 @@
       "cabinet": "Cabinet",
       "home": "Home",
       "settings": "Mga Setting",
-      "registry": "Registry",
+      "registry": "Rehistro",
       "back": "Bumalik",
       "backTo": "Bumalik sa {{label}}"
     },
     "theme": {
-      "defaultHeader": "Default",
+      "defaultHeader": "Pamantayan",
       "dark": "Madilim",
       "darkThemes": "Mga Madilim na Tema",
       "lightThemes": "Mga Maliwanag na Tema"

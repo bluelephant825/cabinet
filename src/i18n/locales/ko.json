@@ -316,9 +316,7 @@
     "stopHint": "이 실행을 지금 중지 (SIGTERM 전송)",
     "restart": "다시 시작",
     "restartHint": "원래 프롬프트에서 다시 실행",
-    "runHint": "이 작업 지금 시작",
-    "reassign": "재할당",
-    "reassignHint": "이 작업을 다른 에이전트에게 넘기기"
+    "runHint": "이 작업 지금 시작"
   },
   "schedulesPanel": {
     "title": "예약된 작업",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "모든 것을 한곳에서 — 당신과 AI 팀이 다음에서 읽고, 편집하고, 배포할 수 있도록 ",
     "sameFiles": "동일한 파일",
     "secondParagraphSuffix": ", 복사본의 복사본이 아닌.",
-    "mockTitle": "Hila의 Cabinet"
+    "mockTitle": "Jane의 Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "태국 여행",
@@ -559,7 +557,7 @@
     "close": "닫기",
     "rolePlaceholder": "예: 인디 해커, SaaS PM, 디자인 학생, 취미 개발자…",
     "joinDiscord": "Discord 참여하기",
-    "header": "Hila의 빠른 확인 요청",
+    "header": "Jane의 빠른 확인 요청",
     "howGoing": "지금까지 어떠셨나요?",
     "starsCount": "별 {{n}}개",
     "starsCountPlural": "별 {{n}}개",
@@ -1023,6 +1021,18 @@
       "tagline1": "당신의 지식 기반.",
       "tagline2": "당신의 AI 팀.",
       "getStarted": "시작하기"
+    },
+    "blueprint": {
+      "rooms": {
+        "office": "사무실",
+        "study": "서재",
+        "lab": "연구실",
+        "library": "도서관",
+        "kitchen": "주방",
+        "family": "가족",
+        "dining": "식당",
+        "studio": "스튜디오"
+      }
     },
     "welcome": {
       "paragraph": "나만의 홈을 만드세요. 그 안에서 업무, 세컨드 브레인, 연구, 가족 등 삶의 다양한 영역을 위한 공간을 설정할 수 있습니다. 각 공간에는 노트, 파일, 그리고 백그라운드에서 조용히 작업을 처리하는 AI 팀으로 구성된 캐비닛이 있습니다.",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "프로필",
       "name": "이름",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "표시 이름",
       "role": "역할",
       "rolePlaceholder": "빌더",

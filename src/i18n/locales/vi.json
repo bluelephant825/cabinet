@@ -316,9 +316,7 @@
     "stopHint": "Dừng chạy này ngay bây giờ (gửi SIGTERM)",
     "restart": "Khởi động lại",
     "restartHint": "Chạy lại từ lời nhắc ban đầu",
-    "runHint": "Bắt đầu tác vụ này ngay bây giờ",
-    "reassign": "Chỉ định lại",
-    "reassignHint": "Chuyển giao tác vụ này cho một tác nhân khác"
+    "runHint": "Bắt đầu tác vụ này ngay bây giờ"
   },
   "schedulesPanel": {
     "title": "Tác vụ đã lên lịch",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Một nơi cho mọi thứ — để bạn và đội ngũ AI của bạn đọc, chỉnh sửa và xuất bản từ ",
     "sameFiles": "cùng một tệp",
     "secondParagraphSuffix": ", không phải bản sao của bản sao.",
-    "mockTitle": "Cabinet của Hila"
+    "mockTitle": "Cabinet của Jane"
   },
   "slideData": {
     "thailandRootLabel": "Chuyến đi Thái Lan",
@@ -559,7 +557,7 @@
     "close": "Đóng",
     "rolePlaceholder": "ví dụ: lập trình viên độc lập, PM tại SaaS, sinh viên thiết kế, người có sở thích…",
     "joinDiscord": "Tham gia Discord",
-    "header": "Hila hỏi thăm nhanh",
+    "header": "Jane hỏi thăm nhanh",
     "howGoing": "Mọi việc thế nào rồi?",
     "starsCount": "{{n}} sao",
     "starsCountPlural": "{{n}} sao",
@@ -1023,6 +1021,18 @@
       "tagline1": "Cơ sở tri thức của bạn.",
       "tagline2": "Đội ngũ AI của bạn.",
       "getStarted": "Bắt đầu"
+    },
+    "blueprint": {
+      "rooms": {
+        "office": "Văn phòng",
+        "study": "Phòng làm việc",
+        "lab": "Phòng thí nghiệm",
+        "library": "Thư viện",
+        "kitchen": "Nhà bếp",
+        "family": "Gia đình",
+        "dining": "Phòng ăn",
+        "studio": "Studio"
+      }
     },
     "welcome": {
       "paragraph": "Trang chủ là của bạn. Tại đây, bạn sẽ thiết lập các phòng cho từng khía cạnh trong cuộc sống: công việc, bộ não thứ hai, nghiên cứu, gia đình. Và mỗi phòng đều có các tủ (cabinets): ghi chú, tệp của bạn và một đội ngũ AI âm thầm hoàn thành công việc ở chế độ nền.",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "Hồ sơ",
       "name": "Tên",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Tên hiển thị",
       "role": "Vai trò",
       "rolePlaceholder": "Người xây dựng",

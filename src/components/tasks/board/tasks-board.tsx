@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -34,7 +34,6 @@ import { useBoardData } from "./use-board-data";
 import { KanbanView } from "./kanban-view";
 import { ListView } from "./list-view";
 import { ScheduleView } from "./schedule-view";
-import { DetailPanel } from "./detail-panel";
 import { ViewToggle, type BoardViewMode } from "./view-toggle";
 import { DensityToggle, type BoardDensity } from "./density-toggle";
 import {
@@ -70,14 +69,75 @@ import { DepthDropdown } from "@/components/cabinets/depth-dropdown";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import { useAppStore } from "@/stores/app-store";
 import type { CabinetVisibilityMode } from "@/types/cabinets";
-import type { TaskMeta } from "@/types/tasks";
+import type { TaskMeta, TaskStatus } from "@/types/tasks";
+import type { ConversationMeta, ConversationStatus } from "@/types/conversations";
+import { fetchTask } from "@/lib/agents/task-client";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/i18n/use-locale";
 
 /**
+ * The board lists `TaskMeta`, but the shared task drawer is keyed on
+ * `ConversationMeta`. The drawer only reads `id`/`cabinetPath`/`muted` (the
+ * embedded conversation page re-fetches everything by id), so this adapter
+ * only needs to be type-correct, not field-perfect — the status enums differ,
+ * so awaiting-input collapses to "running" with the `awaitingInput` flag set.
+ */
+function taskStatusToConversationStatus(status: TaskStatus): ConversationStatus {
+  switch (status) {
+    case "running":
+    case "awaiting-input":
+      return "running";
+    case "done":
+      return "completed";
+    case "failed":
+      return "failed";
+    default:
+      return "idle";
+  }
+}
+
+function taskMetaToConversationMeta(t: TaskMeta): ConversationMeta {
+  return {
+    id: t.id,
+    agentSlug: t.agentSlug ?? "editor",
+    cabinetPath: t.cabinetPath,
+    title: t.title,
+    trigger: t.trigger,
+    status: taskStatusToConversationStatus(t.status),
+    startedAt: t.startedAt,
+    completedAt: t.completedAt,
+    jobId: t.jobId,
+    jobName: t.jobName,
+    providerId: t.providerId,
+    adapterType: t.adapterType,
+    adapterConfig: t.adapterConfig,
+    promptPath: "",
+    transcriptPath: "",
+    mentionedPaths: t.mentionedPaths ?? [],
+    artifactPaths: t.artifactPaths ?? [],
+    summary: t.summary,
+    lastActivityAt: t.lastActivityAt,
+    tokens: t.tokens,
+    runtime: t.runtime,
+    archivedAt: t.archivedAt,
+    awaitingInput: t.status === "awaiting-input",
+    titlePinned: t.titlePinned,
+    summaryEditedAt: t.summaryEditedAt,
+    boardOrder: t.boardOrder,
+    muted: t.muted,
+    errorKind: t.errorKind as ConversationMeta["errorKind"],
+    errorHint: t.errorHint,
+    errorRetryAfterSec: t.errorRetryAfterSec,
+    lastResumeAttempt: t.lastResumeAttempt,
+    pendingActions: t.pendingActions,
+    dispatchedActions: t.dispatchedActions,
+  };
+}
+
+/**
  * Entry point for the Task Board.
  *  - Kanban / List / Schedule views toggleable from the header
- *  - Click-to-open DetailPanel that embeds the existing TaskConversationPage
+ *  - Click-to-open hands off to the shared global task drawer (TaskDetailPanel)
  *  - Live updates via /api/agents/conversations/events SSE
  */
 export function TasksBoard({
@@ -151,7 +211,35 @@ export function TasksBoard({
   // Onboarding explainer for the kanban/list views. Schedule has its own
   // (keyed "tasks-schedule") inside ScheduleView.
   const boardExplainer = useExplainerState("tasks-board");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The opened task lives in the shared global drawer (same one the rail and
+  // sidebar use), not a board-local panel. Derive the "selected card"
+  // highlight from the drawer so the two stay in sync.
+  const setTaskPanelConversation = useAppStore((s) => s.setTaskPanelConversation);
+  const closeTaskPanel = useAppStore((s) => s.closeTaskPanel);
+  const panelOpen = useAppStore((s) => s.taskPanelOpen);
+  const panelConversationId = useAppStore(
+    (s) => s.taskPanelConversation?.id ?? null
+  );
+  const selectedId = panelOpen ? panelConversationId : null;
+
+  // Opening a card hands off to the global drawer. Cards already in the list
+  // convert locally; a just-started task not yet in the list is fetched by id.
+  const openTaskById = useCallback(
+    async (id: string) => {
+      const local = tasks.find((task) => task.id === id);
+      if (local) {
+        setTaskPanelConversation(taskMetaToConversationMeta(local));
+        return;
+      }
+      try {
+        const fresh = await fetchTask(id, cabinetPath);
+        setTaskPanelConversation(taskMetaToConversationMeta(fresh.meta));
+      } catch (err) {
+        console.error("[board] open task failed", id, err);
+      }
+    },
+    [tasks, cabinetPath, setTaskPanelConversation]
+  );
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
@@ -263,7 +351,6 @@ export function TasksBoard({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selection.size]);
 
   // Client-side agent + trigger filters. Null/"all" = no narrowing. Non-null
@@ -307,10 +394,6 @@ export function TasksBoard({
   }, [filteredTasks]);
 
   const handleAddTask = () => openComposer("inbox");
-
-  const selected = selectedId ? tasks.find((t) => t.id === selectedId) ?? null : null;
-  const selectedLane = selected ? deriveLane(selected, now) : null;
-  const selectedAgent = selected ? agentsBySlug.get(selected.agentSlug ?? "") : undefined;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -506,7 +589,7 @@ export function TasksBoard({
                       )
                     )
                   );
-                  if (selectedId && ids.has(selectedId)) setSelectedId(null);
+                  if (selectedId && ids.has(selectedId)) closeTaskPanel();
                   clearSelection();
                   await refresh();
                 },
@@ -599,7 +682,7 @@ export function TasksBoard({
                 selectedId={selectedId}
                 selection={selection}
                 now={now}
-                onSelect={setSelectedId}
+                onSelect={(id) => void openTaskById(id)}
                 onToggleSelection={toggleSelection}
                 onClearSelection={clearSelection}
                 onAddTask={handleAddTask}
@@ -614,7 +697,7 @@ export function TasksBoard({
                 agentsBySlug={agentsBySlug}
                 selectedId={selectedId}
                 now={now}
-                onSelect={setSelectedId}
+                onSelect={(id) => void openTaskById(id)}
                 onRefresh={refresh}
                 density={density}
               />
@@ -630,7 +713,7 @@ export function TasksBoard({
                   agentFilter ? jobs.filter((j) => j.ownerAgent === agentFilter) : jobs
                 }
                 conversations={filteredConversations}
-                onConversationClick={setSelectedId}
+                onConversationClick={(id) => void openTaskById(id)}
                 onJobClick={(job, agent) => {
                   setJobDialog({
                     agentSlug: agent.slug,
@@ -659,15 +742,6 @@ export function TasksBoard({
           </main>
         )}
 
-        {selected && selectedLane && (
-          <DetailPanel
-            task={selected}
-            lane={selectedLane}
-            agent={selectedAgent}
-            onClose={() => setSelectedId(null)}
-            onRefresh={refresh}
-          />
-        )}
       </div>
 
       <DragOverlay dropAnimation={null}>
@@ -717,7 +791,7 @@ export function TasksBoard({
         editing={editingDraft}
         onStarted={(id) => {
           void refresh();
-          setSelectedId(id);
+          void openTaskById(id);
         }}
       />
 

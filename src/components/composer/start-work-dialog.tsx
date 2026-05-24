@@ -65,6 +65,7 @@ export function StartWorkDialog({
   agents,
   initialMode = "now",
   initialPrompt,
+  placeholderOverride,
   initialAgentSlug,
   initialRuntime,
   editing,
@@ -78,6 +79,10 @@ export function StartWorkDialog({
   /** Seed the prompt (used when the inline composers hand off to the dialog
    *  after the user picks a non-"now" mode — preserves what they already typed). */
   initialPrompt?: string;
+  /** Override the rotating placeholder with a fixed suggestion (used by the
+   *  post-tour first task so the templated prompt shows as a placeholder, not
+   *  a pre-filled value). */
+  placeholderOverride?: string;
   /** Seed the selected agent. Falls back to the first active agent. */
   initialAgentSlug?: string;
   /** Seed the runtime picker (provider / model / effort). Used by edit mode
@@ -114,9 +119,11 @@ export function StartWorkDialog({
 
 
   const placeholder = useMemo(
-    () => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)],
+    () =>
+      placeholderOverride ||
+      PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [open]
+    [open, placeholderOverride]
   );
 
   const defaultAgent = useMemo(() => {

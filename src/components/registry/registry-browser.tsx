@@ -24,6 +24,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useTreeStore } from "@/stores/tree-store";
+import { useAppStore } from "@/stores/app-store";
+import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import type { RegistryTemplate } from "@/lib/registry/registry-manifest";
 import { useLocale } from "@/i18n/use-locale";
 
@@ -529,6 +531,9 @@ function DetailView({
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const loadTree = useTreeStore((s) => s.loadTree);
+  // Install the template inside the cabinet the import was launched from (set on
+  // the section when opening the registry). "." (home) means install top-level.
+  const sectionCabinetPath = useAppStore((s) => s.section.cabinetPath);
 
   useEffect(() => {
     let cancelled = false;
@@ -556,12 +561,17 @@ function DetailView({
     setImportOpen(false);
 
     try {
+      const targetPath =
+        sectionCabinetPath && sectionCabinetPath !== ROOT_CABINET_PATH
+          ? sectionCabinetPath
+          : undefined;
       const res = await fetch("/api/registry/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug: detail.slug,
           name: importName.trim() !== detail.meta.name ? importName.trim() : undefined,
+          targetPath,
         }),
       });
 

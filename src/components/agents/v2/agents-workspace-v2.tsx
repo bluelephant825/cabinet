@@ -68,6 +68,15 @@ function Dialogs() {
 
   const setSection = useAppStore((s) => s.setSection);
 
+  // The sidebar / tree "New Agent" buttons dispatch this event instead of
+  // reaching into the agents view directly. V2 owns the dialog, so it must
+  // listen here (the legacy workspace had its own listener).
+  useEffect(() => {
+    const handler = () => setNewAgentOpen(true);
+    window.addEventListener("cabinet:open-add-agent", handler);
+    return () => window.removeEventListener("cabinet:open-add-agent", handler);
+  }, [setNewAgentOpen]);
+
   // The org chart modal needs the cabinet's children too. For V2 we don't
   // expose child cabinets through the agents context, so refetch via the
   // overview here when the modal opens. Keeps the context lean.
@@ -132,6 +141,7 @@ function Dialogs() {
         open={newAgentOpen}
         onOpenChange={setNewAgentOpen}
         cabinetPath={cabinetPath}
+        existingSlugs={new Set(agents.map((a) => a.slug))}
         onAdded={refresh}
       />
 

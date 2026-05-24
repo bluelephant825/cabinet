@@ -316,9 +316,7 @@
     "stopHint": "Diesen Lauf jetzt stoppen (sendet SIGTERM)",
     "restart": "Neustarten",
     "restartHint": "Erneut vom ursprünglichen Prompt ausführen",
-    "runHint": "Diese Aufgabe jetzt starten",
-    "reassign": "Neu zuweisen",
-    "reassignHint": "Diese Aufgabe einem anderen Agenten übergeben"
+    "runHint": "Diese Aufgabe jetzt starten"
   },
   "schedulesPanel": {
     "title": "Geplante Jobs",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Ein Ort für alles – damit Sie und Ihr KI-Team von den ",
     "sameFiles": "gleichen Dateien",
     "secondParagraphSuffix": ", nicht von Kopien von Kopien, lesen, bearbeiten und veröffentlichen.",
-    "mockTitle": "Hilas Cabinet"
+    "mockTitle": "Janes Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "Thailand-Reise",
@@ -559,7 +557,7 @@
     "close": "Schließen",
     "rolePlaceholder": "z.B. Indie-Hacker, PM bei einem SaaS, Designstudent, Hobbyist…",
     "joinDiscord": "Discord beitreten",
-    "header": "Kurzer Check-in von Hila",
+    "header": "Kurzer Check-in von Jane",
     "howGoing": "Wie läuft es bisher?",
     "starsCount": "{{n}} Stern",
     "starsCountPlural": "{{n}} Sterne",
@@ -1023,6 +1021,18 @@
       "tagline1": "Ihre Wissensdatenbank.",
       "tagline2": "Ihr KI-Team.",
       "getStarted": "Los geht's"
+    },
+    "blueprint": {
+      "rooms": {
+        "office": "Büro",
+        "study": "Arbeitszimmer",
+        "lab": "Labor",
+        "library": "Bibliothek",
+        "kitchen": "Küche",
+        "family": "Familie",
+        "dining": "Esszimmer",
+        "studio": "Studio"
+      }
     },
     "welcome": {
       "paragraph": "Ihr Home gehört Ihnen. Darin richten Sie Räume für verschiedene Lebensbereiche ein: Arbeit, zweites Gehirn, Forschung, Familie. Und jeder Raum hat Cabinets: Ihre Notizen, Ihre Dateien und ein KI-Team, das im Hintergrund leise Dinge erledigt.",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "Profil",
       "name": "Name",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Anzeigename",
       "role": "Rolle",
       "rolePlaceholder": "Entwickler",

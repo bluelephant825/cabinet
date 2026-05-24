@@ -316,9 +316,7 @@
     "stopHint": "इस रन को अभी रोकें (SIGTERM भेजता है)",
     "restart": "पुनः आरंभ करें",
     "restartHint": "मूल प्रॉम्प्ट से फिर से चलाएँ",
-    "runHint": "इस कार्य को अभी शुरू करें",
-    "reassign": "पुनः असाइन करें",
-    "reassignHint": "इस कार्य को किसी अन्य एजेंट को सौंपें"
+    "runHint": "इस कार्य को अभी शुरू करें"
   },
   "schedulesPanel": {
     "title": "निर्धारित कार्य",
@@ -1024,6 +1022,18 @@
       "tagline2": "आपकी AI टीम।",
       "getStarted": "शुरू करें"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "कार्यालय",
+        "study": "अध्ययन",
+        "lab": "लैब",
+        "library": "पुस्तकालय",
+        "kitchen": "रसोई",
+        "family": "परिवार",
+        "dining": "भोजन",
+        "studio": "स्टूडियो"
+      }
+    },
     "welcome": {
       "paragraph": "आपका होम आपका है। इसमें, आप अपने जीवन के विभिन्न हिस्सों के लिए कमरे सेट करेंगे: काम, सेकंड ब्रेन, रिसर्च, परिवार। और हर कमरे में कैबिनेट होते हैं: आपके नोट्स, आपकी फ़ाइलें, और एक AI टीम जो चुपचाप बैकग्राउंड में काम करती रहती है।",
       "namePrompt": "आपका नाम क्या है?",
@@ -1163,9 +1173,9 @@
         "label": "अनुसंधान प्रयोगशाला",
         "tagline": "शैक्षणिक कार्य, साहित्य, शिक्षण, थीसिस।",
         "workspaceLabel": "कार्यस्थान का नाम",
-        "workspacePlaceholder": "Philosophy of Mind",
+        "workspacePlaceholder": "मनोदर्शन",
         "descriptionLabel": "आपका क्षेत्र क्या है या आप किस पर शोध कर रहे हैं?",
-        "descriptionPlaceholder": "Phenomenology, consciousness, teaching Intro to Philosophy",
+        "descriptionPlaceholder": "घटना विज्ञान, चेतना, दर्शनशास्त्र का परिचय पढ़ाना",
         "departmentNoun": "क्षेत्र",
         "exampleAgents": {
           "0": "अनुसंधान प्रमुख",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "प्रोफ़ाइल",
       "name": "नाम",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "प्रदर्शित नाम",
       "role": "भूमिका",
       "rolePlaceholder": "निर्माता",

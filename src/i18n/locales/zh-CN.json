@@ -316,9 +316,7 @@
     "stopHint": "立即停止此运行(发送 SIGTERM)",
     "restart": "重启",
     "restartHint": "从原始提示词重新运行",
-    "runHint": "立即开始此任务",
-    "reassign": "重新分配",
-    "reassignHint": "将此任务交给其他智能体"
+    "runHint": "立即开始此任务"
   },
   "schedulesPanel": {
     "title": "已排程任务",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "一切都在一个地方 — 这样你和你的 AI 团队都从",
     "sameFiles": "同一份文件",
     "secondParagraphSuffix": "里读、写、发布,而不是层层副本。",
-    "mockTitle": "Hila 的凯比内特"
+    "mockTitle": "Jane 的凯比内特"
   },
   "slideData": {
     "thailandRootLabel": "泰国之旅",
@@ -559,7 +557,7 @@
     "close": "关闭",
     "rolePlaceholder": "如:独立开发者、SaaS PM、设计专业学生、爱好者……",
     "joinDiscord": "加入 Discord",
-    "header": "Hila 的简短问候",
+    "header": "Jane 的简短问候",
     "howGoing": "目前用得怎么样?",
     "starsCount": "{{n}} 个星",
     "starsCountPlural": "{{n}} 个星",
@@ -1024,6 +1022,18 @@
       "tagline2": "你的 AI 团队。",
       "getStarted": "开始使用"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "办公室",
+        "study": "书房",
+        "lab": "实验室",
+        "library": "图书馆",
+        "kitchen": "厨房",
+        "family": "家庭",
+        "dining": "餐厅",
+        "studio": "工作室"
+      }
+    },
     "welcome": {
       "paragraph": "你的主页是你的。在里面,你将为生活的不同部分搭建房间:工作、第二大脑、研究、家庭。每个房间都有凯比内特:你的笔记、你的文件,以及一个在后台默默把事做完的 AI 团队。",
       "namePrompt": "你叫什么名字？",
@@ -1130,6 +1140,179 @@
     "roomSetup": {
       "subtitle": "这个 cabinet 是做什么用的？每个房间都配有自己的 AI 团队。",
       "heading": "选择一个<accent>房间</accent>"
+    },
+    "rooms": {
+      "office": {
+        "label": "办公室",
+        "tagline": "运营公司、初创企业或副业。",
+        "workspaceLabel": "公司或项目名称",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "你们做什么？",
+        "descriptionPlaceholder": "我们制作关于 AI 初创公司的播客",
+        "departmentNoun": "部门",
+        "teamSizeLabel": "团队规模",
+        "exampleAgents": {
+          "0": "CEO",
+          "1": "编辑"
+        }
+      },
+      "study": {
+        "label": "书房",
+        "tagline": "你的第二大脑 — 写作、笔记、个人助理。",
+        "workspaceLabel": "命名你的 cabinet",
+        "workspacePlaceholder": "我的书房",
+        "descriptionLabel": "你希望在哪些生活领域获得帮助？",
+        "descriptionPlaceholder": "写作、邮件分类、日历、习惯追踪",
+        "departmentNoun": "领域",
+        "exampleAgents": {
+          "0": "助理",
+          "1": "图书管理员"
+        }
+      },
+      "lab": {
+        "label": "研究实验室",
+        "tagline": "学术工作、文献、教学、论文。",
+        "workspaceLabel": "工作区名称",
+        "workspacePlaceholder": "心灵哲学",
+        "descriptionLabel": "你的领域是什么或你在研究什么？",
+        "descriptionPlaceholder": "现象学、意识、哲学导论教学",
+        "departmentNoun": "领域",
+        "exampleAgents": {
+          "0": "研究负责人",
+          "1": "图书管理员"
+        }
+      },
+      "family-room": {
+        "label": "家庭活动室",
+        "tagline": "家庭、家庭日历、膳食、孩子。",
+        "workspaceLabel": "家庭名称",
+        "workspacePlaceholder": "阮氏家族",
+        "descriptionLabel": "谁住在这里，你们要处理哪些事务？",
+        "descriptionPlaceholder": "两位家长，三个孩子，两所学校，一条狗",
+        "departmentNoun": "区域",
+        "teamSizeLabel": "家庭规模",
+        "exampleAgents": {
+          "0": "家庭管家",
+          "1": "规划师"
+        }
+      },
+      "blank": {
+        "label": "空白房间",
+        "tagline": "暂无内容。带上你的智能体，塑造你的专属空间。",
+        "workspaceLabel": "为你的 cabinet 命名",
+        "workspacePlaceholder": "我的 Cabinet",
+        "descriptionLabel": "用途是什么？",
+        "descriptionPlaceholder": "任何用途 — 如果不确定，请留空",
+        "departmentNoun": "群组",
+        "exampleAgents": {
+          "0": "你来决定"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "领导力",
+      "marketing": "市场营销",
+      "content": "内容",
+      "engineering": "工程",
+      "product-and-design": "产品与设计",
+      "business": "业务",
+      "research": "研究",
+      "finance-and-ops": "财务与运营",
+      "personal": "个人",
+      "second-brain": "第二大脑",
+      "writing": "写作",
+      "tools": "工具",
+      "life-admin": "生活管理",
+      "from-the-office": "来自办公室",
+      "writing-and-notes": "写作与笔记",
+      "other": "其他",
+      "household": "家庭",
+      "admin": "管理",
+      "money": "财务",
+      "product": "产品",
+      "design": "设计",
+      "sales": "销售",
+      "support": "支持",
+      "analytics": "分析",
+      "finance": "财务",
+      "legal": "法务",
+      "people": "人事"
+    },
+    "demo": {
+      "greeting": {
+        "office": "团队早上好！欢迎来到 {{workspace}}。让我们立即开始工作吧。",
+        "study": "早上好。你的第二大脑已上线 — 欢迎回到 {{home}}。",
+        "lab": "研究台已就绪 — “{{workspace}}”。今天我们要深入研究什么？",
+        "family-room": "家庭总部正在启动 — {{home}}。让我们让每个人都各就各位。",
+        "blank": "全新开始 — “{{workspace}}”。{{home}}，你想在这里构建什么？"
+      },
+      "assign": "{{name}}，你能负责{{topic}}吗？",
+      "fallbackTopic": "下一步",
+      "office": {
+        "replies": {
+          "0": "正在处理。我会在今天结束前准备好一份全景概览。",
+          "1": "已在起草计划。很快会在 #content 分享。",
+          "2": "正在设置基础工作流。目前进展顺利。"
+        },
+        "topics": {
+          "0": "竞品研究",
+          "1": "内容日历",
+          "2": "发布计划"
+        },
+        "closing": "大家干劲十足。让我们一起度过一个高效的第一周。"
+      },
+      "study": {
+        "replies": {
+          "0": "我会处理收件箱，并找出需要你处理的事项。",
+          "1": "日程表在下午3点前都很空闲 — 是写作的好时机。",
+          "2": "我已将三条新笔记链接到“每日”索引。"
+        },
+        "topics": {
+          "0": "今日收件箱筛选",
+          "1": "本周写作",
+          "2": "我的阅读清单"
+        },
+        "closing": "好的。有需要我的时候随时联系我 — 否则我就不打扰你了。"
+      },
+      "lab": {
+        "replies": {
+          "0": "正在获取关于此的最新论文 — 一小时内完成摘要草稿。",
+          "1": "之后我会同步参考文献并标记重复项。",
+          "2": "周四讲座大纲即将准备好供审阅。"
+        },
+        "topics": {
+          "0": "文献综述",
+          "1": "周四讲座准备",
+          "2": "参考文献列表"
+        },
+        "closing": "随时告知我。我会在今天结束前审阅你提交的所有内容。"
+      },
+      "family-room": {
+        "replies": {
+          "0": "4点后日程表很空闲。正在标记重叠的安排。",
+          "1": "本周菜单已起草 — 购物清单已准备好供审阅。",
+          "2": "孩子们的活动已同步。周五的DnD之夜照常进行。"
+        },
+        "topics": {
+          "0": "今日日程",
+          "1": "膳食计划",
+          "2": "孩子们的活动"
+        },
+        "closing": "谢谢大家。如果白天有任何变动，请通知我。"
+      },
+      "blank": {
+        "replies": {
+          "0": "收到。随时待命。",
+          "1": "待命中。",
+          "2": "我将等待指示。"
+        },
+        "topics": {
+          "0": "第一件事",
+          "1": "下一步",
+          "2": "未解决的问题"
+        },
+        "closing": "准备好后，告诉我们该做什么。"
+      }
     },
     "team": {
       "browseAll": "浏览全部",

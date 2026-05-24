@@ -1690,13 +1690,13 @@ async function readTurnOne(
   };
 
   // Turn 1 agent: while the conversation is still running and the daemon
-  // hasn't streamed any bytes yet, show a "Working on it…" placeholder so
-  // the UI isn't blank during the adapter cold-start + first-poll window.
-  // Continue turns already do this via `continueConversationRun` writing an
-  // explicit pending turn file; the first turn has no turn file, so we
-  // fabricate the placeholder here at read time. For any non-running status
-  // (failed/cancelled/completed-with-empty-output) keep returning null so
-  // error paths aren't masked behind a fake placeholder.
+  // hasn't streamed any bytes yet, fabricate an empty pending turn so the UI
+  // shows the typing indicator (not a blank gap) during the adapter cold-start
+  // + first-poll window. Continue turns already do this via
+  // `continueConversationRun` writing an explicit pending turn file; the first
+  // turn has no turn file, so we fabricate it here at read time. For any
+  // non-running status (failed/cancelled/completed-with-empty-output) keep
+  // returning null so error paths aren't masked behind a fake placeholder.
   if (!transcript.trim()) {
     if (meta.status === "running") {
       const placeholder: ConversationTurn = {
@@ -1704,7 +1704,7 @@ async function readTurnOne(
         turn: 1,
         role: "agent",
         ts: meta.startedAt,
-        content: "Working on it…",
+        content: "",
         pending: true,
       };
       return { user, agent: placeholder };

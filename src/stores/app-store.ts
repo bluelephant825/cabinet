@@ -88,6 +88,9 @@ export interface TaskPanelComposeContext {
   defaultAgentSlug?: string;
   /** Mirrors createConversation's discriminant. */
   source?: "editor" | "agent";
+  /** Optional greeting shown above the composer (e.g. the post-create
+   *  "Hi {name} — what would you like to do in {file}?" handoff). */
+  greeting?: string;
 }
 
 interface TerminalTab {
@@ -126,7 +129,6 @@ interface AppState {
   aiPanelCollapsed: boolean;
   cabinetVisibilityModes: Record<string, CabinetVisibilityMode>;
   taskPanelConversation: ConversationMeta | null;
-  taskPanelFullscreen: boolean;
   taskPanelOpen: boolean;
   taskPanelMode: TaskPanelMode;
   taskPanelComposeContext: TaskPanelComposeContext | null;
@@ -173,8 +175,6 @@ interface AppState {
     mode: CabinetVisibilityMode
   ) => void;
   setTaskPanelConversation: (conversation: ConversationMeta | null) => void;
-  setTaskPanelFullscreen: (fullscreen: boolean) => void;
-  toggleTaskPanelFullscreen: () => void;
   openTaskPanelCompose: (context?: TaskPanelComposeContext) => void;
   closeTaskPanel: () => void;
   toggleTaskPanelCompose: (context?: TaskPanelComposeContext) => void;
@@ -246,7 +246,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   aiPanelCollapsed: false,
   cabinetVisibilityModes: loadCabinetVisibilityModes(),
   taskPanelConversation: null,
-  taskPanelFullscreen: false,
   taskPanelOpen: false,
   taskPanelMode: "compose",
   taskPanelComposeContext: null,
@@ -352,9 +351,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Audit #131: keep the task side panel visible across navigation so the
     // user can launch a task and keep working while it runs. The panel is
     // dismissed explicitly via its X button or replaced by another launch.
-    // Fullscreen mode is reset on navigation though — full-screen is bound
-    // to a specific surface, not a free-floating overlay.
-    set({ section, taskPanelFullscreen: false, returnTo: null });
+    set({ section, returnTo: null });
   },
 
   pushSection: (next, from) => {
@@ -367,13 +364,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         keepalive: true,
       }).catch(() => {});
     }
-    set({ section: next, taskPanelFullscreen: false, returnTo: from });
+    set({ section: next, returnTo: from });
   },
 
   popReturnTo: () => {
     const { returnTo } = get();
     if (!returnTo) return;
-    set({ section: returnTo, returnTo: null, taskPanelFullscreen: false });
+    set({ section: returnTo, returnTo: null });
   },
 
   recordNav: (hash) => {
@@ -532,7 +529,6 @@ export const useAppStore = create<AppState>((set, get) => ({
             taskPanelConversation: conversation,
             taskPanelMode: "conversation" as const,
             taskPanelOpen: true,
-            taskPanelFullscreen: false,
             recentlyOpenedTaskIds: rememberOpenedTask(
               get().recentlyOpenedTaskIds,
               conversation.id
@@ -541,18 +537,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         : { taskPanelOpen: false }
     ),
 
-  setTaskPanelFullscreen: (fullscreen) => set({ taskPanelFullscreen: fullscreen }),
-
-  toggleTaskPanelFullscreen: () =>
-    set({ taskPanelFullscreen: !get().taskPanelFullscreen }),
-
   openTaskPanelCompose: (context) =>
     set({
       taskPanelOpen: true,
       taskPanelMode: "compose",
       taskPanelComposeContext: context ?? null,
       taskPanelConversation: null,
-      taskPanelFullscreen: false,
     }),
 
   closeTaskPanel: () => set({ taskPanelOpen: false }),
@@ -566,13 +556,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         taskPanelMode: "compose",
         taskPanelComposeContext: context ?? null,
         taskPanelConversation: null,
-        taskPanelFullscreen: false,
       });
     }
   },
 
-  // Compose -> live swap: keep the SAME drawer mounted (width unchanged)
-  // and preserve fullscreen, unlike the external setTaskPanelConversation.
+  // Compose -> live swap: keep the SAME drawer mounted (width unchanged),
+  // unlike the external setTaskPanelConversation.
   swapToConversation: (conversation) =>
     set({
       taskPanelConversation: conversation,

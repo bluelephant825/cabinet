@@ -316,9 +316,7 @@
     "stopHint": "Stop deze uitvoering nu (verstuurt SIGTERM)",
     "restart": "Herstarten",
     "restartHint": "Opnieuw uitvoeren vanaf de oorspronkelijke prompt",
-    "runHint": "Start deze taak nu",
-    "reassign": "Opnieuw toewijzen",
-    "reassignHint": "Wijs deze taak toe aan een andere agent"
+    "runHint": "Start deze taak nu"
   },
   "schedulesPanel": {
     "title": "Geplande taken",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Eén plek voor alles — zodat jij en je AI-team lezen, bewerken en verzenden vanuit de ",
     "sameFiles": "zelfde bestanden",
     "secondParagraphSuffix": ", geen kopieën van kopieën.",
-    "mockTitle": "Hila's Cabinet"
+    "mockTitle": "Jane's Cabinet"
   },
   "slideData": {
     "thailandRootLabel": "Reis naar Thailand",
@@ -559,7 +557,7 @@
     "close": "Sluiten",
     "rolePlaceholder": "bijv. indie hacker, PM bij een SaaS, designstudent, hobbyist…",
     "joinDiscord": "Word lid van Discord",
-    "header": "Snelle check-in van Hila",
+    "header": "Snelle check-in van Jane",
     "howGoing": "Hoe gaat het tot nu toe?",
     "starsCount": "{{n}} ster",
     "starsCountPlural": "{{n}} sterren",
@@ -1023,6 +1021,18 @@
       "tagline1": "Jouw kennisbank.",
       "tagline2": "Jouw AI-team.",
       "getStarted": "Aan de slag"
+    },
+    "blueprint": {
+      "rooms": {
+        "office": "Kantoor",
+        "study": "Werkkamer",
+        "lab": "Lab",
+        "library": "Bibliotheek",
+        "kitchen": "Keuken",
+        "family": "Familie",
+        "dining": "Eetkamer",
+        "studio": "Studio"
+      }
     },
     "welcome": {
       "paragraph": "Jouw Home is van jou. Hierin richt je kamers in voor verschillende onderdelen van je leven: werk, second brain, onderzoek, familie. En elke kamer heeft cabinets: jouw notities, jouw bestanden en een AI-team dat op de achtergrond stil dingen voor je regelt.",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "Profiel",
       "name": "Naam",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Weergavenaam",
       "role": "Rol",
       "rolePlaceholder": "Bouwer",

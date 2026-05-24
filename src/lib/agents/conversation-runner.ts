@@ -314,14 +314,38 @@ function makeTitle(text: string): string {
   return firstLine.slice(0, 80);
 }
 
+// Mentioned files whose raw bytes must never be inlined into the prompt
+// (video/audio/images/PDF/office/archives). Inlining a 74MB .mov produced a
+// 134MB prompt.md that failed the run and choked the task page. These are
+// referenced by path instead so the agent opens them with its Read tool.
+const NON_INLINE_MENTION_EXT = new Set([
+  ".mov", ".mp4", ".webm", ".m4v", ".avi", ".mkv", ".mpg", ".mpeg",
+  ".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac",
+  ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".ico", ".bmp", ".tiff",
+  ".pdf", ".docx", ".xlsx", ".xlsm", ".pptx", ".doc", ".xls", ".ppt",
+  ".zip", ".tar", ".gz", ".tgz", ".rar", ".7z", ".fig", ".sketch",
+]);
+// Cap inlined text so a single huge page can't blow up the prompt either.
+const MAX_INLINE_MENTION_BYTES = 200_000;
+
 async function buildMentionContext(mentionedPaths: string[]): Promise<string> {
   if (mentionedPaths.length === 0) return "";
 
   const chunks = await Promise.all(
     mentionedPaths.map(async (pagePath) => {
       try {
+        // Binary / large file: reference by path, never inline the bytes.
+        if (NON_INLINE_MENTION_EXT.has(path.extname(pagePath).toLowerCase())) {
+          return `--- ${pagePath} (file attachment — open it with the Read tool at this path) ---`;
+        }
         const page = await readPage(pagePath);
-        return `--- ${page.frontmatter.title} (${pagePath}) ---\n${page.content}`;
+        let content = page.content || "";
+        if (content.length > MAX_INLINE_MENTION_BYTES) {
+          content =
+            content.slice(0, MAX_INLINE_MENTION_BYTES) +
+            "\n\n…[content truncated — open the file with the Read tool for the full version]…";
+        }
+        return `--- ${page.frontmatter.title} (${pagePath}) ---\n${content}`;
       } catch {
         return null;
       }
@@ -700,10 +724,10 @@ export async function waitForConversationCompletion(
   const deadline = Date.now() + 15 * 60 * 1000;
   const startedAt = Date.now();
   // Tight-poll the first 5 s after startConversationRun hands off — that's
-  // the cold-start window where the UI is showing the "Working on it…"
-  // placeholder and the user is most sensitive to latency between their
-  // prompt and the first streamed bytes. Back off to the steady-state 700 ms
-  // interval after the adapter is clearly producing.
+  // the cold-start window where the UI is showing the pending typing indicator
+  // and the user is most sensitive to latency between their prompt and the
+  // first streamed bytes. Back off to the steady-state 700 ms interval after
+  // the adapter is clearly producing.
   const FAST_POLL_WINDOW_MS = 5000;
   const FAST_POLL_INTERVAL_MS = 250;
   const STEADY_POLL_INTERVAL_MS = 700;
@@ -1658,10 +1682,11 @@ export async function continueConversationRun(
       })
     : replayPrompt;
 
-  // 6. Create the pending agent turn
+  // 6. Create the pending agent turn. Empty content so the UI shows only the
+  // typing indicator (no placeholder text) until bytes stream in.
   const pending = await appendAgentTurn(
     conversationId,
-    { content: "Working on it…", pending: true },
+    { content: "", pending: true },
     cp
   );
   if (!pending) return meta;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Search } from "lucide-react";
+import { Check, Loader2, Plus, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useAppStore } from "@/stores/app-store";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useLocale } from "@/i18n/use-locale";
 
 interface AgentTemplate {
@@ -22,32 +23,37 @@ interface AgentTemplate {
 }
 
 /**
- * Pick-an-agent-from-the-library dialog used by V2's `+ New Agent` button.
- * Self-contained (no panel coupling) so it can mount anywhere. Once a
- * template is added, navigates to the new agent's detail page so the user
- * lands inside the agent's profile, ready to edit.
+ * Pick-agents-from-the-library dialog used by V2's `+ New Agent` button.
+ * Multi-select: tick several specialists across departments, then add them
+ * all at once. Mirrors the onboarding "Pick your agents" picker in style.
  */
 export function NewAgentDialog({
   open,
   onOpenChange,
   cabinetPath,
+  existingSlugs,
   onAdded,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   cabinetPath: string;
+  existingSlugs?: Set<string>;
   onAdded: () => void | Promise<void>;
 }) {
   const { t } = useLocale();
-  const setSection = useAppStore((s) => s.setSection);
   const [templates, setTemplates] = useState<AgentTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [addingSlug, setAddingSlug] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const added = existingSlugs ?? new Set<string>();
 
   useEffect(() => {
     if (!open) return;
+    setSelected(new Set());
+    setQuery("");
     let cancel = false;
     setLoading(true);
     setError(null);
@@ -72,47 +78,85 @@ export function NewAgentDialog({
     };
   }, [open]);
 
-  async function add(template: AgentTemplate) {
-    setAddingSlug(template.slug);
+  function toggle(slug: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  }
+
+  async function addSelected() {
+    if (selected.size === 0) return;
+    setAdding(true);
     setError(null);
+    const failed: string[] = [];
     try {
-      const res = await fetch(`/api/agents/library/${template.slug}/add`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cabinetPath }),
-      });
-      // 409 = already exists — just navigate to it.
-      if (!res.ok && res.status !== 409) {
-        setError(t("agents:dialog.errorAddAgent"));
-        return;
+      for (const slug of selected) {
+        const template = templates.find((tpl) => tpl.slug === slug);
+        if (!template) continue;
+        try {
+          const res = await fetch(`/api/agents/library/${slug}/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cabinetPath }),
+          });
+          // 409 = already on the team; treat as success (idempotent).
+          if (!res.ok && res.status !== 409) failed.push(template.name);
+        } catch {
+          failed.push(template.name);
+        }
       }
       await onAdded();
-      onOpenChange(false);
-      setSection({
-        type: "agent",
-        slug: template.slug,
-        cabinetPath,
-      });
+      if (failed.length > 0) {
+        setError(`Couldn't add: ${failed.join(", ")}`);
+      } else {
+        onOpenChange(false);
+        setSelected(new Set());
+      }
     } finally {
-      setAddingSlug(null);
+      setAdding(false);
     }
   }
 
-  const filtered = templates.filter((t) => {
+  const filtered = templates.filter((tpl) => {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     return (
-      t.name.toLowerCase().includes(q) ||
-      (t.role || "").toLowerCase().includes(q) ||
-      (t.department || "").toLowerCase().includes(q)
+      tpl.name.toLowerCase().includes(q) ||
+      (tpl.role || "").toLowerCase().includes(q) ||
+      (tpl.department || "").toLowerCase().includes(q)
     );
   });
 
+  const grouped = (() => {
+    const map = new Map<string, AgentTemplate[]>();
+    for (const tpl of filtered) {
+      const dept = tpl.department || "general";
+      if (!map.has(dept)) map.set(dept, []);
+      map.get(dept)!.push(tpl);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(
+        ([dept, items]) =>
+          [dept, items.sort((a, b) => a.name.localeCompare(b.name))] as const
+      );
+  })();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[80vh] sm:max-w-xl">
+      <DialogContent className="max-h-[85vh] sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{t("agents:dialog.addAgentTitle")}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {t("agents:dialog.addAgentTitle")}
+            {selected.size > 0 ? (
+              <span className="text-xs font-medium text-primary">
+                ({selected.size} selected)
+              </span>
+            ) : null}
+          </DialogTitle>
           <DialogDescription>
             {t("agents:dialog.addAgentDescription")}
           </DialogDescription>
@@ -136,51 +180,102 @@ export function NewAgentDialog({
             </p>
           ) : null}
 
-          <div className="max-h-[55vh] overflow-y-auto rounded-md border border-border/60">
+          <div className="max-h-[52vh] space-y-4 overflow-y-auto pr-1">
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-12 text-[12px] text-muted-foreground">
                 <Loader2 className="size-3.5 animate-spin" />
                 Loading the library…
               </div>
-            ) : filtered.length === 0 ? (
+            ) : grouped.length === 0 ? (
               <div className="py-10 text-center text-[12px] text-muted-foreground">
-                {templates.length === 0
-                  ? "No templates available."
-                  : "No matches."}
+                {templates.length === 0 ? "No templates available." : "No matches."}
               </div>
             ) : (
-              <ul className="divide-y divide-border/60">
-                {filtered.map((t) => (
-                  <li key={t.slug}>
-                    <button
-                      type="button"
-                      onClick={() => void add(t)}
-                      disabled={addingSlug !== null}
-                      className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40 disabled:opacity-60"
-                    >
-                      <span className="text-lg leading-none">
-                        {t.emoji || "🤖"}
-                      </span>
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-[12.5px] font-semibold text-foreground">
-                          {t.name}
-                        </span>
-                        {t.role ? (
-                          <span className="truncate text-[11px] text-muted-foreground">
-                            {t.role}
+              grouped.map(([dept, items]) => (
+                <div key={dept} className="space-y-2">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {dept.charAt(0).toUpperCase() + dept.slice(1)}
+                  </h3>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {items.map((tpl) => {
+                      const isAdded = added.has(tpl.slug);
+                      const isSelected = selected.has(tpl.slug);
+                      return (
+                        <button
+                          key={tpl.slug}
+                          type="button"
+                          disabled={isAdded}
+                          onClick={() => toggle(tpl.slug)}
+                          title={tpl.role || tpl.description || tpl.name}
+                          className={cn(
+                            "flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors",
+                            isAdded
+                              ? "cursor-default border-border bg-muted/40 opacity-60"
+                              : isSelected
+                                ? "border-primary bg-primary/10"
+                                : "border-border bg-card hover:bg-muted/40"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "flex size-4 shrink-0 items-center justify-center rounded border",
+                              isSelected || isAdded
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-muted-foreground/40"
+                            )}
+                          >
+                            {isSelected || isAdded ? (
+                              <Check className="size-3" />
+                            ) : null}
                           </span>
-                        ) : null}
-                      </div>
-                      {addingSlug === t.slug ? (
-                        <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                      ) : (
-                        <Plus className="size-3.5 text-muted-foreground" />
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                          <span className="text-base leading-none">
+                            {tpl.emoji || "🤖"}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[12.5px] font-semibold text-foreground">
+                              {tpl.name}
+                            </span>
+                            {tpl.role ? (
+                              <span className="block truncate text-[11px] text-muted-foreground">
+                                {tpl.role}
+                              </span>
+                            ) : null}
+                          </span>
+                          {isAdded ? (
+                            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              Added
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
             )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1"
+              onClick={addSelected}
+              disabled={selected.size === 0 || adding}
+            >
+              {adding ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Plus className="size-3.5" />
+              )}
+              {adding
+                ? "Adding…"
+                : selected.size > 0
+                  ? `Add ${selected.size} agent${selected.size === 1 ? "" : "s"}`
+                  : "Add agents"}
+            </Button>
           </div>
         </div>
       </DialogContent>

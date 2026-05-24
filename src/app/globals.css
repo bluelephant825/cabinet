@@ -11,6 +11,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
+  --font-serif: var(--font-logo-rtl), Cardo, Georgia, ui-serif, serif;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -901,10 +902,22 @@ html[dir="rtl"].electron-desktop main > :first-child {
   100% { transform: translate(-50%, -50%) translate(var(--sb-x, 20px), var(--sb-y, 0px)) scale(0); opacity: 0; }
 }
 
+/* ── Onboarding provider guide slide-in (RTL-aware via inline --bp-slide-from) ── */
+@keyframes onboarding-guide-slide-in {
+  from { transform: translateX(var(--guide-slide-from, 24px)); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
 /* ── Onboarding tour animations ── */
 @keyframes cabinet-tour-fade-up {
   0%   { opacity: 0; transform: translateY(6px); }
   100% { opacity: 1; transform: translateY(0); }
+}
+/* Seamless horizontal marquee (onboarding suggestion tags). The track holds
+   the list twice, so translating by -50% loops without a visible jump. */
+@keyframes cabinet-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
 @keyframes cabinet-tour-fade-in {
   0%   { opacity: 0; }

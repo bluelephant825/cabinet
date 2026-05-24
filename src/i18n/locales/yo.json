@@ -316,9 +316,7 @@
     "stopHint": "Duro ṣiṣe yii ni bayi (fi SIGTERM ranṣẹ)",
     "restart": "Tun bẹrẹ",
     "restartHint": "Ṣiṣe lẹẹkansi lati ibeere atilẹba",
-    "runHint": "Bẹrẹ iṣẹ yii ni bayi",
-    "reassign": "Tun yan",
-    "reassignHint": "Fi iṣẹ yii fun aṣoju miiran"
+    "runHint": "Bẹrẹ iṣẹ yii ni bayi"
   },
   "schedulesPanel": {
     "title": "Awọn iṣẹ ti a ṣeto",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Ibi kan ṣoṣo fún ohun gbogbo — kí ìwọ àti ẹgbẹ́ AI rẹ lè kà, ṣàtúnṣe, kí ẹ sì fi ránṣẹ́ láti ",
     "sameFiles": "àwọn fáìlì kan náà",
     "secondParagraphSuffix": ", kì í ṣe àwọn ẹ̀dà àwọn ẹ̀dà.",
-    "mockTitle": "Cabinet ti Hila"
+    "mockTitle": "Cabinet ti Jane"
   },
   "slideData": {
     "thailandRootLabel": "Ìrìn-àjò Thailand",
@@ -559,7 +557,7 @@
     "close": "Pàdé",
     "rolePlaceholder": "f.á. indie hacker, PM ní SaaS kan, akẹ́kọ̀ọ́ ìṣẹ̀dá, olùfẹ́ ìṣe kan…",
     "joinDiscord": "Darapọ̀ mọ́ Discord",
-    "header": "Ìwádìí kíákíá láti ọ̀dọ̀ Hila",
+    "header": "Ìwádìí kíákíá láti ọ̀dọ̀ Jane",
     "howGoing": "Báwo ni ó ṣe ń lọ títí di ìsinsìnyí?",
     "starsCount": "{{n}} ìràwọ̀",
     "starsCountPlural": "{{n}} àwọn ìràwọ̀",
@@ -1024,6 +1022,18 @@
       "tagline2": "Ẹgbẹ́ AI rẹ.",
       "getStarted": "Bẹrẹ"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Ọfiisi",
+        "study": "Ìkẹ́kọ̀ọ́",
+        "lab": "Yàrá Ìdánwò",
+        "library": "Ilé Ìwé",
+        "kitchen": "Ilé Ìdáná",
+        "family": "Ìdílé",
+        "dining": "Yàrá Oúnjẹ",
+        "studio": "Situdio"
+      }
+    },
     "welcome": {
       "paragraph": "Ile rẹ jẹ tirẹ. Nínú rẹ̀, ìwọ yóò ṣètò àwọn yàrá fún oríṣiríṣi apá ìgbésí ayé rẹ: iṣẹ́, ọpọlọ kejì, ìwádìí, ìdílé. Gbogbo yàrá sì ní àwọn àpótí: àwọn àkọsílẹ̀ rẹ, àwọn fáìlì rẹ, àti ẹgbẹ́ AI kan tí ó ń ṣe àwọn nǹkan ní ìkọ̀kọ̀ ní ẹ̀yìn.",
       "namePrompt": "Kí ni orúkọ rẹ?",
@@ -1065,7 +1075,7 @@
       "agentsReady_other": "{{count}} àwọn aṣoju ti ṣetan lati ṣiṣẹ",
       "scheduledJobs_one": "{{count}} iṣẹ ti a ṣeto",
       "scheduledJobs_other": "{{count}} àwọn iṣẹ ti a ṣeto",
-      "subCabinets_one": "{{count}} sub-cabinet",
+      "subCabinets_one": "{{count}} àpótí kékeré",
       "subCabinets_other": "{{count}} àwọn sub-cabinet",
       "agentsReady": "{{count}} àwọn aṣoju ti ṣetan lati ṣiṣẹ",
       "scheduledJobs": "{{count}} àwọn iṣẹ ti a ṣeto",
@@ -1131,6 +1141,179 @@
       "subtitle": "Kí ni cabinet yìí fún? Yàrá kọ̀ọ̀kan wá pẹ̀lú ẹgbẹ́ AI tirẹ̀.",
       "heading": "Yan <accent>yàrá</accent> kan"
     },
+    "rooms": {
+      "office": {
+        "label": "Ọfiisi Náà",
+        "tagline": "Ṣe ìṣòwò, ìdásílẹ̀ tuntun, tàbí iṣẹ́ àfikún.",
+        "workspaceLabel": "Orúkọ ilé-iṣẹ́ tàbí iṣẹ́ àkànṣe",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "Kí ni o ń ṣe?",
+        "descriptionPlaceholder": "A ń ṣe adarí-ohùn nípa àwọn ìdásílẹ̀ AI tuntun",
+        "departmentNoun": "Ẹ̀ka",
+        "teamSizeLabel": "Iye àwọn ọmọ ẹgbẹ́",
+        "exampleAgents": {
+          "0": "Alága Àgbà",
+          "1": "Olóòtú"
+        }
+      },
+      "study": {
+        "label": "Ìkẹ́kọ̀ọ́",
+        "tagline": "Ọpọlọ kejì rẹ — kíkọ, àkọsílẹ̀, olùrànlọ́wọ́ ara ẹni.",
+        "workspaceLabel": "Sọ àpótí rẹ ní orúkọ",
+        "workspacePlaceholder": "Ìkẹ́kọ̀ọ́ Mi",
+        "descriptionLabel": "Àwọn agbègbè ìgbésí ayé wo ni o fẹ́ ìrànlọ́wọ́ pẹ̀lú?",
+        "descriptionPlaceholder": "Kíkọ, ṣíṣe àyẹ̀wò imeeli, kàlẹ́ńdà, títọ́pinpin àṣà.",
+        "departmentNoun": "Agbègbè",
+        "exampleAgents": {
+          "0": "Olùrànlọ́wọ́",
+          "1": "Alábòójútó Ilé Ìwé"
+        }
+      },
+      "lab": {
+        "label": "Yàrá Ìwádìí",
+        "tagline": "Iṣẹ́ ẹ̀kọ́, ìwé kíkà, kíkọ́ni, àpilẹ̀kọ.",
+        "workspaceLabel": "Orúkọ ibi iṣẹ́",
+        "workspacePlaceholder": "Fílósófì Ọkàn",
+        "descriptionLabel": "Kí ni ààyè rẹ tàbí kí ni o ń wádìí?",
+        "descriptionPlaceholder": "Fẹ́nomẹ́nolójì, ìmọ̀, kíkọ́ Ìfáàánú sí Fílósófì",
+        "departmentNoun": "Ààyè",
+        "exampleAgents": {
+          "0": "Olórí Ìwádìí",
+          "1": "Alábòójútó Ilé Ìwé"
+        }
+      },
+      "family-room": {
+        "label": "Yàrá Ìdílé",
+        "tagline": "Ilé, kàlẹ́ńdà ìdílé, oúnjẹ, àwọn ọmọ.",
+        "workspaceLabel": "Orúkọ Ilé",
+        "workspacePlaceholder": "Ìdílé Nguyen",
+        "descriptionLabel": "Ta ni ń gbé níbí, kí sì ni o ń ṣe lọ́pọ̀lọpọ̀?",
+        "descriptionPlaceholder": "Òbí méjì, ọmọ mẹ́ta, ilé-ìwé méjì, ajá kan",
+        "departmentNoun": "Ààyè",
+        "teamSizeLabel": "Ìwọ̀n Ilé",
+        "exampleAgents": {
+          "0": "Alábòójútó Ilé",
+          "1": "Olùgbékalẹ̀"
+        }
+      },
+      "blank": {
+        "label": "Yàrá Òfo",
+        "tagline": "Kò sí nǹkan síbẹ̀. Mú àwọn aṣojú tirẹ̀ wá, ìrísí tirẹ̀.",
+        "workspaceLabel": "Sọ cabinet rẹ ní orúkọ",
+        "workspacePlaceholder": "Cabinet Mi",
+        "descriptionLabel": "Kí ló wà fún?",
+        "descriptionPlaceholder": "Ohunkóhun — fi sílẹ̀ láìkọ nǹkan síbẹ̀ bí o kò bá dá ọ lójú síbẹ̀",
+        "departmentNoun": "Ẹgbẹ́",
+        "exampleAgents": {
+          "0": "Ìpinnu rẹ"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "Ìdarí",
+      "marketing": "Ìpolówó",
+      "content": "Àkóónú",
+      "engineering": "Ẹ̀rọ-ìṣiṣẹ́",
+      "product-and-design": "Ọjà àti Ìṣẹ̀dá",
+      "business": "Ìṣòwò",
+      "research": "Ìwádìí",
+      "finance-and-ops": "Ìnáwó àti Ìṣiṣẹ́",
+      "personal": "Ti ara ẹni",
+      "second-brain": "Ọpọlọ Kejì",
+      "writing": "Kíkọ",
+      "tools": "Àwọn Irinṣẹ́",
+      "life-admin": "Ìṣàkóso Ìgbésí Ayé",
+      "from-the-office": "Láti Ọ́fíìsì",
+      "writing-and-notes": "Kíkọ àti àwọn àkọsílẹ̀",
+      "other": "Òmíràn",
+      "household": "Ilé",
+      "admin": "Ìṣàkóso",
+      "money": "Owó",
+      "product": "Ọjà",
+      "design": "Ìṣẹ̀dá",
+      "sales": "Ìtajà",
+      "support": "Ìrànlọ́wọ́",
+      "analytics": "Àtúpalẹ̀",
+      "finance": "Ìṣúná",
+      "legal": "Òfin",
+      "people": "Ènìyàn"
+    },
+    "demo": {
+      "greeting": {
+        "office": "Ẹ kú àárọ̀, ẹgbẹ́! Ẹ káàbọ̀ sí {{workspace}}. Ẹ jẹ́ ká bẹ̀rẹ̀ iṣẹ́ lẹ́sẹ̀kẹsẹ̀.",
+        "study": "Àárọ̀. Ọpọlọ kejì rẹ ti wà lórí ìkànnì — káàbọ̀ padà sí {{home}}.",
+        "lab": "Ibi ìwádìí ti múra sílẹ̀ — \"{{workspace}}\". Kí la fẹ́ wádìí lónìí?",
+        "family-room": "Ilé-iṣẹ́ àkọ́kọ́ n bẹ̀rẹ̀ — {{home}}. Ẹ jẹ́ ká mú gbogbo ènìyàn lọ sí ibi tí wọ́n yẹ kí wọ́n wà.",
+        "blank": "Ojú ewé òfo — \"{{workspace}}\". Kí lo fẹ́ kọ́ síbí, {{home}}?"
+      },
+      "assign": "{{name}}, o lè ṣe {{topic}}?",
+      "fallbackTopic": "kí ló tẹ̀lé",
+      "office": {
+        "replies": {
+          "0": "Mo ti wà lórí rẹ̀. N ó mú àkọsílẹ̀ gbogbo rẹ̀ wá ní òpin ọjọ́.",
+          "1": "Mo ti n ṣe àgbékalẹ̀ ètò. N ó pín in nínú #content láìpẹ́.",
+          "2": "Mo n ṣe àgbékalẹ̀ àwọn ìlànà iṣẹ́ ìpìlẹ̀ báyìí. Ó n lọ dáadáa báyìí."
+        },
+        "topics": {
+          "0": "ìwádìí àwọn olùdíje",
+          "1": "kàlẹ́ńdà àkóónú",
+          "2": "ètò ìfìlọ́lẹ̀"
+        },
+        "closing": "Agbára tó dára gbogbo yín. Ẹ jẹ́ ká jẹ́ kí ọ̀sẹ̀ àkọ́kọ́ yìí lágbára."
+      },
+      "study": {
+        "replies": {
+          "0": "N ó ṣàyẹ̀wò àpótí ìfìwéránṣẹ́, n ó sì mú ohun tó yẹ kí o rí wá.",
+          "1": "Kàlẹ́ńdà kò ní ohunkóhun títí di agogo mẹ́ta ìrọ̀lẹ́ — àkókò tó dára fún kíkọ̀wé.",
+          "2": "Mo ti so àwọn àkọsílẹ̀ tuntun mẹ́ta pọ̀ mọ́ àtọ́ka 'Daily' náà."
+        },
+        "topics": {
+          "0": "ṣíṣàyẹ̀wò àpótí ìfìwéránṣẹ́ lónìí",
+          "1": "ìwé kíkọ̀ ọ̀sẹ̀ yìí",
+          "2": "àtòjọ ìwé kíkà mi"
+        },
+        "closing": "Ó dára. Fi ìránṣẹ́ ránṣẹ́ sí mi tí ohunkóhun bá fẹ́ mi — bí bẹ́ẹ̀ kọ́, n ó yẹra fún ọ."
+      },
+      "lab": {
+        "replies": {
+          "0": "Mo n fa ìwé tuntun lórí èyí báyìí — àkọsílẹ̀ àkọ́kọ́ ní wákàtí kan.",
+          "1": "N ó mú àtòjọ ìwé ìtọ́kasí báramu lẹ́yìn èyí, n ó sì samisi àwọn tó jọra.",
+          "2": "Àkọsílẹ̀ ìfọ̀rọ̀wánilẹ́nuwò fún Ọjọ́bọ̀ ti fẹ́rẹ̀ẹ́ múra sílẹ̀ fún àyẹ̀wò."
+        },
+        "topics": {
+          "0": "àyẹ̀wò ìwé",
+          "1": "ìgbàtúnlẹ̀ ìfọ̀rọ̀wánilẹ́nuwò Ọjọ́bọ̀",
+          "2": "àtòjọ àwọn ìtọ́kasí"
+        },
+        "closing": "Máa fún mi ní ìròyìn. N ó ṣàyẹ̀wò ohunkóhun tí o bá fi ránṣẹ́ ní òpin ọjọ́."
+      },
+      "family-room": {
+        "replies": {
+          "0": "Ìtòlẹ́sẹẹ́sẹ́ kò ní ohunkóhun lẹ́yìn agogo mẹ́rin. Mo n samisi àwọn ìsílẹ̀ tó jọra.",
+          "1": "Àtòjọ oúnjẹ fún ọ̀sẹ̀ ti múra sílẹ̀ — àtòjọ ràjà ti múra fún àyẹ̀wò.",
+          "2": "Àwọn ìgbòkègbodò àwọn ọmọ ti báramu. Alẹ́ DnD ṣì wà fún Ọjọ́ Ẹtì."
+        },
+        "topics": {
+          "0": "ìtòlẹ́sẹẹ́sẹ́ lónìí",
+          "1": "ètò oúnjẹ",
+          "2": "àwọn ìgbòkègbodò àwọn ọmọ"
+        },
+        "closing": "Ẹ ṣeun gbogbo yín. Fi ìránṣẹ́ ránṣẹ́ sí mi tí ohunkóhun bá yí padà ní ọjọ́ náà."
+      },
+      "blank": {
+        "replies": {
+          "0": "Mo gbọ́. Mo ti múra sílẹ̀ nígbàkúgbà tí o bá múra.",
+          "1": "Mo dúró de àṣẹ.",
+          "2": "N ó dúró de ìtọ́nisọ́nà."
+        },
+        "topics": {
+          "0": "ohun àkọ́kọ́",
+          "1": "ohunkóhun tó bá tẹ̀lé",
+          "2": "ìbéèrè tí kò tíì dáhùn"
+        },
+        "closing": "Nígbàkúgbà tí o bá múra, sọ fún wa ohun tí a fẹ́ ṣe."
+      }
+    },
     "team": {
       "browseAll": "Wò gbogbo rẹ̀",
       "browseCabinets": "Wò àwọn cabinet",
@@ -1181,9 +1364,9 @@
       "title": "Èdè",
       "description": "Yí èdè àti ìtọ́ka kíkà padà. Àwọn ojúewé tó wà tẹ́lẹ̀ yóò pa ìtọ́ka ìwé kọ̀ọ̀kan mọ́.",
       "english": "Èdè Gẹ̀ẹ́sì",
-      "hebrew": "עברית",
-      "chineseSimplified": "简体中文",
-      "chineseTraditional": "繁體中文",
+      "hebrew": "Èdè Hébérù",
+      "chineseSimplified": "Èdè Ṣáínà Tí Wọ́n Mú Rọrùn",
+      "chineseTraditional": "Èdè Ṣáínà Àtọwọ́dá",
       "moreLanguages": "Àwọn èdè mìíràn",
       "moreLanguagesHint": "Tẹ èyíkéyìí láti sọ fún wa pé o fẹ́ Cabinet ní èdè yẹn — a óò fi àwọn tí a béèrè jù lọ síwájú.",
       "comingSoon": "Ó ń bọ̀ láìpẹ́",
@@ -1323,7 +1506,7 @@
     "profile": {
       "title": "Profaili",
       "name": "Orukọ",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Orukọ ifihan",
       "role": "Ipa",
       "rolePlaceholder": "Olùkọ́",

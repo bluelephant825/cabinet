@@ -316,9 +316,7 @@
     "stopHint": "Ferma questa esecuzione ora (invia SIGTERM)",
     "restart": "Riavvia",
     "restartHint": "Esegui di nuovo dal prompt originale",
-    "runHint": "Avvia questa attività ora",
-    "reassign": "Riassegna",
-    "reassignHint": "Assegna questa attività a un agente diverso"
+    "runHint": "Avvia questa attività ora"
   },
   "schedulesPanel": {
     "title": "Lavori programmati",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Un unico posto per tutto — così tu e il tuo team AI leggete, modificate e distribuite dagli ",
     "sameFiles": "stessi file",
     "secondParagraphSuffix": ", non copie di copie.",
-    "mockTitle": "Cabinet di Hila"
+    "mockTitle": "Cabinet di Jane"
   },
   "slideData": {
     "thailandRootLabel": "Viaggio in Thailandia",
@@ -559,7 +557,7 @@
     "close": "Chiudi",
     "rolePlaceholder": "es. sviluppatore indipendente, PM in una SaaS, studente di design, hobbista…",
     "joinDiscord": "Unisciti a Discord",
-    "header": "Breve controllo da Hila",
+    "header": "Breve controllo da Jane",
     "howGoing": "Come sta andando finora?",
     "starsCount": "{{n}} stella",
     "starsCountPlural": "{{n}} stelle",
@@ -1024,6 +1022,18 @@
       "tagline2": "Il tuo team AI.",
       "getStarted": "Inizia"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Ufficio",
+        "study": "Studio",
+        "lab": "Laboratorio",
+        "library": "Libreria",
+        "kitchen": "Cucina",
+        "family": "Famiglia",
+        "dining": "Sala da pranzo",
+        "studio": "Studio"
+      }
+    },
     "welcome": {
       "paragraph": "La tua Home è tua. Al suo interno, creerai stanze per le diverse aree della tua vita: lavoro, secondo cervello, ricerca, famiglia. E ogni stanza ha dei cabinet: le tue note, i tuoi file e un team AI che lavora silenziosamente in background.",
       "namePrompt": "Come ti chiami?",
@@ -1065,7 +1075,7 @@
       "agentsReady_other": "{{count}} agenti pronti a lavorare",
       "scheduledJobs_one": "{{count}} attività pianificata",
       "scheduledJobs_other": "{{count}} attività pianificate",
-      "subCabinets_one": "{{count}} sub-cabinet",
+      "subCabinets_one": "{{count}} sottocabinet",
       "subCabinets_other": "{{count}} sub-cabinet",
       "agentsReady": "{{count}} agenti pronti a lavorare",
       "scheduledJobs": "{{count}} attività pianificate",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "Profilo",
       "name": "Nome",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Nome visualizzato",
       "role": "Ruolo",
       "rolePlaceholder": "Costruttore",

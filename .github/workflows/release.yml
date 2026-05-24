@@ -72,6 +72,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # OIDC trusted-publishing *auth* requires npm >= 11.5.1; Node 22 ships
+      # npm 10.x (which only does OIDC provenance, not auth → unauthenticated
+      # PUT → 404). Upgrade before publishing.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
       # Auth via npm trusted publishing (OIDC). Requires the cabinetai package
       # on npmjs.com to have this repo + workflow registered as a trusted
       # publisher. No NPM_TOKEN secret needed.
@@ -96,6 +102,10 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+
+      # OIDC trusted-publishing auth requires npm >= 11.5.1 (see publish-cabinetai).
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
 
       # Auth via npm trusted publishing (OIDC). Same setup as cabinetai.
       - name: Publish create-cabinet

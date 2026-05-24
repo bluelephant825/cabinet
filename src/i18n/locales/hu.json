@@ -316,9 +316,7 @@
     "stopHint": "A futtatás azonnali leállítása (SIGTERM küldése)",
     "restart": "Újraindítás",
     "restartHint": "Futtatás újra az eredeti promptból",
-    "runHint": "Feladat indítása most",
-    "reassign": "Újrahozzárendelés",
-    "reassignHint": "A feladat átadása egy másik ügynöknek"
+    "runHint": "Feladat indítása most"
   },
   "schedulesPanel": {
     "title": "Ütemezett feladatok",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Minden egy helyen — így te és az AI csapatod is olvas, szerkeszt és szállít a ",
     "sameFiles": "ugyanazokból a fájlokból",
     "secondParagraphSuffix": ", nem másolatok másolatai.",
-    "mockTitle": "Hila Cabinetje"
+    "mockTitle": "Jane Cabinetje"
   },
   "slideData": {
     "thailandRootLabel": "Thaiföldi utazás",
@@ -1024,6 +1022,18 @@
       "tagline2": "Az AI csapatod.",
       "getStarted": "Kezdés"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Iroda",
+        "study": "Dolgozószoba",
+        "lab": "Labor",
+        "library": "Könyvtár",
+        "kitchen": "Konyha",
+        "family": "Család",
+        "dining": "Étkező",
+        "studio": "Stúdió"
+      }
+    },
     "welcome": {
       "paragraph": "Az Otthonod a tiéd. Benne szobákat hozhatsz létre életed különböző területeihez: munka, második agy, kutatás, család. És minden szobában vannak szekrények: a jegyzeteid, a fájljaid és egy AI csapat, amely csendben végzi a dolgát a háttérben.",
       "namePrompt": "Mi a neved?",
@@ -1130,6 +1140,179 @@
     "roomSetup": {
       "subtitle": "Mire való ez a cabinet? Minden szobához saját AI csapat tartozik.",
       "heading": "Válassz egy <accent>szobát</accent>"
+    },
+    "rooms": {
+      "office": {
+        "label": "Az Iroda",
+        "tagline": "Vezessen vállalkozást, startupot vagy mellékprojektet.",
+        "workspaceLabel": "Cég vagy projekt neve",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "Mivel foglalkozik?",
+        "descriptionPlaceholder": "Podcastot készítünk AI startupokról",
+        "departmentNoun": "Osztály",
+        "teamSizeLabel": "Csapatlétszám",
+        "exampleAgents": {
+          "0": "CEO",
+          "1": "Szerkesztő"
+        }
+      },
+      "study": {
+        "label": "Dolgozószoba",
+        "tagline": "Az Ön második agya — írás, jegyzetek, személyi asszisztens.",
+        "workspaceLabel": "Nevezze el a cabinetjét",
+        "workspacePlaceholder": "Az én dolgozószobám",
+        "descriptionLabel": "Milyen életterületeken szeretne segítséget?",
+        "descriptionPlaceholder": "Írás, e-mail rendszerezés, naptár, szokáskövetés",
+        "departmentNoun": "Terület",
+        "exampleAgents": {
+          "0": "Asszisztens",
+          "1": "Könyvtáros"
+        }
+      },
+      "lab": {
+        "label": "Kutatólabor",
+        "tagline": "Akadémiai munka, irodalom, oktatás, szakdolgozat.",
+        "workspaceLabel": "Munkaterület neve",
+        "workspacePlaceholder": "Elmefilozófia",
+        "descriptionLabel": "Mi a szakterülete, vagy mit kutat?",
+        "descriptionPlaceholder": "Fenomenológia, tudat, Bevezetés a filozófiába oktatása",
+        "departmentNoun": "Terület",
+        "exampleAgents": {
+          "0": "Kutatásvezető",
+          "1": "Könyvtáros"
+        }
+      },
+      "family-room": {
+        "label": "Családi szoba",
+        "tagline": "Háztartás, családi naptár, étkezések, gyerekek.",
+        "workspaceLabel": "Háztartás neve",
+        "workspacePlaceholder": "A Nguyen család",
+        "descriptionLabel": "Kik laknak itt, és mit intéznek?",
+        "descriptionPlaceholder": "Két szülő, három gyerek, két iskola, egy kutya",
+        "departmentNoun": "Terület",
+        "teamSizeLabel": "Háztartás mérete",
+        "exampleAgents": {
+          "0": "Háztartásvezető",
+          "1": "Tervező"
+        }
+      },
+      "blank": {
+        "label": "Üres szoba",
+        "tagline": "Még semmi. Hozza saját ügynökeit, alakítsa saját ízlése szerint.",
+        "workspaceLabel": "Nevezze el a cabinetet",
+        "workspacePlaceholder": "Saját Cabinetem",
+        "descriptionLabel": "Mire való?",
+        "descriptionPlaceholder": "Bármi — hagyja üresen, ha még nem biztos benne",
+        "departmentNoun": "Csoport",
+        "exampleAgents": {
+          "0": "Ön dönti el"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "Vezetés",
+      "marketing": "Marketing",
+      "content": "Tartalom",
+      "engineering": "Fejlesztés",
+      "product-and-design": "Termék és design",
+      "business": "Üzlet",
+      "research": "Kutatás",
+      "finance-and-ops": "Pénzügy és üzemeltetés",
+      "personal": "Személyes",
+      "second-brain": "Második agy",
+      "writing": "Írás",
+      "tools": "Eszközök",
+      "life-admin": "Életvitel adminisztráció",
+      "from-the-office": "Az irodából",
+      "writing-and-notes": "Írás és jegyzetek",
+      "other": "Egyéb",
+      "household": "Háztartás",
+      "admin": "Adminisztráció",
+      "money": "Pénz",
+      "product": "Termék",
+      "design": "Tervezés",
+      "sales": "Értékesítés",
+      "support": "Támogatás",
+      "analytics": "Analitika",
+      "finance": "Pénzügy",
+      "legal": "Jogi",
+      "people": "HR"
+    },
+    "demo": {
+      "greeting": {
+        "office": "Jó reggelt csapat! Üdv a(z) {{workspace}} felületen. Vágjunk is bele!",
+        "study": "Jó reggelt. A második agyad online — üdv újra a(z) {{home}} felületen.",
+        "lab": "Kutatási asztal készen áll — „{{workspace}}”. Mibe ássuk bele magunkat ma?",
+        "family-room": "Otthoni központ indul — {{home}}. Helyezzünk mindenkit oda, ahol lennie kell.",
+        "blank": "Tiszta lap — „{{workspace}}”. Mit szeretnél itt építeni, {{home}}?"
+      },
+      "assign": "{{name}}, el tudod vállalni a(z) {{topic}} témát?",
+      "fallbackTopic": "mi a következő",
+      "office": {
+        "replies": {
+          "0": "Rendben. A nap végére elkészítek egy átfogó áttekintést.",
+          "1": "Már vázolom a tervet. Hamarosan megosztom a #content csatornán.",
+          "2": "Most állítom be az alapvető munkafolyamatokat. Eddig jól néz ki."
+        },
+        "topics": {
+          "0": "versenytárs-kutatás",
+          "1": "a tartalomnaptár",
+          "2": "az indítási terv"
+        },
+        "closing": "Remek energia, mindenki! Tegyük ezt egy erős első hétté."
+      },
+      "study": {
+        "replies": {
+          "0": "Átnézem a beérkező üzeneteket, és jelzem, ami téged igényel.",
+          "1": "A naptár 15 óráig üres — jó alkalom az írásra.",
+          "2": "Már három új jegyzetet kapcsoltam a „Napi” indexhez."
+        },
+        "topics": {
+          "0": "mai beérkező üzenetek átnézése",
+          "1": "heti írás",
+          "2": "olvasmánylistám"
+        },
+        "closing": "Rendben. Szólj, ha bármi szükség van rám — különben nem leszek útban."
+      },
+      "lab": {
+        "replies": {
+          "0": "Most húzom le a legújabb cikket erről — vázlatos összefoglaló egy órán belül.",
+          "1": "Ezután szinkronizálom a bibliográfiát és megjelölöm a duplikátumokat.",
+          "2": "A csütörtöki előadás vázlata majdnem kész az áttekintésre."
+        },
+        "topics": {
+          "0": "az irodalmi áttekintés",
+          "1": "csütörtöki előadás előkészítése",
+          "2": "a hivatkozáslista"
+        },
+        "closing": "Tarts képben. A nap végéig átnézem, amit küldesz."
+      },
+      "family-room": {
+        "replies": {
+          "0": "A menetrend 4 után tiszta. Jelölöm az átfedő leadásokat.",
+          "1": "Heti menü vázolva — a bevásárlólista készen áll az áttekintésre.",
+          "2": "Gyerekprogramok szinkronizálva. A DnD este még mindig pénteken van."
+        },
+        "topics": {
+          "0": "mai menetrend",
+          "1": "az étkezési terv",
+          "2": "a gyerekprogramok"
+        },
+        "closing": "Köszi mindenkinek. Szólj, ha bármi változik a nap folyamán."
+      },
+      "blank": {
+        "replies": {
+          "0": "Értem. Készen állok, amikor te is.",
+          "1": "Készenlétben.",
+          "2": "Várom az utasításokat."
+        },
+        "topics": {
+          "0": "az első dolog",
+          "1": "ami a következő",
+          "2": "a nyitott kérdés"
+        },
+        "closing": "Amikor készen áll, mondja el, mit tegyünk."
+      }
     },
     "team": {
       "browseAll": "Összes böngészése",
@@ -1323,7 +1506,7 @@
     "profile": {
       "title": "Profil",
       "name": "Név",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Megjelenítési név",
       "role": "Szerep",
       "rolePlaceholder": "Építő",

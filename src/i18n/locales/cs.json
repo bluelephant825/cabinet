@@ -316,9 +316,7 @@
     "stopHint": "Zastavit toto spuštění nyní (odešle SIGTERM)",
     "restart": "Restartovat",
     "restartHint": "Spustit znovu z původní výzvy",
-    "runHint": "Spustit tento úkol nyní",
-    "reassign": "Přidělit znovu",
-    "reassignHint": "Předat tento úkol jinému agentovi"
+    "runHint": "Spustit tento úkol nyní"
   },
   "schedulesPanel": {
     "title": "Naplánované úlohy",
@@ -1024,6 +1022,18 @@
       "tagline2": "Váš AI tým.",
       "getStarted": "Začínáme"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Kancelář",
+        "study": "Pracovna",
+        "lab": "Laboratoř",
+        "library": "Knihovna",
+        "kitchen": "Kuchyně",
+        "family": "Rodina",
+        "dining": "Jídelna",
+        "studio": "Studio"
+      }
+    },
     "welcome": {
       "paragraph": "Váš Domov je jen váš. V něm si nastavíte místnosti pro různé části vašeho života: práci, druhý mozek, výzkum, rodinu. A každá místnost má skříně: vaše poznámky, vaše soubory a tým AI, který tiše pracuje na pozadí.",
       "namePrompt": "Jak se jmenujete?",
@@ -1106,7 +1116,7 @@
       "legalNotice": "Pokračováním souhlasíte s našimi <terms>Podmínkami</terms> a <privacy>Zásadami ochrany osobních údajů</privacy>. Cabinet je <oss>open-source projekt</oss>."
     },
     "provider": {
-      "agentType": "{{type}} agent",
+      "agentType": "Agent {{type}}",
       "close": "Zavřít",
       "comingSoon": "Již brzy",
       "guide": "Průvodce",
@@ -1130,6 +1140,179 @@
     "roomSetup": {
       "subtitle": "K čemu je tento Cabinet? Každá místnost má svůj vlastní AI tým.",
       "heading": "Vyberte <accent>místnost</accent>"
+    },
+    "rooms": {
+      "office": {
+        "label": "Kancelář",
+        "tagline": "Provozujte firmu, startup nebo vedlejší projekt.",
+        "workspaceLabel": "Název firmy nebo projektu",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "Co děláte?",
+        "descriptionPlaceholder": "Tvoříme podcast o AI startupech",
+        "departmentNoun": "Oddělení",
+        "teamSizeLabel": "Velikost týmu",
+        "exampleAgents": {
+          "0": "CEO",
+          "1": "Editor"
+        }
+      },
+      "study": {
+        "label": "Studovna",
+        "tagline": "Váš druhý mozek — psaní, poznámky, osobní asistent.",
+        "workspaceLabel": "Pojmenujte svůj cabinet",
+        "workspacePlaceholder": "Moje studovna",
+        "descriptionLabel": "S jakými oblastmi života chcete pomoci?",
+        "descriptionPlaceholder": "Psaní, třídění e-mailů, kalendář, sledování návyků",
+        "departmentNoun": "Oblast",
+        "exampleAgents": {
+          "0": "Asistent",
+          "1": "Knihovník"
+        }
+      },
+      "lab": {
+        "label": "Výzkumná laboratoř",
+        "tagline": "Akademická práce, literatura, výuka, diplomová práce.",
+        "workspaceLabel": "Název pracovního prostoru",
+        "workspacePlaceholder": "Filozofie mysli",
+        "descriptionLabel": "Jaký je váš obor nebo co zkoumáte?",
+        "descriptionPlaceholder": "Fenomenologie, vědomí, výuka Úvodu do filozofie",
+        "departmentNoun": "Oblast",
+        "exampleAgents": {
+          "0": "Vedoucí výzkumu",
+          "1": "Knihovník"
+        }
+      },
+      "family-room": {
+        "label": "Rodinný pokoj",
+        "tagline": "Domácnost, rodinný kalendář, jídla, děti.",
+        "workspaceLabel": "Název domácnosti",
+        "workspacePlaceholder": "Rodina Nguyenových",
+        "descriptionLabel": "Kdo zde žije a co všechno zvládáte?",
+        "descriptionPlaceholder": "Dva rodiče, tři děti, dvě školy, jeden pes",
+        "departmentNoun": "Oblast",
+        "teamSizeLabel": "Velikost domácnosti",
+        "exampleAgents": {
+          "0": "Správce domácnosti",
+          "1": "Plánovač"
+        }
+      },
+      "blank": {
+        "label": "Prázdná místnost",
+        "tagline": "Zatím nic. Přineste si vlastní agenty, svůj vlastní tvar.",
+        "workspaceLabel": "Pojmenujte svůj cabinet",
+        "workspacePlaceholder": "Můj cabinet",
+        "descriptionLabel": "K čemu to je?",
+        "descriptionPlaceholder": "Cokoli — nechte prázdné, pokud si ještě nejste jisti",
+        "departmentNoun": "Skupina",
+        "exampleAgents": {
+          "0": "Na vás"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "Vedení",
+      "marketing": "Marketing",
+      "content": "Obsah",
+      "engineering": "Technický vývoj",
+      "product-and-design": "Produkt a design",
+      "business": "Obchod",
+      "research": "Výzkum",
+      "finance-and-ops": "Finance a provoz",
+      "personal": "Osobní",
+      "second-brain": "Druhý mozek",
+      "writing": "Psaní",
+      "tools": "Nástroje",
+      "life-admin": "Životní administrativa",
+      "from-the-office": "Z kanceláře",
+      "writing-and-notes": "Psaní a poznámky",
+      "other": "Ostatní",
+      "household": "Domácnost",
+      "admin": "Správa",
+      "money": "Peníze",
+      "product": "Produkt",
+      "design": "Design",
+      "sales": "Prodej",
+      "support": "Podpora",
+      "analytics": "Analýza",
+      "finance": "Finance",
+      "legal": "Právní",
+      "people": "Lidé"
+    },
+    "demo": {
+      "greeting": {
+        "office": "Dobré ráno, týme! Vítejte v {{workspace}}. Pusťme se do toho.",
+        "study": "Dobré ráno. Váš druhý mozek je online — vítejte zpět v {{home}}.",
+        "lab": "Výzkumný stůl připraven — „{{workspace}}“. Do čeho se dnes pustíme?",
+        "family-room": "Domácí centrála se spouští — {{home}}. Pojďme každého dostat tam, kam potřebuje.",
+        "blank": "Čistý štít — „{{workspace}}“. Co zde chcete vybudovat, {{home}}?"
+      },
+      "assign": "{{name}}, můžeš se ujmout {{topic}}?",
+      "fallbackTopic": "co dál",
+      "office": {
+        "replies": {
+          "0": "Pracuji na tom. Přehled situace budu mít hotový do konce dne.",
+          "1": "Už rýsuji plán. Brzy ho nasdílím v #content.",
+          "2": "Nastavuji základní pracovní postupy. Zatím to vypadá dobře."
+        },
+        "topics": {
+          "0": "průzkum konkurence",
+          "1": "obsahový kalendář",
+          "2": "plán spuštění"
+        },
+        "closing": "Skvělá energie, všichni. Udělejme z tohoto silný první týden."
+      },
+      "study": {
+        "replies": {
+          "0": "Protřídím doručenou poštu a ukážu, co vás potřebuje.",
+          "1": "Kalendář je volný do 15:00 — dobrý čas na psaní.",
+          "2": "Už jsem propojil tři nové poznámky s indexem „Denní“."
+        },
+        "topics": {
+          "0": "dnešní třídění doručené pošty",
+          "1": "psaní tento týden",
+          "2": "můj seznam četby"
+        },
+        "closing": "Dobře. Dejte mi vědět, když mě budete potřebovat — jinak se vám nebudu plést do cesty."
+      },
+      "lab": {
+        "replies": {
+          "0": "Stahuji k tomu nejnovější článek — návrh shrnutí za hodinu.",
+          "1": "Poté synchronizuji bibliografii a označím duplikáty.",
+          "2": "Osnova přednášky na čtvrtek je téměř připravena k revizi."
+        },
+        "topics": {
+          "0": "literární rešerše",
+          "1": "příprava přednášky na čtvrtek",
+          "2": "seznam referencí"
+        },
+        "closing": "Informujte mě. Zkontroluji vše, co pošlete do konce dne."
+      },
+      "family-room": {
+        "replies": {
+          "0": "Rozvrh vypadá po 4 volný. Označuji překrývající se vyzvednutí.",
+          "1": "Menu na týden je navrženo — nákupní seznam je připraven ke kontrole.",
+          "2": "Dětské aktivity synchronizovány. DnD večer v pátek stále platí."
+        },
+        "topics": {
+          "0": "dnešní rozvrh",
+          "1": "jídelní plán",
+          "2": "dětské aktivity"
+        },
+        "closing": "Díky všem. Dejte mi vědět, pokud se něco během dne změní."
+      },
+      "blank": {
+        "replies": {
+          "0": "Rozumím. Jsem připraven, kdykoli budete vy.",
+          "1": "Jsem připraven.",
+          "2": "Počkám na pokyny."
+        },
+        "topics": {
+          "0": "první věc",
+          "1": "co bude dál",
+          "2": "otevřená otázka"
+        },
+        "closing": "Až budete připraveni, řekněte nám, co dělat."
+      }
     },
     "team": {
       "browseAll": "Procházet vše",
@@ -1238,7 +1421,7 @@
       "currentPath": "Aktuální cesta",
       "loadingPath": "Načítání...",
       "changeDirectory": "Změnit adresář",
-      "directoryPlaceholder": "/path/to/data",
+      "directoryPlaceholder": "cesta/k/datům",
       "browse": "Procházet",
       "save": "Uložit",
       "openInFinder": "Otevřít ve Finderu",
@@ -1270,7 +1453,7 @@
       "alertRules": "Pravidla upozornění",
       "alwaysOn": "Vždy zapnuto",
       "comingSoon": "Již brzy",
-      "emailPlaceholder": "you@company.com",
+      "emailPlaceholder": "vy@firma.com",
       "channelsHint": "Nakonfigurujte, jak budete dostávat upozornění, když agenti potřebují vaši pozornost.",
       "rulesHint": "Oznámení se spouštějí automaticky pro tyto události:",
       "previewHint": "Push v prohlížeči, Telegram, Slack a e-mailová oznámení.",
@@ -1323,7 +1506,7 @@
     "profile": {
       "title": "Profil",
       "name": "Jméno",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Zobrazované jméno",
       "role": "Role",
       "rolePlaceholder": "Tvůrce",

@@ -316,9 +316,7 @@
     "stopHint": "立即停止此執行(送出 SIGTERM)",
     "restart": "重新啟動",
     "restartHint": "從原始提示詞重新執行",
-    "runHint": "立即開始此任務",
-    "reassign": "重新指派",
-    "reassignHint": "將此任務交給其他智慧代理"
+    "runHint": "立即開始此任務"
   },
   "schedulesPanel": {
     "title": "已排程任務",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "一切都在一個地方 — 這樣你和你的 AI 團隊都從",
     "sameFiles": "同一份檔案",
     "secondParagraphSuffix": "裡讀、寫、發佈,而不是一層層的副本。",
-    "mockTitle": "Hila 的凱比內特"
+    "mockTitle": "Jane 的凱比內特"
   },
   "slideData": {
     "thailandRootLabel": "泰國之旅",
@@ -559,7 +557,7 @@
     "close": "關閉",
     "rolePlaceholder": "如:獨立開發者、SaaS PM、設計系學生、業餘愛好者……",
     "joinDiscord": "加入 Discord",
-    "header": "Hila 的簡短問候",
+    "header": "Jane 的簡短問候",
     "howGoing": "目前用得怎麼樣?",
     "starsCount": "{{n}} 顆星",
     "starsCountPlural": "{{n}} 顆星",
@@ -1024,6 +1022,18 @@
       "tagline2": "你的 AI 團隊。",
       "getStarted": "開始使用"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "辦公室",
+        "study": "書房",
+        "lab": "實驗室",
+        "library": "圖書館",
+        "kitchen": "廚房",
+        "family": "家庭",
+        "dining": "飯廳",
+        "studio": "工作室"
+      }
+    },
     "welcome": {
       "paragraph": "你的首頁是你的。在裡面,你將為生活的不同部分建立房間:工作、第二大腦、研究、家庭。每個房間都有凱比內特:你的筆記、你的檔案,以及一個在背景默默把事情做完的 AI 團隊。",
       "namePrompt": "您的姓名？",
@@ -1130,6 +1140,179 @@
     "roomSetup": {
       "subtitle": "這個 cabinet 是做什麼用的？每個房間都配備自己的 AI 團隊。",
       "heading": "選擇一個<accent>房間</accent>"
+    },
+    "rooms": {
+      "office": {
+        "label": "辦公室",
+        "tagline": "經營事業、新創公司或副業。",
+        "workspaceLabel": "公司或專案名稱",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "您做什麼？",
+        "descriptionPlaceholder": "我們製作關於 AI 新創公司的 Podcast。",
+        "departmentNoun": "部門",
+        "teamSizeLabel": "團隊規模",
+        "exampleAgents": {
+          "0": "CEO",
+          "1": "編輯"
+        }
+      },
+      "study": {
+        "label": "書房",
+        "tagline": "您的第二大腦 — 寫作、筆記、個人助理。",
+        "workspaceLabel": "為您的 Cabinet 命名",
+        "workspacePlaceholder": "我的書房",
+        "descriptionLabel": "您希望在哪些生活領域獲得協助？",
+        "descriptionPlaceholder": "寫作、電子郵件分類、行事曆、習慣追蹤",
+        "departmentNoun": "領域",
+        "exampleAgents": {
+          "0": "助理",
+          "1": "圖書管理員"
+        }
+      },
+      "lab": {
+        "label": "研究實驗室",
+        "tagline": "學術工作、文獻、教學、論文。",
+        "workspaceLabel": "工作區名稱",
+        "workspacePlaceholder": "心靈哲學",
+        "descriptionLabel": "您的領域是什麼？或您正在研究什麼？",
+        "descriptionPlaceholder": "現象學、意識、哲學導論教學",
+        "departmentNoun": "領域",
+        "exampleAgents": {
+          "0": "研究主管",
+          "1": "圖書館員"
+        }
+      },
+      "family-room": {
+        "label": "家庭房",
+        "tagline": "家庭、家庭行事曆、餐點、孩子。",
+        "workspaceLabel": "家庭名稱",
+        "workspacePlaceholder": "阮氏家庭",
+        "descriptionLabel": "誰住在這裡，需要兼顧哪些事？",
+        "descriptionPlaceholder": "兩位家長、三個孩子、兩所學校、一隻狗",
+        "departmentNoun": "區域",
+        "teamSizeLabel": "家庭人數",
+        "exampleAgents": {
+          "0": "家庭經理",
+          "1": "規劃者"
+        }
+      },
+      "blank": {
+        "label": "空白房間",
+        "tagline": "暫無內容。帶入您自己的代理人，打造您自己的樣貌。",
+        "workspaceLabel": "為您的 cabinet 命名",
+        "workspacePlaceholder": "我的 Cabinet",
+        "descriptionLabel": "它的用途？",
+        "descriptionPlaceholder": "任何用途 — 如果您還不確定，請留空",
+        "departmentNoun": "群組",
+        "exampleAgents": {
+          "0": "由您決定"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "領導層",
+      "marketing": "行銷",
+      "content": "內容",
+      "engineering": "工程",
+      "product-and-design": "產品與設計",
+      "business": "業務",
+      "research": "研究",
+      "finance-and-ops": "財務與營運",
+      "personal": "個人",
+      "second-brain": "第二大腦",
+      "writing": "寫作",
+      "tools": "工具",
+      "life-admin": "生活管理",
+      "from-the-office": "辦公室相關",
+      "writing-and-notes": "寫作與筆記",
+      "other": "其他",
+      "household": "家庭",
+      "admin": "行政",
+      "money": "財務",
+      "product": "產品",
+      "design": "設計",
+      "sales": "銷售",
+      "support": "支援",
+      "analytics": "分析",
+      "finance": "財務",
+      "legal": "法務",
+      "people": "人事"
+    },
+    "demo": {
+      "greeting": {
+        "office": "團隊早安！歡迎來到 {{workspace}}。讓我們立即展開工作吧。",
+        "study": "早上好。您的第二大腦已上線 — 歡迎回到 {{home}}。",
+        "lab": "研究工作台已就緒 — 「{{workspace}}」。今天我們要深入研究什麼？",
+        "family-room": "總部正在啟動 — {{home}}。讓大家各就各位。",
+        "blank": "全新開始 — 「{{workspace}}」。{{home}}，您想在這裡建立什麼？"
+      },
+      "assign": "{{name}}，您可以負責 {{topic}} 嗎？",
+      "fallbackTopic": "接下來是什麼",
+      "office": {
+        "replies": {
+          "0": "好的。我會在今天結束前準備好一份概況總覽。",
+          "1": "已經在草擬計畫了。我會很快在 #content 分享。",
+          "2": "正在設定基礎工作流程。目前看起來不錯。"
+        },
+        "topics": {
+          "0": "競爭者研究",
+          "1": "內容行事曆",
+          "2": "上線計畫"
+        },
+        "closing": "大家精神很好。讓我們有個強勁的第一週。"
+      },
+      "study": {
+        "replies": {
+          "0": "我會整理收件匣，並找出需要您處理的事項。",
+          "1": "行事曆在下午三點前都很空 — 是個寫作的好時機。",
+          "2": "我已經將三份新筆記連結到「每日」索引了。"
+        },
+        "topics": {
+          "0": "今日收件匣整理",
+          "1": "本週寫作",
+          "2": "我的閱讀清單"
+        },
+        "closing": "好的。有任何需要我的地方請通知我 — 否則我不會打擾您。"
+      },
+      "lab": {
+        "replies": {
+          "0": "正在拉取關於此的最新論文 — 一小時內提供摘要草稿。",
+          "1": "之後我會同步參考書目並標記重複項。",
+          "2": "週四的演講大綱幾乎準備好可以審閱了。"
+        },
+        "topics": {
+          "0": "文獻回顧",
+          "1": "週四演講準備",
+          "2": "參考文獻清單"
+        },
+        "closing": "隨時告知我。我會在今天結束前審閱您提交的所有內容。"
+      },
+      "family-room": {
+        "replies": {
+          "0": "四點後行程看起來很空。正在標記重疊的接送時間。",
+          "1": "本週菜單已草擬 — 購物清單已準備好可以審閱。",
+          "2": "孩子們的活動已同步。週五的 DnD 之夜照常舉行。"
+        },
+        "topics": {
+          "0": "今日行程",
+          "1": "餐點計畫",
+          "2": "孩子們的活動"
+        },
+        "closing": "謝謝大家。如果今天有任何變動請通知我。"
+      },
+      "blank": {
+        "replies": {
+          "0": "明白了。隨時準備就緒。",
+          "1": "待命中。",
+          "2": "我會等待指示。"
+        },
+        "topics": {
+          "0": "第一件事",
+          "1": "接下來是什麼",
+          "2": "待解決的問題"
+        },
+        "closing": "準備好時，請告訴我們該怎麼做。"
+      }
     },
     "team": {
       "browseAll": "瀏覽全部",
@@ -1323,7 +1506,7 @@
     "profile": {
       "title": "個人資料",
       "name": "姓名",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "顯示名稱",
       "role": "角色",
       "rolePlaceholder": "建造者",

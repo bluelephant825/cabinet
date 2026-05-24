@@ -316,9 +316,7 @@
     "stopHint": "Bu çalıştırmayı şimdi durdur (SIGTERM gönderir)",
     "restart": "Yeniden Başlat",
     "restartHint": "Orijinal istemden tekrar çalıştır",
-    "runHint": "Bu görevi şimdi başlat",
-    "reassign": "Yeniden Ata",
-    "reassignHint": "Bu görevi farklı bir aracıya devret"
+    "runHint": "Bu görevi şimdi başlat"
   },
   "schedulesPanel": {
     "title": "Zamanlanmış işler",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Her şey için tek bir yer — böylece siz ve yapay zeka ekibiniz ",
     "sameFiles": "aynı dosyalar",
     "secondParagraphSuffix": ", kopyaların kopyaları değil.",
-    "mockTitle": "Hila'nın Cabinet'i"
+    "mockTitle": "Jane'nın Cabinet'i"
   },
   "slideData": {
     "thailandRootLabel": "Tayland Seyahati",
@@ -559,7 +557,7 @@
     "close": "Kapat",
     "rolePlaceholder": "örn. bağımsız geliştirici, SaaS'ta PM, tasarım öğrencisi, hobi sahibi…",
     "joinDiscord": "Discord'a Katıl",
-    "header": "Hila'dan kısa bir kontrol",
+    "header": "Jane'dan kısa bir kontrol",
     "howGoing": "Şu ana kadar nasıl gidiyor?",
     "starsCount": "{{n}} yıldız",
     "starsCountPlural": "{{n}} yıldız",
@@ -1023,6 +1021,18 @@
       "tagline1": "Bilgi tabanınız.",
       "tagline2": "Yapay zeka ekibiniz.",
       "getStarted": "Başla"
+    },
+    "blueprint": {
+      "rooms": {
+        "office": "Ofis",
+        "study": "Çalışma",
+        "lab": "Laboratuvar",
+        "library": "Kütüphane",
+        "kitchen": "Mutfak",
+        "family": "Aile",
+        "dining": "Yemek",
+        "studio": "Stüdyo"
+      }
     },
     "welcome": {
       "paragraph": "Ana Sayfanız sizin. İçinde, hayatınızın farklı alanları için odalar kuracaksınız: iş, ikinci beyin, araştırma, aile. Ve her odada dolaplar bulunur: notlarınız, dosyalarınız ve arka planda sessizce işleri halleden bir yapay zeka ekibi.",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "Profil",
       "name": "Ad",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Görünen ad",
       "role": "Rol",
       "rolePlaceholder": "Oluşturucu",

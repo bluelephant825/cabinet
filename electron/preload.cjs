@@ -19,4 +19,11 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
    */
   getPreferredLanguages: () =>
     ipcRenderer.invoke("cabinet:get-preferred-languages"),
+  /**
+   * Open an additional desktop window scoped to a specific room/cabinet.
+   * `hash` is a canonical app hash (e.g. "#/cabinet/research" or "#/home").
+   * The new window reuses the running backend and binds its own room via the
+   * hash route, so two windows can sit in different rooms at once.
+   */
+  openWindow: (hash) => ipcRenderer.invoke("cabinet:open-window", hash),
 });

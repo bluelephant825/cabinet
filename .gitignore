@@ -47,6 +47,9 @@ next-env.d.ts
 
 # old data backup
 /old-data/
+# local data backups (e.g. created before a migration) — never tracked
+/data-backup-*/
+/data copy/
 
 # claude code
 .claude/

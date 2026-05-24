@@ -316,9 +316,7 @@
     "stopHint": "หยุดการทำงานนี้ทันที (ส่ง SIGTERM)",
     "restart": "เริ่มใหม่",
     "restartHint": "เรียกใช้ใหม่จากพร้อมต์เดิม",
-    "runHint": "เริ่มงานนี้ทันที",
-    "reassign": "มอบหมายใหม่",
-    "reassignHint": "มอบหมายงานนี้ให้เอเจนต์อื่น"
+    "runHint": "เริ่มงานนี้ทันที"
   },
   "schedulesPanel": {
     "title": "งานที่กำหนดเวลา",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "ทุกสิ่งรวมอยู่ในที่เดียว — เพื่อให้คุณและทีม AI ของคุณอ่าน แก้ไข และส่งมอบจาก",
     "sameFiles": "ไฟล์เดียวกัน",
     "secondParagraphSuffix": " ไม่ใช่สำเนาของสำเนา",
-    "mockTitle": "Cabinet ของ Hila"
+    "mockTitle": "Cabinet ของ Jane"
   },
   "slideData": {
     "thailandRootLabel": "ทริปประเทศไทย",
@@ -559,7 +557,7 @@
     "close": "ปิด",
     "rolePlaceholder": "เช่น นักพัฒนาอิสระ, PM ที่ SaaS, นักเรียนออกแบบ, ผู้ที่ชื่นชอบ…",
     "joinDiscord": "เข้าร่วม Discord",
-    "header": "ตรวจสอบด่วนจาก Hila",
+    "header": "ตรวจสอบด่วนจาก Jane",
     "howGoing": "เป็นอย่างไรบ้าง?",
     "starsCount": "{{n}} ดาว",
     "starsCountPlural": "{{n}} ดาว",
@@ -1023,6 +1021,18 @@
       "tagline1": "ฐานความรู้ของคุณ",
       "tagline2": "ทีม AI ของคุณ",
       "getStarted": "เริ่มต้นใช้งาน"
+    },
+    "blueprint": {
+      "rooms": {
+        "office": "ออฟฟิศ",
+        "study": "ห้องทำงาน",
+        "lab": "ห้องแล็บ",
+        "library": "ห้องสมุด",
+        "kitchen": "ห้องครัว",
+        "family": "พื้นที่ครอบครัว",
+        "dining": "ห้องอาหาร",
+        "studio": "สตูดิโอ"
+      }
     },
     "welcome": {
       "paragraph": "ในหน้าหลัก คุณสามารถจัดห้องสำหรับส่วนต่างๆ ของชีวิตคุณได้ เช่น งาน, สมองที่สอง, การวิจัย, ครอบครัว และทุกห้องมีตู้เก็บของ (cabinets) สำหรับโน้ต, ไฟล์ และทีม AI ที่ทำงานเบื้องหลังอย่างเงียบๆ",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "โปรไฟล์",
       "name": "ชื่อ",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "ชื่อที่แสดง",
       "role": "บทบาท",
       "rolePlaceholder": "ผู้สร้าง",

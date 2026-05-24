@@ -49,6 +49,12 @@ function isRunning(task: TaskMeta): boolean {
  */
 export function useTaskRailData(): TaskRailData {
   const railOpen = useAppStore((s) => s.taskRailOpen);
+  // Rooms v3: scope the rail to the active room (its top-level cabinet) so it
+  // shows that room's recent tasks. An unscoped fetch now resolves to the empty
+  // home container and the rail comes back blank.
+  const sectionCabinetPath = useAppStore((s) => s.section.cabinetPath);
+  const railRoom =
+    (sectionCabinetPath || ROOT_CABINET_PATH).split("/")[0] || ROOT_CABINET_PATH;
 
   const [items, setItems] = useState<RailItem[]>([]);
   const [agentsBySlug, setAgentsBySlug] = useState<
@@ -73,10 +79,7 @@ export function useTaskRailData(): TaskRailData {
       try {
         // Deduped + short-TTL cached, so calling it on each reload tick is
         // cheap and shared with the rest of the app.
-        const overview = await fetchCabinetOverviewClient(
-          ROOT_CABINET_PATH,
-          "own"
-        );
+        const overview = await fetchCabinetOverviewClient(railRoom, "all");
         if (cancelled || !overview) return;
         const map = new Map<string, CabinetAgentSummary>();
         for (const agent of overview.agents ?? []) map.set(agent.slug, agent);
@@ -89,7 +92,7 @@ export function useTaskRailData(): TaskRailData {
     const load = async () => {
       try {
         const res = await dedupFetch(
-          `/api/agents/conversations?limit=${POOL_LIMIT}`,
+          `/api/agents/conversations?cabinetPath=${encodeURIComponent(railRoom)}&visibilityMode=all&limit=${POOL_LIMIT}`,
           { cache: "no-store" },
           { ttlMs: 1500 }
         );
@@ -165,7 +168,7 @@ export function useTaskRailData(): TaskRailData {
       }
       window.clearInterval(tick);
     };
-  }, []);
+  }, [railRoom]);
 
   // Opening the rail means the user has "seen" the finished task, so the
   // pulse is suppressed immediately (derived, not stored — the underlying

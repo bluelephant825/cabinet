@@ -316,9 +316,7 @@
     "stopHint": "この実行を今すぐ停止 (SIGTERMを送信します)",
     "restart": "再起動",
     "restartHint": "元のプロンプトから再度実行",
-    "runHint": "このタスクを今すぐ開始",
-    "reassign": "再割り当て",
-    "reassignHint": "このタスクを別のエージェントに渡す"
+    "runHint": "このタスクを今すぐ開始"
   },
   "schedulesPanel": {
     "title": "スケジュールされたジョブ",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "すべてを1か所に — あなたとAIチームが",
     "sameFiles": "同じファイル",
     "secondParagraphSuffix": "から読み込み、編集し、公開できるように。コピーのコピーではなく。",
-    "mockTitle": "HilaのCabinet"
+    "mockTitle": "JaneのCabinet"
   },
   "slideData": {
     "thailandRootLabel": "タイ旅行",
@@ -559,7 +557,7 @@
     "close": "閉じる",
     "rolePlaceholder": "例：インディーハッカー、SaaSのPM、デザイン学生、趣味人…",
     "joinDiscord": "Discordに参加",
-    "header": "Hilaからのクイックチェックイン",
+    "header": "Janeからのクイックチェックイン",
     "howGoing": "ここまではいかがですか？",
     "starsCount": "{{n}}つ星",
     "starsCountPlural": "{{n}}つ星",
@@ -1023,6 +1021,18 @@
       "tagline1": "あなたの知識ベース。",
       "tagline2": "あなたのAIチーム。",
       "getStarted": "始める"
+    },
+    "blueprint": {
+      "rooms": {
+        "office": "オフィス",
+        "study": "書斎",
+        "lab": "ラボ",
+        "library": "図書館",
+        "kitchen": "キッチン",
+        "family": "家族",
+        "dining": "ダイニング",
+        "studio": "スタジオ"
+      }
     },
     "welcome": {
       "paragraph": "あなたのホームは、あなただけの空間です。ここでは、仕事、セカンドブレイン、研究、家族など、生活のあらゆる側面に対応する「ルーム」を設定できます。各ルームには、メモやファイル、そしてバックグラウンドで静かに作業を進めるAIチームが収められた「キャビネット」があります。",
@@ -1496,7 +1506,7 @@
     "profile": {
       "title": "プロフィール",
       "name": "名前",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "表示名",
       "role": "役割",
       "rolePlaceholder": "ビルダー",

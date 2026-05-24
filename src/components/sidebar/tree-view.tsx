@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTreeStore } from "@/stores/tree-store";
 import { useEditorStore } from "@/stores/editor-store";
 import { useAppStore } from "@/stores/app-store";
+import { useRoomsStore } from "@/stores/rooms-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TreeNode } from "./tree-node";
 import { SidebarSearch } from "./sidebar-search";
@@ -12,6 +13,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
@@ -25,6 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LinkRepoDialog } from "./link-repo-dialog";
+import { NewFileDialog } from "./new-file-dialog";
 import { MoveToDialog } from "./move-to-dialog";
 import { RecentTasks } from "./recent-tasks";
 import type { TreeNode as TreeNodeType } from "@/types";
@@ -36,6 +39,7 @@ import {
   SquareKanban,
   Pencil,
   FilePlus,
+  FilePlus2,
   UserPlus,
   ListPlus,
   FolderOpen,
@@ -145,6 +149,7 @@ export function TreeView() {
   const [cabinetDeleteOpen, setCabinetDeleteOpen] = useState(false);
   const [kbCreating, setKbCreating] = useState(false);
   const [linkRepoOpen, setLinkRepoOpen] = useState(false);
+  const [newFileOpen, setNewFileOpen] = useState(false);
   const [moveToOpen, setMoveToOpen] = useState(false);
   const [moveToSource, setMoveToSource] = useState<TreeNodeType | null>(null);
   const [editingAgent, setEditingAgent] = useState<{ slug: string; cabinetPath?: string } | null>(null);
@@ -167,7 +172,28 @@ export function TreeView() {
   const effectiveCabinetPath = activeCabinet?.path || ROOT_CABINET_PATH;
   const cabinetVisibilityMode =
     cabinetVisibilityModes[effectiveCabinetPath] || "own";
-  const visibleTreeNodes = activeCabinet?.children || rootCabinet?.children || nodes;
+
+  // Rooms are the top-level cabinets. When you're in the root/home room, hide
+  // the *other* rooms from its tree so they don't appear nested underneath it
+  // (you switch into them via the room switcher). Sub-rooms already scope to
+  // their own subtree via `activeCabinet.children`.
+  const rooms = useRoomsStore((s) => s.rooms);
+  const loadRooms = useRoomsStore((s) => s.load);
+  useEffect(() => {
+    void loadRooms();
+  }, [loadRooms]);
+  const subRoomPaths = useMemo(
+    () => new Set(rooms.filter((r) => !r.isRoot).map((r) => r.path)),
+    [rooms]
+  );
+  const atRoot = !routeCabinetPath || routeCabinetPath === ROOT_CABINET_PATH;
+  const visibleTreeNodes = useMemo(() => {
+    const base = activeCabinet?.children || rootCabinet?.children || nodes;
+    if (atRoot && subRoomPaths.size > 0) {
+      return base.filter((node) => !subRoomPaths.has(node.path));
+    }
+    return base;
+  }, [activeCabinet, rootCabinet, nodes, atRoot, subRoomPaths]);
   const kbSectionLabel = "Data";
 
   /* ── agent polling ─────────────────────────────────────────── */
@@ -382,8 +408,14 @@ export function TreeView() {
     );
   };
 
+  // A top-level room's only "parent" is the neutral home container (".").
+  // That isn't a navigable destination — you're always inside a room and
+  // switch between rooms via the home switcher — so never go up into it.
+  const parentIsHome =
+    !parentCabinet || parentCabinet.path === ROOT_CABINET_PATH;
+
   const openParentCabinet = () => {
-    if (!parentCabinet) return;
+    if (parentIsHome || !parentCabinet) return;
     openCabinetOverview(parentCabinet.path);
   };
 
@@ -391,8 +423,8 @@ export function TreeView() {
     <>
     <ScrollArea className="flex-1 min-h-0 [&_[data-slot=scroll-area-scrollbar]]:w-1.5 [&_[data-slot=scroll-area-scrollbar]]:py-0 [&_[data-slot=scroll-area-scrollbar]]:pe-0 [&_[data-slot=scroll-area-scrollbar]]:ps-0.5 [&_[data-slot=scroll-area-scrollbar]]:border-s-0">
       <div className="flex min-h-full flex-col py-1">
-        {/* ── Back to parent cabinet ────────────────────── */}
-        {activeCabinet && parentCabinet ? (
+        {/* ── Back to parent cabinet (never up into the home container) ── */}
+        {activeCabinet && parentCabinet && !parentIsHome ? (
           <button
             onClick={openParentCabinet}
             className="flex w-full items-center gap-1 px-3 pt-2 pb-1 text-left text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60 transition-colors hover:text-foreground/80"
@@ -795,11 +827,18 @@ export function TreeView() {
                 <ContextMenuContent>
                   <ContextMenuItem onClick={() => setKbSubPageOpen(true)}>
                     <FilePlus className="h-4 w-4 me-2" />
-                    Add Sub Page
+                    {t("treeNode:addSubPage")}
+                  </ContextMenuItem>
+                  <ContextMenuItem onClick={() => setNewFileOpen(true)}>
+                    <FilePlus2 className="h-4 w-4 me-2" />
+                    {t("treeNode:createFile")}
                   </ContextMenuItem>
                   <ContextMenuItem onClick={() => setLinkRepoOpen(true)}>
                     <GitBranch className="h-4 w-4 me-2" />
-                    Load Knowledge
+                    {t("treeNode:connectKnowledge")}
+                    <ContextMenuShortcut className="text-muted-foreground/40">
+                      {t("treeNode:symlinkTag")}
+                    </ContextMenuShortcut>
                   </ContextMenuItem>
                   <ContextMenuItem
                     onClick={async () => {
@@ -810,7 +849,7 @@ export function TreeView() {
                     }}
                   >
                     <ClipboardCopy className="h-4 w-4 me-2" />
-                    Copy Full Path
+                    {t("treeNode:copyFullPath")}
                   </ContextMenuItem>
                   <ContextMenuItem
                     onClick={() => {
@@ -822,7 +861,7 @@ export function TreeView() {
                     }}
                   >
                     <FolderOpen className="h-4 w-4 me-2" />
-                    Open in Finder
+                    {t("treeNode:openInFinder")}
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
@@ -886,6 +925,13 @@ export function TreeView() {
     </Dialog>
 
     <LinkRepoDialog open={linkRepoOpen} onOpenChange={setLinkRepoOpen} />
+
+    <NewFileDialog
+      open={newFileOpen}
+      onOpenChange={setNewFileOpen}
+      parentPath={dataRootPath}
+      contextCabinetPath={activeCabinet?.path || null}
+    />
 
     <MoveToDialog
       open={moveToOpen}

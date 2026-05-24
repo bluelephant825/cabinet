@@ -182,9 +182,11 @@ export function TaskComposeBody({ context }: TaskComposeBodyProps) {
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
         <Sparkles className="h-8 w-8 text-muted-foreground/40" />
         <p className="text-[13px] text-muted-foreground">
-          {editorScoped
-            ? "Tell me how you'd like to edit this page."
-            : "Describe a new task to start."}
+          {context?.greeting
+            ? context.greeting
+            : editorScoped
+              ? "Tell me how you'd like to edit this page."
+              : "Describe a new task to start."}
         </p>
       </div>
 

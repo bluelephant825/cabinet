@@ -316,9 +316,7 @@
     "stopHint": "Oprește această rulare acum (trimite SIGTERM)",
     "restart": "Repornește",
     "restartHint": "Rulează din nou de la promptul original",
-    "runHint": "Începe această sarcină acum",
-    "reassign": "Reatribuie",
-    "reassignHint": "Transferă această sarcină unui alt agent"
+    "runHint": "Începe această sarcină acum"
   },
   "schedulesPanel": {
     "title": "Sarcini programate",
@@ -559,7 +557,7 @@
     "close": "Închide",
     "rolePlaceholder": "ex: indie hacker, PM la un SaaS, student la design, pasionat…",
     "joinDiscord": "Alătură-te pe Discord",
-    "header": "O scurtă verificare de la Hila",
+    "header": "O scurtă verificare de la Jane",
     "howGoing": "Cum merge până acum?",
     "starsCount": "{{n}} stea",
     "starsCountPlural": "{{n}} stele",
@@ -1023,6 +1021,18 @@
       "tagline2": "Echipa ta AI.",
       "getStarted": "Începeți"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Birou",
+        "study": "Studiu",
+        "lab": "Laborator",
+        "library": "Bibliotecă",
+        "kitchen": "Bucătărie",
+        "family": "Familie",
+        "dining": "Sufragerie",
+        "studio": "Studio"
+      }
+    },
     "welcome": {
       "paragraph": "Acasă vă aparține. În ea, veți configura camere pentru diferite aspecte ale vieții dumneavoastră: muncă, al doilea creier, cercetare, familie. Și fiecare cameră are dulapuri: notițele dumneavoastră, fișierele dumneavoastră și o echipă AI care lucrează discret în fundal.",
       "namePrompt": "Cum te numești?",
@@ -1129,6 +1139,179 @@
     "roomSetup": {
       "subtitle": "Pentru ce este acest cabinet? Fiecare cameră vine cu propria echipă AI.",
       "heading": "Alege o <accent>cameră</accent>"
+    },
+    "rooms": {
+      "office": {
+        "label": "Biroul",
+        "tagline": "Gestionează o afacere, un startup sau un proiect secundar.",
+        "workspaceLabel": "Numele companiei sau proiectului",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "Ce faceți?",
+        "descriptionPlaceholder": "Realizăm un podcast despre startup-uri AI",
+        "departmentNoun": "Departament",
+        "teamSizeLabel": "Dimensiunea echipei",
+        "exampleAgents": {
+          "0": "CEO",
+          "1": "Editor"
+        }
+      },
+      "study": {
+        "label": "Studiu",
+        "tagline": "Al doilea creier — scriere, notițe, asistent personal.",
+        "workspaceLabel": "Numește-ți cabinetul",
+        "workspacePlaceholder": "Studiul meu",
+        "descriptionLabel": "În ce domenii ale vieții dorești ajutor?",
+        "descriptionPlaceholder": "Scriere, triaj e-mail, calendar, urmărirea obiceiurilor",
+        "departmentNoun": "Domeniu",
+        "exampleAgents": {
+          "0": "Asistent",
+          "1": "Bibliotecar"
+        }
+      },
+      "lab": {
+        "label": "Laborator de Cercetare",
+        "tagline": "Muncă academică, literatură, predare, teză.",
+        "workspaceLabel": "Numele spațiului de lucru",
+        "workspacePlaceholder": "Filosofia minții",
+        "descriptionLabel": "Care este domeniul tău sau ce cercetezi?",
+        "descriptionPlaceholder": "Fenomenologie, conștiință, predare Introducere în Filosofie",
+        "departmentNoun": "Domeniu",
+        "exampleAgents": {
+          "0": "Coordonator Cercetare",
+          "1": "Bibliotecar"
+        }
+      },
+      "family-room": {
+        "label": "Cameră de Familie",
+        "tagline": "Gospodărie, calendar familial, mese, copii.",
+        "workspaceLabel": "Numele gospodăriei",
+        "workspacePlaceholder": "Familia Nguyen",
+        "descriptionLabel": "Cine locuiește aici și ce gestionați?",
+        "descriptionPlaceholder": "Doi părinți, trei copii, două școli, un câine",
+        "departmentNoun": "Domeniu",
+        "teamSizeLabel": "Dimensiunea gospodăriei",
+        "exampleAgents": {
+          "0": "Manager de Casă",
+          "1": "Planificator"
+        }
+      },
+      "blank": {
+        "label": "Cameră goală",
+        "tagline": "Nimic încă. Adu-ți proprii agenți, propria formă.",
+        "workspaceLabel": "Numește-ți cabinetul",
+        "workspacePlaceholder": "Cabinetul meu",
+        "descriptionLabel": "Pentru ce este?",
+        "descriptionPlaceholder": "Orice — lasă gol dacă nu ești sigur încă",
+        "departmentNoun": "Grup",
+        "exampleAgents": {
+          "0": "Decizia ta"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "Conducere",
+      "marketing": "Marketing",
+      "content": "Conținut",
+      "engineering": "Inginerie",
+      "product-and-design": "Produs și Design",
+      "business": "Afaceri",
+      "research": "Cercetare",
+      "finance-and-ops": "Finanțe și Operațiuni",
+      "personal": "Personal",
+      "second-brain": "Al doilea creier",
+      "writing": "Scriere",
+      "tools": "Instrumente",
+      "life-admin": "Administrare personală",
+      "from-the-office": "De la Birou",
+      "writing-and-notes": "Scriere și notițe",
+      "other": "Altele",
+      "household": "Gospodărie",
+      "admin": "Administrare",
+      "money": "Bani",
+      "product": "Produs",
+      "design": "Design",
+      "sales": "Vânzări",
+      "support": "Suport",
+      "analytics": "Analiză",
+      "finance": "Finanțe",
+      "legal": "Juridic",
+      "people": "Oameni"
+    },
+    "demo": {
+      "greeting": {
+        "office": "Bună dimineața, echipă! Bun venit la {{workspace}}. Să începem în forță.",
+        "study": "Bună dimineața. Al doilea creier este online — bun venit înapoi la {{home}}.",
+        "lab": "Biroul de cercetare este gata — „{{workspace}}”. Ce explorăm azi?",
+        "family-room": "Sediul central pornește — {{home}}. Să ne asigurăm că toată lumea ajunge unde trebuie.",
+        "blank": "Pagină albă — „{{workspace}}”. Ce vrei să construiești aici, {{home}}?"
+      },
+      "assign": "{{name}}, te poți ocupa de {{topic}}?",
+      "fallbackTopic": "ce urmează",
+      "office": {
+        "replies": {
+          "0": "Mă ocup. Voi avea o prezentare generală gata până la sfârșitul zilei.",
+          "1": "Deja schițez un plan. Îl voi distribui în #content în scurt timp.",
+          "2": "Configurez fluxurile de lucru fundamentale acum. Arată bine până acum."
+        },
+        "topics": {
+          "0": "cercetare concurență",
+          "1": "calendarul de conținut",
+          "2": "planul de lansare"
+        },
+        "closing": "Energie grozavă, tuturor. Să facem din aceasta o primă săptămână puternică."
+      },
+      "study": {
+        "replies": {
+          "0": "Voi tria inbox-ul și voi scoate la iveală ce necesită intervenția ta.",
+          "1": "Calendarul este liber până la ora 15:00 — o fereastră bună pentru scris.",
+          "2": "Am legat deja trei notițe noi la indexul 'Zilnic'."
+        },
+        "topics": {
+          "0": "triage-ul inbox-ului de azi",
+          "1": "scrisul de săptămâna aceasta",
+          "2": "lista mea de lectură"
+        },
+        "closing": "Bine. Anunță-mă dacă e nevoie de mine — altfel, nu te voi deranja."
+      },
+      "lab": {
+        "replies": {
+          "0": "Extrag cea mai recentă lucrare pe acest subiect acum — rezumatul schiță într-o oră.",
+          "1": "Voi sincroniza bibliografia după aceasta și voi semnala duplicatele.",
+          "2": "Schița prelegerii pentru joi este aproape gata de revizuire."
+        },
+        "topics": {
+          "0": "revizuirea literaturii",
+          "1": "Pregătirea prelegerii de joi",
+          "2": "lista de referințe"
+        },
+        "closing": "Ține-mă la curent. Voi revizui tot ce trimiți până la sfârșitul zilei."
+      },
+      "family-room": {
+        "replies": {
+          "0": "Programul pare liber după ora 4. Semnalizez suprapunerile la predări.",
+          "1": "Meniul săptămânal schițat — lista de cumpărături e gata de revizuit.",
+          "2": "Activitățile copiilor sincronizate. Seara de DnD rămâne vineri."
+        },
+        "topics": {
+          "0": "programul de azi",
+          "1": "planul de mese",
+          "2": "activitățile copiilor"
+        },
+        "closing": "Mulțumesc tuturor. Anunță-mă dacă se schimbă ceva pe parcursul zilei."
+      },
+      "blank": {
+        "replies": {
+          "0": "Am înțeles. Gata oricând ești și tu.",
+          "1": "În așteptare.",
+          "2": "Voi aștepta instrucțiuni."
+        },
+        "topics": {
+          "0": "primul lucru",
+          "1": "ce urmează",
+          "2": "întrebarea deschisă"
+        },
+        "closing": "Când ești gata, spune-ne ce să facem."
+      }
     },
     "team": {
       "browseAll": "Răsfoiește tot",
@@ -1237,7 +1420,7 @@
       "currentPath": "Cale curentă",
       "loadingPath": "Se încarcă...",
       "changeDirectory": "Schimbă directorul",
-      "directoryPlaceholder": "/path/to/data",
+      "directoryPlaceholder": "/cale/către/date",
       "browse": "Răsfoiește",
       "save": "Salvează",
       "openInFinder": "Deschide în Finder",
@@ -1322,7 +1505,7 @@
     "profile": {
       "title": "Profil",
       "name": "Nume",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Nume afișat",
       "role": "Rol",
       "rolePlaceholder": "Constructor",

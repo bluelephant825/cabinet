@@ -19,7 +19,7 @@
     },
     "metric": {
       "name": "שם מדד",
-      "namePlaceholder": "reddit_replies",
+      "namePlaceholder": "תגובות_רדיט",
       "target": "יעד",
       "targetPlaceholder": "תגובות/שבוע",
       "floor": "רצפה",
@@ -316,9 +316,7 @@
     "stopHint": "עצרו את ההרצה הזו עכשיו (שולח SIGTERM)",
     "restart": "הפעלה מחדש",
     "restartHint": "הריצו שוב מהפרומפט המקורי",
-    "runHint": "התחילו את המשימה הזו עכשיו",
-    "reassign": "הקצאה מחדש",
-    "reassignHint": "העבירו את המשימה לסוכן אחר"
+    "runHint": "התחילו את המשימה הזו עכשיו"
   },
   "schedulesPanel": {
     "title": "משימות מתוזמנות",
@@ -469,7 +467,7 @@
   "slideData": {
     "thailandRootLabel": "טיול לתאילנד",
     "thailandCaption": "כל הקבצים שלכם במקום אחד.",
-    "videoTitle": "Night market.mp4",
+    "videoTitle": "שוק לילה.mp4",
     "taxRootLabel": "מס 2026",
     "taxCaption": "מס 2026 — מחשבון אינטראקטיבי, משובץ בתוך הארונית שלכם.",
     "calculatorTitle": "מחשבון",
@@ -595,7 +593,9 @@
     "migrationFailed": "ההגירה נכשלה"
   },
   "linkRepo": {
-    "title": "טעינת ידע",
+    "title": "חיבור ידע",
+    "intro": "הפנו את Cabinet לכל תיקייה במחשב שלכם. Cabinet יוצר קישור סימבולי (symlink) כך שתוכן התיקייה יופיע במאגר הידע ויהיה זמין לסוכני ה-AI כהקשר. התיקייה המקורית לעולם אינה מועברת או מועתקת.",
+    "symlinkNote": "פעולה זו יוצרת קישור סימבולי — הקבצים נשארים במקומם.",
     "autoDetectPlaceholder": "זיהוי אוטומטי מ-git remote (אופציונלי)",
     "shortSummaryPlaceholder": "תיאור קצר אופציונלי לסוכנים"
   },
@@ -608,7 +608,115 @@
     "openCabinet": "פתיחת תצוגת הארונית",
     "pageTitlePlaceholder": "כותרת הדף…",
     "rename": "שינוי שם",
-    "openBadge": "פתח"
+    "openBadge": "פתח",
+    "sectionAdd": "הוספה לפריט זה",
+    "sectionThis": "פריט זה",
+    "addSubPage": "הוספת תת-דף",
+    "newFolder": "תיקייה חדשה",
+    "createFile": "יצירת קובץ חדש…",
+    "connectKnowledge": "חיבור ידע…",
+    "symlinkTag": "Symlink",
+    "importFile": "ייבוא קובץ…",
+    "importFolder": "ייבוא תיקייה…",
+    "createCabinet": "יצירת ארונית כאן",
+    "editSymlink": "עריכת Symlink…",
+    "settings": "הגדרות…",
+    "moveTo": "העברה אל…",
+    "copyRelativePath": "העתקת נתיב יחסי",
+    "copyFullPath": "העתקת נתיב מלא",
+    "openInFinder": "פתיחה ב-Finder",
+    "delete": "מחיקה",
+    "unlink": "ניתוק",
+    "folderNamePlaceholder": "שם התיקייה",
+    "creating": "יוצר…",
+    "create": "יצירה",
+    "addSubPageTitle": "הוספת תת-דף ל“{{name}}”",
+    "newFolderTitle": "תיקייה חדשה ב“{{name}}”"
+  },
+  "newFile": {
+    "title": "יצירת קובץ חדש",
+    "subtitle": "בחרו סוג קובץ. Cabinet יפתח אותו בעורך כשהוא מוכן.",
+    "groupNative": "עריכה ב-Cabinet",
+    "groupOffice": "Office (ריק — לעריכה חיצונית)",
+    "groupGoogle": "Google (מקושר)",
+    "namePlaceholder": "שם הקובץ",
+    "create": "יצירה",
+    "creating": "יוצר…",
+    "googleUrlLabel": "כתובת Google (אופציונלי)",
+    "googleUrlPlaceholder": "הדביקו קישור שיתוף של Google, או השאירו ריק להוספה מאוחר יותר",
+    "officeNote": "Cabinet מציג קובצי Office לקריאה בלבד. השתמשו ב“פתיחה ב-Finder” כדי לערוך באפליקציה.",
+    "types": {
+      "markdown": "דף Markdown",
+      "markdownDesc": "הערות טקסט עשיר, ניתנות לעריכה ב-Cabinet",
+      "code": "קובץ קוד",
+      "codeDesc": "כל קובץ מקור/טקסט — בחרו סיומת",
+      "mermaid": "תרשים Mermaid",
+      "mermaidDesc": "תרשימי זרימה ודיאגרמות כקוד",
+      "csv": "טבלת CSV",
+      "csvDesc": "נתוני גיליון מופרדים בפסיקים",
+      "docx": "מסמך Word",
+      "docxDesc": "‎.docx ריק",
+      "xlsx": "גיליון Excel",
+      "xlsxDesc": "‎.xlsx ריק",
+      "pptx": "PowerPoint",
+      "pptxDesc": "‎.pptx ריק",
+      "gdoc": "Google Doc",
+      "gdocDesc": "הטמעת מסמך Google",
+      "gsheet": "Google Sheet",
+      "gsheetDesc": "הטמעת גיליון Google",
+      "gslides": "Google Slides",
+      "gslidesDesc": "הטמעת מצגת Google"
+    },
+    "codeExtLabel": "סיומת",
+    "googleTag": "Google",
+    "extHint": "פשוט הקלידו את השם — Cabinet יוסיף את הסיומת {{ext}}.",
+    "createFailed": "יצירת הקובץ נכשלה."
+  },
+  "fileSettings": {
+    "googleTitle": "הגדרות הטמעת Google",
+    "googleKindLabel": "סוג",
+    "googleUrlLabel": "כתובת Google",
+    "googleUrlPlaceholder": "https://docs.google.com/…",
+    "googleNote": "השיתוף של המסמך חייב להיות “כל מי שיש לו הקישור” או “פורסם לאינטרנט” כדי שההטמעה תיטען.",
+    "openLink": "פתח ב-Google",
+    "googleKinds": {
+      "docs": "מסמכים",
+      "sheets": "גיליונות",
+      "slides": "מצגות",
+      "forms": "טפסים",
+      "drive": "Drive"
+    },
+    "appTitle": "הגדרות אפליקציית ווב",
+    "modeLabel": "כיצד לפתוח?",
+    "modeWebsite": "תצוגת דף",
+    "modeWebsiteDesc": "נפתח בתוך הממשק עם סרגל הצד ופאנל ה-AI גלויים.",
+    "modeApp": "אפליקציית ווב",
+    "modeAppDesc": "נפתח במסך מלא; סרגל הצד ופאנל ה-AI מתכווצים אוטומטית.",
+    "convertNote": "פעולה זו מחליפה את קובץ הסמן ‎.app בתיקייה. הקבצים שלכם אינם משתנים.",
+    "save": "שמירה",
+    "saving": "שומר…",
+    "cancel": "ביטול",
+    "saveFailed": "שמירת ההגדרות נכשלה."
+  },
+  "editSymlink": {
+    "title": "עריכת Symlink",
+    "intro": "פריט זה במאגר הידע הוא קישור סימבולי לתיקייה במקום אחר במחשב.",
+    "kbPathLabel": "נתיב במאגר הידע",
+    "targetLabel": "מקושר אל (בדיסק)",
+    "brokenWarning": "תיקיית היעד אינה קיימת עוד. הפנו אותה לתיקייה תקפה למטה.",
+    "repointLabel": "הפניה לתיקייה חדשה",
+    "repointHint": "Cabinet יחליף את הקישור כך שיפנה לכאן. הקבצים לעולם אינם מועברים.",
+    "browse": "עיון",
+    "nameLabel": "שם",
+    "descriptionLabel": "תיאור",
+    "save": "שמירה",
+    "saving": "שומר…",
+    "copyTarget": "העתקת נתיב היעד",
+    "saveFailed": "עדכון ה-Symlink נכשל."
+  },
+  "importFolder": {
+    "importing": "מייבא תיקייה…",
+    "failed": "ייבוא התיקייה נכשל: {{message}}"
   },
   "boardSkeleton": {
     "loadingTasks": "טוען משימות"
@@ -758,7 +866,9 @@
     "noSkills": "אין עדיין כישורים."
   },
   "taskDetail": {
-    "close": "סגירה (Esc)"
+    "close": "סגירה (Esc)",
+    "muteTask": "השתקת משימה זו — ריצות שהושלמו עוברות ישר לארכיון",
+    "unmuteTask": "ביטול השתקה — ריצות שהושלמו יופיעו שוב ב\"הסתיימו עכשיו\""
   },
   "rowActionsPlus": {
     "edit": "עריכה",
@@ -1024,6 +1134,18 @@
       "tagline2": "צוות ה-AI שלך.",
       "getStarted": "בואו נתחיל"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "משרד",
+        "study": "חדר עבודה",
+        "lab": "מעבדה",
+        "library": "ספרייה",
+        "kitchen": "מטבח",
+        "family": "משפחה",
+        "dining": "אוכל",
+        "studio": "סטודיו"
+      }
+    },
     "welcome": {
       "paragraph": "הבית שלכם הוא שלכם. בתוכו תקימו חדרים לתחומי החיים השונים: עבודה, מוח שני, מחקר, משפחה. בכל חדר יש ארוניות: ההערות שלכם, הקבצים שלכם, וצוות AI שעובד ברקע ודואג שדברים יקרו.",
       "namePrompt": "מה שמך?",
@@ -1125,11 +1247,185 @@
       "subtitle": "Cabinet זקוק ל-CLI של AI כדי להפעיל את הסוכנים שלך.",
       "verifyExplanation": "אימות מריץ את הפרומפט חסר הראש של הספק מקצה לקצה ומסווג כל כשל כדי שתדע לאיזה שלב לחזור.",
       "verifying": "מאמת…",
-      "failedAtStep": "נכשל בשלב: <strong>{{step}}</strong>"
+      "failedAtStep": "נכשל בשלב: <strong>{{step}}</strong>",
+      "moreModels": "עוד AI"
     },
     "roomSetup": {
       "subtitle": "לשם מה ה-Cabinet הזה? כל חדר מגיע עם צוות AI משלו.",
       "heading": "בחר <accent>חדר</accent>"
+    },
+    "rooms": {
+      "office": {
+        "label": "המשרד",
+        "tagline": "נהל עסק, סטארט-אפ או פרויקט צדדי.",
+        "workspaceLabel": "שם חברה או פרויקט",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "מה אתם עושים?",
+        "descriptionPlaceholder": "אנחנו מפיקים פודקאסט על סטארט-אפים בתחום ה-AI",
+        "departmentNoun": "מחלקה",
+        "teamSizeLabel": "גודל צוות",
+        "exampleAgents": {
+          "0": "CEO",
+          "1": "עורך"
+        }
+      },
+      "study": {
+        "label": "לימוד",
+        "tagline": "המוח השני שלך — כתיבה, הערות, עוזר אישי.",
+        "workspaceLabel": "תן שם ל-cabinet שלך",
+        "workspacePlaceholder": "הלימוד שלי",
+        "descriptionLabel": "באילו תחומי חיים תרצה עזרה?",
+        "descriptionPlaceholder": "כתיבה, מיון מיילים, יומן, מעקב הרגלים",
+        "departmentNoun": "תחום",
+        "exampleAgents": {
+          "0": "עוזר",
+          "1": "ספרן"
+        }
+      },
+      "lab": {
+        "label": "מעבדת מחקר",
+        "tagline": "עבודה אקדמית, ספרות, הוראה, תזה.",
+        "workspaceLabel": "שם סביבת עבודה",
+        "workspacePlaceholder": "פילוסופיה של הנפש",
+        "descriptionLabel": "מהו תחומך או מה אתה חוקר?",
+        "descriptionPlaceholder": "פנומנולוגיה, תודעה, הוראת מבוא לפילוסופיה",
+        "departmentNoun": "אזור",
+        "exampleAgents": {
+          "0": "מוביל מחקר",
+          "1": "ספרן"
+        }
+      },
+      "family-room": {
+        "label": "חדר משפחה",
+        "tagline": "משק בית, לוח שנה משפחתי, ארוחות, ילדים.",
+        "workspaceLabel": "שם משק הבית",
+        "workspacePlaceholder": "משפחת נגוין",
+        "descriptionLabel": "מי גר כאן ומה אתם מנהלים?",
+        "descriptionPlaceholder": "שני הורים, שלושה ילדים, שני בתי ספר, כלב אחד",
+        "departmentNoun": "אזור",
+        "teamSizeLabel": "גודל משק הבית",
+        "exampleAgents": {
+          "0": "מנהל הבית",
+          "1": "מתכנן"
+        }
+      },
+      "blank": {
+        "label": "חדר ריק",
+        "tagline": "עדיין כלום. הביאו סוכנים משלכם, עצבו בעצמכם.",
+        "workspaceLabel": "תנו שם ל-Cabinet שלכם",
+        "workspacePlaceholder": "ה-Cabinet שלי",
+        "descriptionLabel": "לשם מה זה?",
+        "descriptionPlaceholder": "כל דבר — השאירו ריק אם אינכם בטוחים עדיין",
+        "departmentNoun": "קבוצה",
+        "exampleAgents": {
+          "0": "החלטה שלכם"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "הנהלה",
+      "marketing": "שיווק",
+      "content": "תוכן",
+      "engineering": "הנדסה",
+      "product-and-design": "מוצר ועיצוב",
+      "business": "עסקים",
+      "research": "מחקר",
+      "finance-and-ops": "כספים ותפעול",
+      "personal": "אישי",
+      "second-brain": "מוח שני",
+      "writing": "כתיבה",
+      "tools": "כלים",
+      "life-admin": "ניהול חיים",
+      "from-the-office": "מהמשרד",
+      "writing-and-notes": "כתיבה ופתקים",
+      "other": "אחר",
+      "household": "משק בית",
+      "admin": "ניהול",
+      "money": "כסף",
+      "product": "מוצר",
+      "design": "עיצוב",
+      "sales": "מכירות",
+      "support": "תמיכה",
+      "analytics": "אנליטיקה",
+      "finance": "כספים",
+      "legal": "משפטי",
+      "people": "אנשים"
+    },
+    "demo": {
+      "greeting": {
+        "office": "בוקר טוב צוות! ברוכים הבאים ל-{{workspace}}. בואו נתחיל ברגל ימין.",
+        "study": "בוקר טוב. המוח השני שלך מחובר — ברוך השב ל-{{home}}.",
+        "lab": "שולחן המחקר מוכן — \"{{workspace}}\". במה נתעמק היום?",
+        "family-room": "מפקדת הבית עולה — {{home}}. בואו נוודא שכולם במקום הנכון.",
+        "blank": "לוח חלק — \"{{workspace}}\". מה תרצה לבנות כאן, {{home}}?"
+      },
+      "assign": "{{name}}, האם תוכל לקחת על עצמך את {{topic}}?",
+      "fallbackTopic": "מה הלאה",
+      "office": {
+        "replies": {
+          "0": "מטפל בזה. אכין סקירה כללית של התחום עד סוף היום.",
+          "1": "כבר מנסח תוכנית. אשתף אותה ב-#content בקרוב.",
+          "2": "מגדיר את תהליכי העבודה הבסיסיים עכשיו. נראה טוב עד כה."
+        },
+        "topics": {
+          "0": "מחקר מתחרים",
+          "1": "יומן התוכן",
+          "2": "תוכנית ההשקה"
+        },
+        "closing": "אנרגיה נהדרת לכולם. בואו נהפוך את זה לשבוע ראשון חזק."
+      },
+      "study": {
+        "replies": {
+          "0": "אתעדף את תיבת הדואר הנכנס ואציף את מה שצריך אותך.",
+          "1": "היומן נראה פנוי עד 15:00 — חלון טוב לכתיבה.",
+          "2": "קישרתי כבר שלוש הערות חדשות לאינדקס 'יומי'."
+        },
+        "topics": {
+          "0": "תיעדוף תיבת הדואר הנכנס של היום",
+          "1": "הכתיבה של השבוע",
+          "2": "רשימת הקריאה שלי"
+        },
+        "closing": "טוב. תעדכן אותי אם משהו דורש אותי — אחרת לא אפריע."
+      },
+      "lab": {
+        "replies": {
+          "0": "מושך את המאמר האחרון בנושא עכשיו — טיוטת סיכום בעוד שעה.",
+          "1": "אסנכרן את הביבליוגרפיה אחרי זה ואסמן כפילויות.",
+          "2": "מתווה ההרצאה ליום חמישי כמעט מוכן לבדיקה."
+        },
+        "topics": {
+          "0": "סקירת הספרות",
+          "1": "הכנת ההרצאה ליום חמישי",
+          "2": "רשימת המקורות"
+        },
+        "closing": "עדכן אותי. אבדוק כל מה שתשלח עד סוף היום."
+      },
+      "family-room": {
+        "replies": {
+          "0": "הלו\"ז נראה פנוי אחרי 16:00. מסמן חפיפות בהורדות.",
+          "1": "תפריט לשבוע נוסח — רשימת הקניות מוכנה לבדיקה.",
+          "2": "פעילויות הילדים סונכרנו. ערב DnD עדיין בתוקף ליום שישי."
+        },
+        "topics": {
+          "0": "לוח הזמנים של היום",
+          "1": "תוכנית הארוחות",
+          "2": "פעילויות הילדים"
+        },
+        "closing": "תודה לכולם. תעדכנו אותי אם משהו משתנה במהלך היום."
+      },
+      "blank": {
+        "replies": {
+          "0": "הבנתי. מוכן מתי שתרצה.",
+          "1": "ממתין.",
+          "2": "אמתין להנחיות."
+        },
+        "topics": {
+          "0": "הדבר הראשון",
+          "1": "מה שבא בתור",
+          "2": "השאלה הפתוחה"
+        },
+        "closing": "מתי שתהיה מוכן, תגיד לנו מה לעשות."
+      }
     },
     "team": {
       "browseAll": "הצג הכל",
@@ -1182,8 +1478,8 @@
       "description": "משנה שפה וכיוון קריאה. דפים קיימים שומרים על הכיוון שהוגדר להם.",
       "english": "אנגלית",
       "hebrew": "עברית",
-      "chineseSimplified": "简体中文",
-      "chineseTraditional": "繁體中文",
+      "chineseSimplified": "סינית מפושטת",
+      "chineseTraditional": "סינית מסורתית",
       "moreLanguages": "שפות נוספות",
       "moreLanguagesHint": "לחצו על שפה כדי להגיד לנו שתרצו את Cabinet בה — נתעדף את המבוקשות ביותר.",
       "comingSoon": "בקרוב",
@@ -1229,6 +1525,10 @@
       "loading": "טוען…",
       "connect": "התחבר",
       "recommended": "מומלץ"
+    },
+    "integrationsPreview": {
+      "comingSoon": "בקרוב",
+      "hint": "חיבור אינטגרציות חיצוניות וכלים מובנים יגיע בקרוב."
     },
     "storage": {
       "dataDirectory": "ספריית נתונים",
@@ -1276,7 +1576,7 @@
       "previewHint": "התראות דפדפן, Telegram, Slack ודוא״ל.",
       "channelPushName": "Push בדפדפן",
       "channelPushDesc": "התראות מיידיות כשטאב Cabinet פתוח או PWA מותקן",
-      "channelTelegramName": "Telegram",
+      "channelTelegramName": "טלגרם",
       "channelTelegramDesc": "התראות נייד מיידיות דרך בוט Telegram",
       "channelSlackName": "Slack Webhook",
       "channelSlackDesc": "העבירו התראות לערוץ Slack של הצוות שלכם",
@@ -1309,7 +1609,7 @@
       "privacyLink": "מה נאסף?",
       "telemetryEnvDisabled": "מושבת על-ידי CABINET_TELEMETRY_DISABLED=1 (משתנה סביבה).",
       "telemetryHint": "ספירת אירועים, גרסאות ומידע על הפלטפורמה בלבד. כבו כדי להפסיק לשלוח.",
-      "cabinetCloud": "Cabinet Cloud",
+      "cabinetCloud": "Cabinet ענן",
       "cloudBody": "התחברו ל-Cabinet שלכם מכל מקום, בזמן שצוות ה-AI שלכם עובד 24/7 בשבילכם. הזינו את האימייל שלכם כאן והודיע לכם כש-Cabinet Cloud ייפתח.",
       "cloudAlready": "אתם כבר ברשימה — אנחנו ניצור קשר.",
       "cloudSuccess": "אתם ברשימה. נשלח אימייל כש-Cabinet Cloud ייפתח.",

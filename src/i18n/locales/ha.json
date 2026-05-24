@@ -316,9 +316,7 @@
     "stopHint": "Dakatar da wannan gudu yanzu (yana aika SIGTERM)",
     "restart": "Sake farawa",
     "restartHint": "Sake aiwatarwa daga asalin umarni",
-    "runHint": "Fara wannan aiki yanzu",
-    "reassign": "Sake sanyawa",
-    "reassignHint": "Miƙa wannan aiki ga wani wakili daban"
+    "runHint": "Fara wannan aiki yanzu"
   },
   "schedulesPanel": {
     "title": "Ayyukan da aka tsara",
@@ -464,7 +462,7 @@
     "secondParagraphPrefix": "Wuri ɗaya don komai — don haka kai da ƙungiyar AI ɗinka ku karanta, gyara, kuma ku tura daga ",
     "sameFiles": "fayiloli ɗaya",
     "secondParagraphSuffix": ", ba kwafin kwafi ba.",
-    "mockTitle": "Cabinet na Hila"
+    "mockTitle": "Cabinet na Jane"
   },
   "slideData": {
     "thailandRootLabel": "Tafiyar Thailand",
@@ -559,7 +557,7 @@
     "close": "Rufe",
     "rolePlaceholder": "misali, mai kirkira mai zaman kansa, PM a SaaS, dalibin zane, mai sha'awa…",
     "joinDiscord": "Shiga Discord",
-    "header": "Gaisuwa daga Hila",
+    "header": "Gaisuwa daga Jane",
     "howGoing": "Yaya abubuwa ke tafiya kawo yanzu?",
     "starsCount": "{{n}} tauraro",
     "starsCountPlural": "{{n}} taurari",
@@ -1024,6 +1022,18 @@
       "tagline2": "Ƙungiyar AI ɗinka.",
       "getStarted": "Fara amfani"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "Ofis",
+        "study": "Nazari",
+        "lab": "Lab",
+        "library": "Laburare",
+        "kitchen": "Kicin",
+        "family": "Iyali",
+        "dining": "Wurin Cin Abinci",
+        "studio": "Studio"
+      }
+    },
     "welcome": {
       "paragraph": "Gidanka naka ne. A cikinsa, za ka shirya dakuna don sassa daban-daban na rayuwarka: aiki, kwakwalwa ta biyu, bincike, iyali. Kuma kowane daki yana da 'cabinets': bayanan ka, fayilolinka, da kuma tawagar AI da ke yin abubuwa a hankali a bango.",
       "namePrompt": "Mene ne sunanka?",
@@ -1130,6 +1140,179 @@
     "roomSetup": {
       "subtitle": "Don me wannan cabinet yake? Kowane ɗaki yana zuwa da ƙungiyar AI tasa.",
       "heading": "Zaɓi <accent>ɗaki</accent>"
+    },
+    "rooms": {
+      "office": {
+        "label": "Ofis",
+        "tagline": "Gudanar da kasuwanci, farawa, ko aikin gefe.",
+        "workspaceLabel": "Sunan kamfani ko aiki",
+        "workspacePlaceholder": "Acme Corp",
+        "descriptionLabel": "Me kuke yi?",
+        "descriptionPlaceholder": "Muna yin podcast game da sabbin kamfanonin AI",
+        "departmentNoun": "Sashe",
+        "teamSizeLabel": "Girman tawaga",
+        "exampleAgents": {
+          "0": "Shugaban Kamfani",
+          "1": "Edita"
+        }
+      },
+      "study": {
+        "label": "Nazari",
+        "tagline": "Kwakwalwarka ta biyu — rubutu, rubuce-rubuce, mataimakin kai.",
+        "workspaceLabel": "Saka wa cabinet ɗinka suna",
+        "workspacePlaceholder": "Nazari Na",
+        "descriptionLabel": "Waɗanne fannoni na rayuwa kake son taimako a kai?",
+        "descriptionPlaceholder": "Rubutu, tsara imel, kalanda, bin diddigin halaye",
+        "departmentNoun": "Fanni",
+        "exampleAgents": {
+          "0": "Mataimaki",
+          "1": "Ma'aikacin Laburare"
+        }
+      },
+      "lab": {
+        "label": "Dakin Bincike",
+        "tagline": "Aikin ilimi, littattafai, koyarwa, rubutun digiri.",
+        "workspaceLabel": "Sunan Wurin Aiki",
+        "workspacePlaceholder": "Falsafar Hankali",
+        "descriptionLabel": "Menene fanninka ko menene kake bincike a kai?",
+        "descriptionPlaceholder": "Falsafar abubuwan da suka faru, sani, koyar da Gabatarwa ga Falsafa",
+        "departmentNoun": "Fanni",
+        "exampleAgents": {
+          "0": "Shugaban Bincike",
+          "1": "Ma'aikacin Laburare"
+        }
+      },
+      "family-room": {
+        "label": "Daki na Iyali",
+        "tagline": "Gida, kalandar iyali, abinci, yara.",
+        "workspaceLabel": "Sunan Gida",
+        "workspacePlaceholder": "Iyalin Nguyen",
+        "descriptionLabel": "Su waye ke zaune a nan kuma menene kuke yi?",
+        "descriptionPlaceholder": "Iyaye biyu, yara uku, makarantu biyu, kare daya",
+        "departmentNoun": "Yanki",
+        "teamSizeLabel": "Girman Gida",
+        "exampleAgents": {
+          "0": "Manajan Gida",
+          "1": "Mai Shiryawa"
+        }
+      },
+      "blank": {
+        "label": "Daki Fanko",
+        "tagline": "Babu komai tukuna. Kawo wakilanka, tsarin naka.",
+        "workspaceLabel": "Sanya wa cabinet ɗinka suna",
+        "workspacePlaceholder": "Cabinet ɗina",
+        "descriptionLabel": "Don me yake?",
+        "descriptionPlaceholder": "Komai — bar shi fanko idan baka da tabbas tukuna",
+        "departmentNoun": "Rukuni",
+        "exampleAgents": {
+          "0": "Zabi naka"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "Jagoranci",
+      "marketing": "Tallace-tallace",
+      "content": "Abun Ciki",
+      "engineering": "Injiniyanci",
+      "product-and-design": "Samfuri & Zane",
+      "business": "Kasuwanci",
+      "research": "Bincike",
+      "finance-and-ops": "Kudi & Ayyuka",
+      "personal": "Na Kai",
+      "second-brain": "Kwakwalwa ta biyu",
+      "writing": "Rubutu",
+      "tools": "Kayan Aiki",
+      "life-admin": "Gudanar da Rayuwa",
+      "from-the-office": "Daga Ofis",
+      "writing-and-notes": "Rubutu & Bayanai",
+      "other": "Sauran",
+      "household": "Gida",
+      "admin": "Gudanarwa",
+      "money": "Kudi",
+      "product": "Samfuri",
+      "design": "Zane",
+      "sales": "Tallace-tallace",
+      "support": "Taimako",
+      "analytics": "Nazari",
+      "finance": "Kudi",
+      "legal": "Shari'a",
+      "people": "Ma'aikata"
+    },
+    "demo": {
+      "greeting": {
+        "office": "Barka da safiya ƙungiya! Barka da zuwa {{workspace}}. Mu fara aiki da ƙarfi.",
+        "study": "Barka da safiya. Kwakwalwarka ta biyu tana kan layi — barka da dawowa zuwa {{home}}.",
+        "lab": "Teburin bincike a shirye — \"{{workspace}}\". Me za mu bincika a yau?",
+        "family-room": "Hedikwatar gida tana farawa — {{home}}. Mu kai kowa inda yake buƙatar kasancewa.",
+        "blank": "Fanko — \"{{workspace}}\". Me kake son ginawa anan, {{home}}?"
+      },
+      "assign": "{{name}}, za ka iya ɗaukar nauyin {{topic}}?",
+      "fallbackTopic": "me ke gaba",
+      "office": {
+        "replies": {
+          "0": "Na fahimta. Zan shirya cikakken bayani kafin ƙarshen rana.",
+          "1": "Tuni na fara tsara shiri. Zan raba shi a #content nan ba da jimawa ba.",
+          "2": "Yanzu haka muna kafa tsarin aiki na asali. Yana tafiya da kyau har yanzu."
+        },
+        "topics": {
+          "0": "binciken masu fafatawa",
+          "1": "kalandar abun ciki",
+          "2": "shirin ƙaddamarwa"
+        },
+        "closing": "Kyakkyawan kuzari kowa da kowa. Mu sanya wannan ya zama mako na farko mai ƙarfi."
+      },
+      "study": {
+        "replies": {
+          "0": "Zan tsara saƙonnin shiga kuma in nuna abin da ke buƙatar ka.",
+          "1": "Kalandar tana da tsabta har zuwa ƙarfe 3 na yamma — lokaci mai kyau don rubutu.",
+          "2": "Na riga na haɗa sabbin bayanan guda uku zuwa ga 'Daily' index."
+        },
+        "topics": {
+          "0": "tsarin saƙonnin shiga na yau",
+          "1": "rubutun wannan makon",
+          "2": "jerin karatuna"
+        },
+        "closing": "Yayi. Ka sanar da ni idan akwai wani abu da ke buƙatar ni — in ba haka ba zan bar ka."
+      },
+      "lab": {
+        "replies": {
+          "0": "Yanzu haka ina jawo sabon takarda akan wannan — daftarin taƙaitawa cikin awa ɗaya.",
+          "1": "Zan daidaita jerin littattafai bayan wannan kuma in nuna masu maimaitawa.",
+          "2": "Tsarin lacca na Alhamis kusan a shirye yake don dubawa."
+        },
+        "topics": {
+          "0": "nazarin littattafai",
+          "1": "shirye-shiryen lacca na Alhamis",
+          "2": "jerin abubuwan tunani"
+        },
+        "closing": "Ka sanar da ni. Zan duba duk abin da ka tura kafin ƙarshen rana."
+      },
+      "family-room": {
+        "replies": {
+          "0": "Tsarin aiki yana da tsabta bayan ƙarfe 4. Ina nuna abubuwan da suka yi karo.",
+          "1": "An tsara menu na mako — jerin kayan abinci a shirye yake don dubawa.",
+          "2": "An daidaita ayyukan yara. Daren DnD yana nan ranar Juma'a."
+        },
+        "topics": {
+          "0": "tsarin aiki na yau",
+          "1": "shirin abinci",
+          "2": "ayyukan yara"
+        },
+        "closing": "Na gode duka. Ka sanar da ni idan wani abu ya canza a cikin rana."
+      },
+      "blank": {
+        "replies": {
+          "0": "Na fahimta. A shirye nake duk lokacin da kake.",
+          "1": "Ina jira.",
+          "2": "Zan jira umarni."
+        },
+        "topics": {
+          "0": "abu na farko",
+          "1": "duk abin da ke gaba",
+          "2": "tambaya a buɗe"
+        },
+        "closing": "Duk lokacin da ka shirya, gaya mana abin yi."
+      }
     },
     "team": {
       "browseAll": "Bincika duka",
@@ -1323,7 +1506,7 @@
     "profile": {
       "title": "Furofayil",
       "name": "Suna",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "Jane",
       "displayName": "Sunan nunawa",
       "role": "Matsayi",
       "rolePlaceholder": "Mai ginawa",
@@ -1486,7 +1669,7 @@
       "commitDefault": "Sabunta fayil {{count}}",
       "commitDefaultPlural": "Sabunta fayiloli {{count}}",
       "committing": "Ana yin commit…",
-      "commit": "Commit",
+      "commit": "Aika",
       "commitFailed": "Commit ya gaza",
       "sync": "Aiki tare",
       "syncTitle": "Jawo sabbin abubuwa daga GitHub & wartsake",

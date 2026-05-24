@@ -15,7 +15,7 @@ import { useTreeStore } from "@/stores/tree-store";
 import { useEditorStore } from "@/stores/editor-store";
 import { useLocale } from "@/i18n/use-locale";
 
-export function NewPageDialog() {
+export function NewPageDialog({ parentPath = "" }: { parentPath?: string } = {}) {
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -27,15 +27,12 @@ export function NewPageDialog() {
     if (!title.trim()) return;
     setCreating(true);
     try {
-      // Create at root level or under the currently selected directory
-      const parentPath = "";
+      // Create inside the current cabinet/folder (`parentPath`), not at the
+      // data-dir (home) root. createPage builds the full path and selects it,
+      // so we navigate to whatever it actually created.
       await createPage(parentPath, title.trim());
-      const slug = title
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-      loadPage(slug);
+      const created = useTreeStore.getState().selectedPath;
+      if (created) loadPage(created);
       setTitle("");
       setOpen(false);
     } catch (error) {
