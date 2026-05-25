@@ -1,5 +1,6 @@
 "use client";
 
+import { Archive } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Header } from "@/components/layout/header";
 import { useAppStore } from "@/stores/app-store";
@@ -380,6 +381,7 @@ export function CanvasView() {
   const { t } = useLocale();
   const section = useAppStore((s) => s.section);
   const setSection = useAppStore((s) => s.setSection);
+  const setAppMode = useAppStore((s) => s.setAppMode);
   const setCanvasSelectedCardPaths = useAppStore((s) => s.setCanvasSelectedCardPaths);
   const clearCanvasSelectedCardPaths = useAppStore((s) => s.clearCanvasSelectedCardPaths);
   const nodes = useTreeStore((s) => s.nodes);
@@ -572,8 +574,17 @@ export function CanvasView() {
       return !!node && (isPreviewFile(node) || isFolderObject(node));
     });
   }, [boardCards, selectedCardPaths]);
+  const lastPushedSelectedContextRef = useRef<string[]>([]);
 
   useEffect(() => {
+    const previous = lastPushedSelectedContextRef.current;
+    if (
+      previous.length === selectedContextCardPaths.length &&
+      previous.every((path, index) => path === selectedContextCardPaths[index])
+    ) {
+      return;
+    }
+    lastPushedSelectedContextRef.current = selectedContextCardPaths;
     setCanvasSelectedCardPaths(selectedContextCardPaths);
   }, [selectedContextCardPaths, setCanvasSelectedCardPaths]);
 
@@ -863,6 +874,41 @@ export function CanvasView() {
     setPositionCenterVersionByBoardPath((prev) => ({ ...prev, [boardScopePath]: WHITEBOARD_CENTER_VERSION }));
     setPersistTick((tick) => tick + 1);
   }, [boardCards, boardScopePath, cardPositionsByBoardPath, positionCenterVersionByBoardPath, sizesLoaded]);
+
+  useEffect(() => {
+    if (!sizesLoaded || boardCards.length <= 1) return;
+
+    const boardPositions = cardPositionsByBoardPath[boardScopePath] ?? {};
+    const resolved = boardCards
+      .map((node, index) => boardPositions[node.path] ?? cardPositionByPath[node.path] ?? getDefaultCardPosition(index))
+      .filter((position): position is CardPosition => Boolean(position));
+
+    if (resolved.length <= 1) return;
+
+    const unique = new Set(resolved.map((position) => `${position.x}:${position.y}`));
+    if (unique.size > 1) return;
+
+    const nextBoardPositions: Record<string, CardPosition> = {};
+    boardCards.forEach((node, index) => {
+      nextBoardPositions[node.path] = getDefaultCardPosition(index);
+    });
+
+    setCardPositionByPath((prev) => {
+      const next = { ...prev };
+      for (const [path, position] of Object.entries(nextBoardPositions)) {
+        next[path] = position;
+      }
+      return next;
+    });
+
+    setCardPositionsByBoardPath((prev) => ({
+      ...prev,
+      [boardScopePath]: nextBoardPositions,
+    }));
+
+    setPositionCenterVersionByBoardPath((prev) => ({ ...prev, [boardScopePath]: WHITEBOARD_CENTER_VERSION }));
+    setPersistTick((tick) => tick + 1);
+  }, [sizesLoaded, boardCards, boardScopePath, cardPositionsByBoardPath, cardPositionByPath]);
 
   useEffect(() => {
     if (!sizesLoaded) return;
@@ -1191,7 +1237,7 @@ export function CanvasView() {
             onPointerDown={(event) => {
             const target = event.target;
             if (!(target instanceof Element)) return;
-            if (target.closest("button[data-canvas-card='true']")) return;
+            if (target.closest("[data-canvas-card='true']")) return;
             if (target.closest("[data-whiteboard-minimap='true']")) return;
             setSelectedCardPaths([]);
             clearCanvasSelectedCardPaths();
@@ -1232,7 +1278,7 @@ export function CanvasView() {
                   const isSelected = selectedCardPaths.includes(node.path);
 
                   return (
-                    <button
+                    <div
                       key={node.path}
                       onPointerDown={(event) => {
                         const target = event.target;
@@ -1281,7 +1327,33 @@ export function CanvasView() {
                           : `group absolute flex shrink-0 flex-col rounded-2xl border bg-background p-4 text-left transition-colors hover:bg-muted/40 ${isSelected ? "border-violet-600 border-2" : "border-border/70"}`
                       }
                       data-canvas-card="true"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                        }
+                      }}
                     >
+                      <button
+                        type="button"
+                        aria-label="Open in cabinet mode"
+                        title="Open in cabinet mode"
+                        className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-background/80 text-muted-foreground hover:bg-background"
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          selectPage(node.path);
+                          void loadPage(node.path);
+                          setSection({ type: "page", cabinetPath });
+                          setAppMode("edit");
+                        }}
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                      </button>
                       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         {composed ? `Composed ${kind}` : `Simple ${kind}`}
                       </div>
@@ -1294,10 +1366,10 @@ export function CanvasView() {
                             return;
                           }
                           selectPage(node.path);
-                          void loadPage(node.path);
-                          if (composed && isFolderObject(node)) {
-                            setSection({ type: "page", cabinetPath: node.path });
+                          if (node.type === "file" || node.type === "directory" || node.type === "cabinet") {
+                            void loadPage(node.path);
                           }
+                          setSection({ type: "page", cabinetPath });
                         }}
                       >
                         {title}
@@ -1357,7 +1429,7 @@ export function CanvasView() {
                           data-resize-handle="true"
                         />
                       ))}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
