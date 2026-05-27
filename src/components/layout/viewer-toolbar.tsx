@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Archive, Globe, Layout } from "lucide-react";
 import { HeaderActions } from "@/components/layout/header-actions";
 import { NavArrows } from "@/components/layout/nav-arrows";
@@ -8,7 +8,9 @@ import { ReturnToChip } from "@/components/layout/return-to-chip";
 import { ViewerBreadcrumb } from "@/components/layout/viewer-breadcrumb";
 import { NewTaskButton } from "@/components/composer/new-task-button";
 import { useAppStore } from "@/stores/app-store";
+import { useTreeStore } from "@/stores/tree-store";
 import { useLocale } from "@/i18n/use-locale";
+import { findNodeByPath } from "@/lib/cabinets/tree";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,6 +47,33 @@ export function ViewerToolbar({
   const { t } = useLocale();
   const appMode = useAppStore((s) => s.appMode);
   const setAppMode = useAppStore((s) => s.setAppMode);
+  const nodes = useTreeStore((s) => s.nodes);
+  const selectedPath = useTreeStore((s) => s.selectedPath);
+  const sourcePath = path || selectedPath;
+  const sourceNode = useMemo(
+    () => (sourcePath ? findNodeByPath(nodes, sourcePath) : null),
+    [nodes, sourcePath]
+  );
+
+  const browseModeUrl = useMemo(() => {
+    if (!sourcePath) return null;
+    const assetUrl = `/api/assets/${sourcePath.split("/").map(encodeURIComponent).join("/")}`;
+    const lower = sourcePath.toLowerCase();
+    if (sourceNode?.type === "website" || sourceNode?.type === "app") {
+      return `${assetUrl}/index.html`;
+    }
+    if (sourceNode?.type === "directory" || sourceNode?.type === "cabinet") {
+      return `${assetUrl}/index.md`;
+    }
+    if (sourceNode?.type === "file" || lower.endsWith(".md")) {
+      return `${assetUrl}.md`;
+    }
+    return assetUrl;
+  }, [sourcePath, sourceNode?.type]);
+
+  const openBrowseMode = () => {
+    setAppMode("browse", browseModeUrl);
+  };
 
   const modeButtons = showModeButtons ? (
     <>
@@ -53,7 +82,7 @@ export function ViewerToolbar({
           <button
             aria-label={t("editor:header.browseMode")}
             title={t("editor:header.browseMode")}
-            onClick={() => setAppMode("browse")}
+            onClick={openBrowseMode}
             className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
           >
             <Globe className="h-4 w-4" />
@@ -101,7 +130,7 @@ export function ViewerToolbar({
           <button
             aria-label={t("editor:header.browseMode")}
             title={t("editor:header.browseMode")}
-            onClick={() => setAppMode("browse")}
+            onClick={openBrowseMode}
             className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
           >
             <Globe className="h-4 w-4" />
