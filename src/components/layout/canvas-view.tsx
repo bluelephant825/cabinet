@@ -93,6 +93,7 @@ function isFolderObject(node: TreeNode): boolean {
 function isPreviewFile(node: TreeNode): boolean {
   return (
     node.type === "file" ||
+    node.type === "code" ||
     node.type === "image" ||
     node.type === "video" ||
     node.type === "pdf" ||
@@ -264,7 +265,7 @@ function fitCardSizeToContent(
     };
   }
 
-  if ((node.type === "csv" || node.type === "file") && content.length > 0) {
+  if ((node.type === "csv" || node.type === "file" || node.type === "code") && content.length > 0) {
     const lines = content.split(/\r?\n/);
     const visibleLines = Math.min(18, lines.length);
     const longestLine = lines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -1076,7 +1077,7 @@ export function CanvasView() {
     let cancelled = false;
 
     const contentPaths = boardCards
-      .filter((node) => node.type === "file" || isFolderObject(node) || node.type === "csv")
+      .filter((node) => node.type === "file" || node.type === "code" || isFolderObject(node) || node.type === "csv")
       .slice(0, 300)
       .map((node) => node.path);
 
@@ -1174,7 +1175,7 @@ export function CanvasView() {
         const hasText = (pageContentByPath[node.path] ?? "").length > 0;
         if (node.type === "image" || node.type === "video") {
           if (!measured || measured.width <= 0 || measured.height <= 0) continue;
-        } else if (node.type === "csv" || node.type === "file" || node.type === "pdf") {
+        } else if (node.type === "csv" || node.type === "file" || node.type === "code" || node.type === "pdf") {
           if (!hasText && node.type !== "pdf") continue;
         }
         next[scopedPath] = true;

@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const browserViewNavigateListeners = new Set();
+const browserViewLoadFailedListeners = new Set();
 
 ipcRenderer.on("cabinet:browser-view-navigated", (_event, payload) => {
   for (const listener of browserViewNavigateListeners) {
@@ -11,11 +12,17 @@ ipcRenderer.on("cabinet:browser-view-navigated", (_event, payload) => {
   }
 });
 
+ipcRenderer.on("cabinet:browser-view-load-failed", (_event, payload) => {
+  for (const listener of browserViewLoadFailedListeners) {
+    try {
+      listener(payload);
+    } catch {}
+  }
+});
+
 function normalizeBridgeUrl(value) {
-  if (typeof value !== "string") return "about:blank";
-  const trimmed = value.trim();
-  if (!trimmed) return "about:blank";
-  return trimmed;
+  if (typeof value !== "string") return "";
+  return value.trim();
 }
 
 contextBridge.exposeInMainWorld("CabinetDesktop", {
@@ -48,11 +55,20 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
     ipcRenderer.invoke("cabinet:browser-view-go-forward", { viewId }),
   browserViewReload: (viewId) =>
     ipcRenderer.invoke("cabinet:browser-view-reload", { viewId }),
+  showBrowserBookmarksMenu: (payload) =>
+    ipcRenderer.invoke("cabinet:show-browser-bookmarks-menu", payload),
   onBrowserViewNavigated: (listener) => {
     if (typeof listener !== "function") return () => {};
     browserViewNavigateListeners.add(listener);
     return () => {
       browserViewNavigateListeners.delete(listener);
+    };
+  },
+  onBrowserViewLoadFailed: (listener) => {
+    if (typeof listener !== "function") return () => {};
+    browserViewLoadFailedListeners.add(listener);
+    return () => {
+      browserViewLoadFailedListeners.delete(listener);
     };
   },
   destroyBrowserView: (viewId) =>

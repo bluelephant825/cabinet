@@ -152,6 +152,8 @@ function TreeNodeImpl({
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const loadPage = useEditorStore((s) => s.loadPage);
   const setSection = useAppStore((s) => s.setSection);
+  const appMode = useAppStore((s) => s.appMode);
+  const setAppMode = useAppStore((s) => s.setAppMode);
   const [subPageOpen, setSubPageOpen] = useState(false);
   const [subPageTitle, setSubPageTitle] = useState("");
   const [creating, setCreating] = useState(false);
@@ -308,6 +310,20 @@ function TreeNodeImpl({
     // is the explicit affordance for switching into the cabinet view.
     if (node.type === "file" || node.type === "directory" || node.type === "cabinet") {
       loadPage(node.path);
+    }
+
+    const assetUrl = `/api/assets/${node.path.split("/").map(encodeURIComponent).join("/")}`;
+    const browseFileUrl =
+      node.type === "website" || node.type === "app"
+        ? `${assetUrl}/index.html`
+        : node.type === "directory" || node.type === "cabinet"
+          ? `${assetUrl}/index.md`
+          : node.type === "file" && node.name.toLowerCase().endsWith(".md")
+            ? `${assetUrl}.md`
+            : assetUrl;
+
+    if (appMode === "browse") {
+      setAppMode("browse", browseFileUrl);
     }
 
     setSection(
