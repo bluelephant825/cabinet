@@ -96,6 +96,43 @@ function fillEmptyAgentTurnContent(task: Task, status: TaskStatus): Task {
   };
 }
 
+/** True when a safety-poll refetch would not change drawer-visible state. */
+function isSameTaskPollState(prev: Task | null | undefined, next: Task): boolean {
+  if (!prev) return false;
+  const pm = prev.meta;
+  const nm = next.meta;
+  if (
+    pm.status !== nm.status ||
+    pm.errorHint !== nm.errorHint ||
+    pm.errorKind !== nm.errorKind ||
+    pm.lastActivityAt !== nm.lastActivityAt ||
+    (pm.tokens?.total ?? 0) !== (nm.tokens?.total ?? 0)
+  ) {
+    return false;
+  }
+  const pendingIds = (actions: Task["meta"]["pendingActions"]) =>
+    actions?.map((a) => a.id).join("\0") ?? "";
+  if (pendingIds(pm.pendingActions) !== pendingIds(nm.pendingActions)) {
+    return false;
+  }
+  if (prev.turns.length !== next.turns.length) return false;
+  for (let i = 0; i < prev.turns.length; i++) {
+    const a = prev.turns[i];
+    const b = next.turns[i];
+    if (
+      a.id !== b.id ||
+      a.content !== b.content ||
+      !!a.pending !== !!b.pending ||
+      !!a.awaitingInput !== !!b.awaitingInput ||
+      (a.artifacts?.length ?? 0) !== (b.artifacts?.length ?? 0)
+    ) {
+      return false;
+    }
+  }
+  if (!!prev.session?.alive !== !!next.session?.alive) return false;
+  return true;
+}
+
 /** Apply a terminal task.updated payload without waiting on refetch. */
 function applyTerminalPayloadToTask(
   prev: Task,
@@ -828,15 +865,9 @@ export function TaskConversationPage({
               taskStatus
             );
           }
-          setTask((prev) => {
-            if (
-              prev?.meta.status === next.meta.status &&
-              prev.turns.length === next.turns.length
-            ) {
-              return prev;
-            }
-            return next;
-          });
+          setTask((prev) =>
+            isSameTaskPollState(prev, next) ? prev : next
+          );
         } catch {
           // ignore transient poll failures
         }
