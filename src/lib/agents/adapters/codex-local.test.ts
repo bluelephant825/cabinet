@@ -21,7 +21,7 @@ printf '%s\n' \
   '{"type":"turn.started"}' \
   '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Running pwd now."}}' \
   '{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc pwd"}}' \
-  '{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc pwd","aggregated_output":"/Users/mybiblepath/Development/cabinet\\n","exit_code":0,"status":"completed"}}' \
+  '{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc pwd","aggregated_output":"/Users/jane/cabinet\\n","exit_code":0,"status":"completed"}}' \
   '{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"OK"}}' \
   '{"type":"turn.completed","usage":{"input_tokens":50,"cached_input_tokens":10,"output_tokens":5}}'
 printf '%s\n' \
@@ -44,7 +44,7 @@ printf '%s\n' \
 
   assert.ok(result);
   assert.equal(result.exitCode, 0);
-  assert.equal(result.output, "Running pwd now.\n\n$ /bin/zsh -lc pwd\n/Users/mybiblepath/Development/cabinet\nOK");
+  assert.equal(result.output, "Running pwd now.\n\n$ /bin/zsh -lc pwd\n/Users/jane/cabinet\nOK");
   assert.equal(result.summary, "OK");
   assert.equal(result.provider, "codex-cli");
   assert.equal(result.model, "gpt-5.4");
@@ -56,7 +56,7 @@ printf '%s\n' \
     cachedInputTokens: 10,
   });
   assert.deepEqual(chunks, [
-    { stream: "stdout", chunk: "Running pwd now.\n\n$ /bin/zsh -lc pwd\n/Users/mybiblepath/Development/cabinet\nOK\n" },
+    { stream: "stdout", chunk: "Running pwd now.\n\n$ /bin/zsh -lc pwd\n/Users/jane/cabinet\nOK\n" },
     { stream: "stderr", chunk: "Meaningful stderr line\n" },
   ]);
 });

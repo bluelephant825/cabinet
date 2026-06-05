@@ -32,6 +32,7 @@ import {
 import { useTreeStore } from "@/stores/tree-store";
 import { useEditorStore } from "@/stores/editor-store";
 import { useAppStore } from "@/stores/app-store";
+import { useRoomsStore } from "@/stores/rooms-store";
 import { useLocale } from "@/i18n/use-locale";
 
 type FlatEntry =
@@ -233,6 +234,10 @@ export function SearchPalette() {
   const selectPage = useTreeStore((s) => s.selectPage);
   const loadPage = useEditorStore((s) => s.loadPage);
   const setSection = useAppStore((s) => s.setSection);
+  // Rooms v3: scope search to the room you're in (its top-level slug).
+  const sectionCabinetPath = useAppStore((s) => s.section.cabinetPath);
+  const defaultRoom = useRoomsStore((s) => s.defaultRoom);
+  const activeRoom = (sectionCabinetPath || defaultRoom || "").split("/")[0];
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -273,6 +278,7 @@ export function SearchPalette() {
           scope: s,
           limit: "50",
         });
+        if (activeRoom) params.set("cabinet", activeRoom);
         const res = await fetch(`/api/search?${params}`, {
           signal: controller.signal,
         });
@@ -293,7 +299,7 @@ export function SearchPalette() {
         setLoading(false);
       }
     },
-    [setResults, setLoading, setServiceError]
+    [setResults, setLoading, setServiceError, activeRoom]
   );
 
   useEffect(() => {

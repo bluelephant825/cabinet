@@ -54,9 +54,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const virtualPath = segments.join("/");
     const body = await req.json();
     if (body.rename) {
-      const newPath = await renamePage(virtualPath, body.rename);
+      const { newPath, references } = await renamePage(virtualPath, body.rename);
       invalidateTreeCache();
-      return NextResponse.json({ ok: true, newPath });
+      return NextResponse.json({ ok: true, newPath, references });
     }
     const fromParent = virtualPath.split("/").slice(0, -1).join("/");
     const toParent =

@@ -472,10 +472,6 @@ async function finalizeSessionConversation(session: ActiveSession): Promise<void
   }
 
   const plain = stripAnsi(session.output.join(""));
-  if (meta.status !== "running") {
-    completedOutput.set(session.id, { output: plain, completedAt: Date.now() });
-    return;
-  }
   const adapterUsage =
     session.kind === "structured" ? session.adapterUsage ?? null : null;
   const adapterErrorKind =
@@ -484,6 +480,47 @@ async function finalizeSessionConversation(session: ActiveSession): Promise<void
     session.kind === "structured" ? session.adapterErrorHint ?? null : null;
   const adapterErrorRetryAfterSec =
     session.kind === "structured" ? session.adapterErrorRetryAfterSec ?? null : null;
+  const completedPayload = {
+    output: plain,
+    completedAt: Date.now(),
+    status:
+      session.resolvedStatus ??
+      (session.exitCode === 0 ? "completed" : "failed"),
+    exitCode: session.exitCode,
+    adapterErrorKind,
+    adapterErrorHint,
+    adapterErrorRetryAfterSec,
+  };
+
+  if (meta.status !== "running") {
+    completedOutput.set(session.id, completedPayload);
+    // Transcript-driven finalize can flip meta to failed before the adapter
+    // child exits and classification runs — patch missing hints here.
+    if (
+      session.kind === "structured" &&
+      completedPayload.status === "failed" &&
+      !meta.errorHint?.trim() &&
+      adapterErrorHint?.trim()
+    ) {
+      await finalizeConversation(
+        session.id,
+        {
+          status: "failed",
+          exitCode: session.exitCode ?? meta.exitCode ?? 1,
+          errorKind: adapterErrorKind ?? undefined,
+          errorHint: adapterErrorHint ?? undefined,
+          errorRetryAfterSec: adapterErrorRetryAfterSec ?? undefined,
+        },
+        meta.cabinetPath
+      ).catch((err) => {
+        console.warn(
+          `[cabinet-daemon] failed to patch error hints for ${session.id}:`,
+          err
+        );
+      });
+    }
+    return;
+  }
 
   // For legacy PTY sessions, substitute a distilled 1-liner for summary
   // extraction so the task detail doesn't render random box-drawing chars as
@@ -908,8 +945,21 @@ function createStructuredSession(input: {
       }
 
       const plain = stripAnsi(session.output.join(""));
-      completedOutput.set(input.sessionId, { output: plain, completedAt: Date.now() });
-      await finalizeSessionConversation(session).catch(() => {});
+      completedOutput.set(input.sessionId, {
+        output: plain,
+        completedAt: Date.now(),
+        status: session.resolvedStatus ?? (session.exitCode === 0 ? "completed" : "failed"),
+        exitCode: session.exitCode,
+        adapterErrorKind: session.adapterErrorKind ?? null,
+        adapterErrorHint: session.adapterErrorHint ?? null,
+        adapterErrorRetryAfterSec: session.adapterErrorRetryAfterSec ?? null,
+      });
+      await finalizeSessionConversation(session).catch((err) => {
+        console.warn(
+          `[cabinet-daemon] finalizeSessionConversation failed for ${input.sessionId}:`,
+          err
+        );
+      });
 
       // Persist the adapter's resume handle + codec blob to the conversation
       // directory so future continues can resume. This only works when the
@@ -972,8 +1022,21 @@ function createStructuredSession(input: {
       }
       clearSessionStopFallbackTimer(session);
       const plain = stripAnsi(session.output.join(""));
-      completedOutput.set(input.sessionId, { output: plain, completedAt: Date.now() });
-      await finalizeSessionConversation(session).catch(() => {});
+      completedOutput.set(input.sessionId, {
+        output: plain,
+        completedAt: Date.now(),
+        status: session.resolvedStatus ?? (session.exitCode === 0 ? "completed" : "failed"),
+        exitCode: session.exitCode,
+        adapterErrorKind: session.adapterErrorKind ?? null,
+        adapterErrorHint: session.adapterErrorHint ?? null,
+        adapterErrorRetryAfterSec: session.adapterErrorRetryAfterSec ?? null,
+      });
+      await finalizeSessionConversation(session).catch((err) => {
+        console.warn(
+          `[cabinet-daemon] finalizeSessionConversation failed for ${input.sessionId}:`,
+          err
+        );
+      });
 
       if (session.ws && session.ws.readyState === WebSocket.OPEN) {
         sessions.delete(input.sessionId);
@@ -1428,6 +1491,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     const conversationMeta = await readConversationMeta(sessionId).catch(() => null);
+    const completed = completedOutput.get(sessionId);
+    if (completed && completed.status && completed.status !== "running") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          sessionId,
+          status: completed.status,
+          output: completed.output,
+        })
+      );
+      return;
+    }
+
     if (conversationMeta) {
       const transcript = await readConversationTranscript(sessionId).catch(() => "");
       const plainTranscript = stripAnsi(transcript);
@@ -1477,10 +1553,15 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const completed = completedOutput.get(sessionId);
     if (completed) {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ sessionId, status: "completed", output: completed.output }));
+      res.end(
+        JSON.stringify({
+          sessionId,
+          status: completed.status ?? "completed",
+          output: completed.output,
+        })
+      );
       return;
     }
 
@@ -1488,8 +1569,6 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ error: "Session not found" }));
     return;
   }
-
-  // POST /sessions — create a detached session without a WebSocket (for agent heartbeats)
   if (url.pathname === "/sessions" && req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => (body += chunk));
@@ -1669,24 +1748,37 @@ const server = http.createServer(async (req, res) => {
   const stopMatch = url.pathname.match(/^\/session\/([^/]+)\/stop$/);
   if (stopMatch && req.method === "POST") {
     const sessionId = stopMatch[1];
-    const session = sessions.get(sessionId);
-    if (!session || session.exited) {
+    // A conversation's live run may be keyed under the bare conversation id
+    // (turn 1 via startConversationRun; terminal-mode continues) OR under a
+    // per-turn run id of the shape `${conversationId}::t{n}::{uuid}` (native
+    // structured continues in executeViaDaemon). Stop must reach either, so
+    // match the exact id plus any `${id}::`-prefixed sessions. Without the
+    // prefix match, Stop silently 404'd on every native follow-up turn.
+    const prefix = `${sessionId}::`;
+    const targets: ActiveSession[] = [];
+    for (const [sid, s] of sessions) {
+      if (s.exited) continue;
+      if (sid === sessionId || sid.startsWith(prefix)) targets.push(s);
+    }
+    if (targets.length === 0) {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Session not found or already exited" }));
       return;
     }
     try {
-      // SIGTERM first, then SIGKILL after 2s if still alive
-      session.stop("SIGTERM");
-      session.stopFallbackTimer = setTimeout(() => {
-        if (!session.exited) {
-          try {
-            session.stop("SIGKILL");
-          } catch {}
-        }
-      }, 2000);
+      // SIGTERM first, then SIGKILL after 2s if still alive.
+      for (const session of targets) {
+        session.stop("SIGTERM");
+        session.stopFallbackTimer = setTimeout(() => {
+          if (!session.exited) {
+            try {
+              session.stop("SIGKILL");
+            } catch {}
+          }
+        }, 2000);
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, sessionId }));
+      res.end(JSON.stringify({ ok: true, sessionId, stopped: targets.length }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -1789,6 +1881,7 @@ const server = http.createServer(async (req, res) => {
         : "all";
       const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
       const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 50;
+      const cabinet = url.searchParams.get("cabinet") || undefined;
 
       const needsAgents = scope === "all" || scope === "agents";
       const needsTasks = scope === "all" || scope === "tasks";
@@ -1807,7 +1900,8 @@ const server = http.createServer(async (req, res) => {
         },
         q,
         scope,
-        limit
+        limit,
+        cabinet
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });

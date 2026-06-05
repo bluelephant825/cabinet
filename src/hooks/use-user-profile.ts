@@ -14,7 +14,9 @@ type State =
   | { status: "ready"; data: ProfileBundle }
   | { status: "error"; error: string };
 
-let state: State = { status: "idle" };
+const IDLE_STATE: State = { status: "idle" };
+
+let state: State = IDLE_STATE;
 const listeners = new Set<() => void>();
 let inflight: Promise<void> | null = null;
 
@@ -32,7 +34,7 @@ function getSnapshot(): State {
 }
 
 function getServerSnapshot(): State {
-  return { status: "idle" };
+  return IDLE_STATE;
 }
 
 async function doFetch(): Promise<void> {

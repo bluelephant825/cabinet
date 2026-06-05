@@ -6,6 +6,49 @@ All notable changes to Cabinet.
 
 ---
 
+## v0.4.4 · 2026-05-23
+
+The largest release since v0.4.0 (169 commits): Rooms, full internationalization, an Integrations Hub, a mobile layout, and a deep onboarding + tasks rework.
+
+### 🟢 New
+- 🟢 **Rooms (workspaces):** a home-button switcher over your top-level cabinets. Each room is a fully isolated cabinet with its own files, agents, tasks, search, theme, icon, and color, so Personal and Work never mix. Per-room theme applies on switch, and "Open in new window" gives each room its own window.
+- 🟢 **Internationalization (40 locales) + RTL:** first-run system-locale auto-detection, full right-to-left support (Hebrew end to end, a 108-fix RTL pass), Simplified + Traditional Chinese, a localized brand word, and per-block bidi text in the composer and task panels.
+- 🟢 **Integrations Hub:** a visual-first Settings hub for Slack, Discord, and Google over MCP, deployment-aware.
+- 🟢 **Mobile layout:** responsive bottom-tab navigation, an AI overlay, and a tour that fits small screens.
+- 🟢 **Sidebar overhaul:** a context menu for creating files and folders, linking knowledge (symlinks), file settings, and importing OS folders; inline file search in the Data drawer; renaming a page or folder keeps its wiki-links alive.
+- 🟢 **Team page:** tabbed Agents / Routines / Heartbeats / Schedule, with a master on/off switch and per-heartbeat toggles (the Agents drawer is now "Team").
+- 🟢 **Tasks:** a recent/running task rail, task chat consolidated into one drawer plus a full page, a Stop button while a run is live, editable inbox drafts, and inline artifact disclosure. The sidebar tree auto-refreshes when a run creates files.
+- 🟢 **AI editor drawer:** resizable, animated, pins the open page, and opens with a file-aware greeting after you create a file. In-page find (⌘F) and a live word count in the editor.
+- 🟢 **Transparency:** a "where your data lives" view, an onboarding data-location picker, and a feedback popup with a GitHub-star CTA.
+
+### 🔵 Improved
+- 🔵 **Onboarding rework:** a new agent picker, reworked provider step, blank-room setup, a heartbeat in the agent step, loading skeletons, a stable layout, step transitions, and a photo-viewer tour step.
+- 🔵 **Composer:** file attachments via drag, paste, or pick; an auto-growing textarea; and bidi-aware input.
+- 🔵 **Status bar:** a heartbeating green status dot (replacing the task count), back/forward arrows moved into the sidebar header, and warmer stars + Share pills.
+- 🔵 **Conversations:** agent tool output is fenced and collapsible, markdown renders properly (no more red-diff bullet lists), and artifact detection is more robust.
+- 🔵 **Themes:** theme thumbnails, era-signature styling, and a "match system" mode.
+- 🔵 **Search:** a minimal slash-command mode (/theme, /open).
+
+### 🟣 AI & providers
+- 🟣 Dynamic model discovery wired end to end for OpenCode and Pi; refreshed model lists across all CLI providers.
+- 🟣 Persona prompts template `{{cabinet.name}}` and `{{user.name}}` at build time.
+
+### 🟡 Fixed
+- 🟡 **Tasks:** @-mentioning a large binary file (for example a 74MB video) no longer inlines its bytes into the prompt, which used to fail the run and could crash the dev server; new pages, cabinets, and registry imports are created inside the current cabinet (not at the data root); onboarding always provisions the default "editor" agent; the task page loads scoped to its room.
+- 🟡 **Onboarding:** the profile uses the name you typed (not your OS username); the email you enter is saved and, with the launch-screen "keep in touch" consent, registered.
+- 🟡 **CLI / Electron:** `cabinetai` refuses to bootstrap in `$HOME` or `/` and recommends `~/Documents/Cabinet`; EMFILE recovery and npx-path onboarding; a stable Electron app port across launches.
+- 🟡 **Sidebar:** drag-and-drop reorder math and UX, friendly errors and an orphan sweep on cabinet moves, and right-click anywhere in a drawer opens the menu.
+- 🟡 **Misc:** link-shared Google Docs/Sheets embed via `/preview` (no sign-in wall); profile hydration loop fixed; remote-host terminal and dev origins; and a large batch of accessibility and UX polish from the pre-release audits.
+
+### 🔴 Changed
+- 🔴 **Rooms migration:** `data/` is now a neutral "home" container and each room is a top-level cabinet; the data root is no longer a working cabinet. Existing installs migrate automatically (data is backed up first).
+- 🔴 Removed the status-bar page-scoped AI edit composer and the redundant task-page back buttons in favor of sidebar navigation.
+
+### Thanks
+Community contributions from @eibrahim (render markdown in AI messages), @alegmal (marquee resume on hover), and @anh-chu (dev-origin and remote terminal fixes).
+
+---
+
 ## v0.4.3 — 2026-04-30
 
 First fully working DMG since v0.3.4.

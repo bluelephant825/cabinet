@@ -1,5 +1,0 @@
-name: getting-started
-local: /Users/mybiblepath/Development/cabinet/resources/getting-started
-remote: https://github.com/hilash/cabinet.git
-source: both
-branch: dev/pre-release

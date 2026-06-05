@@ -14,15 +14,16 @@ import {
   RefreshCw,
   Settings,
   UserPlus,
-  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { NavArrows } from "@/components/layout/nav-arrows";
+import { RoomSwitcher } from "./room-switcher";
 import { TreeView } from "./tree-view";
 import { NewPageDialog } from "./new-page-dialog";
 import { NewCabinetDialog } from "./new-cabinet-dialog";
 import { useAppStore } from "@/stores/app-store";
+import { useRoomsStore } from "@/stores/rooms-store";
 import { useTreeStore } from "@/stores/tree-store";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import type { TreeNode } from "@/types";
@@ -66,6 +67,15 @@ export function Sidebar() {
   const section = useAppStore((s) => s.section);
   const setSection = useAppStore((s) => s.setSection);
   const sidebarDrawer = useAppStore((s) => s.sidebarDrawer);
+  const defaultRoom = useRoomsStore((s) => s.defaultRoom);
+  // The cabinet new pages/cabinets should be created *inside* (a child of the
+  // cabinet you're currently in). The data-dir root (".") is the neutral home
+  // container, not a cabinet, so treat it as "use the default room" — otherwise
+  // new items land at the home root as siblings of the rooms.
+  const currentCabinetParent =
+    section.cabinetPath && section.cabinetPath !== ROOT_CABINET_PATH
+      ? section.cabinetPath
+      : defaultRoom || "";
   const [refreshing, setRefreshing] = useState(false);
   const lastRefreshAtRef = useRef(0);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -182,11 +192,11 @@ export function Sidebar() {
           className="flex h-full flex-col"
           style={{ width: panelWidth }}
         >
-        <div className="sidebar-header flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-0.5">
+        <div className="sidebar-header flex items-center justify-between gap-1 px-3 py-3">
+          <div className="flex min-w-0 items-center gap-1">
             <button
               onClick={() => setSection({ type: "home" })}
-              className="group flex items-center gap-1.5 rounded px-1 font-logo text-[22px] italic tracking-[-0.01em] text-foreground hover:text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
+              className="group flex shrink-0 items-center gap-1.5 rounded px-1 font-logo text-[22px] italic tracking-[-0.01em] text-foreground hover:text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
               title={t("sidebar:goHome")}
               aria-label={t("sidebar:goHome")}
             >
@@ -206,11 +216,13 @@ export function Sidebar() {
                   {brandWord}
                 </span>
               )}
-              <Home className="size-3.5 not-italic opacity-0 group-hover:opacity-50 transition-opacity shrink-0" />
             </button>
-            <NavArrows />
+            {/* The room switcher is just the room's icon next to the logo;
+                the room/cabinet name already shows in the drawer + main view. */}
+            <RoomSwitcher />
           </div>
-          <div className="flex items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-0.5">
+            <NavArrows />
             <Button
               variant="ghost"
               size="icon"
@@ -242,10 +254,15 @@ export function Sidebar() {
           {sidebarDrawer === "data" && (
             <>
               <div className="min-w-0 flex-1">
-                <NewPageDialog />
+                {/* Create the page inside the cabinet you're in, not at the
+                    data-dir (home) root. */}
+                <NewPageDialog parentPath={currentCabinetParent} />
               </div>
               <div className="min-w-0 flex-1">
-                <NewCabinetDialog />
+                {/* Rooms v3: the bottom button makes a cabinet *inside the
+                    current cabinet* (a child), not a new top-level room. New
+                    rooms are created from the home switcher's "Add room". */}
+                <NewCabinetDialog parentPath={currentCabinetParent} />
               </div>
             </>
           )}
@@ -322,7 +339,8 @@ export function Sidebar() {
           size="icon"
           aria-label={t("sidebar:expandSidebar")}
           title={t("sidebar:expandSidebar")}
-          className="absolute top-3 start-2 z-20 h-7 w-7 animate-in fade-in zoom-in-95 duration-200"
+          className="absolute top-3 z-20 h-7 w-7 animate-in fade-in zoom-in-95 duration-200"
+          style={{ insetInlineStart: "calc(0.5rem + var(--traffic-clearance, 0px))" }}
           onClick={() => setCollapsed(false)}
         >
           <PanelLeft className="h-4 w-4 rtl:rotate-180" />

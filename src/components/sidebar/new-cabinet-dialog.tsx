@@ -117,7 +117,12 @@ function NewCabinetOverlay({
               type="button"
               onClick={() => {
                 onOpenChange(false);
-                setSection({ type: "registry" });
+                // Carry the current cabinet so the import lands inside it (a
+                // child), not at the data-dir root as a sibling room.
+                setSection({
+                  type: "registry",
+                  cabinetPath: parentPath || undefined,
+                });
               }}
               disabled={creating}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"

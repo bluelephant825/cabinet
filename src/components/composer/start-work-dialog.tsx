@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { ComposerInput } from "@/components/composer/composer-input";
+import { useComposerAttachments } from "@/components/composer/use-composer-attachments";
 import {
   TaskRuntimePicker,
   type TaskRuntimeSelection,
@@ -64,6 +65,7 @@ export function StartWorkDialog({
   agents,
   initialMode = "now",
   initialPrompt,
+  placeholderOverride,
   initialAgentSlug,
   initialRuntime,
   editing,
@@ -77,6 +79,10 @@ export function StartWorkDialog({
   /** Seed the prompt (used when the inline composers hand off to the dialog
    *  after the user picks a non-"now" mode — preserves what they already typed). */
   initialPrompt?: string;
+  /** Override the rotating placeholder with a fixed suggestion (used by the
+   *  post-tour first task so the templated prompt shows as a placeholder, not
+   *  a pre-filled value). */
+  placeholderOverride?: string;
   /** Seed the selected agent. Falls back to the first active agent. */
   initialAgentSlug?: string;
   /** Seed the runtime picker (provider / model / effort). Used by edit mode
@@ -113,9 +119,11 @@ export function StartWorkDialog({
 
 
   const placeholder = useMemo(
-    () => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)],
+    () =>
+      placeholderOverride ||
+      PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [open]
+    [open, placeholderOverride]
   );
 
   const defaultAgent = useMemo(() => {
@@ -207,6 +215,8 @@ export function StartWorkDialog({
       message: string,
       mentionedPaths: string[],
       mentionedSkills: string[],
+      attachmentPaths: string[],
+      stagingClientUuid?: string,
     ) => {
       const resolvedAgent = selectedAgent;
       if (!resolvedAgent) throw new Error("No agent available.");
@@ -215,6 +225,8 @@ export function StartWorkDialog({
         userMessage: message,
         mentionedPaths,
         mentionedSkills,
+        attachmentPaths,
+        stagingClientUuid,
         cabinetPath: resolvedAgent.cabinetPath || cabinetPath,
         ...taskRuntime,
       });
@@ -228,6 +240,8 @@ export function StartWorkDialog({
       message: string,
       mentionedPaths: string[],
       mentionedSkills: string[],
+      attachmentPaths: string[],
+      stagingClientUuid?: string,
     ) => {
       const resolvedAgent = selectedAgent;
       if (!resolvedAgent) throw new Error("No agent available.");
@@ -236,6 +250,8 @@ export function StartWorkDialog({
         userMessage: message,
         mentionedPaths,
         mentionedSkills,
+        attachmentPaths,
+        stagingClientUuid,
         cabinetPath: resolvedAgent.cabinetPath || cabinetPath,
         draftOnly: true,
         ...taskRuntime,
@@ -330,18 +346,44 @@ export function StartWorkDialog({
     if (!res.ok) throw new Error(`Failed to save heartbeat (${res.status})`);
   }, [selectedAgent, heartbeatDraft]);
 
+  // Stage attachments under the resolved agent's cabinet so the path matches
+  // the cabinetPath createConversation receives below. Only "now"/"inbox"
+  // create a conversation that can carry attachmentPaths — recurring/heartbeat
+  // (jobs/persona APIs) and edit-draft have no attachment channel, so the
+  // paperclip is hidden there rather than shown as a dead control.
+  const stagingClientUuid = useMemo(
+    () =>
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `c-${Date.now()}`,
+    []
+  );
+  const attachments = useComposerAttachments({
+    cabinetPath: selectedAgent?.cabinetPath || cabinetPath,
+    clientAttachmentId: stagingClientUuid,
+    enabled: !isEditing && (mode === "now" || mode === "inbox"),
+  });
+
   const composer = useComposer({
     items: mentionItems,
-    onSubmit: async ({ message, mentionedPaths, mentionedSkills }) => {
+    attachments,
+    stagingClientUuid,
+    onSubmit: async ({
+      message,
+      mentionedPaths,
+      mentionedSkills,
+      attachmentPaths,
+      stagingClientUuid: turnStagingUuid,
+    }) => {
       setSubmitting(true);
       setError(null);
       try {
         if (isEditing) {
           await saveEdit(message, mentionedPaths, mentionedSkills);
         } else if (mode === "now") {
-          await runNow(message, mentionedPaths, mentionedSkills);
+          await runNow(message, mentionedPaths, mentionedSkills, attachmentPaths, turnStagingUuid);
         } else if (mode === "inbox") {
-          await addToInbox(message, mentionedPaths, mentionedSkills);
+          await addToInbox(message, mentionedPaths, mentionedSkills, attachmentPaths, turnStagingUuid);
         } else if (mode === "recurring") {
           await saveRoutine(message);
         } else {
@@ -374,6 +416,9 @@ export function StartWorkDialog({
   useEffect(() => {
     if (!open) return;
     composer.setInput(typeof initialPrompt === "string" ? initialPrompt : "");
+    // Drop any files staged in a prior (possibly cancelled) open so they
+    // don't bleed into this task. setInput already resets the prompt above.
+    attachments.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialPrompt]);
 
@@ -416,7 +461,7 @@ export function StartWorkDialog({
   const widthClass =
     mode === "recurring"
       ? "sm:max-w-3xl"
-      : "sm:max-w-xl";
+      : "sm:max-w-2xl";
 
   const title = isEditing
     ? t("startWork:titleEdit")
@@ -470,10 +515,15 @@ export function StartWorkDialog({
             autoFocus
             minHeight="100px"
             mentionDropdownPlacement="below"
+            attachments={attachments}
             disabled={mode === "recurring" && !canSubmitRecurring}
             actionsStart={
               <>
-                <TaskRuntimePicker value={taskRuntime} onChange={setTaskRuntime} />
+                <TaskRuntimePicker
+                  value={taskRuntime}
+                  onChange={setTaskRuntime}
+                  className="h-7"
+                />
                 {agents.length > 0 ? (
                   <AgentDropdown
                     agents={agents}
@@ -679,7 +729,7 @@ function AgentDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        className="inline-flex h-7 items-center gap-1 rounded-md border border-border/70 bg-background px-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
         title={t("startWork:selectAgent")}
       >
         {selectedAgent ? (

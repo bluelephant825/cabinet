@@ -105,6 +105,8 @@ export interface AgentDoc {
   department?: string;
   provider?: string;
   tags?: string[];
+  /** Top-level room slug this agent lives in (for room-scoped search). */
+  cabinet?: string;
   searchText: string;
 }
 
@@ -115,6 +117,8 @@ export interface TaskDoc {
   status?: string;
   trigger?: string;
   createdAt?: string;
+  /** Top-level room slug this task lives in (for room-scoped search). */
+  cabinet?: string;
   searchText: string;
 }
 
@@ -129,12 +133,23 @@ export function runSearch(
   sources: SearchSources,
   query: string,
   scope: SearchScope,
-  limit = MAX_PAGES
+  limit = MAX_PAGES,
+  cabinet?: string
 ): SearchResponse {
   const t0 = Date.now();
   const trimmed = query.trim();
   const tokens = tokenize(trimmed);
   const fullLower = trimmed.toLowerCase();
+
+  // Rooms v3: scope every result to the active room's subtree so search never
+  // crosses room boundaries. A room's own nested cabinets share the prefix and
+  // stay visible; sibling rooms do not.
+  const roomPrefix = cabinet && cabinet !== "." ? cabinet : null;
+  const inRoom = (p: string | undefined): boolean => {
+    if (!roomPrefix) return true;
+    if (!p) return false;
+    return p === roomPrefix || p.startsWith(roomPrefix + "/");
+  };
 
   const resp: SearchResponse = {
     query: trimmed,
@@ -157,6 +172,7 @@ export function runSearch(
     for (const { id, fields } of raw) {
       const record = sources.pages.get(id);
       if (!record) continue;
+      if (!inRoom(record.path)) continue;
       const matches = findLineMatches(record, tokens, fullLower);
       if (matches.length === 0 && !fields.includes("title") && !fields.includes("tags") && !fields.includes("headings")) {
         continue;
@@ -188,6 +204,7 @@ export function runSearch(
     const agents = sources.agents();
     const hits: Array<{ hit: AgentHit; score: number }> = [];
     for (const a of agents) {
+      if (!inRoom(a.cabinet)) continue;
       const text = a.searchText.toLowerCase();
       let score = 0;
       for (const t of tokens) {
@@ -236,6 +253,7 @@ export function runSearch(
     const tasks = sources.tasks();
     const hits: Array<{ hit: TaskHit; score: number }> = [];
     for (const task of tasks) {
+      if (!inRoom(task.cabinet)) continue;
       const text = task.searchText.toLowerCase();
       let score = 0;
       for (const t of tokens) {

@@ -7,17 +7,7 @@ import { useTreeStore } from "@/stores/tree-store";
 import { useSearchStore } from "@/stores/search-store";
 import { useFindStore } from "@/stores/find-store";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!target || !(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  if (target.isContentEditable) return true;
-  if (target.closest(".ProseMirror")) return true;
-  if (target.closest(".xterm")) return true;
-  if (target.closest("[data-hotkey-opaque='true']")) return true;
-  return false;
-}
+import { isEditableTarget } from "@/lib/keys";
 
 export function useGlobalHotkeys(): void {
   useEffect(() => {

@@ -16,10 +16,8 @@ import {
   ChevronDown,
   Check,
   Maximize2,
-  Play,
   TrendingUp,
 } from "lucide-react";
-import { Trans } from "react-i18next";
 import { MockupSidebar } from "./mockup-sidebar";
 import { TOUR_PALETTE as P } from "./palette";
 import { useLocale } from "@/i18n/use-locale";
@@ -102,63 +100,77 @@ function ViewerFrame({
   );
 }
 
-function VideoViewer() {
+function ImageViewer() {
   return (
-    <ViewerFrame title={"Night market.mp4"} icon={Video} iconColor={ICON.cyan}>
+    <ViewerFrame title={"Phuket sunset.jpg"} icon={ImageIcon} iconColor={ICON.pink}>
       <div
-        className="relative flex h-full w-full items-center justify-center"
+        className="relative h-full w-full overflow-hidden"
         style={{
           background:
-            "linear-gradient(135deg, #2a1a3d 0%, #4a2850 35%, #e64c2a 70%, #f8b04c 100%)",
+            "linear-gradient(180deg, #2b1d4e 0%, #6a3a72 26%, #c85a4e 52%, #ef7a3c 70%, #f6b85e 86%, #f7d28a 100%)",
         }}
       >
-        <svg
+        {/* Sun, low over the horizon */}
+        <div
+          className="absolute"
+          style={{
+            left: "50%",
+            top: "60%",
+            width: 64,
+            height: 64,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, #FFF1C2 0%, #FFD27A 45%, #FFB04D 100%)",
+            boxShadow: "0 0 44px 14px rgba(255, 190, 110, 0.55)",
+          }}
+        />
+        {/* Sea */}
+        <div
           className="absolute inset-x-0 bottom-0"
-          viewBox="0 0 340 120"
+          style={{
+            height: "34%",
+            background:
+              "linear-gradient(180deg, rgba(239,122,60,0.55) 0%, #6a3a72 55%, #2b1d4e 100%)",
+          }}
+        />
+        {/* Sun reflection shimmer on the water */}
+        <div
+          className="absolute"
+          style={{
+            left: "50%",
+            bottom: 0,
+            width: 40,
+            height: "34%",
+            transform: "translateX(-50%)",
+            background:
+              "linear-gradient(180deg, rgba(255,220,150,0.7), rgba(255,220,150,0))",
+            filter: "blur(2px)",
+          }}
+        />
+        {/* Island + palm silhouettes on the horizon */}
+        <svg
+          className="absolute inset-x-0"
+          viewBox="0 0 340 70"
           preserveAspectRatio="none"
-          style={{ height: "60%" }}
+          style={{ bottom: "34%", height: "26%" }}
         >
-          <g fill="rgba(0,0,0,0.55)">
-            <rect x="20" y="40" width="60" height="80" />
-            <rect x="90" y="30" width="50" height="90" />
-            <rect x="150" y="50" width="70" height="70" />
-            <rect x="230" y="35" width="55" height="85" />
-            <rect x="295" y="45" width="45" height="75" />
-          </g>
-          <g fill="#FFD166">
-            <circle cx="50" cy="30" r="4" />
-            <circle cx="115" cy="20" r="4" />
-            <circle cx="185" cy="40" r="4" />
-            <circle cx="260" cy="25" r="4" />
+          <g fill="rgba(20,10,30,0.7)">
+            <path d="M0 70 Q40 38 90 70 Z" />
+            <path d="M250 70 Q290 30 340 70 Z" />
+            {/* a lone palm */}
+            <rect x="34" y="34" width="3" height="36" />
+            <path d="M35 34 Q22 28 14 32 Q24 30 35 38 Z" />
+            <path d="M35 34 Q48 28 56 32 Q46 30 35 38 Z" />
+            <path d="M35 34 Q28 24 22 18 Q32 26 35 38 Z" />
           </g>
         </svg>
-        <div
-          className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full backdrop-blur"
-          style={{ background: "rgba(255,255,255,0.92)", boxShadow: "0 10px 30px rgba(0,0,0,0.4)" }}
-        >
-          <Play
-            className="h-5 w-5 translate-x-0.5"
-            style={{ color: P.text }}
-            strokeWidth={2.5}
-            fill="currentColor"
-          />
-        </div>
-        <div
-          className="absolute bottom-2 left-3 right-3 flex items-center gap-2"
-          style={{ color: "rgba(255,255,255,0.85)" }}
-        >
-          <span className="text-[9px] font-mono">0:18</span>
-          <div
-            className="relative flex-1 rounded-full"
-            style={{ height: "2px", background: "rgba(255,255,255,0.25)" }}
-          >
-            <div
-              className="absolute left-0 top-0 h-full rounded-full"
-              style={{ width: "28%", background: ICON.cyan }}
-            />
-          </div>
-          <span className="text-[9px] font-mono">1:04</span>
-        </div>
+        {/* a few birds */}
+        <svg className="absolute" style={{ left: "16%", top: "26%", width: 70, height: 24 }} viewBox="0 0 70 24">
+          <g fill="none" stroke="rgba(30,15,40,0.55)" strokeWidth="1.5" strokeLinecap="round">
+            <path d="M6 12 Q11 6 16 12 Q21 6 26 12" />
+            <path d="M40 7 Q44 2 48 7 Q52 2 56 7" />
+          </g>
+        </svg>
       </div>
     </ViewerFrame>
   );
@@ -310,7 +322,7 @@ function CodeViewer() {
 // time via the *Key fields below.
 const SCENES: (Scene & { rootLabelKey: string; captionKey: string })[] = [
   {
-    id: "thailand-video",
+    id: "thailand-photo",
     rootIcon: ChevronDown as IconComponent,
     rootColor: P.textTertiary,
     rootLabel: "Thailand Trip",
@@ -324,10 +336,10 @@ const SCENES: (Scene & { rootLabelKey: string; captionKey: string })[] = [
       { label: "Street food notes.mp3", icon: Music, color: ICON.amber, indent: 1 },
       { label: "Flights.pdf", icon: FileType, color: ICON.red, indent: 1 },
     ],
-    featuredIdx: 3,
+    featuredIdx: 1,
     caption: "View all your files in one place.",
     captionKey: "slideData:thailandCaption",
-    viewer: <VideoViewer />,
+    viewer: <ImageViewer />,
   },
   {
     id: "tax-webapp",
@@ -394,10 +406,9 @@ const CURSOR_TARGET_X = 48;
 
 interface SlideDataProps {
   sceneIdx: number;
-  viewerRevealed?: boolean;
 }
 
-export function SlideData({ sceneIdx, viewerRevealed }: SlideDataProps) {
+export function SlideData({ sceneIdx }: SlideDataProps) {
   const { t, dir } = useLocale();
   const clampedIdx = Math.min(Math.max(sceneIdx, 0), SCENES.length - 1);
   const scene = SCENES[clampedIdx];
@@ -528,17 +539,10 @@ export function SlideData({ sceneIdx, viewerRevealed }: SlideDataProps) {
         <div
           key={scene.id + "-viewer"}
           className="h-full w-full opacity-0"
-          style={
-            sceneIdx === 0
-              ? {
-                  animation: "cabinet-tour-fade-up 0.175s ease-out forwards",
-                  animationPlayState: viewerRevealed ? "running" : "paused",
-                }
-              : {
-                  animation: "cabinet-tour-fade-up 0.175s ease-out forwards",
-                  animationDelay: "825ms",
-                }
-          }
+          style={{
+            animation: "cabinet-tour-fade-up 0.175s ease-out forwards",
+            animationDelay: "825ms",
+          }}
         >
           {scene.viewer}
         </div>
@@ -566,10 +570,8 @@ export function SlideData({ sceneIdx, viewerRevealed }: SlideDataProps) {
             animationDelay: "500ms",
           }}
         >
-          <Trans
-            i18nKey="slideDataCopy:headlineSentence"
-            components={{ accent: <span style={{ color: P.accent }} /> }}
-          />
+          Your Cabinet is <span style={{ color: P.accent }}>one place</span> for all your
+          files and dashboards
         </h2>
         <p
           className="font-body-serif text-base leading-relaxed opacity-0 lg:text-lg"
@@ -579,9 +581,8 @@ export function SlideData({ sceneIdx, viewerRevealed }: SlideDataProps) {
             animationDelay: "650ms",
           }}
         >
-          {t("slideDataCopy:paragraphPrefix")}
-          <span className="font-mono" style={{ color: P.accent }}>@</span>
-          {t("slideDataCopy:paragraphSuffix")}
+          One place for everything, so you and your AI team read, edit, and ship from the{" "}
+          <span style={{ color: P.text, fontWeight: 600 }}>same files</span>, not copies of copies.
         </p>
         <p
           className="font-body-serif text-sm leading-relaxed opacity-0 lg:text-base"
@@ -591,9 +592,9 @@ export function SlideData({ sceneIdx, viewerRevealed }: SlideDataProps) {
             animationDelay: "800ms",
           }}
         >
-          {t("slideDataCopy:secondParagraphPrefix")}
-          <span style={{ color: P.text, fontWeight: 600 }}>{t("slideDataCopy:sameFiles")}</span>
-          {t("slideDataCopy:secondParagraphSuffix")}
+          Markdown, PDFs, spreadsheets, slides, images, video, audio, linked repos, embedded
+          web apps, Google Docs. Mention any of it with{" "}
+          <span className="font-mono" style={{ color: P.accent }}>@</span>.
         </p>
       </div>
     </div>

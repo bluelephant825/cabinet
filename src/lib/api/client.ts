@@ -80,10 +80,24 @@ export async function movePageApi(
   return data.newPath;
 }
 
+export interface RenameReferencesSummary {
+  linkCount: number;
+  pageCount: number;
+  undoToken: string | null;
+  oldName: string;
+  newName: string;
+  changedPages: string[];
+}
+
+export interface RenamePageResult {
+  newPath: string;
+  references: RenameReferencesSummary;
+}
+
 export async function renamePageApi(
   fromPath: string,
   newName: string
-): Promise<string> {
+): Promise<RenamePageResult> {
   const res = await fetch(`/api/pages/${fromPath}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -91,5 +105,24 @@ export async function renamePageApi(
   });
   if (!res.ok) throw new Error(`Failed to rename page: ${fromPath}`);
   const data = await res.json();
-  return data.newPath;
+  return { newPath: data.newPath, references: data.references };
+}
+
+export async function undoRenameApi(
+  token: string
+): Promise<{ ok: boolean; reason?: string }> {
+  const res = await fetch(`/api/references/undo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (res.ok) return { ok: true };
+  let reason = "failed";
+  try {
+    const body = await res.json();
+    if (body?.reason) reason = body.reason;
+  } catch {
+    // ignore
+  }
+  return { ok: false, reason };
 }

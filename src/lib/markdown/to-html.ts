@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeStringify from "rehype-stringify";
 import { detectEmbed } from "@/lib/embeds/detect";
+import { slugifyPageName } from "@/lib/markdown/wiki-links";
 
 /**
  * Pre-process markdown to convert [[Wiki Links]] to HTML anchors
@@ -11,10 +12,7 @@ import { detectEmbed } from "@/lib/embeds/detect";
  */
 function convertWikiLinks(markdown: string): string {
   return markdown.replace(/\[\[([^\]]+)\]\]/g, (_match, pageName: string) => {
-    const slug = pageName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    const slug = slugifyPageName(pageName);
     return `<a data-wiki-link="true" data-page-name="${pageName}" href="#page:${slug}" class="wiki-link">${pageName}</a>`;
   });
 }

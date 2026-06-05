@@ -14,7 +14,7 @@ import { DirIcon } from "@/components/ui/dir-icon";
 interface TourModalProps {
   open: boolean;
   onClose: () => void;
-  onLaunchTask: (starterPrompt: string) => void;
+  onLaunchTask: () => void;
 }
 
 // Each data scene is its own back/next step. `stageKey` is stable across
@@ -66,35 +66,27 @@ function TourBody({
   onLaunchTask,
 }: {
   onClose: () => void;
-  onLaunchTask: (starterPrompt: string) => void;
+  onLaunchTask: () => void;
 }) {
   const { t, dir } = useLocale();
   const [index, setIndex] = useState(0);
-  const [viewerRevealed, setViewerRevealed] = useState(false);
 
   const goTo = useCallback((n: number) => {
-    setViewerRevealed(false);
     const clamped = Math.max(0, Math.min(n, SLIDES.length - 1));
     transition(() => setIndex(clamped));
   }, []);
 
   const next = useCallback(() => {
-    if (SLIDES[index].id === "data-0" && !viewerRevealed) {
-      setViewerRevealed(true);
-      return;
-    }
-    setViewerRevealed(false);
     transition(() => setIndex((i) => Math.min(i + 1, SLIDES.length - 1)));
-  }, [index, viewerRevealed]);
+  }, []);
 
   const back = useCallback(() => {
-    setViewerRevealed(false);
     transition(() => setIndex((i) => Math.max(i - 1, 0)));
   }, []);
   const finish = useCallback(() => {
-    onLaunchTask(t("tour:starterTask"));
+    onLaunchTask();
     onClose();
-  }, [onLaunchTask, onClose, t]);
+  }, [onLaunchTask, onClose]);
 
   useEffect(() => {
     const forwardKey = dir === "rtl" ? "ArrowLeft" : "ArrowRight";
@@ -164,9 +156,7 @@ function TourBody({
           key={current.stageKey}
           className="cabinet-tour-animated flex flex-1 min-h-0 items-center justify-center"
         >
-          {current.id === "data-0"
-            ? <SlideData sceneIdx={0} viewerRevealed={viewerRevealed} />
-            : current.render()}
+          {current.render()}
         </div>
       </div>
 

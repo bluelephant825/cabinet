@@ -6,12 +6,26 @@ import {
   sanitizeFilename,
 } from "@/lib/storage/path-utils";
 import { scaffoldCabinet } from "@/lib/storage/cabinet-scaffold";
+import { invalidateTreeCache } from "@/lib/storage/tree-builder";
 import {
   MANDATORY_AGENT_SLUGS,
   mergeMandatoryAgentSlugs,
   resolveAgentLibraryDir,
 } from "@/lib/agents/library-manager";
 import { ensureAgentScaffold } from "@/lib/agents/scaffold";
+import { listRooms, updateRoomMeta } from "@/lib/cabinets/rooms";
+
+// Distinct avatars for new top-level rooms (mirrors the migration + the
+// ROOM_ICON_KEYS / ROOM_COLORS sets) so two fresh rooms never look identical.
+const ROOM_ICONS = [
+  "briefcase", "study", "lab", "family", "rocket",
+  "studio", "coffee", "building", "school", "heart",
+];
+const ROOM_COLORS = [
+  "rgb(99, 102, 241)", "rgb(236, 72, 153)", "rgb(34, 197, 94)",
+  "rgb(249, 115, 22)", "rgb(14, 165, 233)", "rgb(168, 85, 247)",
+  "rgb(245, 158, 11)", "rgb(20, 184, 166)",
+];
 
 interface CreateCabinetRequest {
   name: string;
@@ -62,15 +76,33 @@ export async function POST(req: NextRequest) {
       // Good — doesn't exist
     }
 
-    // Create cabinet directory and bootstrap structure
+    // Create cabinet directory and bootstrap structure. A top-level cabinet
+    // (no parent) is a "room" — an isolated sibling workspace. A cabinet with a
+    // parent is a "child" nested inside its room.
     await fs.mkdir(targetDir, { recursive: true });
-    const kind = parentPath ? "child" : "root";
+    const isRoom = !parentPath;
+    const kind = isRoom ? "room" : "child";
     await scaffoldCabinet(targetDir, {
       name: name.trim(),
       kind,
       description,
       locale: body.locale,
     });
+
+    // Give a new room a distinct icon + accent color up front so the home
+    // switcher avatars are easy to tell apart (the "one DP" fix).
+    if (isRoom) {
+      try {
+        const existing = await listRooms();
+        const idx = existing.length;
+        await updateRoomMeta(virtualPath, {
+          icon: ROOM_ICONS[idx % ROOM_ICONS.length],
+          color: ROOM_COLORS[idx % ROOM_COLORS.length],
+        });
+      } catch {
+        // Non-fatal: the room still works, it just falls back to a letter tile.
+      }
+    }
 
     // Copy selected agents from library
     for (const agentSlug of normalizedSelectedAgents) {
@@ -100,6 +132,8 @@ export async function POST(req: NextRequest) {
       await ensureAgentScaffold(agentTargetDir);
     }
 
+    // New cabinet/room dir — drop the buildTree cache so it shows immediately.
+    invalidateTreeCache();
     return NextResponse.json(
       { ok: true, path: virtualPath, name: name.trim() },
       { status: 201 }

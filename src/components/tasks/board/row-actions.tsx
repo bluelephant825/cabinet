@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRightLeft, Loader2, Pencil, Play, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Play, RotateCcw, Square, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   deleteConversation,
-  reassignConversation,
   restartConversation,
   stopConversation,
 } from "./board-actions";
-import { ReassignMenu } from "./reassign-menu";
 import { IconHint } from "./icon-hint";
 import type { CabinetAgentSummary } from "@/types/cabinets";
 import type { TaskMeta, TaskStatus } from "@/types/tasks";
@@ -22,18 +20,19 @@ import { useLocale } from "@/i18n/use-locale";
  */
 export function RowActions({
   task,
-  agents = [],
   onRefresh,
   className,
 }: {
   task: TaskMeta;
+  /** Kept in the type for caller API symmetry even though unused today —
+   *  the per-task reassign (hand-off) control was removed. */
   agents?: CabinetAgentSummary[];
   onRefresh?: () => Promise<void> | void;
   className?: string;
 }) {
   const { t } = useLocale();
   const [busy, setBusy] = useState<
-    "stop" | "restart" | "delete" | "reassign" | null
+    "stop" | "restart" | "delete" | null
   >(null);
   const visibility = visibilityFor(task.status);
   // An inbox draft is an idle task with no activity yet — exactly
@@ -45,10 +44,7 @@ export function RowActions({
   const isInboxDraft = task.status === "idle" && !task.lastActivityAt;
   // Inbox drafts haven't run yet, so "Restart" reads as the first run —
   // show a Play glyph + "Run now" copy instead of the circular-arrow
-  // restart icon. Reassign is also dropped here: you pick the agent in the
-  // composer, and handing off an unstarted draft has no real meaning.
-  const canReassign =
-    agents.length > 0 && task.status !== "archived" && !isInboxDraft;
+  // restart icon.
 
   async function run(kind: "stop" | "restart" | "delete") {
     if (busy) return;
@@ -69,24 +65,10 @@ export function RowActions({
     }
   }
 
-  async function handleReassign(toSlug: string) {
-    if (busy || toSlug === task.agentSlug) return;
-    setBusy("reassign");
-    try {
-      await reassignConversation(task.id, toSlug, task.cabinetPath);
-      if (onRefresh) await onRefresh();
-    } catch (err) {
-      console.error("[board] reassign failed", err);
-    } finally {
-      setBusy(null);
-    }
-  }
-
   if (
     !visibility.stop &&
     !visibility.restart &&
     !visibility.delete &&
-    !canReassign &&
     !isInboxDraft
   ) {
     return null;
@@ -151,22 +133,6 @@ export function RowActions({
             )
           }
         />
-      ) : null}
-      {canReassign ? (
-        <ReassignMenu
-          agents={agents}
-          currentSlug={task.agentSlug}
-          onSelect={handleReassign}
-          triggerHint={t("rowActions:reassignHint")}
-          triggerClassName="inline-flex size-6 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary disabled:opacity-50"
-        >
-          {busy === "reassign" ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <ArrowRightLeft className="size-3.5" />
-          )}
-          <span className="sr-only">{t("rowActions:reassign")}</span>
-        </ReassignMenu>
       ) : null}
       {visibility.delete ? (
         <ActionButton

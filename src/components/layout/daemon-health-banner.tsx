@@ -17,8 +17,8 @@ export function DaemonHealthBanner() {
 
   const fixHint =
     installKind === "electron-macos"
-      ? "Quit and relaunch Cabinet to restart the agent daemon."
-      : "Run `npm run dev:daemon` (or restart `npm run dev:all`) to bring the agent daemon back up.";
+      ? t("chrome:daemon.fixHintElectron")
+      : t("chrome:daemon.fixHintDev");
 
   return (
     <div
@@ -27,9 +27,9 @@ export function DaemonHealthBanner() {
     >
       <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
       <div className="flex-1 min-w-0">
-        <span className="font-medium">The agent daemon isn&apos;t responding.</span>
+        <span className="font-medium">{t("chrome:daemon.notResponding")}</span>
         <span className="ml-2 text-amber-700/80 dark:text-amber-200/80">
-          Agents, jobs, and AI requests will fail until it&apos;s back. {fixHint}
+          {t("chrome:daemon.willFail", { fixHint })}
         </span>
       </div>
       <button

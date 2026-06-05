@@ -68,6 +68,11 @@ async function buildResponse() {
           installSteps: p.installSteps,
           models: p.models || [],
           effortLevels: p.effortLevels || [],
+          // Capability flag so UIs switch on a trait, not a hardcoded id list
+          // (§13 invariant). When true the `models` above are only an offline
+          // fallback — the real, entitlement-gated set comes from
+          // GET /api/agents/providers/:id/models.
+          dynamicModels: typeof p.listModels === "function",
           defaultAdapterType,
           adapters,
           supportsTerminalResume: p.supportsTerminalResume === true,

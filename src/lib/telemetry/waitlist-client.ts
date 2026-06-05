@@ -39,6 +39,25 @@ async function postJson(path: string, body: unknown): Promise<Response | null> {
   }
 }
 
+/**
+ * Register the email a user enters on the onboarding welcome step with our
+ * backend so we can learn who's onboarding. Best-effort, fire-and-forget.
+ *
+ * Deliberately uses the waitlist intake endpoint (the PII channel) with a
+ * distinct `source`, NOT the anonymous telemetry pipeline — email must never
+ * flow through `sendTelemetry` (see catalog.ts allowlist + the "anonymous"
+ * promise in banner.ts).
+ */
+export function recordOnboardingEmail(email: string): void {
+  const trimmed = email.trim();
+  if (!trimmed) return;
+  void postJson("/waitlist", {
+    email: trimmed,
+    source: "onboarding-welcome",
+    visitId: getVisitId(),
+  });
+}
+
 export function recordWaitlistView(source: string): void {
   void postJson("/waitlist/visit", { type: "view", source, visitId: getVisitId() });
 }

@@ -174,6 +174,8 @@ Every editor view has a **Source** toggle in the top-right. Click it to see (and
     
 -   [[Delegating Between Agents]] — Agent-to-agent dispatch, `LAUNCH_TASK` / `SCHEDULE_*` proposals, approval panel, per-row model/effort overrides
     
+-   [[Rooms]]: Switchable workspaces, where each room has its own big cabinet (files, agents, tasks, theme, icon, color) plus open-in-new-window
+    
 
 ## Supported File Types
 

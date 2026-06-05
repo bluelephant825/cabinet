@@ -1,6 +1,6 @@
 {
   "name": "cabinet",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "license": "MIT",
   "main": "electron/main.cjs",
@@ -25,7 +25,8 @@
     "i18n:extract": "node scripts/i18n-extract.mjs",
     "i18n:check": "node scripts/i18n-extract.mjs --check",
     "i18n:report": "node scripts/i18n-find-hardcoded.mjs",
-    "postinstall": "node scripts/postinstall.mjs"
+    "postinstall": "node scripts/postinstall.mjs",
+    "i18n:translate": "node scripts/i18n-translate.mjs"
   },
   "dependencies": {
     "@aarkue/tiptap-math-extension": "^1.4.0",
@@ -78,6 +79,7 @@
     "i18next-browser-languagedetector": "^8.2.1",
     "js-yaml": "^4.1.1",
     "jspdf": "^4.2.1",
+    "jszip": "^3.10.1",
     "katex": "^0.16.45",
     "lowlight": "^3.3.0",
     "lucide-react": "^0.577.0",

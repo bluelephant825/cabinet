@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useLocale } from "@/i18n/use-locale";
 
 interface HomeBlueprintBackgroundProps {
   accent: string;
@@ -15,7 +16,7 @@ interface Wall {
 }
 
 interface Room {
-  label: string;
+  id: string;
   cx: number;
   cy: number;
   appearAt: number;
@@ -88,7 +89,7 @@ const DOORS = [
 const ROOMS: Room[] = [
   // Top row
   {
-    label: "OFFICE",
+    id: "office",
     cx: 200,
     cy: 105,
     appearAt: 2.3,
@@ -98,7 +99,7 @@ const ROOMS: Room[] = [
     ],
   },
   {
-    label: "STUDY",
+    id: "study",
     cx: 500,
     cy: 105,
     appearAt: 2.38,
@@ -108,7 +109,7 @@ const ROOMS: Room[] = [
     ],
   },
   {
-    label: "LAB",
+    id: "lab",
     cx: 800,
     cy: 105,
     appearAt: 2.46,
@@ -119,7 +120,7 @@ const ROOMS: Room[] = [
   },
   // Middle row (flanking the patio)
   {
-    label: "LIBRARY",
+    id: "library",
     cx: 200,
     cy: 235,
     appearAt: 2.54,
@@ -129,7 +130,7 @@ const ROOMS: Room[] = [
     ],
   },
   {
-    label: "KITCHEN",
+    id: "kitchen",
     cx: 800,
     cy: 275,
     appearAt: 2.62,
@@ -141,7 +142,7 @@ const ROOMS: Room[] = [
   },
   // Bottom row
   {
-    label: "FAMILY",
+    id: "family",
     cx: 200,
     cy: 500,
     appearAt: 2.7,
@@ -150,7 +151,7 @@ const ROOMS: Room[] = [
     ],
   },
   {
-    label: "DINING",
+    id: "dining",
     cx: 500,
     cy: 500,
     appearAt: 2.78,
@@ -159,7 +160,7 @@ const ROOMS: Room[] = [
     ],
   },
   {
-    label: "STUDIO",
+    id: "studio",
     cx: 800,
     cy: 500,
     appearAt: 2.86,
@@ -232,6 +233,7 @@ export function HomeBlueprintBackground({
   accentSoft,
   paper,
 }: HomeBlueprintBackgroundProps) {
+  const { t } = useLocale();
   const gridId = useMemo(
     () => `bp-grid-${Math.random().toString(36).slice(2, 8)}`,
     []
@@ -442,7 +444,7 @@ export function HomeBlueprintBackground({
           {ROOMS.flatMap((room) =>
             room.cabinets.map((c, idx) => (
               <g
-                key={`cab-${room.label}-${idx}`}
+                key={`cab-${room.id}-${idx}`}
                 className="bp-cabinet"
                 style={
                   {
@@ -650,7 +652,7 @@ export function HomeBlueprintBackground({
         <g fontFamily="'JetBrains Mono', ui-monospace, monospace" fill={accent}>
           {ROOMS.map((room) => (
             <g
-              key={`label-${room.label}`}
+              key={`label-${room.id}`}
               className="bp-label"
               style={
                 {
@@ -666,8 +668,9 @@ export function HomeBlueprintBackground({
                 fontSize={17}
                 letterSpacing={4}
                 fontWeight={700}
+                style={{ textTransform: "uppercase" }}
               >
-                {room.label}
+                {t(`onboarding:blueprint.rooms.${room.id}`)}
               </text>
               <line
                 x1={room.cx - 32}

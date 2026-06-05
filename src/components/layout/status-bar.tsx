@@ -685,17 +685,17 @@ export function StatusBar() {
               aria-label={t("status:save.retryAriaLabel")}
               className="rounded-md px-1.5 py-0.5 text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             >
-              Save failed — retry
+              {t("status:save.saveFailedRetry")}
             </button>
           ) : saveStatus === "saving" ? (
             <span className="flex items-center gap-1 text-muted-foreground/70" title={t("status:save.autoSaving")}>
               <Loader2 className="h-3 w-3 animate-spin" />
-              Saving…
+              {t("status:save.savingText")}
             </span>
           ) : saveStatus === "saved" ? (
             <span className="flex items-center gap-1 text-emerald-500/80" title={t("status:save.forceSave")}>
               <Check className="h-3 w-3" />
-              Saved
+              {t("status:save.savedText")}
             </span>
           ) : isDirty ? (
             // Audit #018: while the user is mid-burst (debounce open),
@@ -706,7 +706,7 @@ export function StatusBar() {
               title={t("status:save.editing")}
             >
               <CircleDot className="h-3 w-3 animate-pulse" />
-              Editing…
+              {t("status:save.editingText")}
             </span>
           ) : savedAgoLabel ? (
             // Audit #018: persistent "Saved · Xs ago" replaces the empty
@@ -717,7 +717,7 @@ export function StatusBar() {
               title={t("status:save.forceSave")}
             >
               <Check className="h-3 w-3 text-emerald-500/70" />
-              Saved · {savedAgoLabel}
+              {t("status:save.savedAgo", { ago: savedAgoLabel })}
             </span>
           ) : null
         )}
@@ -725,32 +725,32 @@ export function StatusBar() {
           <span
             className="text-muted-foreground/60 tabular-nums"
             title={t("status:save.wordCountTitle")}
-            aria-label={`${wordCount} ${wordCount === 1 ? "word" : "words"}`}
+            aria-label={`${wordCount} ${wordCount === 1 ? t("status:save.word") : t("status:save.words")}`}
           >
-            {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}
+            {wordCount.toLocaleString()} {wordCount === 1 ? t("status:save.word") : t("status:save.words")}
           </span>
         )}
         {pullStatus === "pulling" && (
           <span className="flex items-center gap-1 text-blue-400">
             <CloudDownload className="h-3 w-3 animate-pulse" />
-            Pulling...
+            {t("status:git2.pulling")}
           </span>
         )}
         {pullStatus === "pulled" && (
           <span className="flex items-center gap-1 text-green-400">
             <Check className="h-3 w-3" />
-            Updated from remote
+            {t("status:git2.pulled")}
           </span>
         )}
         {pullStatus === "up-to-date" && (
           <span className="flex items-center gap-1 text-muted-foreground/60">
             <Check className="h-3 w-3" />
-            Up to date
+            {t("status:git2.upToDate")}
           </span>
         )}
         {pullStatus === "error" && (
           <span className="flex items-center gap-1 text-red-400">
-            Pull failed
+            {t("status:git2.pullFailed")}
           </span>
         )}
         {update?.updateStatus.state === "restart-required" && (
@@ -760,7 +760,7 @@ export function StatusBar() {
             title={t("status:common.openSettings")}
           >
             <CloudDownload className="h-3 w-3" />
-            Restart to finish update
+            {t("status:misc.restartToFinishUpdate")}
           </button>
         )}
         {update?.updateAvailable && update?.updateStatus.state !== "restart-required" && update.latest && (
@@ -786,7 +786,6 @@ export function StatusBar() {
               uncommitted > 0
                 ? t("status:git2.uncommittedFilesAria", {
                     count: uncommitted,
-                    plural: uncommitted === 1 ? "" : "s",
                   })
                 : t("status:git2.allCommitted")
             }

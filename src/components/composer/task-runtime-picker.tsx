@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppStore } from "@/stores/app-store";
-import { BrainCircuit, Check, Sparkles, Terminal } from "lucide-react";
+import { dedupFetch } from "@/lib/api/dedup-fetch";
+import {
+  BrainCircuit,
+  Check,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Terminal,
+  X,
+} from "lucide-react";
 import { ProviderGlyph } from "@/components/agents/provider-glyph";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/i18n/use-locale";
@@ -516,6 +525,284 @@ function ProviderRuntimeMatrix({
   );
 }
 
+function groupModelsBySubProvider(
+  models: ProviderModel[]
+): Array<{ group: string; items: ProviderModel[] }> {
+  const groups = new Map<string, ProviderModel[]>();
+  for (const model of models) {
+    const slash = model.id.indexOf("/");
+    const group = slash > 0 ? model.id.slice(0, slash) : "other";
+    const bucket = groups.get(group);
+    if (bucket) bucket.push(model);
+    else groups.set(group, [model]);
+  }
+  return [...groups.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([group, items]) => ({ group, items }));
+}
+
+// Cap rendered rows so a ~100+ entitlement-gated catalog can't jank the
+// dropdown; the search box narrows long lists well before the cap bites.
+const COMBOBOX_RENDER_CAP = 200;
+
+/**
+ * Searchable, sub-provider-grouped model list. Replaces the fixed matrix for
+ * providers that do per-machine dynamic discovery (OpenCode, Pi) where the
+ * real list is dozens-to-hundreds of `vendor/model` ids. Triggers lazy
+ * hydration of the real list on mount and exposes a refresh (bust the 60s
+ * server cache after the user adds an API key).
+ */
+function ProviderModelCombobox({
+  provider,
+  currentProviderId,
+  currentModelId,
+  selectedEffortId,
+  onSelect,
+}: {
+  provider: ProviderInfo;
+  currentProviderId?: string;
+  currentModelId?: string;
+  selectedEffortId?: string;
+  onSelect: (modelId: string, effortId?: string) => void;
+}) {
+  const ensureProviderModels = useAppStore((s) => s.ensureProviderModels);
+  const [query, setQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  // Own fetch for *display* so this works whether the parent feeds store
+  // providers (composer) or a local snapshot (Settings/onboarding). The
+  // store action is still called so the composer's resolveProviderModel
+  // guard flips (provider.modelsHydrated). dedupFetch + the 60s server
+  // cache collapse the two calls into one request.
+  const [fetchedModels, setFetchedModels] = useState<ProviderModel[] | null>(
+    null
+  );
+  // null = unknown/loading, "live" = real per-machine list, "offline" = the
+  // CLI couldn't be queried and we're showing static defaults.
+  const [discovery, setDiscovery] = useState<"live" | "offline" | null>(null);
+
+  const loadModels = useCallback(
+    async (refresh: boolean) => {
+      void ensureProviderModels(provider.id, refresh ? { refresh: true } : undefined);
+      try {
+        const response = await dedupFetch(
+          `/api/agents/providers/${encodeURIComponent(provider.id)}/models${
+            refresh ? "?refresh=1" : ""
+          }`
+        );
+        if (!response.ok) {
+          setDiscovery("offline");
+          return;
+        }
+        const data = (await response.json()) as {
+          models?: ProviderModel[];
+          dynamic?: boolean;
+        };
+        setDiscovery(data.dynamic === true ? "live" : "offline");
+        if (Array.isArray(data.models) && data.models.length > 0) {
+          setFetchedModels(data.models);
+        }
+      } catch {
+        // keep the offline fallback already on `provider.models`
+        setDiscovery("offline");
+      }
+    },
+    [ensureProviderModels, provider.id]
+  );
+
+  useEffect(() => {
+    setFetchedModels(null);
+    setDiscovery(null);
+    void loadModels(false);
+  }, [loadModels]);
+
+  const models = useMemo(
+    () => fetchedModels ?? provider.models ?? [],
+    [fetchedModels, provider.models]
+  );
+  const hydrating =
+    Boolean(provider.dynamicModels) &&
+    fetchedModels === null &&
+    !provider.modelsHydrated;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return models;
+    return models.filter(
+      (model) =>
+        model.id.toLowerCase().includes(q) ||
+        model.name.toLowerCase().includes(q)
+    );
+  }, [models, query]);
+
+  const groups = useMemo(
+    () => groupModelsBySubProvider(filtered.slice(0, COMBOBOX_RENDER_CAP)),
+    [filtered]
+  );
+
+  const effortColumns = getProviderEffortColumns(provider);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadModels(true);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  return (
+    <div className="bg-background">
+      <div className="flex items-center gap-1.5 border-b border-border/60 px-2.5 py-2">
+        <Search className="size-3 shrink-0 text-muted-foreground/60" />
+        <input
+          type="text"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search models — e.g. minimax, glm, gpt"
+          className="min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground/50"
+          autoFocus
+        />
+        <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground/50">
+          {filtered.length}/{models.length}
+        </span>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          title="Refresh — re-read the CLI's model list (use after adding an API key)"
+          className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:text-foreground disabled:opacity-50"
+        >
+          <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
+        </button>
+      </div>
+
+      {discovery === "offline" && (
+        <div className="border-b border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[9.5px] leading-relaxed text-amber-700 dark:text-amber-400">
+          Showing offline defaults — {provider.name} couldn&apos;t be queried.
+          Install &amp; configure it (set a provider API key or run{" "}
+          <code className="rounded bg-amber-500/15 px-1 py-px font-mono">
+            {provider.id === "pi" ? "pi --list-models" : "opencode auth login"}
+          </code>
+          ), then hit{" "}
+          <RefreshCw className="inline size-2.5 -mt-px" /> Refresh to see your
+          own models.
+        </div>
+      )}
+
+      <div className="max-h-[15rem] overflow-y-auto">
+        {hydrating && models.length === 0 ? (
+          <div className="px-3 py-5 text-center text-[10px] text-muted-foreground">
+            Loading your models…
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="px-3 py-5 text-center text-[10px] text-muted-foreground">
+            {query
+              ? `No models match “${query}”.`
+              : "No models are available for this provider yet."}
+          </div>
+        ) : (
+          groups.map(({ group, items }) => (
+            <div key={group}>
+              <div className="sticky top-0 z-10 bg-muted/60 px-2.5 py-1 text-[8.5px] font-semibold uppercase tracking-wide text-muted-foreground/70 backdrop-blur">
+                {group}
+              </div>
+              {items.map((model) => {
+                const checked =
+                  currentProviderId === provider.id &&
+                  currentModelId === model.id;
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    onClick={() => onSelect(model.id, selectedEffortId)}
+                    title={model.description || model.id}
+                    className={cn(
+                      "flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors",
+                      checked
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "inline-flex size-3 shrink-0 items-center justify-center rounded-full border",
+                        checked
+                          ? "border-foreground/70 bg-foreground/80"
+                          : "border-border"
+                      )}
+                    >
+                      {checked && (
+                        <span className="size-1.5 rounded-full bg-background" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium">
+                      {model.id}
+                    </span>
+                    {model.requires === "api_key" && (
+                      <span className="shrink-0 rounded-sm border border-amber-500/40 bg-amber-500/10 px-1 py-px text-[8px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                        API key
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))
+        )}
+        {filtered.length > COMBOBOX_RENDER_CAP && (
+          <div className="px-2.5 py-1.5 text-center text-[8.5px] text-muted-foreground/60">
+            +{filtered.length - COMBOBOX_RENDER_CAP} more — keep typing to filter
+          </div>
+        )}
+      </div>
+
+      {effortColumns.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto border-t border-border/60 bg-muted/15 px-2.5 py-1.5 scrollbar-none">
+          <span className="shrink-0 text-[8.5px] font-semibold uppercase tracking-wide text-muted-foreground/60">
+            Effort
+          </span>
+          {[{ id: AUTO_EFFORT_ID, name: "Auto" }, ...effortColumns].map(
+            (effort) => {
+              const isAuto = effort.id === AUTO_EFFORT_ID;
+              const active = isAuto
+                ? !selectedEffortId
+                : selectedEffortId === effort.id;
+              const tone = getEffortTone(effort.id);
+              return (
+                <button
+                  key={effort.id}
+                  type="button"
+                  onClick={() => {
+                    if (!currentModelId) return;
+                    onSelect(currentModelId, isAuto ? undefined : effort.id);
+                  }}
+                  disabled={!currentModelId}
+                  title={
+                    currentModelId
+                      ? effort.name
+                      : "Pick a model first"
+                  }
+                  className={cn(
+                    "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium transition-colors disabled:opacity-40",
+                    active
+                      ? tone.selected
+                      : cn("bg-background", tone.idle, tone.header)
+                  )}
+                >
+                  {isAuto
+                    ? "Auto"
+                    : formatEffortName(effort.name) || effort.name}
+                </button>
+              );
+            }
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export type RuntimeMode = "native" | "terminal";
 
 export interface RuntimeMatrixValue {
@@ -901,20 +1188,37 @@ export function RuntimeMatrixPicker({
                 value={provider.id}
                 className="mt-0 bg-background"
               >
-                <ProviderRuntimeMatrix
-                  provider={provider}
-                  currentProviderId={currentProvider?.id}
-                  currentModelId={currentModel?.id}
-                  selectedEffortId={value.effort ?? undefined}
-                  onSelect={(modelId, effortId) =>
-                    onChange({
-                      providerId: provider.id,
-                      model: modelId,
-                      effort: effortId,
-                      runtimeMode: "native",
-                    })
-                  }
-                />
+                {provider.dynamicModels ? (
+                  <ProviderModelCombobox
+                    provider={provider}
+                    currentProviderId={currentProvider?.id}
+                    currentModelId={currentModel?.id}
+                    selectedEffortId={value.effort ?? undefined}
+                    onSelect={(modelId, effortId) =>
+                      onChange({
+                        providerId: provider.id,
+                        model: modelId,
+                        effort: effortId,
+                        runtimeMode: "native",
+                      })
+                    }
+                  />
+                ) : (
+                  <ProviderRuntimeMatrix
+                    provider={provider}
+                    currentProviderId={currentProvider?.id}
+                    currentModelId={currentModel?.id}
+                    selectedEffortId={value.effort ?? undefined}
+                    onSelect={(modelId, effortId) =>
+                      onChange({
+                        providerId: provider.id,
+                        model: modelId,
+                        effort: effortId,
+                        runtimeMode: "native",
+                      })
+                    }
+                  />
+                )}
               </TabsContent>
             ))}
           </div>
@@ -1321,33 +1625,48 @@ export function TaskRuntimePicker({
             }}
             className="mx-1.5 mt-1.5"
             trailing={
-              <button
-                type="button"
-                className={cn(
-                  "shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-medium transition-colors",
-                  sameSelection(normalizedValue, appDefaultSelection)
-                    ? "border-foreground/20 bg-accent text-accent-foreground"
-                    : "border-border/70 bg-background text-muted-foreground hover:text-foreground"
-                )}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  resetToDefault();
-                }}
-                title={[
-                  appDefaultModelInfo?.name || t("runtime:defaultModel"),
-                  appDefaultSelection.effort
-                    ? formatEffortName(appDefaultSelection.effort)
-                    : t("runtime:auto"),
-                  appDefaultProvider?.name || null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              >
-                {sameSelection(normalizedValue, appDefaultSelection)
-                  ? t("runtime:appDefault")
-                  : t("runtime:selectAppDefault")}
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  className={cn(
+                    "shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-medium transition-colors",
+                    sameSelection(normalizedValue, appDefaultSelection)
+                      ? "border-foreground/20 bg-accent text-accent-foreground"
+                      : "border-border/70 bg-background text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    resetToDefault();
+                  }}
+                  title={[
+                    appDefaultModelInfo?.name || t("runtime:defaultModel"),
+                    appDefaultSelection.effort
+                      ? formatEffortName(appDefaultSelection.effort)
+                      : t("runtime:auto"),
+                    appDefaultProvider?.name || null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                >
+                  {sameSelection(normalizedValue, appDefaultSelection)
+                    ? t("runtime:appDefault")
+                    : t("runtime:selectAppDefault")}
+                </button>
+                <button
+                  type="button"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setOpen(false);
+                  }}
+                  title={t("startWork:close")}
+                  aria-label={t("startWork:close")}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             }
           />
         </DropdownMenuGroup>

@@ -44,6 +44,7 @@ dropped at the source (see `src/lib/telemetry/catalog.ts`):
 | `app.launched` | — |
 | `app.exited` | — |
 | `onboarding.step` | `step` |
+| `onboarding.locale_autodetected` | `locale` |
 | `onboarding.completed` | `roomType`, `provider` |
 | `page.opened` | `ext` |
 | `agent.run.started` | `provider`, `adapterType` |

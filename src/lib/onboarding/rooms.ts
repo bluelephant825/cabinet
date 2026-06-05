@@ -1,7 +1,26 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, Brain, FlaskConical, Home, Sparkles } from "lucide-react";
+import {
+  Briefcase,
+  Brain,
+  FlaskConical,
+  Home,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Package,
+  Lightbulb,
+} from "lucide-react";
 
-export type RoomType = "office" | "study" | "lab" | "family-room" | "blank";
+export type RoomType =
+  | "office"
+  | "sales"
+  | "hr"
+  | "product"
+  | "rnd"
+  | "study"
+  | "lab"
+  | "family-room"
+  | "blank";
 
 export interface RoomConfig {
   id: RoomType;
@@ -23,7 +42,17 @@ export interface RoomConfig {
   greetingTemplate: (homeName: string, workspaceName: string) => string;
 }
 
-export const ROOM_TYPES: RoomType[] = ["office", "study", "lab", "family-room", "blank"];
+export const ROOM_TYPES: RoomType[] = [
+  "office",
+  "sales",
+  "hr",
+  "product",
+  "rnd",
+  "study",
+  "lab",
+  "family-room",
+  "blank",
+];
 
 export const ROOMS: Record<RoomType, RoomConfig> = {
   office: {
@@ -58,6 +87,106 @@ export const ROOMS: Record<RoomType, RoomConfig> = {
     ],
     greetingTemplate: (_home, workspace) =>
       `Good morning team! Welcome to ${workspace || "the company"}. Let's hit the ground running.`,
+  },
+
+  sales: {
+    id: "sales",
+    label: "Sales",
+    tagline: "Pipeline, outreach, and closing deals.",
+    icon: TrendingUp,
+    workspaceLabel: "Team or territory name",
+    workspacePlaceholder: "EMEA Sales",
+    descriptionLabel: "What are you selling, and to whom?",
+    descriptionPlaceholder: "B2B SaaS to mid-market operations teams",
+    askTeamSize: true,
+    teamSizeLabel: "Team size",
+    mandatoryAgents: ["sales", "customer-success"],
+    suggestedAgents: ["sales", "researcher"],
+    exampleAgents: ["Account Executive", "SDR"],
+    departmentNoun: "Team",
+    keywordMap: [
+      [/lead|prospect|outreach|cold|sdr|sequence/, ["sales"]],
+      [/deal|close|negotiat|pipeline|crm|quota/, ["sales"]],
+      [/research|account|company|icp|territory/, ["researcher"]],
+      [/success|onboard|renew|churn|expansion/, ["customer-success"]],
+      [/email|copy|pitch|template/, ["copywriter"]],
+    ],
+    greetingTemplate: (_home, workspace) =>
+      `Sales floor is open${workspace ? ` for ${workspace}` : ""}. Let's fill the pipeline.`,
+  },
+
+  hr: {
+    id: "hr",
+    label: "People & HR",
+    tagline: "Hiring, onboarding, and team health.",
+    icon: Users,
+    workspaceLabel: "Team or org name",
+    workspacePlaceholder: "Acme People Team",
+    descriptionLabel: "What do you handle?",
+    descriptionPlaceholder: "Hiring, onboarding, policies, and culture for 40 people",
+    askTeamSize: true,
+    teamSizeLabel: "Org size",
+    mandatoryAgents: ["people-ops", "researcher"],
+    suggestedAgents: ["people-ops", "researcher"],
+    exampleAgents: ["Recruiter", "People Ops"],
+    departmentNoun: "Area",
+    keywordMap: [
+      [/hir|recruit|candidate|interview|sourc|jd/, ["recruiter"]],
+      [/onboard|culture|engagement|team health|review/, ["people-ops"]],
+      [/policy|handbook|complian|legal/, ["legal"]],
+      [/payroll|benefit|comp|salary/, ["people-ops"]],
+    ],
+    greetingTemplate: (_home, workspace) =>
+      `People team online${workspace ? ` for ${workspace}` : ""}. Let's take care of the humans.`,
+  },
+
+  product: {
+    id: "product",
+    label: "Product",
+    tagline: "Roadmap, specs, and user research.",
+    icon: Package,
+    workspaceLabel: "Product or team name",
+    workspacePlaceholder: "Mobile App",
+    descriptionLabel: "What are you building?",
+    descriptionPlaceholder: "A B2C mobile app for habit tracking",
+    askTeamSize: true,
+    teamSizeLabel: "Team size",
+    mandatoryAgents: ["product-manager", "ux-designer"],
+    suggestedAgents: ["product-manager", "ux-designer", "researcher", "data-analyst"],
+    exampleAgents: ["Product Manager", "UX Designer"],
+    departmentNoun: "Area",
+    keywordMap: [
+      [/roadmap|spec|prd|feature|backlog|story/, ["product-manager"]],
+      [/design|ux|ui|wireframe|prototype|figma/, ["ux-designer"]],
+      [/research|user|interview|usability|persona/, ["researcher"]],
+      [/data|metric|analytics|funnel|retention/, ["data-analyst"]],
+    ],
+    greetingTemplate: (_home, workspace) =>
+      `Product desk ready${workspace ? ` for ${workspace}` : ""}. What are we shipping?`,
+  },
+
+  rnd: {
+    id: "rnd",
+    label: "R&D",
+    tagline: "Experiments, prototypes, and technical research.",
+    icon: Lightbulb,
+    workspaceLabel: "Project or lab name",
+    workspacePlaceholder: "Applied AI",
+    descriptionLabel: "What are you exploring?",
+    descriptionPlaceholder: "On-device inference and new model architectures",
+    askTeamSize: false,
+    mandatoryAgents: ["researcher", "cto"],
+    suggestedAgents: ["researcher", "cto", "data-analyst"],
+    exampleAgents: ["Research Lead", "Engineer"],
+    departmentNoun: "Area",
+    keywordMap: [
+      [/experiment|prototype|poc|spike|trial/, ["researcher"]],
+      [/paper|literature|sota|benchmark|survey/, ["lit-reviewer"]],
+      [/engineer|code|build|infra|deploy/, ["cto"]],
+      [/data|analysis|metric|eval|result/, ["data-analyst"]],
+    ],
+    greetingTemplate: (_home, workspace) =>
+      `Lab bench ready${workspace ? ` for ${workspace}` : ""}. Let's run some experiments.`,
   },
 
   study: {

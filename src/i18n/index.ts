@@ -5,17 +5,136 @@ import en from "./locales/en.json";
 import he from "./locales/he.json";
 import zhCN from "./locales/zh-CN.json";
 import zhTW from "./locales/zh-TW.json";
+import hi from "./locales/hi.json";
+import es from "./locales/es.json";
+import fr from "./locales/fr.json";
+import ar from "./locales/ar.json";
+import bn from "./locales/bn.json";
+import pt from "./locales/pt.json";
+import ru from "./locales/ru.json";
+import ur from "./locales/ur.json";
+import id from "./locales/id.json";
+import de from "./locales/de.json";
+import ja from "./locales/ja.json";
+import ko from "./locales/ko.json";
+import vi from "./locales/vi.json";
+import tr from "./locales/tr.json";
+import it from "./locales/it.json";
+import th from "./locales/th.json";
+import pl from "./locales/pl.json";
+import nl from "./locales/nl.json";
+import uk from "./locales/uk.json";
+import fa from "./locales/fa.json";
+import ta from "./locales/ta.json";
+import te from "./locales/te.json";
+import mr from "./locales/mr.json";
+import gu from "./locales/gu.json";
+import pa from "./locales/pa.json";
+import kn from "./locales/kn.json";
+import ml from "./locales/ml.json";
+import sw from "./locales/sw.json";
+import fil from "./locales/fil.json";
+import ro from "./locales/ro.json";
+import el from "./locales/el.json";
+import cs from "./locales/cs.json";
+import hu from "./locales/hu.json";
+import sv from "./locales/sv.json";
+import ha from "./locales/ha.json";
+import yo from "./locales/yo.json";
 
-export const SUPPORTED_LOCALES = ["en", "he", "zh-CN", "zh-TW"] as const;
+// Ordered roughly by global speaker count. Translations are generated from
+// en.json via `npm run i18n:translate` (Gemini JSON-mode batch translator,
+// scripts/i18n-translate.mjs) and fall back to English per-key at render
+// time, so a missing key never blanks the UI.
+export const SUPPORTED_LOCALES = [
+  "en",
+  "zh-CN",
+  "zh-TW",
+  "hi",
+  "es",
+  "fr",
+  "ar",
+  "bn",
+  "pt",
+  "ru",
+  "ur",
+  "id",
+  "de",
+  "ja",
+  "ko",
+  "vi",
+  "tr",
+  "it",
+  "th",
+  "pl",
+  "nl",
+  "uk",
+  "fa",
+  "ta",
+  "te",
+  "mr",
+  "gu",
+  "pa",
+  "kn",
+  "ml",
+  "sw",
+  "fil",
+  "ro",
+  "el",
+  "cs",
+  "hu",
+  "sv",
+  "ha",
+  "yo",
+  "he",
+] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "en";
 export const LOCALE_STORAGE_KEY = "cabinet-locale";
 
+// Native names — users recognize their own language fastest in its own
+// script (same convention as the requestable-locales board below).
 export const LOCALE_LABELS: Record<Locale, string> = {
   en: "English",
-  he: "עברית",
   "zh-CN": "简体中文",
   "zh-TW": "繁體中文",
+  hi: "हिन्दी",
+  es: "Español",
+  fr: "Français",
+  ar: "العربية",
+  bn: "বাংলা",
+  pt: "Português",
+  ru: "Русский",
+  ur: "اردو",
+  id: "Bahasa Indonesia",
+  de: "Deutsch",
+  ja: "日本語",
+  ko: "한국어",
+  vi: "Tiếng Việt",
+  tr: "Türkçe",
+  it: "Italiano",
+  th: "ไทย",
+  pl: "Polski",
+  nl: "Nederlands",
+  uk: "Українська",
+  fa: "فارسی",
+  ta: "தமிழ்",
+  te: "తెలుగు",
+  mr: "मराठी",
+  gu: "ગુજરાતી",
+  pa: "ਪੰਜਾਬੀ",
+  kn: "ಕನ್ನಡ",
+  ml: "മലയാളം",
+  sw: "Kiswahili",
+  fil: "Filipino",
+  ro: "Română",
+  el: "Ελληνικά",
+  cs: "Čeština",
+  hu: "Magyar",
+  sv: "Svenska",
+  ha: "Hausa",
+  yo: "Yorùbá",
+  he: "עברית",
 };
 
 /**
@@ -48,81 +167,45 @@ export const REQUESTABLE_LOCALES: RequestableLocale[] = ([
   { code: "af",     label: "Afrikaans",        englishName: "Afrikaans",          dir: "ltr" },
   { code: "sq",     label: "Shqip",            englishName: "Albanian",           dir: "ltr" },
   { code: "am",     label: "አማርኛ",            englishName: "Amharic",            dir: "ltr" },
-  { code: "ar",     label: "العربية",          englishName: "Arabic",             dir: "rtl" },
   { code: "hy",     label: "Հայերեն",          englishName: "Armenian",           dir: "ltr" },
   { code: "az",     label: "Azərbaycanca",     englishName: "Azerbaijani",        dir: "ltr" },
-  { code: "id",     label: "Bahasa Indonesia", englishName: "Bahasa Indonesia",   dir: "ltr" },
   { code: "ms",     label: "Bahasa Melayu",    englishName: "Bahasa Malay",       dir: "ltr" },
   { code: "eu",     label: "Euskara",          englishName: "Basque",             dir: "ltr" },
   { code: "be",     label: "Беларуская",       englishName: "Belarusian",         dir: "ltr" },
-  { code: "bn",     label: "বাংলা",            englishName: "Bengali",            dir: "ltr" },
   { code: "bs",     label: "Bosanski",         englishName: "Bosnian",            dir: "ltr" },
   { code: "bg",     label: "Български",        englishName: "Bulgarian",          dir: "ltr" },
   { code: "my",     label: "မြန်မာ",          englishName: "Burmese",            dir: "ltr" },
   { code: "ca",     label: "Català",           englishName: "Catalan",            dir: "ltr" },
   { code: "hr",     label: "Hrvatski",         englishName: "Croatian",           dir: "ltr" },
-  { code: "cs",     label: "Čeština",          englishName: "Czech",              dir: "ltr" },
   { code: "da",     label: "Dansk",            englishName: "Danish",             dir: "ltr" },
-  { code: "nl",     label: "Nederlands",       englishName: "Dutch",              dir: "ltr" },
   { code: "et",     label: "Eesti",            englishName: "Estonian",           dir: "ltr" },
-  { code: "fil",    label: "Filipino",         englishName: "Filipino",           dir: "ltr" },
   { code: "fi",     label: "Suomi",            englishName: "Finnish",            dir: "ltr" },
-  { code: "fr",     label: "Français",         englishName: "French",             dir: "ltr" },
   { code: "gl",     label: "Galego",           englishName: "Galician",           dir: "ltr" },
   { code: "ka",     label: "ქართული",         englishName: "Georgian",           dir: "ltr" },
-  { code: "de",     label: "Deutsch",          englishName: "German",             dir: "ltr" },
-  { code: "el",     label: "Ελληνικά",         englishName: "Greek",              dir: "ltr" },
-  { code: "gu",     label: "ગુજરાતી",          englishName: "Gujarati",           dir: "ltr" },
-  { code: "ha",     label: "Hausa",            englishName: "Hausa",              dir: "ltr" },
-  { code: "hi",     label: "हिन्दी",            englishName: "Hindi",              dir: "ltr" },
-  { code: "hu",     label: "Magyar",           englishName: "Hungarian",          dir: "ltr" },
   { code: "is",     label: "Íslenska",         englishName: "Icelandic",          dir: "ltr" },
   { code: "ig",     label: "Igbo",             englishName: "Igbo",               dir: "ltr" },
-  { code: "it",     label: "Italiano",         englishName: "Italian",            dir: "ltr" },
-  { code: "ja",     label: "日本語",            englishName: "Japanese",           dir: "ltr" },
   { code: "jv",     label: "Basa Jawa",        englishName: "Javanese",           dir: "ltr" },
-  { code: "kn",     label: "ಕನ್ನಡ",            englishName: "Kannada",            dir: "ltr" },
   { code: "kk",     label: "Қазақша",          englishName: "Kazakh",             dir: "ltr" },
   { code: "km",     label: "ខ្មែរ",            englishName: "Khmer",              dir: "ltr" },
-  { code: "ko",     label: "한국어",            englishName: "Korean",             dir: "ltr" },
   { code: "ku",     label: "Kurdî",            englishName: "Kurdish",            dir: "ltr" },
   { code: "lo",     label: "ລາວ",              englishName: "Lao",                dir: "ltr" },
   { code: "lv",     label: "Latviešu",         englishName: "Latvian",            dir: "ltr" },
   { code: "lt",     label: "Lietuvių",         englishName: "Lithuanian",         dir: "ltr" },
   { code: "mk",     label: "Македонски",       englishName: "Macedonian",         dir: "ltr" },
   { code: "mg",     label: "Malagasy",         englishName: "Malagasy",           dir: "ltr" },
-  { code: "ml",     label: "മലയാളം",          englishName: "Malayalam",          dir: "ltr" },
   { code: "mt",     label: "Malti",            englishName: "Maltese",            dir: "ltr" },
-  { code: "mr",     label: "मराठी",            englishName: "Marathi",            dir: "ltr" },
   { code: "mn",     label: "Монгол",           englishName: "Mongolian",          dir: "ltr" },
   { code: "ne",     label: "नेपाली",            englishName: "Nepali",             dir: "ltr" },
   { code: "no",     label: "Norsk",            englishName: "Norwegian",          dir: "ltr" },
   { code: "ps",     label: "پښتو",             englishName: "Pashto",             dir: "rtl" },
-  { code: "fa",     label: "فارسی",            englishName: "Persian",            dir: "rtl" },
-  { code: "pl",     label: "Polski",           englishName: "Polish",             dir: "ltr" },
-  { code: "pt",     label: "Português",        englishName: "Portuguese",         dir: "ltr" },
-  { code: "pa",     label: "ਪੰਜਾਬੀ",          englishName: "Punjabi",            dir: "ltr" },
-  { code: "ro",     label: "Română",           englishName: "Romanian",           dir: "ltr" },
-  { code: "ru",     label: "Русский",          englishName: "Russian",            dir: "ltr" },
   { code: "sr",     label: "Српски",           englishName: "Serbian",            dir: "ltr" },
   { code: "si",     label: "සිංහල",            englishName: "Sinhala",            dir: "ltr" },
   { code: "sk",     label: "Slovenčina",       englishName: "Slovak",             dir: "ltr" },
   { code: "sl",     label: "Slovenščina",      englishName: "Slovenian",          dir: "ltr" },
   { code: "so",     label: "Soomaali",         englishName: "Somali",             dir: "ltr" },
-  { code: "es",     label: "Español",          englishName: "Spanish",            dir: "ltr" },
-  { code: "sw",     label: "Kiswahili",        englishName: "Swahili",            dir: "ltr" },
-  { code: "sv",     label: "Svenska",          englishName: "Swedish",            dir: "ltr" },
-  { code: "ta",     label: "தமிழ்",            englishName: "Tamil",              dir: "ltr" },
-  { code: "te",     label: "తెలుగు",            englishName: "Telugu",             dir: "ltr" },
-  { code: "th",     label: "ไทย",              englishName: "Thai",               dir: "ltr" },
-  { code: "tr",     label: "Türkçe",           englishName: "Turkish",            dir: "ltr" },
-  { code: "uk",     label: "Українська",       englishName: "Ukrainian",          dir: "ltr" },
-  { code: "ur",     label: "اردو",             englishName: "Urdu",               dir: "rtl" },
   { code: "uz",     label: "Oʻzbekcha",        englishName: "Uzbek",              dir: "ltr" },
-  { code: "vi",     label: "Tiếng Việt",       englishName: "Vietnamese",         dir: "ltr" },
   { code: "cy",     label: "Cymraeg",          englishName: "Welsh",              dir: "ltr" },
   { code: "xh",     label: "isiXhosa",         englishName: "Xhosa",              dir: "ltr" },
-  { code: "yo",     label: "Yorùbá",           englishName: "Yoruba",             dir: "ltr" },
   { code: "zu",     label: "isiZulu",          englishName: "Zulu",               dir: "ltr" },
 ] as RequestableLocale[]).sort((a, b) => a.englishName.localeCompare(b.englishName));
 
@@ -138,6 +221,40 @@ export function localeToDir(locale: Locale): "ltr" | "rtl" {
   return (RTL_LOCALE_PREFIXES as readonly string[]).includes(base)
     ? "rtl"
     : "ltr";
+}
+
+/**
+ * Best-effort BCP-47 → shipped-locale resolver. Walks `candidates`
+ * most-preferred first and returns the first that maps, by: exact tag
+ * (case-insensitive, so `zh-cn` → `zh-CN`), then Chinese script/region
+ * disambiguation (we ship Simplified `zh-CN` + Traditional `zh-TW`), then
+ * base language (`de-DE` → `de`, `pt-BR` → `pt`, `en-GB` → `en`). Returns
+ * null when nothing maps — callers fall back to DEFAULT_LOCALE.
+ */
+export function matchSupportedLocale(
+  candidates: readonly string[],
+): Locale | null {
+  const supported = SUPPORTED_LOCALES as readonly string[];
+  for (const raw of candidates) {
+    const lower = (raw ?? "").trim().toLowerCase();
+    if (!lower) continue;
+    const [base, ...subtags] = lower.split("-");
+
+    const exact = supported.find((s) => s.toLowerCase() === lower);
+    if (exact) return exact as Locale;
+
+    if (base === "zh") {
+      if (subtags.includes("hant")) return "zh-TW";
+      if (subtags.includes("hans")) return "zh-CN";
+      const region = subtags.find((s) => s.length === 2);
+      if (region === "tw" || region === "hk" || region === "mo") return "zh-TW";
+      return "zh-CN"; // cn / sg / my / unspecified → Simplified
+    }
+
+    const byBase = supported.find((s) => s.toLowerCase() === base);
+    if (byBase) return byBase as Locale;
+  }
+  return null;
 }
 
 function getInitialLocale(): Locale {
@@ -159,7 +276,48 @@ function getInitialLocale(): Locale {
  *   4. Add the option to the Language section in settings-page.tsx.
  * That's the whole flow — no per-namespace files to keep in sync.
  */
-const resources = { en, he, "zh-CN": zhCN, "zh-TW": zhTW } as const;
+const resources = {
+  en,
+  he,
+  "zh-CN": zhCN,
+  "zh-TW": zhTW,
+  hi,
+  es,
+  fr,
+  ar,
+  bn,
+  pt,
+  ru,
+  ur,
+  id,
+  de,
+  ja,
+  ko,
+  vi,
+  tr,
+  it,
+  th,
+  pl,
+  nl,
+  uk,
+  fa,
+  ta,
+  te,
+  mr,
+  gu,
+  pa,
+  kn,
+  ml,
+  sw,
+  fil,
+  ro,
+  el,
+  cs,
+  hu,
+  sv,
+  ha,
+  yo,
+} as const;
 
 const NAMESPACES = Object.keys(en) as Array<keyof typeof en>;
 

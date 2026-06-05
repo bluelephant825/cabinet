@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Instrument_Serif, Cardo } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeInitializer } from "@/components/layout/theme-initializer";
+import { RoomThemeSync } from "@/components/layout/room-theme-sync";
 import { LocaleInitializer } from "@/components/layout/locale-initializer";
 import { LocaleDirectionProvider } from "@/components/layout/locale-direction-provider";
 import "./globals.css";
@@ -73,6 +74,7 @@ export default function RootLayout({
         >
           <LocaleInitializer />
           <ThemeInitializer />
+          <RoomThemeSync />
           <LocaleDirectionProvider>{children}</LocaleDirectionProvider>
         </ThemeProvider>
       </body>

@@ -314,14 +314,38 @@ function makeTitle(text: string): string {
   return firstLine.slice(0, 80);
 }
 
+// Mentioned files whose raw bytes must never be inlined into the prompt
+// (video/audio/images/PDF/office/archives). Inlining a 74MB .mov produced a
+// 134MB prompt.md that failed the run and choked the task page. These are
+// referenced by path instead so the agent opens them with its Read tool.
+const NON_INLINE_MENTION_EXT = new Set([
+  ".mov", ".mp4", ".webm", ".m4v", ".avi", ".mkv", ".mpg", ".mpeg",
+  ".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac",
+  ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".ico", ".bmp", ".tiff",
+  ".pdf", ".docx", ".xlsx", ".xlsm", ".pptx", ".doc", ".xls", ".ppt",
+  ".zip", ".tar", ".gz", ".tgz", ".rar", ".7z", ".fig", ".sketch",
+]);
+// Cap inlined text so a single huge page can't blow up the prompt either.
+const MAX_INLINE_MENTION_BYTES = 200_000;
+
 async function buildMentionContext(mentionedPaths: string[]): Promise<string> {
   if (mentionedPaths.length === 0) return "";
 
   const chunks = await Promise.all(
     mentionedPaths.map(async (pagePath) => {
       try {
+        // Binary / large file: reference by path, never inline the bytes.
+        if (NON_INLINE_MENTION_EXT.has(path.extname(pagePath).toLowerCase())) {
+          return `--- ${pagePath} (file attachment — open it with the Read tool at this path) ---`;
+        }
         const page = await readPage(pagePath);
-        return `--- ${page.frontmatter.title} (${pagePath}) ---\n${page.content}`;
+        let content = page.content || "";
+        if (content.length > MAX_INLINE_MENTION_BYTES) {
+          content =
+            content.slice(0, MAX_INLINE_MENTION_BYTES) +
+            "\n\n…[content truncated — open the file with the Read tool for the full version]…";
+        }
+        return `--- ${page.frontmatter.title} (${pagePath}) ---\n${content}`;
       } catch {
         return null;
       }
@@ -686,9 +710,10 @@ export async function startConversationRun(
     throw error;
   }
 
-  if (input.onComplete) {
-    void waitForConversationCompletion(meta.id, input.onComplete);
-  }
+  // Always poll for terminal status on the Next.js side. The daemon process
+  // finalizes + enqueues notifications in its own memory — those never reach
+  // the SSE tick that drives toasts unless we mirror completion here.
+  void waitForConversationCompletion(meta.id, input.onComplete);
 
   return meta;
 }
@@ -700,12 +725,12 @@ export async function waitForConversationCompletion(
   const deadline = Date.now() + 15 * 60 * 1000;
   const startedAt = Date.now();
   // Tight-poll the first 5 s after startConversationRun hands off — that's
-  // the cold-start window where the UI is showing the "Working on it…"
-  // placeholder and the user is most sensitive to latency between their
-  // prompt and the first streamed bytes. Back off to the steady-state 700 ms
-  // interval after the adapter is clearly producing.
-  const FAST_POLL_WINDOW_MS = 5000;
-  const FAST_POLL_INTERVAL_MS = 250;
+  // the cold-start window where the UI is showing the pending typing indicator
+  // and the user is most sensitive to latency between their prompt and the
+  // first streamed bytes. Back off to the steady-state 700 ms interval after
+  // the adapter is clearly producing.
+  const FAST_POLL_WINDOW_MS = 15_000;
+  const FAST_POLL_INTERVAL_MS = 100;
   const STEADY_POLL_INTERVAL_MS = 700;
   let lastOutputLength = 0;
   let firstPoll = true;
@@ -744,26 +769,53 @@ export async function waitForConversationCompletion(
 
       const normalizedStatus = data.status === "completed" ? "completed" : "failed";
       const currentMeta = await readConversationMeta(conversationId);
+      const cp = currentMeta?.cabinetPath;
       let finalMeta =
         currentMeta?.status === "running"
-          ? await finalizeConversation(conversationId, {
-              status: normalizedStatus,
+          ? await finalizeConversation(
+              conversationId,
+              {
+                status: normalizedStatus,
+                output: data.output,
+                exitCode: normalizedStatus === "completed" ? 0 : 1,
+                tokens: data.adapterUsage
+                  ? {
+                      input: data.adapterUsage.inputTokens,
+                      output: data.adapterUsage.outputTokens,
+                      cache: data.adapterUsage.cachedInputTokens,
+                      total:
+                        data.adapterUsage.inputTokens +
+                        data.adapterUsage.outputTokens,
+                    }
+                  : undefined,
+                errorKind: data.adapterErrorKind ?? undefined,
+                errorHint: data.adapterErrorHint ?? undefined,
+                errorRetryAfterSec: data.adapterErrorRetryAfterSec ?? undefined,
+              },
+              cp
+            )
+          : currentMeta;
+
+      if (
+        finalMeta &&
+        normalizedStatus === "failed" &&
+        !finalMeta.errorHint?.trim() &&
+        (data.adapterErrorHint?.trim() || data.output?.trim())
+      ) {
+        finalMeta =
+          (await finalizeConversation(
+            conversationId,
+            {
+              status: "failed",
+              exitCode: 1,
               output: data.output,
-              exitCode: normalizedStatus === "completed" ? 0 : 1,
-              tokens: data.adapterUsage
-                ? {
-                    input: data.adapterUsage.inputTokens,
-                    output: data.adapterUsage.outputTokens,
-                    cache: data.adapterUsage.cachedInputTokens,
-                    total:
-                      data.adapterUsage.inputTokens + data.adapterUsage.outputTokens,
-                  }
-                : undefined,
               errorKind: data.adapterErrorKind ?? undefined,
               errorHint: data.adapterErrorHint ?? undefined,
               errorRetryAfterSec: data.adapterErrorRetryAfterSec ?? undefined,
-            })
-          : currentMeta;
+            },
+            cp
+          )) || finalMeta;
+      }
 
       if (!finalMeta) {
         throw new Error(`Conversation ${conversationId} disappeared during completion`);
@@ -774,8 +826,20 @@ export async function waitForConversationCompletion(
       // agent still has full context of the work it just did, so the retry is
       // scoped to this conversation — no cross-agent bleed like a git-diff
       // fallback would have. One retry only; a second miss is recorded as-is.
+      //
+      // Only applies to Claude adapters: the cabinet block is a Claude Code
+      // convention injected via the system prompt epilogue. Non-Claude providers
+      // (opencode/pi/codex/gemini/etc.) don't produce this block and never will,
+      // so triggering the retry for them desynchronises the daemon session status
+      // from meta.status ("running" during retry vs "completed" original session),
+      // which causes the safety poll to prematurely mark the task idle and
+      // prevents live updates in the task detail view.
+      const adapterSupportsCabinetBlock =
+        finalMeta.adapterType === "claude_local" ||
+        finalMeta.adapterType === "claude_code_legacy";
       if (
         normalizedStatus === "completed" &&
+        adapterSupportsCabinetBlock &&
         isCabinetBlockMissing(data.output || "")
       ) {
         try {
@@ -805,6 +869,8 @@ export async function waitForConversationCompletion(
         payload: {
           status: finalMeta.status,
           artifactPaths: finalMeta.artifactPaths,
+          ...(finalMeta.errorKind ? { errorKind: finalMeta.errorKind } : {}),
+          ...(finalMeta.errorHint ? { errorHint: finalMeta.errorHint } : {}),
         },
       });
 
@@ -1658,10 +1724,11 @@ export async function continueConversationRun(
       })
     : replayPrompt;
 
-  // 6. Create the pending agent turn
+  // 6. Create the pending agent turn. Empty content so the UI shows only the
+  // typing indicator (no placeholder text) until bytes stream in.
   const pending = await appendAgentTurn(
     conversationId,
-    { content: "Working on it…", pending: true },
+    { content: "", pending: true },
     cp
   );
   if (!pending) return meta;

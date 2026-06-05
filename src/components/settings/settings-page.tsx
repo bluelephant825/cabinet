@@ -45,7 +45,8 @@ import { ApiKeysSection } from "@/components/settings/api-keys-section";
 import { DataLocationsSection } from "@/components/settings/data-locations-section";
 import { UninstallSection } from "@/components/settings/uninstall-section";
 import { CliMcpSection } from "@/components/settings/cli-mcp-section";
-import { ConnectedIntegrationsCard } from "@/components/settings/connected-integrations-card";
+import { IntegrationsHubSection } from "@/components/settings/integrations-hub-section";
+import { BuiltInToolsSection } from "@/components/settings/built-in-tools-section";
 import { UpdateSummary } from "@/components/system/update-summary";
 import { useCabinetUpdate } from "@/hooks/use-cabinet-update";
 import { useTheme } from "@/components/theme-provider";
@@ -98,7 +99,13 @@ import {
   submitWaitlistEmail,
 } from "@/lib/telemetry/waitlist-client";
 import { useLocale } from "@/i18n/use-locale";
-import { REQUESTABLE_LOCALES, localeToDir, type Locale } from "@/i18n";
+import {
+  REQUESTABLE_LOCALES,
+  SUPPORTED_LOCALES,
+  LOCALE_LABELS,
+  localeToDir,
+  type Locale,
+} from "@/i18n";
 import { submitLanguageRequest } from "@/lib/telemetry/language-request-client";
 
 interface McpServer {
@@ -236,12 +243,14 @@ function LanguageSection() {
     }
   });
 
-  const supported: { value: Locale; label: string; dir: "ltr" | "rtl" }[] = [
-    { value: "en", label: t("settings:language.english"), dir: localeToDir("en") },
-    { value: "he", label: t("settings:language.hebrew"), dir: localeToDir("he") },
-    { value: "zh-CN", label: t("settings:language.chineseSimplified"), dir: localeToDir("zh-CN") },
-    { value: "zh-TW", label: t("settings:language.chineseTraditional"), dir: localeToDir("zh-TW") },
-  ];
+  // Derived from the locale registry so adding a locale in src/i18n/index.ts
+  // surfaces it here automatically — native labels (own script), correct dir.
+  const supported: { value: Locale; label: string; dir: "ltr" | "rtl" }[] =
+    SUPPORTED_LOCALES.map((value) => ({
+      value,
+      label: LOCALE_LABELS[value],
+      dir: localeToDir(value),
+    }));
 
   const requestLanguage = async (code: string, label: string) => {
     if (requesting === code || requested.has(code)) return;
@@ -291,7 +300,7 @@ function LanguageSection() {
       <p className="text-[12px] text-muted-foreground mb-4">
         {t("settings:language.description")}
       </p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1">
         {supported.map((opt) => (
           <button
             key={opt.value}
@@ -300,10 +309,10 @@ function LanguageSection() {
             dir={opt.dir}
             title={opt.dir === "rtl" ? "RTL ←" : undefined}
             className={cn(
-              "rounded-lg border p-3 text-[13px] transition-colors text-start",
+              "rounded border px-1.5 py-1 text-[11px] leading-tight text-start truncate transition-colors",
               locale === opt.value
-                ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                : "border-border hover:border-primary/30",
+                ? "border-primary bg-primary/5 ring-1 ring-primary/20 text-foreground"
+                : "border-border text-muted-foreground/70 hover:border-primary/30 hover:text-foreground hover:bg-accent/40",
             )}
           >
             {opt.label}
@@ -1664,8 +1673,27 @@ export function SettingsPage() {
           {tab === "integrations" && (
             <div className="space-y-8">
               <ApiKeysSection />
+
+              {/* Integrations + Built-in tools — coming soon (blurred preview) */}
+              <div className="relative">
+                <div className="pointer-events-none select-none blur-[2px] opacity-70 space-y-8" aria-hidden="true">
+                  <IntegrationsHubSection />
+                  <BuiltInToolsSection />
+                </div>
+
+                {/* Coming Soon overlay */}
+                <div className="absolute inset-0 flex items-start justify-center pt-10">
+                  <div className="flex flex-col items-center gap-2 bg-background/80 backdrop-blur-sm rounded-xl px-8 py-6 border border-border shadow-lg">
+                    <Plug className="h-6 w-6 text-muted-foreground/50" />
+                    <span className="text-[13px] font-semibold">{t("settings:integrationsPreview.comingSoon")}</span>
+                    <p className="text-[12px] text-muted-foreground text-center max-w-[220px]">
+                      {t("settings:integrationsPreview.hint")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <CliMcpSection />
-              <ConnectedIntegrationsCard />
             </div>
           )}
 

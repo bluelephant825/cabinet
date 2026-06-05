@@ -282,6 +282,12 @@ export function SkillLibrary({ cabinetPath }: SkillLibraryProps = {}) {
       } else {
         setDiscovered([]);
       }
+    } catch (err) {
+      // Background refresh — a transient network failure (offline, dev HMR
+      // dropping an in-flight request, daemon restart) must not throw out of
+      // the effect into the error overlay. Keep the last-known entries and
+      // surface quietly; the next refresh recovers.
+      console.warn("[skills] library refresh failed", err);
     } finally {
       setLoading(false);
     }

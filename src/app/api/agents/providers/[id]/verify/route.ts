@@ -2,6 +2,10 @@ import { spawn } from "child_process";
 import { NextResponse } from "next/server";
 import { providerRegistry } from "@/lib/agents/provider-registry";
 import { ADAPTER_RUNTIME_PATH } from "@/lib/agents/adapters/utils";
+import {
+  getConfiguredDefaultProviderId,
+  readProviderSettings,
+} from "@/lib/agents/provider-settings";
 import { emit as emitTelemetry } from "@/lib/telemetry";
 
 type VerifyStatus =
@@ -130,7 +134,25 @@ export async function POST(
   }
 
   const step = findVerifyStep(provider.installSteps);
-  if (!step || !step.command) {
+  const stepTitle = step?.title ?? "Verify setup";
+
+  // A provider-supplied verify command (OpenCode/Pi) wins over the static
+  // install step so verification exercises the resolved default model.
+  let command: string | null = step?.command ?? null;
+  if (typeof provider.buildVerifyCommand === "function") {
+    let defaultModel: string | null = null;
+    try {
+      const settings = await readProviderSettings();
+      if (getConfiguredDefaultProviderId(settings) === id) {
+        defaultModel = settings.defaultModel ?? null;
+      }
+    } catch {
+      // settings unreadable → verify the model-less default path
+    }
+    command = provider.buildVerifyCommand(defaultModel);
+  }
+
+  if (!command) {
     return NextResponse.json(
       { error: `Provider ${id} has no verifiable command in its install steps.` },
       { status: 400 }
@@ -138,7 +160,7 @@ export async function POST(
   }
 
   const startedAt = Date.now();
-  const result = await runShellCommand(step.command);
+  const result = await runShellCommand(command);
   const durationMs = Date.now() - startedAt;
 
   const { status, hint } = classify(
@@ -157,8 +179,8 @@ export async function POST(
 
   return NextResponse.json({
     status,
-    failedStepTitle: status === "pass" ? "" : step.title,
-    command: step.command,
+    failedStepTitle: status === "pass" ? "" : stepTitle,
+    command,
     exitCode: result.exitCode,
     signal: result.signal,
     output: truncate(result.stdout),

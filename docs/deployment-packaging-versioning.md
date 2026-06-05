@@ -99,7 +99,7 @@ On first launch, the Electron app can either:
 
 ### Electron updates
 
-For macOS, Cabinet uses Electron's native update path with `update-electron-app` and `autoUpdater`. The app checks automatically, downloads supported updates in the background, and asks the user to restart when the update is ready.
+For macOS, Cabinet uses Electron's native update path with `update-electron-app` and `autoUpdater` (`electron/main.cjs` `configureAutoUpdates()`, darwin-only, 4-hour interval, `repo: hilash/cabinet`, served via `update.electronjs.org`). The app checks automatically, downloads supported updates in the background, and asks the user to restart when the update is ready. The Electron updater also writes lifecycle state (`checking` / `available` / `downloading` / `restart-required` / `failed`) into the shared `update-status.json`.
 
 Linux auto-update is not part of v1.
 
@@ -272,6 +272,37 @@ git push origin v0.2.1
 
 If the Apple signing secrets are not configured yet, Electron packaging may still work locally, but the fully signed and notarized desktop release will not be production-ready.
 
+## Known Gaps: Update vs. Release Mechanism (2026-05-19)
+
+The intended model above does not match what currently ships. Users report the update popup **reappears every launch and cannot be dismissed**. Root causes, reconciling the release side with the update side:
+
+### Release side (how versions are actually published)
+
+- The tag-triggered workflow (`.github/workflows/release.yml`) generates `cabinet-release.json` and uploads it to a **`draft: true`** GitHub Release. `releases/latest/download/` only resolves to a *published, non-prerelease* release, so the in-app manifest URL either 404s (silently falls back to the bundled manifest → update detection effectively dead) or, if a draft is hand-published, advertises a version whose desktop build may not exist.
+- The Electron macOS build/publish is a **separate, manually-triggered** workflow (`electron-release.yml`, `workflow_dispatch`, "after npm publish + smoke tests"). So `cabinet-release.json` can claim a version and Electron asset names (`Cabinet-darwin-arm64-X.zip`, `Cabinet-X-arm64.dmg`) before — or without — those assets ever being built. Manifest version and installable artifact are not guaranteed in lockstep.
+- The "Releasing a New Cabinet Version" section above describes the *intended* single-pipeline flow; in reality the release is a draft and the Electron leg is manual and out-of-band.
+
+### Update side (why the popup is stuck)
+
+- **The in-app update dialog is not gated by install kind.** `src/components/layout/app-shell.tsx:590-602` decides visibility purely from `updateStatus.state`, `updateAvailable`, and the dismissed-version key — there is no `installKind` check. An `electron-macos` user therefore sees the source-managed modal *on top of* the native updater, but `canApplyUpdate` is `false` for them, so its apply button does nothing.
+- **Persistent states force the modal open.** `effectiveUpdateDialogOpen = updateDialogOpen || hasPersistentUpdateState || shouldPromptForUpdate`. The native Electron updater writes `failed` / `restart-required` / `downloading` into the **same `update-status.json`** the dialog reads, so `hasPersistentUpdateState` re-opens the modal every render. "Later" only sets `updateDialogOpen=false`; it cannot clear a persistent state. With macOS signing/notarization incomplete, `update-electron-app` emits `error → state: failed`, which pins the modal open with no working dismiss.
+- **Dismissal does not survive.** "Later" persists the dismissed version in `localStorage["cabinet.dismissed-update-version"]`, scoped to origin `http://127.0.0.1:<port>`. Cabinet's runtime port is not stable across launches, so a port change = new origin = empty localStorage = dismissal forgotten.
+
+### What's needed
+
+UX (ship first, unblocks users):
+
+1. Gate the in-app dialog by `installKind` — for `electron-macos`, do not render the source-managed modal; surface native-updater state as a dismissible banner/toast, never a forced modal.
+2. Stop OR-ing `hasPersistentUpdateState` into a forced-open modal; make `failed` / `restart-required` dismissible, and let stale `failed` clear on the next clean check.
+3. Persist dismissal outside origin-scoped `localStorage` (data dir / IPC), keyed by version + state, so a port change does not resurrect it.
+4. Define single ownership of `update-status.json` per install kind to stop the native and REST paths from writing over each other.
+
+Release/CI (so the manifest can't lie):
+
+5. Publish `cabinet-release.json` only when the matching desktop assets exist and the release is **published, not draft** — generate/upload the manifest in (or gated behind) the Electron publish job, or have the manifest generator verify asset presence.
+6. Make the Electron build part of the automated release (or block manifest publish until it runs) so the advertised version always has an installable build.
+7. Verify macOS signing/notarization end-to-end, or `update-electron-app` keeps emitting `error → failed` and re-pinning the modal.
+
 ## Recommended Operating Model Today
 
 - Use `create-cabinet` for the best end-user install and update experience.
@@ -280,4 +311,4 @@ If the Apple signing secrets are not configured yet, Electron packaging may stil
 
 ---
 
-Last Updated: 2026-04-06
+Last Updated: 2026-05-19

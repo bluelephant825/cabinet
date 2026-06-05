@@ -8,6 +8,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   const scope = req.nextUrl.searchParams.get("scope") ?? "all";
   const limit = req.nextUrl.searchParams.get("limit") ?? "50";
+  const cabinet = req.nextUrl.searchParams.get("cabinet") ?? "";
 
   const empty: SearchResponse = {
     query: q,
@@ -25,7 +26,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   try {
     const token = await getOrCreateDaemonToken();
-    const url = `${getDaemonUrl()}/search?q=${encodeURIComponent(q)}&scope=${encodeURIComponent(scope)}&limit=${encodeURIComponent(limit)}`;
+    const cabinetParam = cabinet
+      ? `&cabinet=${encodeURIComponent(cabinet)}`
+      : "";
+    const url = `${getDaemonUrl()}/search?q=${encodeURIComponent(q)}&scope=${encodeURIComponent(scope)}&limit=${encodeURIComponent(limit)}${cabinetParam}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",

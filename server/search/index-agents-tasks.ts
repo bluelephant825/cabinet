@@ -7,6 +7,14 @@ import type { AgentDoc, TaskDoc } from "./search-service";
 const AGENT_CACHE_TTL_MS = 5_000;
 const TASK_CACHE_TTL_MS = 3_000;
 
+/** Top-level room slug a file lives in (first path segment under data/). */
+function roomOf(fsPath: string): string | undefined {
+  const rel = path.relative(DATA_DIR, fsPath);
+  if (!rel || rel.startsWith("..")) return undefined;
+  const seg = rel.split(path.sep)[0];
+  return seg && !seg.startsWith(".") ? seg : undefined;
+}
+
 let agentCache: { at: number; docs: AgentDoc[] } | null = null;
 let taskCache: { at: number; docs: TaskDoc[] } | null = null;
 
@@ -101,7 +109,7 @@ export async function loadAgentDocs(): Promise<AgentDoc[]> {
   const docs: AgentDoc[] = [];
   for (const f of files) {
     const doc = await readPersonaFile(f);
-    if (doc) docs.push(doc);
+    if (doc) docs.push({ ...doc, cabinet: roomOf(f) });
   }
   agentCache = { at: now, docs };
   return docs;
@@ -190,6 +198,7 @@ export async function loadTaskDocs(): Promise<TaskDoc[]> {
         status: parsed.status,
         trigger: parsed.trigger,
         createdAt: parsed.createdAt,
+        cabinet: roomOf(f),
         searchText,
       });
     } catch {

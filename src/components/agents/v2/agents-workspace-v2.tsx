@@ -6,6 +6,7 @@ import { useAppStore } from "@/stores/app-store";
 import { NewRoutineDialog } from "@/components/agents/new-routine-dialog";
 import { HeartbeatDialog } from "@/components/agents/heartbeat-dialog";
 import { OrgChartModal } from "@/components/cabinets/org-chart-modal";
+import { CreateAgentDialog } from "@/components/mission-control/create-agent-dialog";
 import { AgentsContextProvider, useAgentsContext } from "./agents-context";
 import { TabsLayout, type AgentsTabKey } from "./tabs-layout";
 import { NewAgentDialog } from "./new-agent-dialog";
@@ -67,6 +68,16 @@ function Dialogs() {
   } = useAgentsContext();
 
   const setSection = useAppStore((s) => s.setSection);
+  const [createFromScratchOpen, setCreateFromScratchOpen] = useState(false);
+
+  // The sidebar / tree "New Agent" buttons dispatch this event instead of
+  // reaching into the agents view directly. V2 owns the dialog, so it must
+  // listen here (the legacy workspace had its own listener).
+  useEffect(() => {
+    const handler = () => setNewAgentOpen(true);
+    window.addEventListener("cabinet:open-add-agent", handler);
+    return () => window.removeEventListener("cabinet:open-add-agent", handler);
+  }, [setNewAgentOpen]);
 
   // The org chart modal needs the cabinet's children too. For V2 we don't
   // expose child cabinets through the agents context, so refetch via the
@@ -132,7 +143,19 @@ function Dialogs() {
         open={newAgentOpen}
         onOpenChange={setNewAgentOpen}
         cabinetPath={cabinetPath}
+        existingSlugs={new Set(agents.map((a) => a.slug))}
         onAdded={refresh}
+        onCreateFromScratch={() => setCreateFromScratchOpen(true)}
+      />
+
+      <CreateAgentDialog
+        open={createFromScratchOpen}
+        onOpenChange={setCreateFromScratchOpen}
+        cabinetPath={cabinetPath === "." ? undefined : cabinetPath}
+        onCreated={() => {
+          setCreateFromScratchOpen(false);
+          void refresh();
+        }}
       />
 
       <OrgChartModal

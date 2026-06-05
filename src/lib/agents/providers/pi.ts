@@ -24,6 +24,37 @@ const PI_FALLBACK_MODELS = [
   { id: "google/gemini-3.1-pro", name: "google/gemini-3.1-pro" },
 ] as const;
 
+function withThinkingLevels<T extends { id: string; name: string }>(
+  models: readonly T[]
+) {
+  return models.map((model) => ({
+    ...model,
+    effortLevels: [...PI_THINKING_LEVELS],
+  }));
+}
+
+/**
+ * Pure parser for `pi --list-models` stdout. Pi routes to whatever providers
+ * the user has keyed, so this list is per-machine. Blank lines and `#`
+ * comments/banners are dropped; if nothing survives (empty output, or output
+ * that is *only* a banner) we fall back to the offline list so the picker is
+ * never blank — the same hardening applied to OpenCode (§11 #22).
+ */
+export function parsePiModels(stdout: string | null | undefined) {
+  const out = (stdout || "").trim();
+  if (!out) return withThinkingLevels(PI_FALLBACK_MODELS);
+  const parsed = out
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .map((id) => ({
+      id,
+      name: id,
+      effortLevels: [...PI_THINKING_LEVELS],
+    }));
+  return parsed.length > 0 ? parsed : withThinkingLevels(PI_FALLBACK_MODELS);
+}
+
 export const piProvider: AgentProvider = {
   id: "pi",
   name: "Pi (Inflection)",
@@ -87,25 +118,21 @@ export const piProvider: AgentProvider = {
     };
   },
 
+  buildVerifyCommand(defaultModel?: string | null): string {
+    // Mirrors the install step (`pi --mode json -p 'Reply with exactly OK'`)
+    // but pins the resolved default model so verification exercises the
+    // user's actual path, not Pi's internal default.
+    const modelArg = defaultModel ? ` --model '${defaultModel}'` : "";
+    return `pi --mode json${modelArg} -p 'Reply with exactly OK'`;
+  },
+
   async listModels() {
-    try {
-      const cmd = resolveCliCommand(this);
-      const out = await execCli(cmd, ["--list-models"], { timeout: 10_000 });
-      if (!out) {
-        return [...PI_FALLBACK_MODELS].map((m) => ({ ...m, effortLevels: [...PI_THINKING_LEVELS] }));
-      }
-      return out
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#"))
-        .map((id) => ({
-          id,
-          name: id,
-          effortLevels: [...PI_THINKING_LEVELS],
-        }));
-    } catch {
-      return [...PI_FALLBACK_MODELS].map((m) => ({ ...m, effortLevels: [...PI_THINKING_LEVELS] }));
-    }
+    // Throws on a genuine CLI failure so the models API route serves the
+    // offline fallback with `dynamic:false` (honest "offline defaults" hint).
+    // `parsePiModels` still guards empty / banner-only output.
+    const cmd = resolveCliCommand(this);
+    const out = await execCli(cmd, ["--list-models"], { timeout: 15_000 });
+    return parsePiModels(out);
   },
 
   async isAvailable(): Promise<boolean> {

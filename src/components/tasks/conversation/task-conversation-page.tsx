@@ -67,6 +67,105 @@ import type { AgentListItem } from "@/types/agents";
 import type { CabinetAgentSummary } from "@/types/cabinets";
 import { compactTask, fetchTask, patchTask, postTurn } from "@/lib/agents/task-client";
 import { peekTaskIsTerminal } from "@/lib/agents/terminal-mode-cache";
+import { buildRuntimeLabel } from "@/lib/agents/runtime-format";
+
+/** Map ConversationMeta.status from SSE payloads → Task UI status. */
+function conversationStatusToTaskStatus(status: string): TaskStatus | null {
+  if (status === "failed") return "failed";
+  if (status === "completed") return "idle";
+  if (status === "running") return "running";
+  return null;
+}
+
+/** Clear pending and backfill empty agent bubbles on quick failures. */
+function fillEmptyAgentTurnContent(task: Task, status: TaskStatus): Task {
+  const failedFallback =
+    task.meta.errorHint?.trim() ||
+    "The agent run failed before producing a response.";
+  return {
+    ...task,
+    turns: task.turns.map((turn) => {
+      if (turn.role !== "agent") {
+        return turn.pending ? { ...turn, pending: undefined } : turn;
+      }
+      const content =
+        turn.content.trim() ||
+        (status === "failed" ? failedFallback : turn.content);
+      return { ...turn, pending: undefined, content };
+    }),
+  };
+}
+
+/** True when a safety-poll refetch would not change drawer-visible state. */
+function isSameTaskPollState(prev: Task | null | undefined, next: Task): boolean {
+  if (!prev) return false;
+  const pm = prev.meta;
+  const nm = next.meta;
+  if (
+    pm.status !== nm.status ||
+    pm.errorHint !== nm.errorHint ||
+    pm.errorKind !== nm.errorKind ||
+    pm.lastActivityAt !== nm.lastActivityAt ||
+    (pm.tokens?.total ?? 0) !== (nm.tokens?.total ?? 0)
+  ) {
+    return false;
+  }
+  const pendingIds = (actions: Task["meta"]["pendingActions"]) =>
+    actions?.map((a) => a.id).join("\0") ?? "";
+  if (pendingIds(pm.pendingActions) !== pendingIds(nm.pendingActions)) {
+    return false;
+  }
+  if (prev.turns.length !== next.turns.length) return false;
+  for (let i = 0; i < prev.turns.length; i++) {
+    const a = prev.turns[i];
+    const b = next.turns[i];
+    if (
+      a.id !== b.id ||
+      a.content !== b.content ||
+      !!a.pending !== !!b.pending ||
+      !!a.awaitingInput !== !!b.awaitingInput ||
+      (a.artifacts?.length ?? 0) !== (b.artifacts?.length ?? 0)
+    ) {
+      return false;
+    }
+  }
+  if (!!prev.session?.alive !== !!next.session?.alive) return false;
+  return true;
+}
+
+/** Apply a terminal task.updated payload without waiting on refetch. */
+function applyTerminalPayloadToTask(
+  prev: Task,
+  payload: Record<string, unknown> | undefined
+): Task | null {
+  if (!payload || payload.streaming === true) return null;
+  const raw = payload.status;
+  if (typeof raw !== "string") return null;
+  const taskStatus = conversationStatusToTaskStatus(raw);
+  if (!taskStatus || taskStatus === "running") return null;
+  const errorHint =
+    typeof payload.errorHint === "string"
+      ? payload.errorHint
+      : prev.meta.errorHint;
+  const errorKind =
+    typeof payload.errorKind === "string"
+      ? payload.errorKind
+      : prev.meta.errorKind;
+  if (
+    prev.meta.status === taskStatus &&
+    prev.meta.errorHint === errorHint &&
+    prev.meta.errorKind === errorKind
+  ) {
+    return null;
+  }
+  return fillEmptyAgentTurnContent(
+    {
+      ...prev,
+      meta: { ...prev.meta, status: taskStatus, errorHint, errorKind },
+    },
+    taskStatus
+  );
+}
 
 const STATUS_META: Record<
   TaskStatus,
@@ -269,17 +368,6 @@ function WrapUpCard({
   );
 }
 
-function buildRuntimeLabel(task: Task): string {
-  const config = task.meta.adapterConfig as
-    | { model?: string; effort?: string }
-    | undefined;
-  const model = config?.model;
-  const effort = config?.effort;
-  const provider = task.meta.providerId;
-  const parts = [model, provider, effort].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "default runtime";
-}
-
 function readRuntimeModel(config?: Record<string, unknown>): string | undefined {
   if (!config) return undefined;
   const value = config.model;
@@ -316,8 +404,18 @@ function readRuntimeSkills(config?: Record<string, unknown>): string[] | null {
 
 const DEFAULT_CONTEXT_WINDOW = 200_000;
 
+// Shared easing for the header/summary collapse-on-scroll tween.
+const COLLAPSE_EASE =
+  "duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
+
 export interface TaskConversationPageProps {
   taskId: string;
+  /**
+   * The room/cabinet the task lives in. Required to find the conversation after
+   * rooms v3 (conversations are scoped per cabinet); without it the initial
+   * fetch looks at the empty home and the task "fails to load".
+   */
+  cabinetPath?: string;
   variant?: "full" | "compact";
   readOnly?: boolean;
   /**
@@ -331,22 +429,14 @@ export interface TaskConversationPageProps {
    * into the full task view rather than the outer list.
    */
   returnContext?: import("@/stores/app-store").SelectedSection;
-  /**
-   * Fires whenever the live task status changes (and with `null` on
-   * unmount). Lets a compact-embed host (e.g. TaskDetailPanel) drive chrome
-   * — like the Stop button — off the SSE-fresh status instead of a stale
-   * store snapshot taken when the panel opened. `"awaiting-input"` is its
-   * own TaskStatus, so `"running"` already means the model is generating.
-   */
-  onLiveStatusChange?: (status: TaskStatus | null) => void;
 }
 
 export function TaskConversationPage({
   taskId,
+  cabinetPath,
   variant = "full",
   readOnly = false,
   returnContext,
-  onLiveStatusChange,
 }: TaskConversationPageProps) {
   const { t } = useLocale();
   const isDemo = taskId === "demo";
@@ -368,6 +458,11 @@ export function TaskConversationPage({
   const [busy, setBusy] = useState(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const prevTaskStatusRef = useRef<TaskStatus | null>(null);
+
+  useEffect(() => {
+    prevTaskStatusRef.current = null;
+  }, [taskId, cabinetPath, variant, isDemo]);
 
   // Callback ref on the panel root: scroll doesn't bubble, so we listen in
   // the capture phase to catch scrolling inside any tab's content. A
@@ -566,9 +661,11 @@ export function TaskConversationPage({
     setLoadError(null);
     setConnectTimedOut(false);
     const watchdog = setTimeout(() => {
-      if (!cancelled) setConnectTimedOut(true);
+      if (!cancelled) {
+        setConnectTimedOut(true);
+      }
     }, 8000);
-    fetchTask(taskId)
+    fetchTask(taskId, cabinetPath || undefined)
       .then((t) => {
         if (!cancelled) {
           setTask(t);
@@ -586,7 +683,7 @@ export function TaskConversationPage({
       cancelled = true;
       clearTimeout(watchdog);
     };
-  }, [isDemo, taskId, retryNonce]);
+  }, [isDemo, taskId, cabinetPath, retryNonce]);
 
   // Fetch the agent's identity (avatar/icon/color/displayName) so turn blocks
   // can render the real avatar instead of a generic sparkles glyph.
@@ -630,12 +727,22 @@ export function TaskConversationPage({
       try {
         const event = JSON.parse(msg.data) as TaskEvent | { type: "ping" };
         if (event.type === "ping") return;
-        if (event.type === "task.deleted") return;
+        if (event.type === "task.deleted") {
+          return;
+        }
+        const eventPayload =
+          "payload" in event && event.payload
+            ? (event.payload as Record<string, unknown>)
+            : undefined;
+        setTask((prev) => {
+          if (!prev) return prev;
+          return applyTerminalPayloadToTask(prev, eventPayload) ?? prev;
+        });
         // Re-fetch on any task/turn event — simple, durable
-        const fresh = await fetchTask(taskId);
+        const fresh = await fetchTask(taskId, cabinetPath || undefined);
         setTask(fresh);
       } catch {
-        // ignore malformed events
+        // ignore malformed frames / transient fetch errors
       }
     };
     es.onerror = () => {
@@ -644,21 +751,151 @@ export function TaskConversationPage({
     return () => {
       es.close();
     };
-  }, [isDemo, taskId]);
+  }, [isDemo, taskId, cabinetPath]);
 
-  // Surface SSE-fresh status to a compact-embed host (TaskDetailPanel) so
-  // chrome like the Stop button reacts to live runs, not the stale store
-  // snapshot. Ref-held callback keeps this off the effect deps.
-  const liveStatusCbRef = useRef(onLiveStatusChange);
-  liveStatusCbRef.current = onLiveStatusChange;
-  const liveStatus = task?.meta.status ?? null;
+  // Global conversation bus — catches task.updated events published on the
+  // Next.js side (e.g. waitForConversationCompletion) even when the
+  // per-conversation SSE reconnects late. Debounced to match the board.
   useEffect(() => {
-    if (liveStatus === null) return;
-    liveStatusCbRef.current?.(liveStatus);
-  }, [liveStatus]);
+    if (isDemo) return;
+    const es = new EventSource("/api/agents/conversations/events");
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = (_reason: string) => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        void fetchTask(taskId, cabinetPath || undefined)
+          .then((fresh) => {
+            setTask(fresh);
+          })
+          .catch(() => {});
+      }, 200);
+    };
+    es.onmessage = (msg) => {
+      try {
+        const event = JSON.parse(msg.data) as TaskEvent | { type: "ping" };
+        if (event.type === "ping") return;
+        if ("taskId" in event && event.taskId && event.taskId !== taskId) return;
+        const eventPayload =
+          "payload" in event && event.payload
+            ? (event.payload as Record<string, unknown>)
+            : undefined;
+        setTask((prev) => {
+          if (!prev) return prev;
+          return applyTerminalPayloadToTask(prev, eventPayload) ?? prev;
+        });
+        scheduleRefetch(event.type);
+      } catch {
+        // ignore malformed frames
+      }
+    };
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      es.close();
+    };
+  }, [isDemo, taskId, cabinetPath]);
+
+  // When the app-shell completion toast fires, mirror the terminal status
+  // into the open drawer immediately — the toast and waitForConversationCompletion
+  // can observe failure before meta.json / refetch catches up.
   useEffect(() => {
-    return () => liveStatusCbRef.current?.(null);
-  }, []);
+    if (isDemo) return;
+    const handler = (event: Event) => {
+      const batch = (event as CustomEvent).detail as Array<{
+        id: string;
+        status: string;
+      }>;
+      const match = batch?.find((n) => n.id === taskId);
+      if (!match) return;
+      setTask((prev) => {
+        if (!prev) return prev;
+        return (
+          applyTerminalPayloadToTask(prev, { status: match.status }) ?? prev
+        );
+      });
+      void fetchTask(taskId, cabinetPath || undefined)
+        .then((fresh) => setTask(fresh))
+        .catch(() => {});
+    };
+    window.addEventListener("cabinet:conversation-completed", handler);
+    return () =>
+      window.removeEventListener("cabinet:conversation-completed", handler);
+  }, [isDemo, taskId, cabinetPath]);
+
+  // Safety poll while the task is alive (or not yet loaded). Per-conversation
+  // SSE can miss terminal updates when the run finishes before the browser
+  // connects — notifications use a separate channel and may arrive first.
+  useEffect(() => {
+    if (isDemo) return;
+    const status = task?.meta.status;
+    const shouldPoll =
+      !task || status === "running" || status === "awaiting-input";
+    if (!shouldPoll) return;
+
+    const tick = () => {
+      void (async () => {
+        try {
+          const [fresh, daemonRes] = await Promise.all([
+            fetchTask(taskId, cabinetPath || undefined),
+            fetch(`/api/daemon/session/${encodeURIComponent(taskId)}/output`).then(
+              (r) => r.ok ? r.json() : null
+            ) as Promise<{
+              status?: string;
+              adapterErrorHint?: string | null;
+              adapterErrorKind?: string | null;
+            } | null>,
+          ]);
+          let next = fresh;
+          // When meta.json is stale but the daemon already knows the session
+          // ended, reflect the terminal status immediately in the drawer.
+          if (
+            daemonRes?.status &&
+            (daemonRes.status === "failed" || daemonRes.status === "completed") &&
+            fresh.meta.status === "running"
+          ) {
+            const taskStatus =
+              daemonRes.status === "completed" ? "idle" : "failed";
+            next = fillEmptyAgentTurnContent(
+              {
+                ...fresh,
+                meta: {
+                  ...fresh.meta,
+                  status: taskStatus,
+                  errorHint:
+                    daemonRes.adapterErrorHint?.trim() ||
+                    fresh.meta.errorHint,
+                  errorKind:
+                    daemonRes.adapterErrorKind ||
+                    fresh.meta.errorKind,
+                },
+              },
+              taskStatus
+            );
+          }
+          setTask((prev) =>
+            isSameTaskPollState(prev, next) ? prev : next
+          );
+        } catch {
+          // ignore transient poll failures
+        }
+      })();
+    };
+
+    // Fast ticks for the first 30s after open — that's when quick failures
+    // happen and the user is staring at the drawer waiting.
+    tick();
+    let slowInterval: ReturnType<typeof setInterval> | null = null;
+    const fastInterval = window.setInterval(tick, 500);
+    const slowSwitch = window.setTimeout(() => {
+      window.clearInterval(fastInterval);
+      slowInterval = window.setInterval(tick, 1500);
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(fastInterval);
+      if (slowInterval) window.clearInterval(slowInterval);
+      window.clearTimeout(slowSwitch);
+    };
+  }, [isDemo, taskId, cabinetPath, task?.meta.status]);
 
   // Cleanup demo settle timer
   useEffect(() => {
@@ -674,7 +911,10 @@ export function TaskConversationPage({
     }
   }, [task?.turns.length]);
 
-  const runtimeLabel = useMemo(() => (task ? buildRuntimeLabel(task) : ""), [task]);
+  const runtimeLabel = useMemo(
+    () => (task ? buildRuntimeLabel(task.meta) ?? "default runtime" : ""),
+    [task]
+  );
   const contextWindow = task?.meta.runtime?.contextWindow ?? DEFAULT_CONTEXT_WINDOW;
   const tokenPct = task?.meta.tokens
     ? Math.min(100, (task.meta.tokens.total / contextWindow) * 100)
@@ -690,6 +930,13 @@ export function TaskConversationPage({
   );
   const terminalModeActive =
     isTerminalMode || (!task && earlyIsTerminal === true);
+
+  useEffect(() => {
+    const status = task?.meta.status ?? null;
+    if (prevTaskStatusRef.current === status) return;
+    prevTaskStatusRef.current = status;
+  }, [task?.meta.status]);
+
   const firstUserTurn = task?.turns.find((t) => t.role === "user") || null;
   const terminalPrompt = firstUserTurn?.content || task?.meta.title || "";
   const attachedSkills = task ? readRuntimeSkills(task.meta.adapterConfig) : null;
@@ -734,7 +981,7 @@ export function TaskConversationPage({
           turn: nextTurn + 1,
           role: "agent" as const,
           ts: new Date().toISOString(),
-          content: "Working on it…",
+          content: "",
           pending: true,
         };
         setTask((t) =>
@@ -899,7 +1146,7 @@ export function TaskConversationPage({
     setBusy(true);
     try {
       await deleteConversation(taskId, task.meta.cabinetPath);
-      if (typeof window !== "undefined") {
+      if (variant === "full" && typeof window !== "undefined") {
         window.location.hash = "#/";
       }
     } catch (e) {
@@ -907,7 +1154,7 @@ export function TaskConversationPage({
     } finally {
       setBusy(false);
     }
-  }, [task, isDemo, taskId]);
+  }, [task, isDemo, taskId, variant]);
 
   if (loadError && !task) {
     return (
@@ -1352,133 +1599,254 @@ export function TaskConversationPage({
   // for TypeScript.
   if (!task) return null;
 
+  // The model is "alive" while running or paused for input; Stop (SIGTERM)
+  // and the manual graceful-exit Done both apply in either state. Built once
+  // here so the full-page bar and the compact drawer render an identical
+  // action cluster.
+  const taskAlive =
+    task.meta.status === "running" || task.meta.status === "awaiting-input";
+  const aliveActions = taskAlive ? (
+    <>
+      {task.meta.trigger === "manual" ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-2 text-[11px] text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+          disabled={busy || isDemo}
+          onClick={async () => {
+            try {
+              setBusy(true);
+              await closeConversation(task.meta.id, task.meta.cabinetPath);
+            } catch (e) {
+              console.error(e);
+            } finally {
+              setBusy(false);
+            }
+          }}
+          title={t("tasks:conversation.gracefulExit")}
+        >
+          <CheckCircle2 className="size-3.5" />
+          Done
+        </Button>
+      ) : null}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1 px-2 text-[11px] text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+        disabled={busy || isDemo}
+        onClick={async () => {
+          try {
+            setBusy(true);
+            await stopConversation(task.meta.id, task.meta.cabinetPath);
+          } catch (e) {
+            console.error(e);
+          } finally {
+            setBusy(false);
+          }
+        }}
+        title={t("tasks:conversation.sendSigterm")}
+      >
+        <Square className="size-3 fill-current" />
+        Stop
+      </Button>
+    </>
+  ) : null;
+
+  const moreMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        title={t("tasks:conversation.moreActions")}
+        aria-label={t("tasks:conversation.moreActions")}
+      >
+        <MoreHorizontal className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[200px]">
+        {/* Compact has no room for a standalone Compact button, so it lives
+            in the menu there; the full bar keeps the visible button. */}
+        {isCompact && !isDemo && task.turns.length >= 2 ? (
+          <DropdownMenuItem disabled={busy} onClick={() => void handleCompact()}>
+            <RefreshCw className="mr-2 size-3.5" />
+            Compact context
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onClick={() => void handleCopyLink()}>
+          <Link2 className="mr-2 size-3.5" />
+          Copy link
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleOpenTranscriptExternal}>
+          <ExternalLink className="mr-2 size-3.5" />
+          Open transcript
+        </DropdownMenuItem>
+        {task.meta.status !== "running" && !isDemo ? (
+          <DropdownMenuItem onClick={() => void handleRestart()}>
+            <RotateCcw className="mr-2 size-3.5" />
+            Restart
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => void handleDelete()}
+          disabled={isDemo || busy}
+          className="text-rose-500 focus:bg-rose-500/10 focus:text-rose-500"
+        >
+          <Trash2 className="mr-2 size-3.5" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  // Canonical header action cluster, shared by both layouts. Frame controls
+  // (Close/Enlarge/Mute) are owned by the drawer host, not here, so they stay
+  // reachable even in the terminal/loading early-return states.
+  const headerActions = (
+    <div className="flex shrink-0 items-center gap-1">
+      {aliveActions}
+      {!isCompact ? (
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[11px]">
+          <GitBranch className="size-3.5" />
+          main
+        </Button>
+      ) : null}
+      {!isCompact ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1.5 text-[11px]"
+          disabled={busy || isDemo || task.turns.length < 2}
+          onClick={handleCompact}
+          title={t("tasks:conversation.compactContext")}
+        >
+          <RefreshCw className="size-3.5" />
+          Compact
+        </Button>
+      ) : null}
+      <StatusActionButton
+        status={task.meta.status}
+        busy={busy}
+        onMarkDone={handleMarkDone}
+        onRetry={handleRestart}
+      />
+      {moreMenu}
+    </div>
+  );
+
   return (
     <div
       ref={setPanelRoot}
       className="flex h-full flex-col bg-background text-foreground"
     >
-      {/* Top bar (hidden in compact variant) */}
-      {!isCompact ? (
-      <header
-        className="flex items-center gap-3 border-b border-border/70 px-6 py-3 transition-[padding] duration-200"
-        style={{ paddingInlineStart: `calc(1.5rem + var(--sidebar-toggle-offset, 0px))` }}
-      >
-        <div className="min-w-0 flex-1">
+      {/* Header — owned here and rendered in every variant so Stop / Done /
+          Status / Compact / menu stay identical everywhere. Compact embeds
+          (the drawer) get a denser, collapse-on-scroll layout; the full page
+          keeps the roomy bar. The drawer host owns its own frame controls
+          (close/enlarge/mute) in a separate strip. */}
+      {isCompact ? (
+        <header
+          className={cn(
+            "flex shrink-0 flex-col gap-1 border-b border-border/70 px-4 transition-[padding]",
+            COLLAPSE_EASE,
+            summaryCollapsed ? "py-2" : "py-3"
+          )}
+        >
           <div className="flex items-center gap-2">
-            {isTerminalMode && (
-              <span
-                title={t("tasks:conversation.ptyMode")}
-                className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400"
-              >
-                <Terminal className="size-3" />
-                PTY
-              </span>
-            )}
-            {attachedSkills && attachedSkills.length > 0 && (
-              <span
-                className="inline-flex items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium text-violet-700 dark:text-violet-400"
-                title={`Skills attached: ${attachedSkills.join(", ")}`}
-              >
-                <Sparkles className="size-3" />
-                {attachedSkills.length === 1
-                  ? attachedSkills[0]
-                  : `${attachedSkills.length} skills`}
-              </span>
-            )}
-            <h1 className="truncate text-[14px] font-semibold tracking-tight">
-              {task.meta.title}
-            </h1>
-            <StatusBadge status={task.meta.status} />
-            {busy ? <Loader2 className="size-3.5 animate-spin text-muted-foreground" /> : null}
+            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+              {runtimeLabel}
+            </span>
+            {busy ? (
+              <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+            ) : null}
+            {headerActions}
           </div>
-          <div className="mt-0.5 flex items-center gap-3 text-[11px] text-muted-foreground">
-            <span>{runtimeLabel}</span>
-            <span>·</span>
-            <TokenBar used={task.meta.tokens?.total ?? 0} window={contextWindow} />
-            {task.meta.errorKind ? (
-              <>
-                <span>·</span>
+          <p
+            dir="auto"
+            className={cn(
+              "overflow-hidden text-[14px] font-semibold leading-snug text-foreground transition-[max-height]",
+              COLLAPSE_EASE,
+              summaryCollapsed
+                ? "max-h-[1.5rem] truncate"
+                : "max-h-[12rem] whitespace-normal"
+            )}
+          >
+            {task.meta.title}
+          </p>
+          {task.meta.errorKind ? (
+            <span
+              className="inline-flex w-fit items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive"
+              title={task.meta.errorHint || undefined}
+            >
+              <CircleAlert className="size-3" />
+              {task.meta.errorKind.replace(/_/g, " ")}
+            </span>
+          ) : null}
+        </header>
+      ) : (
+        <header
+          className="flex items-center gap-3 border-b border-border/70 px-6 py-3 transition-[padding] duration-200"
+          style={{ paddingInlineStart: `calc(1.5rem + var(--sidebar-toggle-offset, 0px))` }}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              {isTerminalMode && (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive"
-                  title={task.meta.errorHint || undefined}
+                  title={t("tasks:conversation.ptyMode")}
+                  className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400"
                 >
-                  <CircleAlert className="size-3" />
-                  {task.meta.errorKind.replace(/_/g, " ")}
+                  <Terminal className="size-3" />
+                  PTY
                 </span>
-              </>
+              )}
+              {attachedSkills && attachedSkills.length > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium text-violet-700 dark:text-violet-400"
+                  title={`Skills attached: ${attachedSkills.join(", ")}`}
+                >
+                  <Sparkles className="size-3" />
+                  {attachedSkills.length === 1
+                    ? attachedSkills[0]
+                    : `${attachedSkills.length} skills`}
+                </span>
+              )}
+              <h1 className="truncate text-[14px] font-semibold tracking-tight">
+                {task.meta.title}
+              </h1>
+              <StatusBadge status={task.meta.status} />
+              {busy ? (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              ) : null}
+            </div>
+            <div className="mt-0.5 flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span>{runtimeLabel}</span>
+              <span>·</span>
+              <TokenBar used={task.meta.tokens?.total ?? 0} window={contextWindow} />
+              {task.meta.errorKind ? (
+                <>
+                  <span>·</span>
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive"
+                    title={task.meta.errorHint || undefined}
+                  >
+                    <CircleAlert className="size-3" />
+                    {task.meta.errorKind.replace(/_/g, " ")}
+                  </span>
+                </>
+              ) : null}
+            </div>
+            {task.meta.errorKind && task.meta.errorHint ? (
+              <div className="mt-1 text-[11px] leading-4 text-destructive/90">
+                {task.meta.errorHint}
+              </div>
             ) : null}
           </div>
-          {task.meta.errorKind && task.meta.errorHint ? (
-            <div className="mt-1 text-[11px] leading-4 text-destructive/90">
-              {task.meta.errorHint}
-            </div>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[11px]">
-            <GitBranch className="size-3.5" />
-            main
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 gap-1.5 text-[11px]"
-            disabled={busy || isDemo || task.turns.length < 2}
-            onClick={handleCompact}
-            title={t("tasks:conversation.compactContext")}
-          >
-            <RefreshCw className="size-3.5" />
-            Compact
-          </Button>
-          <StatusActionButton
-            status={task.meta.status}
-            busy={busy}
-            onMarkDone={handleMarkDone}
-            onRetry={handleRestart}
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              title={t("tasks:conversation.moreActions")}
-              aria-label={t("tasks:conversation.moreActions")}
-            >
-              <MoreHorizontal className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[200px]">
-              <DropdownMenuItem onClick={() => void handleCopyLink()}>
-                <Link2 className="mr-2 size-3.5" />
-                Copy link
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleOpenTranscriptExternal}>
-                <ExternalLink className="mr-2 size-3.5" />
-                Open transcript
-              </DropdownMenuItem>
-              {task.meta.status !== "running" && !isDemo ? (
-                <DropdownMenuItem onClick={() => void handleRestart()}>
-                  <RotateCcw className="mr-2 size-3.5" />
-                  Restart
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => void handleDelete()}
-                disabled={isDemo || busy}
-                className="text-rose-500 focus:bg-rose-500/10 focus:text-rose-500"
-              >
-                <Trash2 className="mr-2 size-3.5" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-      ) : null}
+          {headerActions}
+        </header>
+      )}
 
       {/* Summary — eases down to a single ellipsised row on scroll. */}
       {(() => {
         const collapsed = summaryCollapsed && !editingSummary;
-        const ease =
-          "duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
+        const ease = COLLAPSE_EASE;
         return (
           <div
             className={cn(

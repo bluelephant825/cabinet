@@ -4,24 +4,25 @@ import { Home, Users, ListChecks, Sparkles, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
+import { useLocale } from "@/i18n/use-locale";
 
 type TabId = "home" | "agents" | "tasks" | "ai" | "menu";
 
 interface TabSpec {
   id: TabId;
-  label: string;
   icon: typeof Home;
 }
 
 const TABS: TabSpec[] = [
-  { id: "home", label: "Home", icon: Home },
-  { id: "agents", label: "Agents", icon: Users },
-  { id: "tasks", label: "Tasks", icon: ListChecks },
-  { id: "ai", label: "AI", icon: Sparkles },
-  { id: "menu", label: "Menu", icon: Menu },
+  { id: "home", icon: Home },
+  { id: "agents", icon: Users },
+  { id: "tasks", icon: ListChecks },
+  { id: "ai", icon: Sparkles },
+  { id: "menu", icon: Menu },
 ];
 
 export function MobileBottomNav() {
+  const { t } = useLocale();
   const section = useAppStore((s) => s.section);
   const setSection = useAppStore((s) => s.setSection);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -70,7 +71,7 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      aria-label="Primary"
+      aria-label={t("chrome:nav.primaryAriaLabel")}
       className={cn(
         "md:hidden fixed bottom-0 inset-x-0 z-30",
         "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
@@ -82,12 +83,13 @@ export function MobileBottomNav() {
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+          const label = t(`chrome:nav.${tab.id}`);
           return (
             <li key={tab.id} className="flex-1">
               <button
                 type="button"
                 onClick={() => onSelect(tab.id)}
-                aria-label={tab.label}
+                aria-label={label}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "w-full min-h-[56px] flex flex-col items-center justify-center gap-0.5",
@@ -104,7 +106,7 @@ export function MobileBottomNav() {
                     isActive && "text-primary"
                   )}
                 />
-                <span>{tab.label}</span>
+                <span>{label}</span>
               </button>
             </li>
           );

@@ -88,6 +88,17 @@ export interface AgentProvider {
     opts?: SessionInvocationOptions
   ): CliProviderInvocation;
   /**
+   * Optional. The shell command the in-UI verifier runs instead of the
+   * static "Verify setup" install step. Multi-provider routers
+   * (OpenCode/Pi) implement this so verification exercises the *resolved
+   * default model* — then "verify passed" means the user's actual path
+   * works, not the CLI's opaque internal default. `defaultModel` is passed
+   * only when this provider is the configured default. Omit the method
+   * entirely → the verifier uses the install step command unchanged (every
+   * other provider).
+   */
+  buildVerifyCommand?(defaultModel?: string | null): string;
+  /**
    * Whether this provider's CLI accepts a `resumeId` in the terminal-mode
    * launch spec. UI surfaces (continue composer, "new session" advisory)
    * key off this flag to decide whether a follow-up turn will actually

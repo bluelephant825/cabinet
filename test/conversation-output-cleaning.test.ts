@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { DATA_DIR } from "../src/lib/storage/path-utils";
 import { buildManualConversationPrompt } from "../src/lib/agents/conversation-runner";
 import {
   parseCabinetBlock,
@@ -32,16 +34,16 @@ test("manual cabinet-scoped prompts explicitly pin work to the cabinet root", as
   const prompt = await buildManualConversationPrompt({
     agentSlug: "general",
     userMessage: "Make a diagram",
-    cabinetPath: "hilas-cabinet",
+    cabinetPath: "demo-cabinet",
   });
 
   assert.equal(
     prompt.cwd,
-    "/Users/mybiblepath/Development/cabinet/data/hilas-cabinet"
+    path.join(DATA_DIR, "demo-cabinet")
   );
   assert.match(
     prompt.prompt,
-    /Work only inside the cabinet-scoped knowledge base rooted at \/data\/hilas-cabinet\./
+    /Work only inside the cabinet-scoped knowledge base rooted at \/data\/demo-cabinet\./
   );
   assert.match(
     prompt.prompt,

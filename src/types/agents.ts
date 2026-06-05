@@ -139,6 +139,22 @@ export interface ProviderInfo {
   }>;
   models?: ProviderModel[];
   effortLevels?: ProviderEffortLevel[];
+  /**
+   * True when the provider implements `listModels()` — its real model set is
+   * discovered per-machine (e.g. `opencode models`, entitlement-gated) rather
+   * than baked into static metadata. The `models` array on this object is then
+   * only an offline fallback until the client hydrates it from
+   * `GET /api/agents/providers/:id/models`. Drives the searchable combobox
+   * (vs. the fixed matrix) in the runtime picker.
+   */
+  dynamicModels?: boolean;
+  /**
+   * Client-only. Set by the app-store once the real model list has been
+   * fetched and merged into `models`. Until then an unknown saved model id
+   * must be preserved (not snapped to `models[0]`) so async hydration never
+   * clobbers a persisted selection. Never sent by the server.
+   */
+  modelsHydrated?: boolean;
   defaultAdapterType?: string;
   /**
    * True when the CLI supports resuming a prior terminal-mode session via

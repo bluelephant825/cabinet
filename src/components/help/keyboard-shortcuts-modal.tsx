@@ -5,6 +5,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { cn } from "@/lib/utils";
 import { Search as SearchIcon, X } from "lucide-react";
 import { useLocale } from "@/i18n/use-locale";
+import { isMacPlatform, renderKeyToken } from "@/lib/keys";
 
 // Audit #053: single cheat sheet listing every Cabinet keyboard shortcut.
 // Opened via the global "?" key (see src/hooks/use-global-hotkeys.ts) or
@@ -60,6 +61,20 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    label: "Knowledge tree",
+    items: [
+      { keys: ["f2"], description: "Rename the selected item" },
+      {
+        keys: ["cmd", "backspace"],
+        description: "Delete the selected item",
+      },
+      {
+        keys: ["cmd", "shift", "M"],
+        description: "Move the selected item to…",
+      },
+    ],
+  },
+  {
     label: "Tasks",
     items: [
       {
@@ -87,22 +102,6 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
 ];
-
-function isMacPlatform(): boolean {
-  if (typeof window === "undefined") return true;
-  return /mac|iphone|ipad/i.test(window.navigator.platform);
-}
-
-function renderKeyToken(token: string, isMac: boolean): string {
-  const lower = token.toLowerCase();
-  if (lower === "cmd") return isMac ? "⌘" : "Ctrl";
-  if (lower === "ctrl") return isMac ? "⌃" : "Ctrl";
-  if (lower === "shift") return isMac ? "⇧" : "Shift";
-  if (lower === "alt") return isMac ? "⌥" : "Alt";
-  if (lower === "enter" || lower === "return") return "↵";
-  if (lower === "esc" || lower === "escape") return "Esc";
-  return token;
-}
 
 export function KeyboardShortcutsModal() {
   const { t } = useLocale();

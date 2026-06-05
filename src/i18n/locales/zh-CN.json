@@ -13,13 +13,15 @@
       "promptPlaceholder": "你是一位营销智能体……",
       "addAgentTitle": "把一个智能体加入你的团队",
       "addAgentDescription": "从库中挑选一位专员。添加后你可以编辑它的名字、角色和指令。",
+      "createFromScratchTitle": "从头创建",
+      "createFromScratchDescription": "构建一个拥有独立身份、角色和指令的新智能体。",
       "searchLibraryPlaceholder": "搜索库",
       "errorLoadLibrary": "无法加载智能体库。",
       "errorAddAgent": "无法添加此智能体。"
     },
     "metric": {
       "name": "指标名称",
-      "namePlaceholder": "reddit_replies",
+      "namePlaceholder": "reddit回复",
       "target": "目标",
       "targetPlaceholder": "回复/周",
       "floor": "下限",
@@ -61,7 +63,8 @@
       "pickAnAgent": "挑选一个智能体",
       "dismiss": "关闭",
       "lockedHeartbeatTip": "该智能体已停止。请在「智能体」标签页中启动它,才能启用心跳。",
-      "lockedRoutineTip": "该智能体已停止。请在「智能体」标签页中启动它,才能启用它的例行任务。"
+      "lockedRoutineTip": "该智能体已停止。请在「智能体」标签页中启动它,才能启用它的例行任务。",
+      "avatar": "工作区头像"
     },
     "detail": {
       "clickToTurnOff": "点击以关闭。",
@@ -315,15 +318,21 @@
     "stopHint": "立即停止此运行(发送 SIGTERM)",
     "restart": "重启",
     "restartHint": "从原始提示词重新运行",
-    "runHint": "立即开始此任务",
-    "reassign": "重新分配",
-    "reassignHint": "将此任务交给其他智能体"
+    "runHint": "立即开始此任务"
   },
   "schedulesPanel": {
     "title": "已排程任务",
     "noJobs": "尚未为该凯比内特配置任何任务。",
     "heartbeats": "心跳",
     "noHeartbeats": "尚未配置任何心跳。"
+  },
+  "scheduleTab": {
+    "explainer1": "你的团队这周在做的一切,都在一个日历上。粉色是心跳,绿色是例行任务。点击任意药丸即可编辑。",
+    "explainer2": "用这个标签页发现冲突、找出空闲时段,或一眼看出团队有多忙。",
+    "aboutAria": "关于日程",
+    "modeDay": "日",
+    "modeWeek": "周",
+    "modeMonth": "月"
   },
   "mermaidViewer": {
     "zoomOut": "缩小",
@@ -447,6 +456,49 @@
     "editor": "编辑器",
     "slashMenu": "斜杠菜单"
   },
+  "slideDataCopy": {
+    "slideNum": "01 · 数据",
+    "headlineSentence": "你<accent>唯一的真相来源</accent>。",
+    "paragraphPrefix": "Markdown、PDF、表格、幻灯片、图片、视频、音频、链接的代码库、嵌入的网页应用、Google Docs。用 ",
+    "paragraphSuffix": " 提及它们中的任何一个。",
+    "secondParagraphPrefix": "一切都在一个地方 — 这样你和你的 AI 团队都从",
+    "sameFiles": "同一份文件",
+    "secondParagraphSuffix": "里读、写、发布,而不是层层副本。",
+    "mockTitle": "Jane 的凯比内特"
+  },
+  "slideData": {
+    "thailandRootLabel": "泰国之旅",
+    "thailandCaption": "把你所有的文件放在一个地方查看。",
+    "videoTitle": "夜市.mp4",
+    "taxRootLabel": "2026 报税",
+    "taxCaption": "2026 报税 — 一个交互式的计算器网页应用,直接嵌入你的凯比内特。",
+    "calculatorTitle": "计算器",
+    "liveAppBadge": "实时应用",
+    "taxEstimateLabel": "2026 税额估算",
+    "income": "收入",
+    "deductions": "扣除",
+    "taxBracket": "税档",
+    "estimatedTax": "预估税额",
+    "healthRootLabel": "健康",
+    "healthCaption": "维生素与检测 — 像页面一样好用的表格。",
+    "csvTitle": "每日维生素.csv",
+    "csvColVitamin": "维生素",
+    "csvColDose": "剂量",
+    "csvColTime": "时间",
+    "csvColDone": "完成",
+    "repoRootLabel": "cabinet-repo",
+    "repoCaption": "代码库 — 链接任意 Git 仓库,智能体可以搜索。",
+    "schemaTitle": "schema.ts",
+    "tsBadge": "TS"
+  },
+  "slideTasks": {
+    "slideNum": "03 · 任务",
+    "typedCommand": "跑 10 个任务,每个写一首歌,保存到 @Songs/",
+    "headlineSentence": "准备<accent>开始</accent>了吗?",
+    "paragraphPrefix": "写一个任务。跑一个、跑十个、永远定时跑。用 ",
+    "paragraphSuffix": " 提及页面,把输出保存到你想要的地方。现在你是导演。",
+    "savingFolder": "歌曲/"
+  },
   "slideAgents": {
     "persona": "角色",
     "heartbeat": "心跳",
@@ -456,6 +508,7 @@
     "otherOrganizer": "组织者",
     "idle": "空闲",
     "researchAnalyst": "研究分析师",
+    "modelLine": "Claude · Sonnet 4.6",
     "live": "在线",
     "personaBody": "「严谨的分析师。引用来源。标记互相冲突的说法。」",
     "heartbeatBody": "每 15 分钟扫一遍 @Market Research",
@@ -506,7 +559,7 @@
     "close": "关闭",
     "rolePlaceholder": "如:独立开发者、SaaS PM、设计专业学生、爱好者……",
     "joinDiscord": "加入 Discord",
-    "header": "Hila 的简短问候",
+    "header": "Jane 的简短问候",
     "howGoing": "目前用得怎么样?",
     "starsCount": "{{n}} 个星",
     "starsCountPlural": "{{n}} 个星",
@@ -543,6 +596,8 @@
   },
   "linkRepo": {
     "title": "加载知识",
+    "intro": "将 Cabinet 指向您机器上的任意文件夹。Cabinet 会创建一个符号链接，使该文件夹的内容显示在您的知识库中，并可作为上下文供 AI 智能体使用。原始文件夹绝不会被移动或复制。",
+    "symlinkNote": "这将创建一个符号链接 — 文件保留在原位。",
     "autoDetectPlaceholder": "从 git remote 自动检测(可选)",
     "shortSummaryPlaceholder": "面向智能体的可选简短摘要"
   },
@@ -555,7 +610,115 @@
     "openCabinet": "打开凯比内特视图",
     "pageTitlePlaceholder": "页面标题……",
     "rename": "重命名",
-    "openBadge": "打开"
+    "openBadge": "打开",
+    "sectionAdd": "添加到此项",
+    "sectionThis": "此项",
+    "addSubPage": "添加子页面",
+    "newFolder": "新建文件夹",
+    "createFile": "创建新文件…",
+    "connectKnowledge": "连接知识…",
+    "symlinkTag": "符号链接",
+    "importFile": "导入文件…",
+    "importFolder": "导入文件夹…",
+    "createCabinet": "在此创建 Cabinet",
+    "editSymlink": "编辑符号链接…",
+    "settings": "设置…",
+    "moveTo": "移动到…",
+    "copyRelativePath": "复制相对路径",
+    "copyFullPath": "复制完整路径",
+    "openInFinder": "在访达中打开",
+    "delete": "删除",
+    "unlink": "取消链接",
+    "folderNamePlaceholder": "文件夹名称",
+    "creating": "正在创建…",
+    "create": "创建",
+    "addSubPageTitle": "将子页面添加到“{{name}}”",
+    "newFolderTitle": "在“{{name}}”中新建文件夹"
+  },
+  "newFile": {
+    "title": "创建新文件",
+    "subtitle": "选择文件类型。准备就绪后，Cabinet 将在编辑器中打开它。",
+    "groupNative": "在 Cabinet 中编辑",
+    "groupOffice": "Office (空白 — 外部编辑)",
+    "groupGoogle": "Google (已链接)",
+    "namePlaceholder": "文件名称",
+    "create": "创建",
+    "creating": "正在创建…",
+    "googleUrlLabel": "Google 网址 (可选)",
+    "googleUrlPlaceholder": "粘贴可分享的 Google 链接，或留空稍后添加",
+    "officeNote": "Cabinet 以只读模式显示 Office 文件。使用“在访达中打开”在桌面应用中编辑。",
+    "types": {
+      "markdown": "Markdown 页面",
+      "markdownDesc": "富文本笔记，可在 Cabinet 中编辑",
+      "code": "代码文件",
+      "codeDesc": "任意源代码/文本文件 — 选择扩展名",
+      "mermaid": "Mermaid 图表",
+      "mermaidDesc": "用代码绘制流程图和图表",
+      "csv": "CSV 表格",
+      "csvDesc": "逗号分隔的电子表格数据",
+      "docx": "Word 文档",
+      "docxDesc": "空白 .docx",
+      "xlsx": "Excel 电子表格",
+      "xlsxDesc": "空白 .xlsx",
+      "pptx": "PowerPoint",
+      "pptxDesc": "空白 .pptx",
+      "gdoc": "Google 文档",
+      "gdocDesc": "嵌入 Google 文档",
+      "gsheet": "Google 表格",
+      "gsheetDesc": "嵌入 Google 表格",
+      "gslides": "Google 幻灯片",
+      "gslidesDesc": "嵌入 Google 幻灯片"
+    },
+    "codeExtLabel": "扩展名",
+    "googleTag": "Google",
+    "extHint": "只需输入名称 — Cabinet 会自动添加 {{ext}} 扩展名。",
+    "createFailed": "无法创建文件。"
+  },
+  "fileSettings": {
+    "googleTitle": "Google 嵌入设置",
+    "googleKindLabel": "类型",
+    "googleUrlLabel": "Google 网址",
+    "googleUrlPlaceholder": "https://docs.google.com/…",
+    "googleNote": "要加载嵌入内容，文档的共享设置必须为“任何知道链接的人”或“发布到网络”。",
+    "openLink": "在 Google 中打开",
+    "googleKinds": {
+      "docs": "文档",
+      "sheets": "表格",
+      "slides": "幻灯片",
+      "forms": "表单",
+      "drive": "云端硬盘"
+    },
+    "appTitle": "Web 应用设置",
+    "modeLabel": "应如何打开？",
+    "modeWebsite": "页面视图",
+    "modeWebsiteDesc": "以内联方式打开，侧边栏和 AI 面板可见。",
+    "modeApp": "Web 应用",
+    "modeAppDesc": "全屏打开；侧边栏和 AI 面板自动折叠。",
+    "convertNote": "这会切换文件夹中的 .app 标记文件。您的文件不会被更改。",
+    "save": "保存",
+    "saving": "正在保存…",
+    "cancel": "取消",
+    "saveFailed": "无法保存设置。"
+  },
+  "editSymlink": {
+    "title": "编辑符号链接",
+    "intro": "此知识库条目是您机器上其他位置文件夹的符号链接。",
+    "kbPathLabel": "知识库路径",
+    "targetLabel": "链接到（磁盘上）",
+    "brokenWarning": "目标文件夹不存在。请将其重新指向下方有效文件夹。",
+    "repointLabel": "重新指向新文件夹",
+    "repointHint": "Cabinet 将替换链接指向此处。文件不会被移动。",
+    "browse": "浏览",
+    "nameLabel": "名称",
+    "descriptionLabel": "描述",
+    "save": "保存",
+    "saving": "正在保存…",
+    "copyTarget": "复制目标路径",
+    "saveFailed": "无法更新符号链接。"
+  },
+  "importFolder": {
+    "importing": "正在导入文件夹…",
+    "failed": "文件夹导入失败：{{message}}"
   },
   "boardSkeleton": {
     "loadingTasks": "正在加载任务"
@@ -563,6 +726,33 @@
   "agentList": {
     "agentLibrary": "智能体库",
     "newAgent": "新建智能体"
+  },
+  "helpVisuals": {
+    "cabinet": "凯比内特",
+    "yourTeam": "你的团队",
+    "lead": "主管",
+    "specialist": "专员",
+    "tasks": "任务",
+    "todo": "待办",
+    "doing": "进行中",
+    "done": "已完成",
+    "anythingGoes": "什么都行",
+    "marketing": "营销",
+    "product": "产品",
+    "research": "研究",
+    "design": "设计",
+    "routines": "例行任务",
+    "dailyReview": "每日回顾",
+    "weeklyDigest": "每周摘要",
+    "conversation": "对话",
+    "userQuery": "帮我规划一次为期两周的泰国之旅……",
+    "agentReply": "我会派遣图书管理员和编辑去。",
+    "pendingAction": "待处理动作",
+    "approve": "批准",
+    "decline": "拒绝",
+    "themes": "主题",
+    "providers": "服务商",
+    "comingSoon": "即将推出"
   },
   "agentLive": {
     "dismiss": "关闭",
@@ -678,7 +868,9 @@
     "noSkills": "尚无技能。"
   },
   "taskDetail": {
-    "close": "关闭 (Esc)"
+    "close": "关闭 (Esc)",
+    "muteTask": "静音此任务 — 其已完成的运行将直接归档",
+    "unmuteTask": "取消静音此任务 — 其已完成的运行将重新显示在“刚刚完成”中"
   },
   "rowActionsPlus": {
     "edit": "编辑",
@@ -736,7 +928,6 @@
   "whatsNew": {
     "dismiss": "关闭",
     "headerPrefix": "v",
-    "headerSuffix": " 的新内容",
     "readFull": "阅读完整发布说明"
   },
   "breakingChangesPlus": {
@@ -784,6 +975,41 @@
     "revealInFinder": "在文件管理器中显示",
     "stored": "已存储",
     "resetOnboarding": "重置入门引导"
+  },
+  "rooms": {
+    "switcherTitle": "切换房间",
+    "switchRoom": "房间",
+    "loading": "正在加载…",
+    "defaultTag": "主页",
+    "openInNewWindow": "在新窗口中打开",
+    "opensBrowserWindow": "打开新浏览器窗口",
+    "customizeRoom": "编辑房间",
+    "addRoom": "添加房间…",
+    "editTitle": "编辑房间",
+    "editSubtitle": "设置此房间的名称、图标、颜色和主题。",
+    "nameLabel": "显示名称",
+    "slugHint": "磁盘上的文件夹名称仍为 {{slug}}。重命名文件夹是单独的高级操作。",
+    "iconLabel": "图标",
+    "colorLabel": "颜色",
+    "colorAuto": "自动",
+    "themeLabel": "主题",
+    "themeGlobal": "使用全局默认设置",
+    "editFailed": "无法保存房间。请重试。",
+    "deleteRoom": "删除房间…",
+    "deleteLastRoomDisabledHint": "您无法删除最后一个房间。",
+    "deleteTitle": "删除此房间？",
+    "deleteSubtitle": "此房间及其所有内容都将移至废纸篓。",
+    "deleteWarningIntro": "将房间移至废纸篓还会删除：",
+    "deleteWarningPages": "此房间内的页面和文件",
+    "deleteWarningAgents": "此房间范围内的代理、对话和记忆",
+    "deleteWarningJobs": "此房间内的计划任务和例程",
+    "deleteWarningChat": "此房间的团队聊天记录",
+    "deleteWarningSearch": "房间的搜索索引（如果恢复，将自动重建）",
+    "deleteRecoveryNote": "恢复：房间已移至 data/.trash/ — 将文件夹移回 data/ 即可恢复。",
+    "deleteConfirmLabel": "输入 {{slug}} 以确认",
+    "deleteConfirmButton": "删除房间",
+    "deleting": "正在删除…",
+    "deleteFailed": "无法删除房间。请重试。"
   },
   "common": {
     "actions": {
@@ -904,6 +1130,10 @@
       "namePlaceholder": "凯比内特名称……",
       "renameWarning": "凯比内特名称之后无法重命名(暂时如此)。请慎重选择。"
     },
+    "templates": {
+      "header": "从模板开始",
+      "browseAll": "浏览全部 →"
+    },
     "quickActions": {
       "shuffle": "显示不同建议",
       "launch10Songs": "并行启动 10 个写歌编辑",
@@ -930,20 +1160,31 @@
     "greetingWithName": "{{greeting}},{{name}}。",
     "greetingNoName": "{{greeting}}。",
     "composerPlaceholder": "我想创建……",
-    "composerDaemonDown": "智能体守护进程已离线 — 重启后才能发送",
-    "templates": {
-      "header": "从模板开始",
-      "browseAll": "浏览全部 →"
-    }
+    "composerDaemonDown": "智能体守护进程已离线 — 重启后才能发送"
   },
   "onboarding": {
+    "launchHeading": "启动你的 <accent>凯比内特</accent>",
     "intro": {
       "tagline1": "你的知识库。",
       "tagline2": "你的 AI 团队。",
       "getStarted": "开始使用"
     },
+    "blueprint": {
+      "rooms": {
+        "office": "办公室",
+        "study": "书房",
+        "lab": "实验室",
+        "library": "图书馆",
+        "kitchen": "厨房",
+        "family": "家庭",
+        "dining": "餐厅",
+        "studio": "工作室"
+      }
+    },
     "welcome": {
-      "paragraph": "你的主页是你的。在里面,你将为生活的不同部分搭建房间:工作、第二大脑、研究、家庭。每个房间都有凯比内特:你的笔记、你的文件,以及一个在后台默默把事做完的 AI 团队。"
+      "paragraph": "你的主页是你的。在里面,你将为生活的不同部分搭建房间:工作、第二大脑、研究、家庭。每个房间都有凯比内特:你的笔记、你的文件,以及一个在后台默默把事做完的 AI 团队。",
+      "namePrompt": "你叫什么名字？",
+      "heading": "欢迎<accent>回家</accent>"
     },
     "welcomeBack": {
       "heading": "欢迎回来",
@@ -973,7 +1214,343 @@
       "complete": "完成设置",
       "copyToClipboard": "复制到剪贴板"
     },
-    "launchHeading": "启动你的 <accent>凯比内特</accent>"
+    "cabinetCreated": {
+      "continue": "继续设置",
+      "heading": "您的 Cabinet 已创建",
+      "subtitle": "一切就绪，随时可用。",
+      "agentsReady_one": "{{count}} 个智能体准备就绪",
+      "agentsReady_other": "{{count}} 个智能体准备就绪",
+      "scheduledJobs_one": "{{count}} 个计划任务",
+      "scheduledJobs_other": "{{count}} 个计划任务",
+      "subCabinets_one": "{{count}} 个子 Cabinet",
+      "subCabinets_other": "{{count}} 个子 Cabinet",
+      "agentsReady": "{{count}} 个智能体准备就绪",
+      "scheduledJobs": "{{count}} 个计划任务",
+      "subCabinets": "{{count}} 个子 Cabinet"
+    },
+    "cloud": {
+      "alreadyOnList": "您已在列表中 — 我们会与您联系。",
+      "aside": "Cabinet 云版即将推出。相同产品，无需自行托管。",
+      "description": "在任何设备上打开您的 Cabinet，您的 AI 智能体将持续工作 — 起草、研究、整理 — 即使您的笔记本电脑已关闭。",
+      "error": "出错了。请检查邮箱并重试。",
+      "joinWaitlist": "加入候补名单",
+      "onList": "您已在列表中。Cabinet 云版上线时，我们会通过邮件通知您。",
+      "sending": "发送中…",
+      "title": "您的 Cabinet，随处可用。您的 AI 团队，始终在线。",
+      "waitlistSubtitle": "随时随地连接。您的 AI 团队 24/7 全天候工作。"
+    },
+    "discord": {
+      "aside": "如果您想优先体验新功能，并且更喜欢“来聊聊”而不是“请提交工单”，这里就是您的专属空间。",
+      "description": "在这里，反馈会变成功能，截图会引发讨论，并且总有人会在问题找到您之前发现它。",
+      "joinBadge": "加入",
+      "title": "Discord 是奇思妙想的发生地。"
+    },
+    "github": {
+      "aside": "Cabinet 是开源的。如果您认同我们的愿景，请帮助我们传播。",
+      "description": "一个 GitHub 星标能帮助更多人发现 Cabinet 并加入社区。",
+      "starsLabel": "{{stars}} 个 GitHub 星标",
+      "title": "帮助 Cabinet 社区成长"
+    },
+    "launch": {
+      "beforeYouLaunch": "启动前",
+      "defaultCabinetName": "您的 Cabinet",
+      "defaultDescription": "知识库 + AI 团队",
+      "knowledgeBaseLabel": "知识库",
+      "aiTeamLabel": "AI 团队",
+      "launchCabinet": "启动 Cabinet",
+      "settingUp": "设置中...",
+      "disclaimerAccess": "<strong>代理以完全访问权限运行。</strong> Cabinet 使用 <flag>--dangerously-skip-permissions</flag> (Claude Code) 和其他提供商的等效标志。这与从您自己的终端运行这些 CLI 工具相同。您配置的任何 MCP 服务器或工具都可能被代理自动调用。",
+      "disclaimerBackup": "<strong>定期备份您的数据。</strong> 代理可以读取、写入和删除您的知识库和链接仓库中的文件。Cabinet 不对数据丢失负责。您应对所选的 AI 提供商及其服务条款负责。",
+      "disclaimerBeta": "<strong>Beta 软件。可能会出现问题。</strong> 我们快速迭代。破坏性更改可能不另行通知。",
+      "legalNotice": "继续即表示您同意我们的<terms>条款</terms>和<privacy>隐私政策</privacy>。Cabinet 是一个<oss>开源项目</oss>。",
+      "keepInTouch": "保持联系。Cabinet 是开源项目，我们乐于了解您的需求。绝无垃圾邮件，我们保证。"
+    },
+    "provider": {
+      "agentType": "{{type}} 代理",
+      "close": "关闭",
+      "comingSoon": "即将推出",
+      "guide": "指南",
+      "heading": "代理提供商",
+      "moreModels": "更多 AI",
+      "install": "安装",
+      "logIn": "登录",
+      "openTerminalButton": "打开终端",
+      "openTerminalDetail": "您需要一个终端来运行后续步骤。",
+      "openTerminalError": "无法自动打开终端。请手动打开您的系统终端。",
+      "openTerminalTitle": "打开终端",
+      "recheck": "重新检查提供商",
+      "rerunVerify": "重新运行验证",
+      "runVerify": "运行验证",
+      "setupTitle": "{{name}} 设置",
+      "skipForNow": "暂时跳过",
+      "subtitle": "Cabinet 需要一个 AI CLI 来驱动您的代理。",
+      "verifyExplanation": "验证会端到端运行提供商的无头提示，并对任何故障进行分类，以便您知道要重新访问哪个步骤。",
+      "verifying": "验证中…",
+      "failedAtStep": "步骤失败：<strong>{{step}}</strong>"
+    },
+    "roomSetup": {
+      "subtitle": "这个 cabinet 是做什么用的？每个房间都配有自己的 AI 团队。",
+      "heading": "选择一个<accent>房间</accent>"
+    },
+    "whatIsCabinet": {
+      "heading": "什么是 Cabinet？",
+      "body": "Cabinet 是您生活或工作中某个领域的专属工作区。它包含您的文件、笔记、工具、智能体和任务，为您的 AI 团队提供所需的上下文，以便真正提供帮助。",
+      "examplesLabel": "人们如何使用 Cabinet",
+      "example1": "您的初创公司",
+      "example2": "一个 GitHub 仓库",
+      "example3": "您的营销工作",
+      "example4": "一个客户项目",
+      "example5": "您的个人知识库"
+    },
+    "access": {
+      "heading": "{{name}} 可以访问什么？",
+      "subtitle": "选择此智能体可以使用的知识和工具。您可以随时更改。",
+      "defaultAgent": "您的智能体",
+      "files": "文件与知识",
+      "github": "GitHub",
+      "slack": "Slack",
+      "mcp": "MCP 服务器",
+      "plugins": "插件",
+      "skills": "技能",
+      "placeholderNote": "您可以在智能体设置中稍后微调访问权限。"
+    },
+    "heartbeat": {
+      "heading": "{{name}} 是否按心跳运行？",
+      "subtitle": "心跳让智能体按计划自动检查并工作。",
+      "off": "关闭",
+      "offHint": "仅在您要求时运行。建议以此开始。",
+      "daily": "每天",
+      "dailyHint": "每天检查一次。",
+      "weekly": "每周",
+      "weeklyHint": "每周检查一次。",
+      "tokenNote": "注意：心跳会自动运行智能体，每次触发都会使用 AI 令牌（和您的提供商配额）。您可以随时更改或关闭此功能。"
+    },
+    "firstTask": {
+      "heading": "提交您的第一个任务",
+      "subtitle": "任务是您将工作交给 {{name}} 的方式。现在写一个，它将出现在您的 cabinet 中，随时可以运行。",
+      "label": "{{name}} 应该先做什么？",
+      "placeholder": "例如：为新客户起草一封欢迎邮件",
+      "example1": "总结我的最新笔记",
+      "example2": "起草项目计划",
+      "example3": "研究我们的前 3 名竞争对手",
+      "note": "您可以留空，稍后添加任务。在您连接 AI 提供商之前，任何任务都不会运行。"
+    },
+    "rail": {
+      "untitled": "您的 Cabinet",
+      "dataCaption": "您项目的所有文件和笔记都保存在这里。",
+      "teamEmpty": "暂无智能体。",
+      "teamCaption": "您的 AI 团队在此工作。",
+      "tasksEmpty": "暂无任务。",
+      "tasksCaption": "您交给团队的工作会显示在这里。",
+      "assignedTo": "已分配给 {{name}}",
+      "you": "你"
+    },
+    "rooms": {
+      "office": {
+        "label": "办公室",
+        "tagline": "运营公司、初创企业或副业。",
+        "workspaceLabel": "公司或项目名称",
+        "workspacePlaceholder": "艾克米公司",
+        "descriptionLabel": "你们做什么？",
+        "descriptionPlaceholder": "我们制作关于 AI 初创公司的播客",
+        "departmentNoun": "部门",
+        "teamSizeLabel": "团队规模",
+        "exampleAgents": {
+          "0": "CEO",
+          "1": "编辑"
+        }
+      },
+      "study": {
+        "label": "书房",
+        "tagline": "你的第二大脑 — 写作、笔记、个人助理。",
+        "workspaceLabel": "命名你的 cabinet",
+        "workspacePlaceholder": "我的书房",
+        "descriptionLabel": "你希望在哪些生活领域获得帮助？",
+        "descriptionPlaceholder": "写作、邮件分类、日历、习惯追踪",
+        "departmentNoun": "领域",
+        "exampleAgents": {
+          "0": "助理",
+          "1": "图书管理员"
+        }
+      },
+      "lab": {
+        "label": "研究实验室",
+        "tagline": "学术工作、文献、教学、论文。",
+        "workspaceLabel": "工作区名称",
+        "workspacePlaceholder": "心灵哲学",
+        "descriptionLabel": "你的领域是什么或你在研究什么？",
+        "descriptionPlaceholder": "现象学、意识、哲学导论教学",
+        "departmentNoun": "领域",
+        "exampleAgents": {
+          "0": "研究负责人",
+          "1": "图书管理员"
+        }
+      },
+      "family-room": {
+        "label": "家庭活动室",
+        "tagline": "家庭、家庭日历、膳食、孩子。",
+        "workspaceLabel": "家庭名称",
+        "workspacePlaceholder": "阮氏家族",
+        "descriptionLabel": "谁住在这里，你们要处理哪些事务？",
+        "descriptionPlaceholder": "两位家长，三个孩子，两所学校，一条狗",
+        "departmentNoun": "区域",
+        "teamSizeLabel": "家庭规模",
+        "exampleAgents": {
+          "0": "家庭管家",
+          "1": "规划师"
+        }
+      },
+      "blank": {
+        "label": "空白房间",
+        "tagline": "暂无内容。带上你的智能体，塑造你的专属空间。",
+        "workspaceLabel": "为你的 cabinet 命名",
+        "workspacePlaceholder": "我的 Cabinet",
+        "descriptionLabel": "用途是什么？",
+        "descriptionPlaceholder": "任何用途 — 如果不确定，请留空",
+        "departmentNoun": "群组",
+        "exampleAgents": {
+          "0": "你来决定"
+        }
+      }
+    },
+    "departments": {
+      "leadership": "领导力",
+      "marketing": "市场营销",
+      "content": "内容",
+      "engineering": "工程",
+      "product-and-design": "产品与设计",
+      "business": "业务",
+      "research": "研究",
+      "finance-and-ops": "财务与运营",
+      "personal": "个人",
+      "second-brain": "第二大脑",
+      "writing": "写作",
+      "tools": "工具",
+      "life-admin": "生活管理",
+      "from-the-office": "来自办公室",
+      "writing-and-notes": "写作与笔记",
+      "other": "其他",
+      "household": "家庭",
+      "admin": "管理",
+      "money": "财务",
+      "product": "产品",
+      "design": "设计",
+      "sales": "销售",
+      "support": "支持",
+      "analytics": "分析",
+      "finance": "财务",
+      "legal": "法务",
+      "people": "人事"
+    },
+    "demo": {
+      "greeting": {
+        "office": "团队早上好！欢迎来到 {{workspace}}。让我们立即开始工作吧。",
+        "study": "早上好。你的第二大脑已上线 — 欢迎回到 {{home}}。",
+        "lab": "研究台已就绪 — “{{workspace}}”。今天我们要深入研究什么？",
+        "family-room": "家庭总部正在启动 — {{home}}。让我们让每个人都各就各位。",
+        "blank": "全新开始 — “{{workspace}}”。{{home}}，你想在这里构建什么？"
+      },
+      "assign": "{{name}}，你能负责{{topic}}吗？",
+      "fallbackTopic": "下一步",
+      "office": {
+        "replies": {
+          "0": "正在处理。我会在今天结束前准备好一份全景概览。",
+          "1": "已在起草计划。很快会在 #content 分享。",
+          "2": "正在设置基础工作流。目前进展顺利。"
+        },
+        "topics": {
+          "0": "竞品研究",
+          "1": "内容日历",
+          "2": "发布计划"
+        },
+        "closing": "大家干劲十足。让我们一起度过一个高效的第一周。"
+      },
+      "study": {
+        "replies": {
+          "0": "我会处理收件箱，并找出需要你处理的事项。",
+          "1": "日程表在下午3点前都很空闲 — 是写作的好时机。",
+          "2": "我已将三条新笔记链接到“每日”索引。"
+        },
+        "topics": {
+          "0": "今日收件箱筛选",
+          "1": "本周写作",
+          "2": "我的阅读清单"
+        },
+        "closing": "好的。有需要我的时候随时联系我 — 否则我就不打扰你了。"
+      },
+      "lab": {
+        "replies": {
+          "0": "正在获取关于此的最新论文 — 一小时内完成摘要草稿。",
+          "1": "之后我会同步参考文献并标记重复项。",
+          "2": "周四讲座大纲即将准备好供审阅。"
+        },
+        "topics": {
+          "0": "文献综述",
+          "1": "周四讲座准备",
+          "2": "参考文献列表"
+        },
+        "closing": "随时告知我。我会在今天结束前审阅你提交的所有内容。"
+      },
+      "family-room": {
+        "replies": {
+          "0": "4点后日程表很空闲。正在标记重叠的安排。",
+          "1": "本周菜单已起草 — 购物清单已准备好供审阅。",
+          "2": "孩子们的活动已同步。周五的DnD之夜照常进行。"
+        },
+        "topics": {
+          "0": "今日日程",
+          "1": "膳食计划",
+          "2": "孩子们的活动"
+        },
+        "closing": "谢谢大家。如果白天有任何变动，请通知我。"
+      },
+      "blank": {
+        "replies": {
+          "0": "收到。随时待命。",
+          "1": "待命中。",
+          "2": "我将等待指示。"
+        },
+        "topics": {
+          "0": "第一件事",
+          "1": "下一步",
+          "2": "未解决的问题"
+        },
+        "closing": "准备好后，告诉我们该做什么。"
+      }
+    },
+    "team": {
+      "browseAll": "浏览全部",
+      "browseCabinets": "浏览 cabinets",
+      "cabinetNameLabel": "Cabinet 名称",
+      "cancel": "取消",
+      "importButton": "导入",
+      "importFailed": "导入失败",
+      "importFailedConnection": "导入失败。请检查您的连接。",
+      "importTitle": "导入 {{name}}",
+      "pickAgents": "选择你的智能体",
+      "required": "必填",
+      "subtitle": "每个 cabinet 都是一个 AI 团队——代理、任务和共享知识库，作为一个整体协同工作。",
+      "heading": "构建<accent>您的</accent>团队",
+      "nameLabel": "智能体名称",
+      "namePlaceholder": "例如：编辑、研究员、助手",
+      "roleLabel": "角色",
+      "rolePlaceholder": "例如：写作助手",
+      "instructionsLabel": "这个智能体应该做什么？",
+      "instructionsPlaceholder": "描述它应如何提供帮助。例如：起草和编辑我的页面，保持语气清晰友好，并提出改进建议。",
+      "agentOptionalHint": "可选。你可以跳过此步骤，稍后在房间内添加智能体。",
+      "agentCount_one": "{{count}} 个代理",
+      "agentCount_other": "{{count}} 个代理",
+      "jobCount_one": "{{count}} 个任务",
+      "jobCount_other": "{{count}} 个任务",
+      "subCabinetCount_one": "{{count}} 个子 cabinet",
+      "subCabinetCount_other": "{{count}} 个子 cabinets",
+      "cabinetsImported_one": "已导入 {{count}} 个 cabinet",
+      "cabinetsImported_other": "{{count}} 个 cabinet 已导入",
+      "agentCount": "{{count}} 个代理",
+      "cabinetsImported": "{{count}} 个 cabinet 已导入",
+      "jobCount": "{{count}} 个任务",
+      "subCabinetCount": "{{count}} 个子 cabinet"
+    }
   },
   "search": {
     "title": "搜索",
@@ -996,10 +1573,10 @@
     "language": {
       "title": "语言",
       "description": "更改语言和阅读方向。已有页面会保留各自的文档方向。",
-      "english": "English",
-      "hebrew": "עברית",
+      "english": "英语",
+      "hebrew": "希伯来语",
       "chineseSimplified": "简体中文",
-      "chineseTraditional": "繁體中文",
+      "chineseTraditional": "繁体中文",
       "moreLanguages": "更多语言",
       "moreLanguagesHint": "点击任意语言告诉我们你希望凯比内特支持它 — 我们会优先处理最受欢迎的语言。",
       "comingSoon": "即将推出",
@@ -1032,12 +1609,23 @@
       "updates": "更新",
       "about": "关于"
     },
+    "page": {
+      "title": "设置",
+      "refresh": "刷新",
+      "groupYou": "你",
+      "groupWorkspace": "工作区",
+      "groupApp": "应用"
+    },
     "common": {
       "copyToClipboard": "复制到剪贴板",
       "categoriesAriaLabel": "设置类别",
       "loading": "加载中……",
       "connect": "连接",
       "recommended": "推荐"
+    },
+    "integrationsPreview": {
+      "comingSoon": "即将推出",
+      "hint": "连接外部集成和内置工具的功能即将上线。"
     },
     "storage": {
       "dataDirectory": "数据目录",
@@ -1132,7 +1720,7 @@
     "profile": {
       "title": "个人资料",
       "name": "姓名",
-      "namePlaceholder": "Hila",
+      "namePlaceholder": "希拉",
       "displayName": "显示名称",
       "role": "角色",
       "rolePlaceholder": "构建者",
@@ -1164,13 +1752,6 @@
       "teamSize": "团队规模",
       "teamSizePlaceholder": "独立 / 2–5 / 6–20 / 20+",
       "subtitle": "入门时记录的内容。智能体在规划工作时会读取。"
-    },
-    "page": {
-      "title": "设置",
-      "refresh": "刷新",
-      "groupYou": "你",
-      "groupWorkspace": "工作区",
-      "groupApp": "应用"
     }
   },
   "sidebar": {
@@ -1185,6 +1766,9 @@
     "agents": "智能体",
     "tasks": "任务",
     "missions": "任务",
+    "drawerData": "数据",
+    "drawerAgents": "团队",
+    "drawerTasks": "任务",
     "goHome": "回到主页",
     "brandWord": "卡比内特",
     "refresh": "刷新侧边栏",
@@ -1198,10 +1782,7 @@
     "refreshFailed": "刷新失败。",
     "searchPlaceholder": "搜索文件…",
     "searchSearching": "搜索中…",
-    "searchNoResults": "没有匹配“{{query}}”的文件",
-    "drawerData": "数据",
-    "drawerAgents": "团队",
-    "drawerTasks": "任务"
+    "searchNoResults": "没有匹配“{{query}}”的文件"
   },
   "status": {
     "bar": {
@@ -1254,7 +1835,14 @@
       "savedAgoSeconds": "{{n}} 秒前",
       "savedAgoMinutes": "{{n}} 分钟前",
       "savedAgoHours": "{{n}} 小时前",
-      "savedAgoDays": "{{n}} 天前"
+      "savedAgoDays": "{{n}} 天前",
+      "saveFailedRetry": "保存失败 — 重试",
+      "savingText": "保存中…",
+      "savedText": "已保存",
+      "editingText": "编辑中…",
+      "savedAgo": "已保存 · {{ago}}",
+      "word": "词",
+      "words": "词"
     },
     "git": {
       "statusModified": "已修改",
@@ -1282,11 +1870,6 @@
       "shareFailed": "无法复制链接",
       "friend": "朋友"
     },
-    "common": {
-      "dismiss": "关闭",
-      "close": "关闭",
-      "openSettings": "打开设置以查看已安装的更新"
-    },
     "git2": {
       "allCommitted": "全部已提交",
       "uncommittedFile": "{{count}} 个未提交的文件",
@@ -1309,11 +1892,23 @@
       "syncAriaLabelWithLast": "从 GitHub 拉取最新变更并刷新。上次同步:{{when}}。",
       "terminal": "终端",
       "openTerminal": "打开终端",
-      "newTerminalTab": "新建终端标签页"
+      "newTerminalTab": "新建终端标签页",
+      "pulling": "拉取中…",
+      "pulled": "已从远程更新",
+      "upToDate": "已是最新",
+      "pullFailed": "拉取失败"
     },
     "update2": {
       "updateAvailable": "{{version}} 版本可用",
       "updateAvailableTip": "凯比内特 {{version}} 可用"
+    },
+    "common": {
+      "dismiss": "关闭",
+      "close": "关闭",
+      "openSettings": "打开设置以查看已安装的更新"
+    },
+    "misc": {
+      "restartToFinishUpdate": "重启以完成更新"
     }
   },
   "tasks": {
@@ -1352,84 +1947,6 @@
     "introSubtitle": "你的 AI 团队。你的知识库。一站搞定。",
     "cabinetTitle": "凯比内特"
   },
-  "helpVisuals": {
-    "cabinet": "凯比内特",
-    "yourTeam": "你的团队",
-    "lead": "主管",
-    "specialist": "专员",
-    "tasks": "任务",
-    "todo": "待办",
-    "doing": "进行中",
-    "done": "已完成",
-    "anythingGoes": "什么都行",
-    "marketing": "营销",
-    "product": "产品",
-    "research": "研究",
-    "design": "设计",
-    "routines": "例行任务",
-    "dailyReview": "每日回顾",
-    "weeklyDigest": "每周摘要",
-    "conversation": "对话",
-    "userQuery": "帮我规划一次为期两周的泰国之旅……",
-    "agentReply": "我会派遣图书管理员和编辑去。",
-    "pendingAction": "待处理动作",
-    "approve": "批准",
-    "decline": "拒绝",
-    "themes": "主题",
-    "providers": "服务商",
-    "comingSoon": "即将推出"
-  },
-  "slideTasks": {
-    "slideNum": "03 · 任务",
-    "typedCommand": "跑 10 个任务,每个写一首歌,保存到 @Songs/",
-    "headlineSentence": "准备<accent>开始</accent>了吗?",
-    "paragraphPrefix": "写一个任务。跑一个、跑十个、永远定时跑。用 ",
-    "paragraphSuffix": " 提及页面,把输出保存到你想要的地方。现在你是导演。",
-    "savingFolder": "Songs/"
-  },
-  "slideData": {
-    "thailandRootLabel": "泰国之旅",
-    "thailandCaption": "把你所有的文件放在一个地方查看。",
-    "videoTitle": "Night market.mp4",
-    "taxRootLabel": "2026 报税",
-    "taxCaption": "2026 报税 — 一个交互式的计算器网页应用,直接嵌入你的凯比内特。",
-    "calculatorTitle": "计算器",
-    "liveAppBadge": "实时应用",
-    "taxEstimateLabel": "2026 税额估算",
-    "income": "收入",
-    "deductions": "扣除",
-    "taxBracket": "税档",
-    "estimatedTax": "预估税额",
-    "healthRootLabel": "健康",
-    "healthCaption": "维生素与检测 — 像页面一样好用的表格。",
-    "csvTitle": "每日维生素.csv",
-    "csvColVitamin": "维生素",
-    "csvColDose": "剂量",
-    "csvColTime": "时间",
-    "csvColDone": "完成",
-    "repoRootLabel": "cabinet-repo",
-    "repoCaption": "代码库 — 链接任意 Git 仓库,智能体可以搜索。",
-    "schemaTitle": "schema.ts",
-    "tsBadge": "TS"
-  },
-  "slideDataCopy": {
-    "slideNum": "01 · 数据",
-    "headlineSentence": "你<accent>唯一的真相来源</accent>。",
-    "paragraphPrefix": "Markdown、PDF、表格、幻灯片、图片、视频、音频、链接的代码库、嵌入的网页应用、Google Docs。用 ",
-    "paragraphSuffix": " 提及它们中的任何一个。",
-    "secondParagraphPrefix": "一切都在一个地方 — 这样你和你的 AI 团队都从",
-    "sameFiles": "同一份文件",
-    "secondParagraphSuffix": "里读、写、发布,而不是层层副本。",
-    "mockTitle": "Hila 的凯比内特"
-  },
-  "scheduleTab": {
-    "explainer1": "你的团队这周在做的一切,都在一个日历上。粉色是心跳,绿色是例行任务。点击任意药丸即可编辑。",
-    "explainer2": "用这个标签页发现冲突、找出空闲时段,或一眼看出团队有多忙。",
-    "aboutAria": "关于日程",
-    "modeDay": "日",
-    "modeWeek": "周",
-    "modeMonth": "月"
-  },
   "taskRail": {
     "title": "最近和运行中的任务",
     "hide": "隐藏任务栏",
@@ -1442,5 +1959,47 @@
     "itemArchived": "{{title}} · 已归档",
     "itemDefault": "{{title}} · {{when}}",
     "toggleRunning": "{{count}} 个运行中 — 显示任务栏"
+  },
+  "chrome": {
+    "nav": {
+      "home": "主页",
+      "agents": "代理",
+      "tasks": "任务",
+      "ai": "AI",
+      "menu": "菜单",
+      "primaryAriaLabel": "主要"
+    },
+    "returnTo": {
+      "task": "任务",
+      "tasks": "任务",
+      "agent": "代理",
+      "agents": "代理",
+      "cabinet": "Cabinet",
+      "home": "主页",
+      "settings": "设置",
+      "registry": "注册",
+      "back": "返回",
+      "backTo": "返回到 {{label}}"
+    },
+    "theme": {
+      "defaultHeader": "默认",
+      "dark": "深色",
+      "darkThemes": "深色主题",
+      "lightThemes": "亮色主题"
+    },
+    "update": {
+      "restartTitle": "重启 Cabinet 以完成更新",
+      "availableTitle": "Cabinet {{version}} 可用",
+      "updatesTitle": "Cabinet 更新",
+      "description": "Cabinet 会自动检查更新。本产品仍处于实验阶段，请在安装更新前备份您的数据。",
+      "later": "稍后",
+      "releaseNotes": "发行说明"
+    },
+    "daemon": {
+      "fixHintElectron": "退出并重新启动 Cabinet 以重启代理守护程序。",
+      "fixHintDev": "运行 `npm run dev:daemon`（或重启 `npm run dev:all`）以重新启动代理守护程序。",
+      "notResponding": "代理守护程序无响应。",
+      "willFail": "在恢复正常前，代理、任务和 AI 请求将失败。{{fixHint}}"
+    }
   }
 }

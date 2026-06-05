@@ -6,7 +6,10 @@ import {
   deletePageApi,
   movePageApi,
   renamePageApi,
+  undoRenameApi,
 } from "@/lib/api/client";
+import { useEditorStore } from "@/stores/editor-store";
+import { slugifyPageName } from "@/lib/markdown/wiki-links";
 
 export type DragZone = "before" | "into" | "after";
 
@@ -162,10 +165,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
   },
 
   createPage: async (parentPath: string, title: string) => {
-    const slug = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    const slug = slugifyPageName(title);
     const fullPath = parentPath ? `${parentPath}/${slug}` : slug;
     await createPageApi(fullPath, title);
     if (parentPath) {
@@ -195,6 +195,13 @@ export const useTreeStore = create<TreeState>((set, get) => ({
       neighbors.prevName === undefined &&
       neighbors.nextName === undefined;
     if (sameParent) return;
+
+    // Re-entrancy guard: a single drop can fire the handler more than once
+    // (synthetic-event quirks, a lingering native drag session) before the
+    // disabled-row state takes hold. Without this, the first call moves the
+    // item and the duplicates fail (the source path is gone) — surfacing a
+    // stack of "Failed to move" toasts for a move that actually succeeded.
+    if (get().movingPaths.has(fromPath)) return;
 
     set((state) => {
       const next = new Set(state.movingPaths);
@@ -238,16 +245,105 @@ export const useTreeStore = create<TreeState>((set, get) => ({
   },
 
   renamePage: async (pagePath: string, newName: string) => {
+    let result;
     try {
-      const newPath = await renamePageApi(pagePath, newName);
-      await get().loadTree();
-      const { selectedPath } = get();
-      if (selectedPath === pagePath) {
-        set({ selectedPath: newPath });
+      result = await renamePageApi(pagePath, newName);
+    } catch {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("cabinet:toast", {
+            detail: { kind: "error", message: "Failed to rename" },
+          })
+        );
       }
-    } catch (error) {
-      console.error("Failed to rename page:", error);
+      return;
     }
+
+    const { newPath, references } = result;
+    await get().loadTree();
+    if (get().selectedPath === pagePath) {
+      set({ selectedPath: newPath });
+    }
+
+    // --- Open-editor reconciliation -------------------------------------
+    // The rename mutated files underneath the editor. Keep what's open in
+    // sync without ever clobbering unsaved edits.
+    const editor = useEditorStore.getState();
+    if (editor.currentPath === pagePath) {
+      // The renamed page itself is open → follow it to the new path.
+      editor.loadPage(newPath);
+    } else if (
+      editor.currentPath &&
+      references.changedPages.includes(editor.currentPath) &&
+      !editor.isDirty
+    ) {
+      // An open referrer was rewritten and has no unsaved edits → reload so
+      // the corrected [[New Name]] shows and a later autosave can't write
+      // the stale [[Old Name]] back over the fix.
+      editor.loadPage(editor.currentPath);
+    }
+
+    // --- Toast + Undo ---------------------------------------------------
+    if (typeof window === "undefined") return;
+    const { oldName, newName: finalName, linkCount, pageCount, undoToken } =
+      references;
+    const summary =
+      linkCount > 0
+        ? `Renamed “${oldName}” → “${finalName}” · updated ${linkCount} link${
+            linkCount === 1 ? "" : "s"
+          } in ${pageCount} page${pageCount === 1 ? "" : "s"}`
+        : `Renamed “${oldName}” → “${finalName}”`;
+
+    window.dispatchEvent(
+      new CustomEvent("cabinet:toast", {
+        detail: {
+          kind: "success",
+          message: summary,
+          actionLabel: undoToken ? "Undo" : undefined,
+          onAction: undoToken
+            ? async () => {
+                const res = await undoRenameApi(undoToken);
+                if (!res.ok) {
+                  window.dispatchEvent(
+                    new CustomEvent("cabinet:toast", {
+                      detail: {
+                        kind: "error",
+                        message:
+                          res.reason === "expired"
+                            ? "Too late to undo that rename"
+                            : "Undo failed",
+                      },
+                    })
+                  );
+                  return;
+                }
+                await get().loadTree();
+                if (get().selectedPath === newPath) {
+                  set({ selectedPath: pagePath });
+                }
+                const ed = useEditorStore.getState();
+                if (ed.currentPath === newPath) {
+                  ed.loadPage(pagePath);
+                } else if (
+                  ed.currentPath &&
+                  references.changedPages.includes(ed.currentPath) &&
+                  !ed.isDirty
+                ) {
+                  ed.loadPage(ed.currentPath);
+                }
+                window.dispatchEvent(
+                  new CustomEvent("cabinet:toast", {
+                    detail: {
+                      kind: "info",
+                      message: `Reverted rename of “${finalName}”`,
+                    },
+                  })
+                );
+              }
+            : undefined,
+        },
+      })
+    );
   },
 
   setDragOver: (path: string | null, zone: DragZone | null = null) => {

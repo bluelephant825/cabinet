@@ -20,11 +20,22 @@ export function resolveProviderModel(
   const models = provider?.models || [];
   if (models.length === 0) return undefined;
 
-  return (
-    matchesId(models, requestedModel) ||
-    matchesId(models, fallbackModel) ||
-    models[0]
-  );
+  const direct =
+    matchesId(models, requestedModel) || matchesId(models, fallbackModel);
+  if (direct) return direct;
+
+  // Dynamic-discovery providers (e.g. OpenCode) ship only an offline fallback
+  // list until the client hydrates the real, entitlement-gated set. During
+  // that async window a saved id like `opencode/minimax-m2.5-free` won't be in
+  // the fallback — preserve it as a synthetic entry instead of snapping to
+  // `models[0]`, which `normalizeSelection` would then persist, silently
+  // clobbering the user's selection. After hydration the real model wins.
+  if (provider?.dynamicModels && !provider.modelsHydrated) {
+    const preserved = requestedModel || fallbackModel;
+    if (preserved) return { id: preserved, name: preserved };
+  }
+
+  return models[0];
 }
 
 export function getModelEffortLevels(
