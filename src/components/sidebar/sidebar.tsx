@@ -314,7 +314,10 @@ export function Sidebar() {
               "h-7 w-7 shrink-0",
               section.type === "integrations" && "bg-accent text-foreground"
             )}
-            onClick={() => setSection({ type: "integrations" })}
+            onClick={() => {
+              setSection({ type: "integrations" });
+              setCollapsed(true);
+            }}
           >
             <Blocks className="h-3.5 w-3.5" />
           </Button>

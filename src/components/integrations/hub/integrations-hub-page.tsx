@@ -5,7 +5,6 @@ import { Search } from "lucide-react";
 import {
   PREVIEW_INTEGRATIONS,
   INTEGRATION_BY_ID,
-  IMPLEMENTED_COUNT,
   filterIntegrations,
 } from "@/lib/integrations/preview-catalog";
 import { IntegrationDetailPage } from "@/components/integrations/hub/integration-detail-page";
@@ -35,19 +34,16 @@ export function IntegrationsHubPage() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* Header */}
-      <header className="shrink-0 border-b border-border px-6 pt-5 pb-4">
-        <div className="flex items-start justify-between gap-4">
+      {/* Header — inner content sits in the same max-width column as the
+          gallery below, so the title + search line up with the cards and the
+          floating sidebar toggle gets its own room in the corner. */}
+      <header className="shrink-0 border-b border-border">
+        <div className="mx-auto flex max-w-6xl items-start justify-between gap-4 px-6 pt-5 pb-4">
           {/* Title block */}
           <div className="min-w-0">
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-xl font-semibold tracking-tight text-foreground">
-                Integrations
-              </h1>
-              <span className="text-[12px] text-muted-foreground">
-                {IMPLEMENTED_COUNT} available · {PREVIEW_INTEGRATIONS.length - IMPLEMENTED_COUNT} coming soon
-              </span>
-            </div>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Integrations
+            </h1>
             <p className="mt-1 text-[13px] text-muted-foreground">
               Connect Cabinet to everything that runs your work — your agents can act on all of it.
             </p>
