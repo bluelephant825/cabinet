@@ -598,12 +598,20 @@ const COVERED_BY: Record<string, string> = {
   confluence: "jira", // the Atlassian server covers Jira + Confluence
 };
 
+// Launch gate: only these connectors are live right now. Everything else is
+// shown grayed-out + unclickable with a "Soon" badge, even if it already has
+// an MCP catalog entry. Widen this set (or drop it back to the CONNECTABLE
+// derivation below) as connectors are ready to ship.
+const LAUNCHED = new Set(["telegram", "discord"]);
+
 export const PREVIEW_INTEGRATIONS: IntegrationItem[] = RAW_INTEGRATIONS.map((i) => {
   const coveredBy = COVERED_BY[i.id];
+  const connectable =
+    CONNECTABLE.has(i.id) || (!!coveredBy && CONNECTABLE.has(coveredBy));
   return {
     ...i,
     coveredBy,
-    implemented: CONNECTABLE.has(i.id) || (!!coveredBy && CONNECTABLE.has(coveredBy)),
+    implemented: connectable && LAUNCHED.has(i.id),
   };
 });
 

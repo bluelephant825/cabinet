@@ -13,6 +13,7 @@ import {
 import {
   LogoTile,
   DimWhenComingSoon,
+  StatusBadge,
 } from "@/components/integrations/hub/integration-visuals";
 
 /**
@@ -22,8 +23,7 @@ import {
  * out in airy, flex-wrapped rows under generous category headers. Each tile
  * lifts on hover and casts a soft glow in the integration's own brand colour
  * (an eased shadow fade, not a hard border). Coming-soon items are dimmed via
- * DimWhenComingSoon but stay fully clickable (the hit-area button is never
- * dimmed).
+ * DimWhenComingSoon, disabled (not clickable), and carry a "Soon" badge.
  */
 export function LayoutGallery({
   items,
@@ -123,35 +123,41 @@ function GalleryTile({
     animRef.current = null;
   };
 
+  const soon = !item.implemented;
+
   return (
     <button
       type="button"
-      onClick={() => onOpen(item.id)}
-      onMouseEnter={startGiggle}
-      onMouseLeave={stopGiggle}
-      onFocus={startGiggle}
-      onBlur={stopGiggle}
-      title={item.name}
-      aria-label={item.name}
+      disabled={soon}
+      onClick={soon ? undefined : () => onOpen(item.id)}
+      onMouseEnter={soon ? undefined : startGiggle}
+      onMouseLeave={soon ? undefined : stopGiggle}
+      onFocus={soon ? undefined : startGiggle}
+      onBlur={soon ? undefined : stopGiggle}
+      title={soon ? `${item.name} (coming soon)` : item.name}
+      aria-label={soon ? `${item.name} (coming soon)` : item.name}
       className={cn(
-        "group flex w-[112px] cursor-pointer flex-col items-center gap-2.5",
+        "group flex w-[112px] flex-col items-center gap-2.5",
         "rounded-2xl p-2 text-center focus:outline-none",
+        soon ? "cursor-default" : "cursor-pointer",
       )}
     >
-      {/* Visual stack — dimmed for coming-soon, but the button stays clickable. */}
+      {/* Visual stack — coming-soon tiles are dimmed and inert. */}
       <DimWhenComingSoon
         implemented={item.implemented}
         className="flex w-full flex-col items-center gap-2.5"
       >
         {/* Tile giggles on hover; soft brand glow eases in behind it */}
         <div className="relative">
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-visible:opacity-100"
-            style={{
-              boxShadow: `0 10px 28px -6px ${item.brand}66, 0 4px 10px -3px ${item.brand}40`,
-            }}
-          />
+          {!soon && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-visible:opacity-100"
+              style={{
+                boxShadow: `0 10px 28px -6px ${item.brand}66, 0 4px 10px -3px ${item.brand}40`,
+              }}
+            />
+          )}
           {/* Wrapper is what we rotate, so the glow stays put behind it. */}
           <div ref={tileRef} className="relative">
             <LogoTile item={item} size={84} />
@@ -164,13 +170,16 @@ function GalleryTile({
         </span>
       </DimWhenComingSoon>
 
-      {/* Only connected integrations get a badge — available/soon is conveyed by
-          the card's full vs. dimmed treatment, not a pill. */}
-      {connected && (
+      {/* Coming-soon always reads "Soon" — even with a live connection from an
+          earlier build — so gated tiles never advertise a state you can't open.
+          "Connected" is reserved for launched integrations. */}
+      {soon ? (
+        <StatusBadge implemented={false} />
+      ) : connected ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
           <Check className="h-2.5 w-2.5" /> Connected
         </span>
-      )}
+      ) : null}
     </button>
   );
 }
