@@ -100,7 +100,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // When the caller passes an explicit provider list (the connect panel
+  // always does), treat it as the DESIRED set and reconcile: unchecking an
+  // environment + "Update" must remove the entry there, not just add to the
+  // checked ones. Without this the panel's checkboxes snap back on reload
+  // because connectedProviderIds never shrinks. The fallback path (no
+  // explicit list) stays additive for callers that just mean "install".
+  const explicitSelection = Array.isArray(providers);
+  const previouslyConnected = explicitSelection ? connectedProvidersForEntry(entry) : [];
+
   const results: ProviderWriteResult[] = targets.map((pid) => writeEntry(pid, entry));
+  const removedResults: ProviderWriteResult[] = previouslyConnected
+    .filter((pid) => !targets.includes(pid))
+    .map((pid) => removeEntry(pid, entry));
   const anyOk = results.some((r) => r.ok);
   const next =
     backend === "cli-pkce" || backend === "user-app" || entry.transport === "http"
@@ -111,12 +123,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     {
       ok: anyOk,
       results,
+      removedResults,
       connectedProviderIds: connectedProvidersForEntry(entry),
       next,
       message: anyOk
         ? next === "cli-oauth"
           ? "Registered. Each environment's CLI opens a browser to finish sign-in the first time it uses this."
-          : "Connected and ready to use."
+          : removedResults.length > 0
+            ? "Environments updated."
+            : "Connected and ready to use."
         : "Could not register in any selected environment.",
     },
     { status: anyOk ? 200 : 500 },
