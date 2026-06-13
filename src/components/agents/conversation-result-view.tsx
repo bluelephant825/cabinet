@@ -6,7 +6,7 @@ import type { ConversationDetail } from "@/types/conversations";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { appendConversationCabinetPath } from "@/lib/agents/conversation-identity";
-import { buildTaskHash } from "@/lib/navigation/task-route";
+import { buildTaskPath } from "@/lib/navigation/task-route";
 import {
   artifactPathToTreePath,
   inferPageTypeFromPath,
@@ -93,7 +93,9 @@ export function ConversationResultView({
                 size="sm"
                 className="h-8 gap-1.5 text-xs"
                 onClick={() => {
-                  window.location.hash = buildTaskHash(detail.meta.id, detail.meta.cabinetPath);
+                  const path = buildTaskPath(detail.meta.id, detail.meta.cabinetPath);
+                  window.history.pushState(null, "", path);
+                  window.dispatchEvent(new PopStateEvent("popstate"));
                 }}
               >
                 Open in task viewer

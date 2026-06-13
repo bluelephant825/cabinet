@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import { buildTaskHash, buildTasksHash } from "@/lib/navigation/task-route";
+import { buildPath, parsePath, type CleanRoute } from "@/lib/navigation/route-scheme";
+import { findNodeByPath } from "@/lib/cabinets/tree";
 import { useAppStore } from "@/stores/app-store";
 import { useTreeStore } from "@/stores/tree-store";
 import { useEditorStore } from "@/stores/editor-store";
@@ -36,9 +38,6 @@ import { useEditorStore } from "@/stores/editor-store";
  * Legacy back-compat: `#/page/...`, `#/cabinet/./...` are still parsed
  * and rewritten to the canonical form on the next navigation.
  */
-
-const LS_KEY = "cabinet.last-route";
-const SESSION_KEY = "cabinet.tab-visited";
 
 type SectionState = ReturnType<typeof useAppStore.getState>["section"];
 
@@ -321,22 +320,6 @@ function parseHash(hash: string): RouteState {
   return { section: { type: "home" }, pagePath: null };
 }
 
-function saveToLocalStorage(hash: string) {
-  try {
-    localStorage.setItem(LS_KEY, hash);
-  } catch {
-    // ignore storage failures
-  }
-}
-
-function loadFromLocalStorage(): string | null {
-  try {
-    return localStorage.getItem(LS_KEY);
-  } catch {
-    return null;
-  }
-}
-
 function expandParents(pagePath: string) {
   const parts = pagePath.split("/").filter(Boolean);
   const expandPath = useTreeStore.getState().expandPath;
@@ -345,151 +328,183 @@ function expandParents(pagePath: string) {
   }
 }
 
-async function applyRoute(route: RouteState) {
+/**
+ * Decide whether a bare `/room/<path>` is a cabinet overview or a content
+ * page (PRD §11). A single segment is always a top-level room (overview). For
+ * deeper paths we check the in-memory tree first (instant for in-app nav) and
+ * fall back to the server on a cold-load deep link where the tree isn't loaded.
+ */
+async function resolveIsCabinet(p: string): Promise<boolean> {
+  if (!p) return false;
+  if (!p.includes("/")) return true; // top-level room
+  const node = findNodeByPath(useTreeStore.getState().nodes, p);
+  if (node) return node.type === "cabinet";
+  try {
+    const res = await fetch(`/api/cabinets/classify?path=${encodeURIComponent(p)}`, {
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { isCabinet?: boolean };
+      return !!data.isCabinet;
+    }
+  } catch {
+    // fall through — treat as a page
+  }
+  return false;
+}
+
+async function applyCleanRoute(route: CleanRoute): Promise<void> {
   const { setSection } = useAppStore.getState();
   const { selectPage } = useTreeStore.getState();
   const { loadPage, clear } = useEditorStore.getState();
 
-  setSection(route.section);
+  const scopeTo = async (cabinetPath: string) => {
+    selectPage(cabinetPath);
+    await loadPage(cabinetPath);
+    if (cabinetPath !== ROOT_CABINET_PATH) expandParents(cabinetPath);
+  };
+  const goGlobal = (section: SectionState) => {
+    setSection(section);
+    selectPage(null);
+    clear();
+  };
 
-  if (route.pagePath) {
-    selectPage(route.pagePath);
-    await loadPage(route.pagePath);
-    expandParents(route.pagePath);
-    return;
-  }
-
-  if (route.section.cabinetPath) {
-    selectPage(route.section.cabinetPath);
-    await loadPage(route.section.cabinetPath);
-    if (route.section.cabinetPath !== ROOT_CABINET_PATH) {
-      expandParents(route.section.cabinetPath);
+  switch (route.kind) {
+    case "home":
+      return goGlobal({ type: "home" });
+    case "settings":
+      return goGlobal({ type: "settings", slug: route.slug });
+    case "integrations":
+      return goGlobal({ type: "integrations", slug: route.slug });
+    case "help":
+      return goGlobal({ type: "help" });
+    case "registry":
+      return goGlobal({ type: "registry" });
+    case "agents":
+      setSection({ type: "agents", cabinetPath: route.cabinetPath, agentsTab: route.agentsTab });
+      return scopeTo(route.cabinetPath);
+    case "agent":
+      setSection({
+        type: "agent",
+        cabinetPath: route.cabinetPath,
+        slug: route.slug,
+        agentScopedId: `${route.cabinetPath}::agent::${route.slug}`,
+      });
+      return scopeTo(route.cabinetPath);
+    case "tasks":
+      setSection({ type: "tasks", cabinetPath: route.cabinetPath });
+      return scopeTo(route.cabinetPath);
+    case "task":
+      setSection({ type: "task", cabinetPath: route.cabinetPath, taskId: route.taskId });
+      return scopeTo(route.cabinetPath);
+    case "content": {
+      if (!route.path) return goGlobal({ type: "home" });
+      if (await resolveIsCabinet(route.path)) {
+        setSection({ type: "cabinet", cabinetPath: route.path });
+        return scopeTo(route.path);
+      }
+      // A page: scope to its room (first segment); load the page itself.
+      setSection({ type: "page", cabinetPath: route.path.split("/")[0] });
+      selectPage(route.path);
+      await loadPage(route.path);
+      expandParents(route.path);
+      return;
     }
-    return;
   }
-
-  selectPage(null);
-  clear();
 }
 
 // Re-exported for unit tests; the parser/builder are otherwise internals of
 // the hook implementation and shouldn't be used by app code.
 export { parseHash as parseHashForTest, buildHash as buildHashForTest };
 
-export function useHashRoute() {
-  const suppressHashUpdate = useRef(false);
+/**
+ * Clean-path router (PRD §11). The URL is `window.location.pathname`
+ * (`/room/<path>`, `/-/` views, globals) — the `#` is free for in-page
+ * section anchors. Old `#/...` links are translated to clean paths on load.
+ */
+export function useRoute() {
+  const suppress = useRef(false);
 
+  // Initial load: translate any legacy `#/...` link to a clean path, then
+  // apply whatever the pathname says.
   useEffect(() => {
     const hash = window.location.hash;
-    // Fresh tabs always land on home — last-route only restores inside a
-    // tab that has already rendered the app (manual reload, in-tab nav).
-    // Audit #7: reopening `/` used to hijack returning users to whatever
-    // route they were last on (frequently `#/settings/providers`).
-    const isSameTabContinuation =
-      typeof sessionStorage !== "undefined" &&
-      sessionStorage.getItem(SESSION_KEY) === "1";
-    let route: RouteState;
-
     if (hash && hash !== "#" && hash !== "#/") {
-      route = parseHash(hash);
-    } else if (isSameTabContinuation) {
-      const saved = loadFromLocalStorage();
-      if (saved) {
-        route = parseHash(saved);
-        window.history.replaceState(null, "", saved);
-      } else {
-        route = { section: { type: "home" }, pagePath: null };
+      try {
+        const legacy = parseHash(hash);
+        const cleanPath = buildPath(legacy.section, legacy.pagePath);
+        window.history.replaceState(null, "", cleanPath);
+      } catch {
+        // ignore a malformed legacy hash
       }
-    } else {
-      route = { section: { type: "home" }, pagePath: null };
     }
 
-    try {
-      sessionStorage.setItem(SESSION_KEY, "1");
-    } catch {
-      // sessionStorage can be disabled in some privacy modes; non-fatal.
-    }
-
-    suppressHashUpdate.current = true;
-    void applyRoute(route).finally(() => {
-      // Audit #121: if we entered via a legacy URL form (`#/page/<x>`,
-      // bare `#agents`, etc.), rewrite the hash to the canonical shape
-      // now. The store subscriber wouldn't fire for this — suppressHash
-      // was true while section + selection were being set — so the URL
-      // would otherwise stay on the legacy form for the user's session.
-      const canonical = buildHash(
+    const route = parsePath(window.location.pathname);
+    suppress.current = true;
+    void applyCleanRoute(route).finally(() => {
+      // Canonicalize: re-derive the URL from the resolved section so an entry
+      // form (or content that resolved to a cabinet) settles on one shape.
+      const canonical = buildPath(
         useAppStore.getState().section,
         useTreeStore.getState().selectedPath
       );
-      if (window.location.hash && window.location.hash !== canonical) {
+      if (window.location.pathname !== canonical) {
         window.history.replaceState(null, "", canonical);
-        saveToLocalStorage(canonical);
       }
-      // Seed the back/forward history with this initial route. recordNav is
-      // idempotent if the hash already matches the current entry.
-      useAppStore.getState().recordNav(window.location.hash || canonical);
+      useAppStore.getState().recordNav(canonical);
       requestAnimationFrame(() => {
-        suppressHashUpdate.current = false;
+        suppress.current = false;
       });
     });
   }, []);
 
+  // Reflect store changes into the URL (replaceState, matching the prior
+  // behavior; the app's own back/forward uses the nav history below).
   useEffect(() => {
+    const writeUrl = (path: string) => {
+      if (window.location.pathname !== path) {
+        window.history.replaceState(null, "", path);
+        useAppStore.getState().recordNav(path);
+      }
+    };
     const unsubApp = useAppStore.subscribe((state, prev) => {
-      if (suppressHashUpdate.current) return;
-
+      if (suppress.current) return;
       if (
         state.section.type !== prev.section.type ||
         state.section.slug !== prev.section.slug ||
         state.section.cabinetPath !== prev.section.cabinetPath ||
-        state.section.agentsTab !== prev.section.agentsTab
+        state.section.agentsTab !== prev.section.agentsTab ||
+        state.section.taskId !== prev.section.taskId
       ) {
-        const selectedPath = useTreeStore.getState().selectedPath;
-        const hash = buildHash(state.section, selectedPath);
-        if (window.location.hash !== hash) {
-          window.history.replaceState(null, "", hash);
-          saveToLocalStorage(hash);
-          useAppStore.getState().recordNav(hash);
-        }
+        writeUrl(buildPath(state.section, useTreeStore.getState().selectedPath));
       }
     });
-
     const unsubTree = useTreeStore.subscribe((state, prev) => {
-      if (suppressHashUpdate.current) return;
+      if (suppress.current) return;
       if (state.selectedPath !== prev.selectedPath && state.selectedPath) {
-        const hash = buildHash(useAppStore.getState().section, state.selectedPath);
-        if (window.location.hash !== hash) {
-          window.history.replaceState(null, "", hash);
-          saveToLocalStorage(hash);
-          useAppStore.getState().recordNav(hash);
-        }
+        writeUrl(buildPath(useAppStore.getState().section, state.selectedPath));
       }
     });
-
     return () => {
       unsubApp();
       unsubTree();
     };
   }, []);
 
+  // popstate fires on browser back/forward AND on our goBack/goForward (which
+  // replaceState then dispatch a popstate). Re-apply from the pathname.
   useEffect(() => {
-    function onHashChange() {
-      const route = parseHash(window.location.hash);
-      suppressHashUpdate.current = true;
-      void applyRoute(route).finally(() => {
-        saveToLocalStorage(window.location.hash);
-        // recordNav is a no-op when the new hash matches the current history
-        // entry (the case for goBack/goForward), so this safely covers both
-        // user-driven hash changes (browser back, manual edit) and our own
-        // back/forward replays.
-        useAppStore.getState().recordNav(window.location.hash);
+    function onPop() {
+      const route = parsePath(window.location.pathname);
+      suppress.current = true;
+      void applyCleanRoute(route).finally(() => {
+        useAppStore.getState().recordNav(window.location.pathname);
         requestAnimationFrame(() => {
-          suppressHashUpdate.current = false;
+          suppress.current = false;
         });
       });
     }
-
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 }

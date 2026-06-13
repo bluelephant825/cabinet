@@ -46,7 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { openArtifactPath } from "@/lib/navigation/open-artifact-path";
-import { buildTaskHash } from "@/lib/navigation/task-route";
+import { buildTaskPath } from "@/lib/navigation/task-route";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1110,10 +1110,9 @@ export function TaskConversationPage({
 
   const handleCopyLink = useCallback(async () => {
     if (typeof window === "undefined") return;
-    const base = `${window.location.origin}${window.location.pathname}`;
-    const hash = buildTaskHash(taskId, task?.meta.cabinetPath);
+    const url = `${window.location.origin}${buildTaskPath(taskId, task?.meta.cabinetPath)}`;
     try {
-      await navigator.clipboard.writeText(`${base}${hash}`);
+      await navigator.clipboard.writeText(url);
     } catch {
       // clipboard blocked; silently ignore.
     }
@@ -1155,7 +1154,8 @@ export function TaskConversationPage({
     try {
       await deleteConversation(taskId, task.meta.cabinetPath);
       if (variant === "full" && typeof window !== "undefined") {
-        window.location.hash = "#/";
+        window.history.pushState(null, "", "/");
+        window.dispatchEvent(new PopStateEvent("popstate"));
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Failed to delete");

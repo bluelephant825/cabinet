@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DiffView } from "@/components/history/diff-view";
+import { buildTaskPath } from "@/lib/navigation/task-route";
 import { confirmDialog } from "@/lib/ui/confirm";
 import { cn } from "@/lib/utils";
 
@@ -286,7 +287,10 @@ export function FileTimeline({
               : (e.actor as { name?: string }).name || "You";
             const href =
               isAgent && (e.actor as { conversationId?: string }).conversationId
-                ? `#/cabinet/${encodeURIComponent((e.actor as { cabinetPath: string }).cabinetPath || ".")}/tasks/${encodeURIComponent((e.actor as { conversationId?: string }).conversationId!)}`
+                ? buildTaskPath(
+                    (e.actor as { conversationId?: string }).conversationId!,
+                    (e.actor as { cabinetPath?: string }).cabinetPath
+                  )
                 : null;
             return (
               <div key={`ev-${i}`} className="relative flex items-start gap-2.5 ps-2 py-2">
@@ -316,7 +320,7 @@ export function FileTimeline({
           const isLegacy = c.authorEmail === "kb@cabinet.dev";
           const href =
             isAgent && c.runId && c.agent
-              ? `#/cabinet/${encodeURIComponent(c.agent.cabinetPath || ".")}/tasks/${encodeURIComponent(c.runId)}`
+              ? buildTaskPath(c.runId, c.agent.cabinetPath)
               : null;
           const selected = selectedHash === c.hash;
           return (

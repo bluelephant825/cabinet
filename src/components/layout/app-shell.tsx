@@ -122,7 +122,7 @@ const OnboardingWizard = dynamic(
 );
 import { findNodeByPath } from "@/lib/cabinets/tree";
 import { useCabinetUpdate } from "@/hooks/use-cabinet-update";
-import { useHashRoute } from "@/hooks/use-hash-route";
+import { useRoute } from "@/hooks/use-hash-route";
 import { useTaskFileSync } from "@/hooks/use-task-file-sync";
 import { useTreeStore } from "@/stores/tree-store";
 import { useAppStore } from "@/stores/app-store";
@@ -180,8 +180,8 @@ export function AppShell() {
     applyUpdate,
   } = useCabinetUpdate({ autoRefresh: true });
 
-  // Sync navigation state with URL hash + localStorage
-  useHashRoute();
+  // Sync navigation state with the URL path (clean-path routing).
+  useRoute();
 
   // Live-refresh the tree + open page when agent tasks create/change files.
   useTaskFileSync();

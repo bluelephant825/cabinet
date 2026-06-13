@@ -55,6 +55,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { buildPath } from "@/lib/navigation/route-scheme";
 import { showError } from "@/lib/ui/toast";
 import { confirmDialog } from "@/lib/ui/confirm";
 import {
@@ -2522,13 +2523,13 @@ export function AgentDetailV2({
   };
 
   const handleOpenPath = (path: string) => {
-    // Open the KB page in the main app shell using the canonical URL form
-    // (audit #121). Pages with no explicit cabinet context resolve under
-    // the root cabinet (`.`).
-    const cabinet = persona.cabinetPath || ".";
+    // Open the KB page in the main app shell via the clean-path URL (PRD §11):
+    // `/room/<page-path>`. The page path is root-relative (its first segment
+    // is the room), so it maps straight onto the content scheme.
     const cleanPath = path.replace(/^\/+/, "");
-    const hash = `#/cabinet/${encodeURIComponent(cabinet)}/data/${encodeURIComponent(cleanPath)}`;
-    window.location.assign(`/${hash}`);
+    window.location.assign(
+      buildPath({ type: "page", cabinetPath: persona.cabinetPath || undefined }, cleanPath)
+    );
   };
 
   const status = computeStatus(persona, conversations);
