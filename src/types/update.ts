@@ -36,6 +36,9 @@ export interface ReleaseManifest {
     };
     windows?: {
       zipAssetName?: string;
+      setupExeAssetName?: string;
+      nupkgAssetName?: string;
+      releasesAssetName?: string;
     };
   };
 }
