@@ -1,6 +1,6 @@
 # PRD — Rooms (Workspaces) & the Home Switcher
 
-**Status:** v3 shipped; 2026-06-13 review updates the ship criteria and remaining gaps in §10.
+**Status:** v3 shipped; 2026-06-13 review updates the ship criteria and remaining gaps (§10) and adds a clean-path routing migration (§11).
 **Author:** hilash · **Last updated:** 2026-06-13
 **Driver:** A home-button switcher next to the logo that moves you between *rooms* (office, study,
 research, personal…), where each room is its own isolated workspace — and lets you open any room in
@@ -19,6 +19,14 @@ its own window.
 >   room, so isolation could only be faked with a UI filter. v3 makes `data/` a neutral **home
 >   container** and every room a true **sibling cabinet**, giving room scoping a structural filesystem
 >   base. There *is* a migration, but it must remain safe and idempotent.
+
+> **2026-06-13 — combined plan.** This doc now carries two sequenced workstreams. **Phase 1 (§10):**
+> harden the rooms model so search, chat, and path-resolution **fail closed** to the active room.
+> **Phase 2 (§11):** migrate the app off hash routing to clean `/room/...` URLs (mirroring the file
+> tree) and free `#` for in-page section anchors. **Sequencing:** Phase 1 first — it builds the
+> reopen/path-persistence layer (`lastActivePath`, §10.5) that Phase 2 reuses, so reopen logic lives
+> in exactly one place. **Isolation stance:** rooms are a **product/UX boundary, not a security
+> sandbox** — never surface another room's content unless the user explicitly opts in (§1, §2).
 
 ---
 
@@ -264,6 +272,8 @@ target before calling the migration complete (see §10.7).
 - **Phase 6 — Onboarding.** ✅ Shipped (creates `data/<slug>/` rooms + home marker).
 - **Migration + sibling-room model (the v3 core).** ⚠️ Shipped in shape; safety hardening / tests
   remain in §10.7.
+- **Phase 2 — Clean-path routing + section anchors.** ⏳ Planned (§11); sequenced after the §10
+  hardening so it reuses the `lastActivePath` reopen layer.
 
 ---
 
@@ -371,6 +381,86 @@ Add focused tests for:
 6. Delete refuses home, nested paths, non-rooms, and last remaining room.
 7. Delete stages/commits only scoped room/home changes and leaves unrelated dirty files alone.
 8. Migration is idempotent, journaled/resumable, and rollback-safe.
+
+---
+
+## 11. Clean-path routing & section anchors (Phase 2)
+
+> **Sequenced after §10.** Phase 2 reuses the `lastActivePath` persistence from §10.5 as its single
+> source of truth for reopen (replacing the legacy `cabinet.last-route` hash). Build §10 first.
+
+### 11.1 Problem
+
+The web UI routes off the URL **hash** (`#/cabinet/<path>`), which causes three problems:
+
+- **A reload bug.** Nested ("deep") cabinet paths don't round-trip. `buildHash` writes the cabinet
+  path with literal slashes, but `parseHash` reads it as a **single segment** (`parts[1]`), so
+  reloading `#/cabinet/hilas-home/cabinet-data/Development/dev/...` collapses to
+  `#/cabinet/hilas-home/`. (Root cause: two encoding conventions — literal slashes in `buildHash`,
+  one `%2F`-encoded segment in `buildTaskHash` — and the parser only understands the latter.)
+- **URLs that don't match the file tree.** A phantom `/data/` routing delimiter (not a folder), the
+  cabinet prefix repeated ("doubling"), `index`/`.md` shown, and the word `cabinet` where the
+  top-level segment is really a **room**.
+- **`#` is consumed by routing,** so there is no way to deep-link to a heading inside a page.
+
+### 11.2 Target URL scheme
+
+| Thing | Today | Target |
+|---|---|---|
+| A room | `#/cabinet/hilas-home` | `/room/hilas-home` |
+| Nested page | `#/cabinet/cabinet-examples/data/cabinet-examples/cabinets/audits/_template/progress` | `/room/cabinet-examples/cabinets/audits/_template/progress` |
+| Folder index | `.../feedback-tracker/index` | `.../feedback-tracker` |
+| A file | `.../ingestion` | `.../ingestion` (`.md` hidden; non-md keep their extension) |
+| Cabinet agents/tasks | `#/cabinet/{cab}/agents` | `/room/{room}/{nested}/-/agents`, `…/-/tasks/{id}` |
+| Section in a page | (impossible) | `.../progress#risks` |
+| Globals | `#/settings/{tab}`, `#/help` | `/settings/{tab}`, `/help`; `/` = home |
+
+**Rules.** The root-relative path is emitted **once** after `/room/` (so `/data/` and the doubling
+both disappear by construction). Pages use the **virtual path** (already strips `index.md`/`.md`).
+**`/-/`** (GitLab-style, reserved) separates the cabinet path from a functional view. **`#`** is
+reserved for in-page heading anchors.
+
+### 11.3 Design
+
+- **Serving.** `next.config.ts` is `output: "standalone"` (a real server, not a static export). Add a
+  catch-all `src/app/[[...slug]]/page.tsx` rendering `<AppShell/>`; explicit routes (`/api`, `/login`,
+  `/tasks`, …) still win. No middleware. Assets are absolute, so serving at `/room/...` breaks nothing.
+- **Route module** `src/lib/navigation/route-scheme.ts`: `buildPath(section, pagePath)` /
+  `parsePath(pathname)`. Parse splits on the `/-/` marker — before it is the cabinet/page path (any
+  depth), after it is the view (`agents[/slug|/subtab]`, `tasks[/id]`); no marker means content, and
+  the owning cabinet is derived for scope. `RouteState`/`SectionState` are unchanged.
+- **Hook.** `useHashRoute` → `useRoute`: read/write `window.location.pathname` via
+  `pushState`/`replaceState` + `popstate`. Back/forward (`app-store` nav history) moves off `hashchange`.
+- **Electron.** The renderer loads from the HTTP server (dev `localhost:4000`; prod embedded
+  `.next/standalone/server.js`), not `file://`. `src/lib/cabinets/room-window.ts` + `electron/main.cjs`
+  pass clean paths instead of hashes; no custom protocol needed.
+- **Section anchors (runtime ids; markdown files untouched).** Add `rehype-slug` to
+  `src/lib/markdown/to-html.ts`; unify on one slug function with
+  `src/components/editor/extensions/heading-anchors.ts` (whose decoration ids already reach the live
+  DOM); scroll to the `#fragment` element on load + on `hashchange`. `#page:` wiki-links stay
+  intercepted in `editor.tsx`; a bare `#heading` falls through to scroll.
+- **Back-compat.** On load, translate legacy `#/cabinet/...` / `#/p/...` / `#/tasks/...` hashes to the
+  new clean path and `replaceState`, so old bookmarks, shared links, and the persisted route keep working.
+
+### 11.4 Collisions & reserved names
+
+The SPA avoids top-level segments owned by real Next routes (`api`, `agents`, `agent-preview`,
+`agents-demo`, `demo`, `login`, `providers-demo`, `tasks`); content always lives under `/room/...`.
+`-` is reserved (the view marker); a cabinet should not be named `room`. Folders named `agents`/`tasks`
+are safe (the `/-/` marker disambiguates). Legacy real routes `src/app/tasks` and
+`src/app/agents/conversations/[id]` are reconciled (kept or folded into the SPA) during the migration.
+
+### 11.5 Tests (Phase 2)
+
+`test/route.test.ts` (renamed from `hash-route.test.ts`): deep room root, deep page, deep agents/tasks
+(+ sub-tab, slug, id), the round-trip property `parsePath(buildPath(x)) == x` for nested cases, legacy
+`#/cabinet/...` → clean-path translation, and `#heading` non-collision with `#page:`.
+
+**Files:** `src/hooks/use-hash-route.ts` → `useRoute`; new `src/lib/navigation/route-scheme.ts` and
+`src/app/[[...slug]]/page.tsx`; `src/lib/navigation/task-route.ts`, `src/lib/cabinets/room-window.ts`,
+`electron/main.cjs`, `src/lib/markdown/to-html.ts`,
+`src/components/editor/extensions/heading-anchors.ts`, `src/components/editor/editor.tsx`,
+`src/stores/app-store.ts`, `test/route.test.ts`.
 
 ---
 
