@@ -1479,13 +1479,23 @@ export async function finalizeConversation(
   if (parsed.contextSummary) {
     meta.contextSummary = parsed.contextSummary;
   }
+  // Drop placeholder artifact entries from the stored list before merging.
+  // `needsRepair` treats a placeholder in meta.artifactPaths as repair-required,
+  // and the merge below preserves existing entries — so without this filter a
+  // placeholder would survive finalize, keep `needsRepair` true, and re-trigger
+  // finalize on every read (the non-idempotency this PR exists to fix). Incoming
+  // parsed artifacts are already placeholder-free (parser rejects them), so the
+  // union ends up clean.
+  const sanitizedArtifactPaths = (meta.artifactPaths ?? []).filter(
+    (artifactPath) => !isPlaceholderCabinetValue(artifactPath)
+  );
   if (artifacts.length > 0) {
     meta.artifactPaths = mergeArtifactPaths(
-      meta.artifactPaths,
+      sanitizedArtifactPaths,
       artifacts.map((artifact) => artifact.path)
     );
-  } else if (!meta.artifactPaths) {
-    meta.artifactPaths = [];
+  } else {
+    meta.artifactPaths = sanitizedArtifactPaths;
   }
 
   // First-turn tokens — G7. Only write when the caller provided a reading and
@@ -1532,14 +1542,12 @@ export async function finalizeConversation(
     }
   }
 
-  // Keep artifacts.json in sync with the value we actually committed to
-  // meta.artifactPaths above — if we preserved a prior stream-extracted
-  // list (because this finalize had no fresh artifacts), write that back
-  // instead of a blank array.
-  const artifactsToWrite =
-    artifacts.length > 0
-      ? meta.artifactPaths.map((artifactPath) => ({ path: artifactPath }))
-      : (meta.artifactPaths ?? []).map((artifactPath) => ({ path: artifactPath }));
+  // Keep artifacts.json in sync with the exact (sanitized + merged) list we
+  // committed to meta.artifactPaths above — covers both fresh-artifact and
+  // preserved-prior-list finalizes, with placeholders already stripped.
+  const artifactsToWrite = meta.artifactPaths.map((artifactPath) => ({
+    path: artifactPath,
+  }));
   await Promise.all([
     writeConversationMeta(meta),
     replaceConversationArtifacts(id, artifactsToWrite, cp),

@@ -203,6 +203,50 @@ test("finalizeConversation preserves artifacts merged from later turns", async (
   );
 });
 
+test("read-repair strips placeholder artifacts and then stays idempotent", async () => {
+  const meta = await makeSingleShotConversation(
+    "Placeholder repair",
+    "User request:\nstart",
+    "Done.\n```cabinet\nSUMMARY: done\nARTIFACT: reports/real.md\n```"
+  );
+
+  // Inject the unfilled ARTIFACT hint into stored meta — the placeholder shape
+  // that `needsRepair` flags via isPlaceholderCabinetValue. (Matches
+  // PLACEHOLDER_ARTIFACT_HINT in conversation-store.ts.)
+  const metaFile = path.join(
+    tempRoot, ".agents", ".conversations", meta.id, "meta.json"
+  );
+  const stored = JSON.parse(await fs.readFile(metaFile, "utf8"));
+  stored.artifactPaths = [
+    "relative/path/to/file for every KB file you created or updated",
+    ...stored.artifactPaths,
+  ];
+  await fs.writeFile(metaFile, JSON.stringify(stored, null, 2));
+
+  // First read triggers repair: the placeholder is dropped, the real path kept.
+  await store.readConversationDetail(meta.id);
+  const repaired = await store.readConversationMeta(meta.id);
+  assert.deepEqual(repaired?.artifactPaths, ["reports/real.md"]);
+
+  // artifacts.json mirrors the cleaned list.
+  const artifactFile = await fs.readFile(
+    path.join(tempRoot, ".agents", ".conversations", meta.id, "artifacts.json"),
+    "utf8"
+  );
+  assert.deepEqual(JSON.parse(artifactFile), [{ path: "reports/real.md" }]);
+
+  // Idempotent: now that the placeholder is gone, a further read must not
+  // re-finalize (no new task.updated event).
+  const before = await store.readEventLog(meta.id);
+  await store.readConversationDetail(meta.id);
+  const after = await store.readEventLog(meta.id);
+  assert.equal(
+    after.length,
+    before.length,
+    "a placeholder-repaired conversation must not re-finalize on later reads"
+  );
+});
+
 test("writeSession + readSession round-trip", async () => {
   const meta = await makeSingleShotConversation(
     "Session",
