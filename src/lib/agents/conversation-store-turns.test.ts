@@ -154,6 +154,99 @@ test("updateAgentTurn settles a pending turn", async () => {
   assert.ok(reread?.artifactPaths.includes("a.md"));
 });
 
+test("finalizeConversation preserves artifacts merged from later turns", async () => {
+  const meta = await makeSingleShotConversation(
+    "Late finalize",
+    "User request:\nstart",
+    "Initial.\n```cabinet\nSUMMARY: initial\nARTIFACT: reports/source.md\n```"
+  );
+  await store.appendUserTurn(meta.id, { content: "render as png" });
+  await store.appendAgentTurn(meta.id, {
+    content: "Rendering...",
+    pending: true,
+  });
+  await store.updateAgentTurn(meta.id, 2, {
+    content:
+      "Rendered.\n```cabinet\nSUMMARY: rendered\nARTIFACT: reports/output.png\n```",
+    pending: false,
+  });
+
+  await store.finalizeConversation(meta.id, {
+    status: "completed",
+    exitCode: 0,
+    output: "Initial.\n```cabinet\nSUMMARY: initial\nARTIFACT: reports/source.md\n```",
+  });
+
+  const reread = await store.readConversationMeta(meta.id);
+  assert.deepEqual(reread?.artifactPaths, [
+    "reports/source.md",
+    "reports/output.png",
+  ]);
+
+  const artifactFile = await fs.readFile(
+    path.join(tempRoot, ".agents", ".conversations", meta.id, "artifacts.json"),
+    "utf8"
+  );
+  assert.deepEqual(JSON.parse(artifactFile), [
+    { path: "reports/source.md" },
+    { path: "reports/output.png" },
+  ]);
+
+  const eventsBeforeRead = await store.readEventLog(meta.id);
+  const detail = await store.readConversationDetail(meta.id);
+  assert.ok(detail);
+  const eventsAfterRead = await store.readEventLog(meta.id);
+  assert.equal(
+    eventsAfterRead.length,
+    eventsBeforeRead.length,
+    "reading a repaired conversation must not append another task.updated event"
+  );
+});
+
+test("read-repair strips placeholder artifacts and then stays idempotent", async () => {
+  const meta = await makeSingleShotConversation(
+    "Placeholder repair",
+    "User request:\nstart",
+    "Done.\n```cabinet\nSUMMARY: done\nARTIFACT: reports/real.md\n```"
+  );
+
+  // Inject the unfilled ARTIFACT hint into stored meta — the placeholder shape
+  // that `needsRepair` flags via isPlaceholderCabinetValue. (Matches
+  // PLACEHOLDER_ARTIFACT_HINT in conversation-store.ts.)
+  const metaFile = path.join(
+    tempRoot, ".agents", ".conversations", meta.id, "meta.json"
+  );
+  const stored = JSON.parse(await fs.readFile(metaFile, "utf8"));
+  stored.artifactPaths = [
+    "relative/path/to/file for every KB file you created or updated",
+    ...stored.artifactPaths,
+  ];
+  await fs.writeFile(metaFile, JSON.stringify(stored, null, 2));
+
+  // First read triggers repair: the placeholder is dropped, the real path kept.
+  await store.readConversationDetail(meta.id);
+  const repaired = await store.readConversationMeta(meta.id);
+  assert.deepEqual(repaired?.artifactPaths, ["reports/real.md"]);
+
+  // artifacts.json mirrors the cleaned list.
+  const artifactFile = await fs.readFile(
+    path.join(tempRoot, ".agents", ".conversations", meta.id, "artifacts.json"),
+    "utf8"
+  );
+  assert.deepEqual(JSON.parse(artifactFile), [{ path: "reports/real.md" }]);
+
+  // Idempotent: now that the placeholder is gone, a further read must not
+  // re-finalize (no new task.updated event).
+  const before = await store.readEventLog(meta.id);
+  await store.readConversationDetail(meta.id);
+  const after = await store.readEventLog(meta.id);
+  assert.equal(
+    after.length,
+    before.length,
+    "a placeholder-repaired conversation must not re-finalize on later reads"
+  );
+});
+
 test("writeSession + readSession round-trip", async () => {
   const meta = await makeSingleShotConversation(
     "Session",
