@@ -114,20 +114,28 @@ unchanged; there is no data migration.
 - The single shared `KB_PASSWORD` model is unchanged: there are no per-user
   accounts, and login is not CSRF-tokened (login CSRF is not a meaningful
   escalation for a single shared secret).
-- **Scope:** the scheduler daemon's server-to-server calls are handled
-  separately (see PR #137) and must mint the cookie via this same
-  `src/lib/auth/kb-auth.ts` module.
+- **Scheduler daemon:** the daemon's server-to-server calls (scheduled jobs +
+  heartbeats) authenticate against this same gate by attaching the `kb-auth`
+  cookie via `authCookieHeader()` from `src/lib/auth/kb-auth.ts` (PR #142). For
+  the derived token to match, every input — `KB_PASSWORD`, `CABINET_AUTH_SALT`,
+  and any `CABINET_LOGIN_PBKDF2_ITERS` override — must be visible in *both* the
+  Next app and the daemon process. The salt lives in `.cabinet.env` (both load
+  it at boot); the daemon also backfills these keys from `.env` for the
+  production `start:daemon` path, which doesn't otherwise load `.env`.
 
 ## Testing it
 
 Unit tests (run with `npm test`):
 
 - `src/lib/auth/kb-auth.test.ts` — PBKDF2 against an independent `node:crypto`
-  reference, iteration parsing, constant-time compare, memoization.
+  reference, iteration parsing, constant-time compare, memoization, and
+  `authCookieHeader` (empty when auth is off, exact cookie when on).
 - `src/lib/auth/login-rate-limit.test.ts` — lockout, success reset, global
   bucket tripping when client keys rotate.
 - `test/proxy.test.ts`, `src/app/api/auth/login/route.test.ts` — gate behavior
-  and the login form/JSON flows (including the 429 / `?error=rate` paths).
+  and the login form/JSON flows (including the 429 / `?error=rate` paths). Also
+  an end-to-end guard that the daemon's `authCookieHeader()` cookie passes the
+  real `proxy()` gate on an `/api/*` route.
 
 Manual end-to-end:
 

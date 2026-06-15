@@ -72,6 +72,7 @@ import {
   getTokenFromAuthorizationHeader,
   isDaemonTokenValid,
 } from "../src/lib/agents/daemon-auth";
+import { authCookieHeader } from "../src/lib/auth/kb-auth";
 import {
   normalizeJobConfig,
   normalizeJobId,
@@ -1195,10 +1196,61 @@ const scheduledJobs = new Map<string, ReturnType<typeof cron.schedule>>();
 const scheduledHeartbeats = new Map<string, ReturnType<typeof cron.schedule>>();
 let scheduleReloadTimer: NodeJS.Timeout | null = null;
 
+// The app gates every /api/* route behind KB_PASSWORD (src/proxy.ts), deriving
+// the cookie from PBKDF2(password, CABINET_AUTH_SALT, CABINET_LOGIN_PBKDF2_ITERS)
+// via the shared kb-auth module. The daemon must derive the IDENTICAL value, so
+// all three inputs have to be visible in its process.env -- if any one drifts,
+// every trigger 401s. Next auto-loads `.env` for the app, but the daemon does
+// not, and the production `start:daemon` path bypasses scripts/dev-daemon.mjs
+// (which loads it in dev). CABINET_AUTH_SALT is normally already present via
+// loadCabinetEnv() at boot (it lives in .cabinet.env); the password and any
+// iteration override may exist only in `.env`. So backfill any of these auth
+// inputs not already set, from `.env` in the working dir (the same file the app
+// reads). Resolved once: like the app, changes take effect on the next restart.
+const AUTH_ENV_KEYS = [
+  "KB_PASSWORD",
+  "CABINET_AUTH_SALT",
+  "CABINET_LOGIN_PBKDF2_ITERS",
+] as const;
+let authEnvResolved = false;
+function ensureAuthEnvFromDotEnv(): void {
+  if (authEnvResolved) return;
+  authEnvResolved = true;
+  const missing: Set<string> = new Set(
+    AUTH_ENV_KEYS.filter((k) => !process.env[k]),
+  );
+  if (missing.size === 0) return; // all already set (dev path or real env)
+  try {
+    const envRaw = fs.readFileSync(path.join(process.cwd(), ".env"), "utf-8");
+    for (const line of envRaw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      if (!missing.has(key)) continue;
+      const value = trimmed
+        .slice(eq + 1)
+        .trim()
+        .replace(/^["']|["']$/g, "");
+      if (value) process.env[key] = value;
+    }
+  } catch {
+    // No .env / unreadable -- auth gate is presumably disabled.
+  }
+}
+
 async function putJson(url: string, body: Record<string, unknown>): Promise<void> {
+  // Attach the same `kb-auth` cookie a logged-in browser carries, so these
+  // server-to-server triggers pass the gate instead of silently 401ing. No-op
+  // when auth is disabled (authCookieHeader() returns {}).
+  ensureAuthEnvFromDotEnv();
   const response = await fetch(url, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authCookieHeader()),
+    },
     body: JSON.stringify(body),
   });
 

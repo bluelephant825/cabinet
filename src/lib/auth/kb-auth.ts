@@ -117,6 +117,24 @@ export function expectedToken(): Promise<string> {
 }
 
 /**
+ * The `Cookie` header a trusted server-to-server caller (the scheduler daemon,
+ * server/cabinet-daemon.ts) must attach so its own `/api/*` requests pass the
+ * gate in src/proxy.ts -- otherwise every scheduled job + heartbeat trigger
+ * 401s silently once KB_PASSWORD is set. Returns an empty object when auth is
+ * disabled, so callers can spread it unconditionally and send nothing.
+ *
+ * Uses the memoized expectedToken(), so PBKDF2 is paid once per process even
+ * though every trigger calls this. The CALLER must make every derivation input
+ * (KB_PASSWORD, CABINET_AUTH_SALT, and any CABINET_LOGIN_PBKDF2_ITERS override)
+ * visible in process.env first -- this module only reads env, it never loads
+ * .env / .cabinet.env. Any input that differs from the gate's silently 401s.
+ */
+export async function authCookieHeader(): Promise<Record<string, string>> {
+  if (!isAuthEnabled()) return {};
+  return { Cookie: `${KB_AUTH_COOKIE}=${await expectedToken()}` };
+}
+
+/**
  * Constant-time comparison of two hex strings. Pure JS (keeps this module
  * node-free; `node:crypto.timingSafeEqual` would not). Returns false on length
  * mismatch; otherwise XOR-accumulates over the full length without an
