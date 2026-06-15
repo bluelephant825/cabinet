@@ -7,7 +7,8 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import { useState } from "react";
-import { Puzzle, Pencil, Check } from "lucide-react";
+import { Puzzle, Pencil, Check, Video } from "lucide-react";
+import { detectEmbed } from "@/lib/embeds/detect";
 import {
   getMdxComponentSpec,
   isAllowedMdxComponent,
@@ -59,17 +60,35 @@ function ComponentPreview({ name, props, childrenString }: MdxComponentAttrs) {
   }
 
   if (name === "VideoPlayer") {
-    const url = String(props.url ?? "");
+    const url = String(props.url ?? "").trim();
+    if (!url) {
+      return (
+        <div className="flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+          <Video className="h-4 w-4" />
+          No video URL set — click the pencil to add one.
+        </div>
+      );
+    }
+    const detected = detectEmbed(url);
+    if (detected && detected.provider !== "video") {
+      return (
+        <div className="aspect-video w-full overflow-hidden rounded-md border border-border">
+          <iframe
+            src={detected.embedUrl}
+            className="h-full w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            allowFullScreen
+            loading="lazy"
+          />
+        </div>
+      );
+    }
     return (
-      <div className="text-sm text-foreground/80">
-        {url ? (
-          <a href={url} className="text-primary underline break-all">
-            {url}
-          </a>
-        ) : (
-          "No video URL set"
-        )}
-      </div>
+      <video
+        src={detected?.embedUrl ?? url}
+        controls
+        className="w-full rounded-md border border-border bg-black"
+      />
     );
   }
 
@@ -221,6 +240,11 @@ export const MdxComponent = Node.create({
           "data-children": childrenString,
         }
       ),
+      // Text content is required so turndown doesn't treat this empty <div> as
+      // a "blank" node and drop it before our serialization rule runs. The data
+      // we round-trip lives entirely in the attributes above; this text is
+      // ignored on both export (turndown rule) and import (parseHTML getAttrs).
+      name || "mdx-component",
     ];
   },
 
