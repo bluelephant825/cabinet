@@ -439,11 +439,20 @@ export async function renamePage(
     throw new Error(`Page not found: ${virtualPath}`);
   }
 
-  const slug = slugifyPageName(newName);
+  // Typed files may carry a new extension in `newName` (e.g. renaming
+  // `photo.jpg` to `holiday.png`): honour the requested extension and slugify
+  // only the stem. With no extension in `newName`, keep the original one so
+  // `photo.jpg` → "holiday" stays `holiday.jpg`. Directories and standalone
+  // .md pages always slugify the whole name.
+  const requestedExt = kind === "typed-file" ? path.extname(newName) : "";
+  const typedExt = requestedExt ? requestedExt.toLowerCase() : preservedExt;
+  const slug = slugifyPageName(
+    requestedExt ? newName.slice(0, -requestedExt.length) : newName
+  );
   if (!slug) {
     throw new Error(`Invalid name: "${newName}"`);
   }
-  const targetBase = kind === "directory" ? slug : `${slug}${preservedExt}`;
+  const targetBase = kind === "directory" ? slug : `${slug}${typedExt}`;
   const toResolved = path.join(parentDir, targetBase);
 
   // Wiki-links only ever resolve to .md-backed pages, so oldSlug only needs
@@ -531,7 +540,7 @@ export async function renamePage(
 
   // Match tree-builder's virtual-path shape: typed files keep their
   // extension, directories and standalone .md files don't.
-  const newBaseVirtual = kind === "typed-file" ? `${slug}${preservedExt}` : slug;
+  const newBaseVirtual = kind === "typed-file" ? `${slug}${typedExt}` : slug;
   const newPath = parentVirtual ? `${parentVirtual}/${newBaseVirtual}` : newBaseVirtual;
 
   // Wiki-links can only point at .md-backed pages, so skip the rewrite scan
