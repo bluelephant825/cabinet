@@ -454,7 +454,7 @@ export function ConnectPanel({
                 Personal account
               </span>
               <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                outlook.com, hotmail — one-click sign-in, nothing to set up.
+                outlook.com, hotmail. One-click sign-in, nothing to set up.
               </span>
             </button>
             <button
@@ -478,7 +478,7 @@ export function ConnectPanel({
           {msAccountMode === "personal" && (
             <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[11px] text-muted-foreground">
               <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" />
-              No fields needed — sign in with Microsoft below. Your password is
+              No fields needed. Sign in with Microsoft below. Your password is
               entered on Microsoft&apos;s own page and never stored by Cabinet.
             </p>
           )}
@@ -527,7 +527,7 @@ export function ConnectPanel({
           {msLogin.state === "pending" ? (
             <div className="rounded-lg border border-border bg-background p-3">
               <p className="text-[12px] font-medium text-foreground">
-                Step 1 — copy your code
+                Step 1: copy your code
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <code className="flex-1 rounded bg-foreground/[0.06] px-3 py-2 text-center text-[18px] font-semibold tracking-[0.25em] text-foreground">
@@ -545,7 +545,7 @@ export function ConnectPanel({
                 </button>
               </div>
               <p className="mt-3 text-[12px] font-medium text-foreground">
-                Step 2 — open Microsoft &amp; paste it
+                Step 2: open Microsoft &amp; paste it
               </p>
               <a
                 href={msLogin.url}

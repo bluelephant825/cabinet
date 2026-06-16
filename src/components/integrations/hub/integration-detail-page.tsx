@@ -120,7 +120,7 @@ export function IntegrationDetailPage({
           </ul>
           {m365Personal && (
             <p className="mt-3 text-[12px] text-muted-foreground">
-              Teams &amp; SharePoint need a work or school account — switch to{" "}
+              Teams &amp; SharePoint need a work or school account. Switch to{" "}
               <span className="font-medium text-foreground">Work / school app</span>{" "}
               to use those.
             </p>
@@ -133,7 +133,7 @@ export function IntegrationDetailPage({
                 No setup needed
               </div>
               <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-                Personal accounts sign in straight with Microsoft — click{" "}
+                Personal accounts sign in straight with Microsoft. Click{" "}
                 <span className="font-medium text-foreground">Sign in with Microsoft</span>,
                 enter the code shown, and approve in your browser. No Azure setup
                 needed. Choose{" "}
@@ -247,13 +247,13 @@ const TRUST_COPY: Record<TrustVariant, { title: string; body: string; dev: React
       <>
         Cabinet registers this as an MCP server in your agent CLI&apos;s config. The
         secret is stored in {ENV_CODE} (file perms 0600) and injected into the agent
-        process at spawn — never written into the config file itself.
+        process at spawn, never written into the config file itself.
       </>
     ),
   },
   "m365-personal": {
     title: "Your sign-in stays on this device",
-    body: "Personal accounts store nothing in Cabinet — your Microsoft token is cached on this computer by the connector and never uploaded.",
+    body: "Personal accounts store nothing in Cabinet. Your Microsoft token is cached on this computer by the connector and never uploaded.",
     dev: (
       <>
         Cabinet registers this as an MCP server in your agent CLI&apos;s config. Sign-in
@@ -261,7 +261,7 @@ const TRUST_COPY: Record<TrustVariant, { title: string; body: string; dev: React
         <code className="rounded bg-foreground/[0.06] px-1 py-0.5 text-[11px]">
           ms-365-mcp-server
         </code>{" "}
-        in your OS credential store (keychain), with a local 0600 file fallback —
+        in your OS credential store (keychain), with a local 0600 file fallback.
         Cabinet never handles the token itself.
       </>
     ),
@@ -272,7 +272,7 @@ const TRUST_COPY: Record<TrustVariant, { title: string; body: string; dev: React
     dev: (
       <>
         Your app credentials are stored in {ENV_CODE} (file perms 0600) and injected
-        into the agent at spawn — never written into the CLI config. The runtime
+        into the agent at spawn, never written into the CLI config. The runtime
         Microsoft token is cached by the connector in your OS keychain.
       </>
     ),
