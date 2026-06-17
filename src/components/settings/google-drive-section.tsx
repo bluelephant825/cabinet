@@ -255,6 +255,12 @@ export function GoogleDriveSection() {
           detail: { kind: "info", message: `Removed "${name}"` },
         })
       );
+    } catch {
+      window.dispatchEvent(
+        new CustomEvent("cabinet:toast", {
+          detail: { kind: "error", message: `Failed to remove "${name}"` },
+        })
+      );
     } finally {
       setRemoving(null);
     }
