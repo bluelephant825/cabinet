@@ -187,6 +187,8 @@ async function buildTreeRecursive(
     if (!showHidden && isHiddenEntry(entry.name)) continue;
     if (entry.name === "CLAUDE.md") continue;
     if (entry.name === ORDER_SIDECAR) continue;
+    // Per-cabinet whiteboard layout metadata — internal, never a tree node.
+    if (entry.name === "canvas.json") continue;
 
     const fullPath = path.join(dirPath, entry.name);
     const vPath = virtualPathFromFs(fullPath);

@@ -1119,6 +1119,23 @@ export function CanvasView() {
           snapshot.whiteboardAutoSizedByPath = autoSizedByPath;
           snapshot.whiteboardCardBackgroundColorByPath = cardBackgroundColorByPath;
           snapshot.whiteboardZoom = boardZoom;
+          // Don't materialise a canvas.json out of nothing: when no file
+          // exists yet and there's no layout or non-default zoom to persist,
+          // merely switching into the canvas view shouldn't create the file
+          // (and pollute the sidebar). Once a file exists, keep it in sync.
+          const hasLayoutData = [
+            cardSizeByPath,
+            cardPositionByPath,
+            cardPositionsByBoardPath,
+            positionsCenteredByBoardPath,
+            positionCenterVersionByBoardPath,
+            manualResizedByPath,
+            autoSizedByPath,
+            cardBackgroundColorByPath,
+          ].some((record) => record && Object.keys(record).length > 0);
+          const hasMeaningfulData =
+            hasLayoutData || boardZoom !== WHITEBOARD_DEFAULT_ZOOM;
+          if (!getRes.ok && !hasMeaningfulData) return;
           if (!cancelled) {
             await fetch(`/api/canvas?${query.toString()}`, {
               method: "PUT",

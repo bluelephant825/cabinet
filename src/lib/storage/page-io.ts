@@ -170,25 +170,11 @@ export async function readPage(virtualPath: string): Promise<PageData> {
     };
   }
 
-  // Container folder holding only sub-pages (no own `<name>.md`/index.md).
-  // Synthesize an empty page so clicking it in the sidebar still opens.
-  const resolvedStat = await fs.stat(resolved).catch(() => null);
-  if (resolvedStat?.isDirectory()) {
-    const now = new Date().toISOString();
-    return {
-      path: virtualPath,
-      assetBase: virtualPath,
-      content: "",
-      frontmatter: {
-        type: "Untyped",
-        title: path.basename(virtualPath),
-        created: now,
-        modified: now,
-        tags: [],
-      },
-    };
-  }
-
+  // A directory with no own `<name>.md`/index.md isn't a page yet. Surface it
+  // as "not found" (→ 404) so the editor renders its explicit folder
+  // placeholder — a "Create page" CTA plus a listing of the folder's
+  // contents — instead of a confusing empty document with synthesized
+  // properties that maps to no file on disk.
   throw new Error(`Page not found: ${virtualPath}`);
 }
 

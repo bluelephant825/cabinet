@@ -571,8 +571,7 @@ export function KBEditor() {
               {inferredTitle}
             </p>
             <p className="text-sm text-muted-foreground/80">
-              This folder doesn&apos;t have an{" "}
-              <code className="px-1 py-0.5 rounded bg-muted text-[12px]">index.md</code>
+              This folder doesn&apos;t have a markdown sibling page
               {hasChildren
                 ? " yet — its contents are listed below."
                 : " yet."}

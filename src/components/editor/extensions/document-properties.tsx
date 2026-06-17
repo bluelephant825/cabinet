@@ -154,7 +154,7 @@ function CustomPropertyRow({
 
 function DocumentPropertiesView(props: NodeViewProps) {
   const data = (props.node.attrs.data ?? {}) as PropertiesData;
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [tagInput, setTagInput] = useState("");
   const [addingKey, setAddingKey] = useState(false);
   const [newKey, setNewKey] = useState("");
