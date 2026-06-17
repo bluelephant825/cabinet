@@ -21,24 +21,33 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const rawPath = searchParams.get("path");
 
-    // Default to the Drive root when no path is supplied.
-    const requestedPath = rawPath ?? detection.mountPath;
+    // Resolve the requested path lexically (absolute) against the mount root.
+    // An absolute rawPath overrides the base; a relative one resolves inside it.
+    const requestedAbs = rawPath
+      ? path.resolve(realMountPath, rawPath)
+      : realMountPath;
 
-    // Resolve symlinks and normalize before the containment check.
-    let realRequestedPath: string;
-    try {
-      realRequestedPath = await fs.realpath(path.normalize(requestedPath));
-    } catch {
-      return NextResponse.json({ error: "Path not found" }, { status: 404 });
+    const within = (p: string) =>
+      p === realMountPath || p.startsWith(realMountPath + path.sep);
+
+    // Containment is checked BEFORE touching the filesystem, so we never
+    // realpath() an arbitrary host path — doing so would leak whether it exists
+    // via a differing status code. Out-of-bounds inputs are rejected here with
+    // the same 404 returned for non-existent paths.
+    let realRequestedPath: string | null = null;
+    if (within(requestedAbs)) {
+      try {
+        // Resolve symlinks, then re-check containment to catch links that
+        // point outside the mount.
+        const resolved = await fs.realpath(requestedAbs);
+        if (within(resolved)) realRequestedPath = resolved;
+      } catch {
+        // falls through to the uniform 404 below
+      }
     }
 
-    // Enforce containment: requested path must be the mount root or inside it.
-    const isContained =
-      realRequestedPath === realMountPath ||
-      realRequestedPath.startsWith(realMountPath + path.sep);
-
-    if (!isContained) {
-      return NextResponse.json({ error: "Path is outside the Google Drive mount" }, { status: 403 });
+    if (!realRequestedPath) {
+      return NextResponse.json({ error: "Path not found" }, { status: 404 });
     }
 
     const dirs = await listSubdirectories(realRequestedPath);
