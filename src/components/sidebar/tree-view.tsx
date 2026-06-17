@@ -163,7 +163,11 @@ export function TreeView() {
   const routeCabinetPath = section.cabinetPath;
   const activeCabinet = useMemo(() => {
     if (!routeCabinetPath) return null;
-    return findNodeByPath(nodes, routeCabinetPath);
+    // Only an actual cabinet scopes the tree to its contents. A plain
+    // directory route (e.g. a folder the user opened a page inside of) must
+    // not scope — otherwise that folder is hidden and only its children show.
+    const node = findNodeByPath(nodes, routeCabinetPath);
+    return node?.type === "cabinet" ? node : null;
   }, [nodes, routeCabinetPath]);
   const parentCabinet = useMemo(() => {
     if (!activeCabinet) return null;
@@ -187,7 +191,7 @@ export function TreeView() {
     () => new Set(rooms.filter((r) => !r.isRoot).map((r) => r.path)),
     [rooms]
   );
-  const atRoot = !routeCabinetPath || routeCabinetPath === ROOT_CABINET_PATH;
+  const atRoot = !activeCabinet || activeCabinet.path === ROOT_CABINET_PATH;
   const visibleTreeNodes = useMemo(() => {
     const base = activeCabinet?.children || rootCabinet?.children || nodes;
     if (atRoot && subRoomPaths.size > 0) {

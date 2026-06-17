@@ -24,6 +24,8 @@ type CanvasSnapshot = {
   whiteboardManualResizedByPath?: Record<string, boolean>;
   whiteboardAutoSizedByPath?: Record<string, boolean>;
   whiteboardCardBackgroundColorByPath?: Record<string, string>;
+  whiteboardManualLayoutByBoardPath?: Record<string, boolean>;
+  whiteboardManualPositionedByPath?: Record<string, boolean>;
 };
 
 type ColorPalettesMap = Record<string, string[]>;
@@ -65,6 +67,8 @@ const CARD_MIN_HEIGHT = 120;
 const CARD_MAX_HEIGHT = 900;
 const CARD_DEFAULT_WIDTH = 360;
 const CARD_DEFAULT_HEIGHT = 320;
+const CARD_MARKDOWN_WIDTH = CARD_DEFAULT_WIDTH;
+const CARD_MARKDOWN_HEIGHT = CARD_DEFAULT_HEIGHT;
 const CARD_BODY_VERTICAL_OVERHEAD = 110;
 const CARD_CANVAS_GAP = 16;
 const CARD_CANVAS_COLUMNS = 3;
@@ -249,6 +253,97 @@ function getDefaultCardPosition(index: number): CardPosition {
   };
 }
 
+function computeAutoLayout(
+  cards: TreeNode[],
+  getSize: (node: TreeNode, index: number) => CardSize
+): Record<string, CardPosition> {
+  const layout: Record<string, CardPosition> = {};
+  if (cards.length === 0) return layout;
+
+  type Measured = { path: string; width: number; height: number };
+  const measured: Measured[] = cards.map((node, index) => {
+    const size = getSize(node, index);
+    return {
+      path: node.path,
+      width: clamp(Math.round(size.width), CARD_MIN_WIDTH, CARD_MAX_WIDTH),
+      height: clamp(Math.round(size.height), CARD_MIN_HEIGHT, CARD_MAX_HEIGHT),
+    };
+  });
+
+  const count = measured.length;
+  const targetRatio = 16 / 9;
+
+  // Determine the column count that makes the overall grid closest to 16:9.
+  // Using representative card dimensions, the ideal row count that yields a
+  // 16:9 grid is R = sqrt(N * 9W / (16H)); we test the two nearest integers
+  // and, for each, derive C = ceil(N / R), then pick the pair whose grid
+  // aspect ratio (C*W)/(R*H) is closest to 16:9.
+  const avgWidth = measured.reduce((sum, card) => sum + card.width, 0) / count;
+  const avgHeight = measured.reduce((sum, card) => sum + card.height, 0) / count;
+  const idealRows = Math.sqrt((count * 9 * avgWidth) / (16 * avgHeight));
+
+  const rowCandidates = new Set<number>();
+  for (const candidate of [Math.floor(idealRows), Math.ceil(idealRows)]) {
+    rowCandidates.add(clamp(candidate, 1, count));
+  }
+
+  let columnCount = count;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const rowCount of rowCandidates) {
+    const candidateColumns = Math.ceil(count / rowCount);
+    const actualRows = Math.ceil(count / candidateColumns);
+    const ratio = (candidateColumns * avgWidth) / (actualRows * avgHeight);
+    const score = Math.abs(ratio - targetRatio);
+    if (score < bestScore) {
+      bestScore = score;
+      columnCount = candidateColumns;
+    }
+  }
+
+  // Place cards row-major in a clean grid aligned to per-column widths and
+  // per-row heights, which guarantees no overlaps even with mixed sizes.
+  const grid: Measured[][] = [];
+  for (let index = 0; index < count; index += columnCount) {
+    grid.push(measured.slice(index, index + columnCount));
+  }
+
+  const columnWidths: number[] = [];
+  for (const row of grid) {
+    row.forEach((card, columnIndex) => {
+      columnWidths[columnIndex] = Math.max(columnWidths[columnIndex] ?? 0, card.width);
+    });
+  }
+  const rowHeights = grid.map((row) => row.reduce((max, card) => Math.max(max, card.height), 0));
+
+  const columnOffsets: number[] = [];
+  let runningX = 0;
+  for (let columnIndex = 0; columnIndex < columnWidths.length; columnIndex += 1) {
+    columnOffsets[columnIndex] = runningX;
+    runningX += columnWidths[columnIndex] + CARD_CANVAS_GAP;
+  }
+
+  const layoutWidth = columnWidths.reduce((sum, width) => sum + width, 0) +
+    Math.max(0, columnWidths.length - 1) * CARD_CANVAS_GAP;
+  const layoutHeight = rowHeights.reduce((sum, height) => sum + height, 0) +
+    Math.max(0, rowHeights.length - 1) * CARD_CANVAS_GAP;
+  const startX = WHITEBOARD_CANVAS_ORIGIN_OFFSET - Math.round(layoutWidth / 2);
+  const startY = WHITEBOARD_CANVAS_ORIGIN_OFFSET - Math.round(layoutHeight / 2);
+
+  let cursorY = startY;
+  grid.forEach((row, rowIndex) => {
+    row.forEach((card, columnIndex) => {
+      const cellX = startX + columnOffsets[columnIndex];
+      layout[card.path] = {
+        x: cellX + Math.round((columnWidths[columnIndex] - card.width) / 2),
+        y: cursorY + Math.round((rowHeights[rowIndex] - card.height) / 2),
+      };
+    });
+    cursorY += rowHeights[rowIndex] + CARD_CANVAS_GAP;
+  });
+
+  return layout;
+}
+
 function applyResize(
   handle: ResizeHandle,
   startWidth: number,
@@ -299,6 +394,16 @@ function fitCardSizeToContent(
     return {
       width: targetWidth,
       height: clamp(scaledHeight + CARD_BODY_VERTICAL_OVERHEAD, CARD_MIN_HEIGHT, CARD_MAX_HEIGHT),
+    };
+  }
+
+  const isMarkdownNote =
+    node.type === "file" ||
+    (node.type === "code" && (/\.mdx?$/i.test(node.name) || /\.mdx?$/i.test(node.path)));
+  if (isMarkdownNote) {
+    return {
+      width: clamp(CARD_MARKDOWN_WIDTH, CARD_MIN_WIDTH, CARD_MAX_WIDTH),
+      height: clamp(CARD_MARKDOWN_HEIGHT, CARD_MIN_HEIGHT, CARD_MAX_HEIGHT),
     };
   }
 
@@ -454,6 +559,8 @@ export function CanvasView() {
   const [autoSizedByPath, setAutoSizedByPath] = useState<Record<string, boolean>>({});
   const [mediaSizeByPath, setMediaSizeByPath] = useState<Record<string, AutoSizeState>>({});
   const [cardBackgroundColorByPath, setCardBackgroundColorByPath] = useState<Record<string, string>>({});
+  const [manualLayoutByBoardPath, setManualLayoutByBoardPath] = useState<Record<string, boolean>>({});
+  const [manualPositionedByPath, setManualPositionedByPath] = useState<Record<string, boolean>>({});
   const [selectedPaletteColors, setSelectedPaletteColors] = useState<string[]>([]);
   const [openColorPickerForPath, setOpenColorPickerForPath] = useState<string | null>(null);
   const [sizesLoaded, setSizesLoaded] = useState(false);
@@ -731,6 +838,8 @@ export function CanvasView() {
             setManualResizedByPath({});
             setAutoSizedByPath({});
             setCardBackgroundColorByPath({});
+            setManualLayoutByBoardPath({});
+            setManualPositionedByPath({});
             setBoardZoom(WHITEBOARD_DEFAULT_ZOOM);
             setSizesLoaded(true);
           }
@@ -812,6 +921,26 @@ export function CanvasView() {
             nextBackgroundColors[path] = color.toUpperCase();
           }
         }
+        const nextManualPositioned: Record<string, boolean> = {};
+        if (
+          snapshot.whiteboardManualPositionedByPath &&
+          typeof snapshot.whiteboardManualPositionedByPath === "object"
+        ) {
+          for (const [path, value] of Object.entries(snapshot.whiteboardManualPositionedByPath)) {
+            if (value !== true) continue;
+            const key = path.includes("::") ? path : makeScopedCardKey(boardScopePath, path);
+            nextManualPositioned[key] = true;
+          }
+        }
+        // A board is treated as manually arranged only when at least one of its
+        // cards was explicitly dragged. This is derived from the per-card flags
+        // above so it can't be corrupted by auto-generated positions.
+        const nextManualLayout: Record<string, boolean> = {};
+        for (const key of Object.keys(nextManualPositioned)) {
+          const sep = key.indexOf("::");
+          if (sep <= 0) continue;
+          nextManualLayout[key.slice(0, sep)] = true;
+        }
         for (const [path, size] of Object.entries(nextSizes)) {
           if (nextManual[path] || nextAuto[path]) continue;
           if (size.width !== CARD_DEFAULT_WIDTH || size.height !== CARD_DEFAULT_HEIGHT) {
@@ -860,6 +989,8 @@ export function CanvasView() {
           setManualResizedByPath(nextManualScoped);
           setAutoSizedByPath(nextAutoScoped);
           setCardBackgroundColorByPath(nextBackgroundScoped);
+          setManualLayoutByBoardPath(nextManualLayout);
+          setManualPositionedByPath(nextManualPositioned);
           setBoardZoom(persistedZoom);
           setSizesLoaded(true);
         }
@@ -873,6 +1004,8 @@ export function CanvasView() {
           setManualResizedByPath({});
             setAutoSizedByPath({});
             setCardBackgroundColorByPath({});
+            setManualLayoutByBoardPath({});
+            setManualPositionedByPath({});
             setBoardZoom(WHITEBOARD_DEFAULT_ZOOM);
             setSizesLoaded(true);
         }
@@ -1118,6 +1251,8 @@ export function CanvasView() {
           snapshot.whiteboardManualResizedByPath = manualResizedByPath;
           snapshot.whiteboardAutoSizedByPath = autoSizedByPath;
           snapshot.whiteboardCardBackgroundColorByPath = cardBackgroundColorByPath;
+          snapshot.whiteboardManualLayoutByBoardPath = manualLayoutByBoardPath;
+          snapshot.whiteboardManualPositionedByPath = manualPositionedByPath;
           snapshot.whiteboardZoom = boardZoom;
           // Don't materialise a canvas.json out of nothing: when no file
           // exists yet and there's no layout or non-default zoom to persist,
@@ -1152,7 +1287,7 @@ export function CanvasView() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [cardSizeByPath, cardPositionByPath, cardPositionsByBoardPath, positionsCenteredByBoardPath, positionCenterVersionByBoardPath, manualResizedByPath, autoSizedByPath, cardBackgroundColorByPath, cabinetPath, sizesLoaded, persistTick, boardZoom]);
+  }, [cardSizeByPath, cardPositionByPath, cardPositionsByBoardPath, positionsCenteredByBoardPath, positionCenterVersionByBoardPath, manualResizedByPath, autoSizedByPath, cardBackgroundColorByPath, manualLayoutByBoardPath, manualPositionedByPath, cabinetPath, sizesLoaded, persistTick, boardZoom]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -1206,6 +1341,13 @@ export function CanvasView() {
       if (!activeDrag.moved && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
         activeDrag.moved = true;
         suppressNextCardClickRef.current = true;
+        setManualLayoutByBoardPath((prev) =>
+          prev[boardScopePath] ? prev : { ...prev, [boardScopePath]: true }
+        );
+        const draggedScopedKey = makeScopedCardKey(boardScopePath, activeDrag.path);
+        setManualPositionedByPath((prev) =>
+          prev[draggedScopedKey] ? prev : { ...prev, [draggedScopedKey]: true }
+        );
       }
       const nextX = activeDrag.startCardX + deltaX;
       const nextY = activeDrag.startCardY + deltaY;
@@ -1324,7 +1466,11 @@ export function CanvasView() {
       const next = { ...prev };
       for (const node of boardCards) {
         const scopedPath = makeScopedCardKey(boardScopePath, node.path);
-        if (manualResizedByPath[scopedPath] || autoSizedByPath[scopedPath]) continue;
+        if (manualResizedByPath[scopedPath]) continue;
+        const isMarkdownNote =
+          node.type === "file" ||
+          (node.type === "code" && (/\.mdx?$/i.test(node.name) || /\.mdx?$/i.test(node.path)));
+        if (!isMarkdownNote && autoSizedByPath[scopedPath]) continue;
         const currentSize = prev[scopedPath] ?? prev[node.path] ?? { width: CARD_DEFAULT_WIDTH, height: CARD_DEFAULT_HEIGHT };
         if (
           node.type === "pdf" &&
@@ -1366,6 +1512,43 @@ export function CanvasView() {
       return changed ? next : prev;
     });
   }, [boardCards, boardScopePath, pageContentByPath, mediaSizeByPath, manualResizedByPath, autoSizedByPath, sizesLoaded]);
+
+  useEffect(() => {
+    if (!sizesLoaded || boardCards.length === 0) return;
+    if (manualLayoutByBoardPath[boardScopePath]) return;
+
+    const layout = computeAutoLayout(boardCards, (node) => {
+      const scopedPath = makeScopedCardKey(boardScopePath, node.path);
+      return (
+        cardSizeByPath[scopedPath] ??
+        cardSizeByPath[node.path] ?? {
+          width: CARD_DEFAULT_WIDTH,
+          height: CARD_DEFAULT_HEIGHT,
+        }
+      );
+    });
+
+    let changed = false;
+    setCardPositionByPath((prev) => {
+      const next = { ...prev };
+      for (const node of boardCards) {
+        const position = layout[node.path];
+        if (!position) continue;
+        const current = prev[node.path];
+        if (!current || current.x !== position.x || current.y !== position.y) {
+          next[node.path] = position;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    if (changed) {
+      setCardPositionsByBoardPath((prev) => ({
+        ...prev,
+        [boardScopePath]: { ...(prev[boardScopePath] ?? {}), ...layout },
+      }));
+    }
+  }, [boardCards, boardScopePath, cardSizeByPath, manualLayoutByBoardPath, sizesLoaded]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -1619,7 +1802,7 @@ export function CanvasView() {
                       >
                         {title}
                       </button>
-                      <div className="mb-2 text-xs text-muted-foreground">{node.path}</div>
+                      <div className="mb-2 min-w-0 break-words text-xs text-muted-foreground">{node.path}</div>
                       <CardPreview
                         node={node}
                         content={content}

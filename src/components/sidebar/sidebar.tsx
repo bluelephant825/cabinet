@@ -300,7 +300,7 @@ export function Sidebar() {
             aria-label="Integrations"
             title="Integrations"
             className={cn(
-              "h-7 w-7 shrink-0",
+              "h-7 w-7 shrink-0 ms-auto",
               section.type === "integrations" && "bg-accent text-foreground"
             )}
             onClick={() => {
