@@ -220,6 +220,18 @@ export const useTreeStore = create<TreeState>((set, get) => ({
     if (selectedPath === path) {
       set({ selectedPath: null });
     }
+
+    // The page (or its containing folder) is gone from disk. If it's open in
+    // the editor, drop it — otherwise the stale currentPath survives and the
+    // next autosave recreates the just-deleted file, resurrecting it on disk.
+    const editor = useEditorStore.getState();
+    if (
+      editor.currentPath === path ||
+      editor.currentPath?.startsWith(path + "/")
+    ) {
+      editor.clear();
+    }
+
     await get().loadTree();
   },
 
@@ -254,6 +266,19 @@ export const useTreeStore = create<TreeState>((set, get) => ({
       }
       await get().loadTree();
       set({ selectedPath: newPath });
+
+      // The move renamed files underneath the editor. If the moved page is
+      // open, follow it to the new path — otherwise the editor keeps the
+      // stale path and its next autosave recreates the file at the original
+      // location, leaving a real on-disk copy behind. The open page can also
+      // be a descendant of a moved folder, so remap that prefix too.
+      const editor = useEditorStore.getState();
+      if (editor.currentPath === fromPath) {
+        editor.loadPage(newPath);
+      } else if (editor.currentPath?.startsWith(fromPath + "/")) {
+        editor.loadPage(newPath + editor.currentPath.slice(fromPath.length));
+      }
+
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("cabinet:toast", {
@@ -311,6 +336,10 @@ export const useTreeStore = create<TreeState>((set, get) => ({
     if (editor.currentPath === pagePath) {
       // The renamed page itself is open → follow it to the new path.
       editor.loadPage(newPath);
+    } else if (editor.currentPath?.startsWith(pagePath + "/")) {
+      // A folder was renamed and the open page lives inside it → remap the
+      // stale prefix, otherwise a later autosave writes back to the old path.
+      editor.loadPage(newPath + editor.currentPath.slice(pagePath.length));
     } else if (
       editor.currentPath &&
       references.changedPages.includes(editor.currentPath) &&

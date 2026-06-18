@@ -42,7 +42,7 @@ export function sanitizeFilename(name: string): string {
 }
 
 export function isMarkdownFile(name: string): boolean {
-  return name.endsWith(".md");
+  return name.endsWith(".md") || name.endsWith(".mdx");
 }
 
 const IGNORED_DIRS = new Set(["node_modules", "__pycache__", ".venv", "dist", "build", "out", "coverage"]);

@@ -100,9 +100,12 @@ export async function readPage(virtualPath: string): Promise<PageData> {
   // Try directory with index.md first
   const indexPath = path.join(resolved, "index.md");
   const mdPath = resolved.endsWith(".md") ? resolved : `${resolved}.md`;
+  const mdxPath = resolved.endsWith(".mdx") ? resolved : `${resolved}.mdx`;
 
   let filePath: string | null = null;
-  if (await fileExists(mdPath)) {
+  if (await fileExists(mdxPath)) {
+    filePath = mdxPath;
+  } else if (await fileExists(mdPath)) {
     filePath = mdPath;
   } else if (await fileExists(indexPath)) {
     filePath = indexPath;
@@ -136,7 +139,7 @@ export async function readPage(virtualPath: string): Promise<PageData> {
         // defaults for the reserved fields Cabinet relies on.
         ...data,
         type: data.type || "Untyped",
-        title: data.title || path.basename(virtualPath, ".md"),
+        title: data.title || path.basename(virtualPath, ".md").replace(/\.mdx$/, ""),
         created: data.created || new Date().toISOString(),
         modified: data.modified || new Date().toISOString(),
         tags: data.tags || [],
@@ -191,6 +194,40 @@ function inferDirFromText(content: string): "rtl" | undefined {
   return hebrewMatches.length / letterMatches.length > 0.5 ? "rtl" : undefined;
 }
 
+function containsJsxComponent(content: string): boolean {
+  // Pattern 1: React/JSX imports
+  if (/import\s+.*from\s+["']react["']|import\s+.*from\s+["']@react/.test(content)) {
+    return true;
+  }
+  
+  // Pattern 2: Self-closing JSX tags with PascalCase (e.g., <MyComponent /> or <Component/>)
+  if (/<[A-Z]\w+[^>]*\/\s*>/.test(content)) {
+    return true;
+  }
+  
+  // Pattern 3: JSX opening and closing tags with PascalCase (e.g., <MyComponent>...</MyComponent>)
+  if (/<[A-Z]\w+[^>]*>[\s\S]*?<\/[A-Z]\w+>/.test(content)) {
+    return true;
+  }
+  
+  // Pattern 4: JSX fragments (<>...</>)
+  if (/<>\s*[\s\S]*?\s*<\/>/.test(content)) {
+    return true;
+  }
+  
+  // Pattern 5: React.createElement or React.FC syntax
+  if (/React\.(createElement|FC|Component|Fragment)/.test(content)) {
+    return true;
+  }
+  
+  // Pattern 6: Hooks like useState, useEffect, useContext, etc.
+  if (/\b(useState|useEffect|useContext|useReducer|useCallback|useMemo|useRef|useLayoutEffect|useDebugValue|useId|useDeferredValue|useTransition|useSyncExternalStore|useOptimistic|useActionState)\s*\(/.test(content)) {
+    return true;
+  }
+  
+  return false;
+}
+
 export async function writePage(
   virtualPath: string,
   content: string,
@@ -200,9 +237,12 @@ export async function writePage(
 
   const indexPath = path.join(resolved, "index.md");
   const mdPath = resolved.endsWith(".md") ? resolved : `${resolved}.md`;
+  const mdxPath = resolved.endsWith(".mdx") ? resolved : `${resolved}.mdx`;
 
   let filePath: string;
-  if (await fileExists(mdPath)) {
+  if (await fileExists(mdxPath)) {
+    filePath = mdxPath;
+  } else if (await fileExists(mdPath)) {
     filePath = mdPath;
   } else if (await fileExists(indexPath)) {
     filePath = indexPath;
@@ -222,6 +262,25 @@ export async function writePage(
     frontmatter.dir === undefined
       ? { ...frontmatter, dir: inferDirFromText(content) }
       : frontmatter;
+
+  const hasJsx = containsJsxComponent(content);
+
+  // Determine target extension based on JSX presence for sibling markdown files
+  if (filePath === mdPath || filePath === mdxPath) {
+    if (hasJsx && filePath !== mdxPath) {
+      // Convert .md to .mdx if JSX is present
+      if (await fileExists(mdPath)) {
+        await deleteFileOrDir(mdPath);
+      }
+      filePath = mdxPath;
+    } else if (!hasJsx && filePath === mdxPath) {
+      // Convert .mdx back to .md if no JSX is present
+      if (await fileExists(mdxPath)) {
+        await deleteFileOrDir(mdxPath);
+      }
+      filePath = mdPath;
+    }
+  }
 
   // Strip undefined values — js-yaml cannot serialize them
   const fm = Object.fromEntries(
@@ -283,14 +342,18 @@ export async function createFolder(virtualPath: string): Promise<void> {
 export async function deletePage(virtualPath: string): Promise<void> {
   const resolved = resolveContentPath(virtualPath);
   const mdPath = resolved.endsWith(".md") ? resolved : `${resolved}.md`;
+  const mdxPath = resolved.endsWith(".mdx") ? resolved : `${resolved}.mdx`;
 
-  // A sibling page may have BOTH `<name>.md` and a `<name>/` folder — remove
+  // A sibling page may have BOTH `<name>.md` (content) and a `<name>/` folder — remove
   // each that exists so the whole page (and its sub-pages) goes away.
   const stat = await fs.lstat(resolved).catch(() => null);
   if (stat?.isSymbolicLink()) {
     await unlinkSymlink(resolved);
   } else if (stat) {
     await deleteFileOrDir(resolved);
+  }
+  if (mdxPath !== resolved && (await fileExists(mdxPath))) {
+    await deleteFileOrDir(mdxPath);
   }
   if (mdPath !== resolved && (await fileExists(mdPath))) {
     await deleteFileOrDir(mdPath);
@@ -344,6 +407,7 @@ export async function movePage(
   // single artifact; legacy `<name>/index.md` pages move as the folder.
   const resolved = resolveContentPath(fromPath);
   const mdPath = resolved.endsWith(".md") ? resolved : `${resolved}.md`;
+  const mdxPath = resolved.endsWith(".mdx") ? resolved : `${resolved}.mdx`;
 
   const toDir = toParentPath
     ? resolveContentPath(toParentPath)
@@ -351,8 +415,9 @@ export async function movePage(
 
   const resolvedStat = await fs.lstat(resolved).catch(() => null);
   const hasResolved = resolvedStat !== null;
+  const hasMdx = mdxPath !== resolved && (await fileExists(mdxPath));
   const hasMd = mdPath !== resolved && (await fileExists(mdPath));
-  if (!hasResolved && !hasMd) {
+  if (!hasResolved && !hasMdx && !hasMd) {
     throw new Error(`Page not found: ${fromPath}`);
   }
 
@@ -364,6 +429,7 @@ export async function movePage(
   const isReorder = toDir === path.dirname(resolved);
 
   const moves: { from: string; to: string }[] = [];
+  if (hasMdx) moves.push({ from: mdxPath, to: path.join(toDir, path.basename(mdxPath)) });
   if (hasMd) moves.push({ from: mdPath, to: path.join(toDir, path.basename(mdPath)) });
   if (hasResolved) moves.push({ from: resolved, to: path.join(toDir, name) });
 
@@ -445,34 +511,44 @@ export async function renamePage(
   // Tree-builder produces three virtual-path shapes (see tree-builder.ts):
   //   • directories (page-dir, cabinet, app, website): parent/<name>
   //   • standalone .md files:                          parent/<name>      (.md stripped)
+  //   • standalone .mdx files:                         parent/<name>      (.mdx stripped)
   //   • typed files (pdf, csv, docx, …):               parent/<name>.<ext>
   // Resolve which one we're actually renaming so the extension survives the
   // round-trip — otherwise foo.csv becomes "foo" and disappears from the
   // sidebar (no classifier matches an extensionless file).
-  type RenameKind = "directory" | "md-file" | "typed-file";
+  type RenameKind = "directory" | "md-file" | "mdx-file" | "typed-file";
   let kind: RenameKind;
   let fromResolved = fromResolvedVirtual;
   let preservedExt = "";
-  // Sibling pattern: a page that has BOTH `<name>.md` (content/title) and a
-  // `<name>/` folder (sub-pages). The `.md` carries the page; the folder rides
+  // Sibling pattern: a page that has BOTH `<name>.md/.mdx` (content/title) and a
+  // `<name>/` folder (sub-pages). The `.md/.mdx` carries the page; the folder rides
   // along on rename. `siblingDir`/`siblingDirTo` are the folder's before/after.
   let siblingDir: string | null = null;
 
   const fsp = await import("fs/promises");
   const directStat = await fsp.lstat(fromResolvedVirtual).catch(() => null);
   const mdCompanion = `${fromResolvedVirtual}.md`;
+  const mdxCompanion = `${fromResolvedVirtual}.mdx`;
   const hasMdCompanion = await fileExists(mdCompanion);
-  if (directStat?.isDirectory() && hasMdCompanion) {
-    // Sibling page: rename the `.md` as the page and drag the folder with it.
-    fromResolved = mdCompanion;
-    kind = "md-file";
-    preservedExt = ".md";
+  const hasMdxCompanion = await fileExists(mdxCompanion);
+  if (directStat?.isDirectory() && (hasMdCompanion || hasMdxCompanion)) {
+    // Sibling page: rename the `.md` or `.mdx` as the page and drag the folder with it.
+    const ext = hasMdxCompanion ? ".mdx" : ".md";
+    fromResolved = hasMdxCompanion ? mdxCompanion : mdCompanion;
+    kind = ext === ".mdx" ? "mdx-file" : "md-file";
+    preservedExt = ext;
     siblingDir = fromResolvedVirtual;
   } else if (directStat?.isDirectory()) {
     kind = "directory";
   } else if (directStat) {
     kind = "typed-file";
     preservedExt = path.extname(fromResolvedVirtual);
+  } else if (hasMdxCompanion) {
+    // Tree-builder strips ".mdx" from standalone-markdown paths, so the
+    // virtual path resolves to a sibling that lives at <path>.mdx on disk.
+    fromResolved = mdxCompanion;
+    kind = "mdx-file";
+    preservedExt = ".mdx";
   } else if (hasMdCompanion) {
     // Tree-builder strips ".md" from standalone-markdown paths, so the
     // virtual path resolves to a sibling that lives at <path>.md on disk.
@@ -487,7 +563,7 @@ export async function renamePage(
   // `photo.jpg` to `holiday.png`): honour the requested extension and slugify
   // only the stem. With no extension in `newName`, keep the original one so
   // `photo.jpg` → "holiday" stays `holiday.jpg`. Directories and standalone
-  // .md pages always slugify the whole name.
+  // .md/.mdx pages always slugify the whole name.
   const requestedExt = kind === "typed-file" ? path.extname(newName) : "";
   const typedExt = requestedExt ? requestedExt.toLowerCase() : preservedExt;
   const slug = slugifyFileName(
@@ -501,21 +577,21 @@ export async function renamePage(
   // Where the companion folder lands (sibling pages only).
   const siblingDirTo = siblingDir ? path.join(parentDir, slug) : null;
 
-  // Wiki-links only ever resolve to .md-backed pages, so oldSlug only needs
-  // to be meaningful for directory and md-file kinds — for typed files it
+  // Wiki-links only ever resolve to .md/.mdx-backed pages, so oldSlug only needs
+  // to be meaningful for directory and md/mdx-file kinds — for typed files it
   // simply won't match any link.
   const oldSlug =
-    kind === "md-file"
-      ? path.basename(fromResolved, ".md")
+    kind === "md-file" || kind === "mdx-file"
+      ? path.basename(fromResolved, preservedExt)
       : path.basename(fromResolvedVirtual);
 
   // Locate the file that carries the page's frontmatter title (index.md for
-  // directory-pages, the file itself for standalone .md, nothing for typed
+  // directory-pages, the file itself for standalone .md/.mdx, nothing for typed
   // files). Snapshot its bytes for Undo and for the toast's old-name.
   const titleHostBefore =
     kind === "directory"
       ? path.join(fromResolved, "index.md")
-      : kind === "md-file"
+      : kind === "md-file" || kind === "mdx-file"
       ? fromResolved
       : null;
   let titleHostBytes: string | null = null;
@@ -596,7 +672,7 @@ export async function renamePage(
   const titleHostAfter =
     kind === "directory"
       ? path.join(toResolved, "index.md")
-      : kind === "md-file"
+      : kind === "md-file" || kind === "mdx-file"
       ? toResolved
       : null;
   if (titleHostAfter && (await fileExists(titleHostAfter))) {
@@ -612,11 +688,11 @@ export async function renamePage(
   }
 
   // Match tree-builder's virtual-path shape: typed files keep their
-  // extension, directories and standalone .md files don't.
+  // extension, directories and standalone .md/.mdx files don't.
   const newBaseVirtual = kind === "typed-file" ? `${slug}${typedExt}` : slug;
   const newPath = parentVirtual ? `${parentVirtual}/${newBaseVirtual}` : newBaseVirtual;
 
-  // Wiki-links can only point at .md-backed pages, so skip the rewrite scan
+  // Wiki-links can only point at .md/.mdx-backed pages, so skip the rewrite scan
   // for typed files entirely.
   const rewrite: RewriteResult =
     kind === "typed-file"
