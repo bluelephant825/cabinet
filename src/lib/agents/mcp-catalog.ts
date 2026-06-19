@@ -395,20 +395,25 @@ const MICROSOFT_365: CatalogEntry = {
     MS365_MCP_TENANT_ID: "${MS365_MCP_TENANT_ID}",
     MS365_MCP_CLIENT_SECRET: "${MS365_MCP_CLIENT_SECRET}",
   },
+  // Credentials are OPTIONAL: leave them blank for a personal Outlook.com
+  // account and the server uses its built-in app + device-code sign-in (the
+  // connect panel's "Personal account" mode). Fill them to use your own Entra
+  // app ("Work / school" mode). The config writer omits any unset placeholder
+  // so blank values never override the built-in default.
   credentials: [
     {
       envKey: "MS365_MCP_CLIENT_ID",
       label: "Azure app Client ID",
       kind: "plain",
-      required: true,
+      required: false,
       placeholder: "00000000-0000-0000-0000-000000000000",
-      hint: "From your Microsoft Entra (Azure AD) app registration.",
+      hint: "Work/school only — from your Microsoft Entra (Azure AD) app registration. Leave blank for a personal account.",
     },
     {
       envKey: "MS365_MCP_TENANT_ID",
       label: "Tenant ID",
       kind: "plain",
-      required: true,
+      required: false,
       placeholder: "common (or your tenant id)",
       hint: "Use 'common' for multi-tenant, or your directory (tenant) id.",
     },
@@ -416,7 +421,7 @@ const MICROSOFT_365: CatalogEntry = {
       envKey: "MS365_MCP_CLIENT_SECRET",
       label: "Client Secret",
       kind: "secret",
-      required: true,
+      required: false,
       placeholder: "••••••••",
       hint: "Saved securely on this device only — never uploaded.",
     },

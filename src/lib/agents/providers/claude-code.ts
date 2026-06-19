@@ -7,8 +7,8 @@ import {
 } from "../provider-cli";
 import { getNvmNodeBin } from "../nvm-path";
 
-// Effort levels per Claude Code docs: Opus 4.7 supports an extra `xhigh`
-// rung (recommended default); Opus 4.6 / Sonnet 4.6 stop at `max`. Setting
+// Effort levels per Claude Code docs: Fable 5 / Opus 4.8 support an extra
+// `xhigh` rung (recommended default); Sonnet 4.6 stops at `max`. Setting
 // an unsupported level falls back to the highest the model accepts, but we
 // surface the right list so the picker doesn't show levels that won't apply.
 const OPUS_THINKING_LEVELS = [
@@ -46,15 +46,21 @@ export const claudeCodeProvider: AgentProvider = {
   ],
   models: [
     {
+      id: "fable",
+      name: "Claude Fable 5",
+      description: "Most powerful model, above Opus, with configurable effort",
+      effortLevels: [...OPUS_THINKING_LEVELS],
+    },
+    {
       id: "opus",
-      name: "Claude Opus 4.7",
-      description: "Most intelligent with configurable effort",
+      name: "Claude Opus 4.8",
+      description: "Most intelligent Opus with configurable effort",
       effortLevels: [...OPUS_THINKING_LEVELS],
     },
     {
       id: "opus[1m]",
-      name: "Claude Opus 4.7 (1M context)",
-      description: "Opus 4.7 with 1M-token context for very long sessions",
+      name: "Claude Opus 4.8 (1M context)",
+      description: "Opus 4.8 with 1M-token context for very long sessions",
       effortLevels: [...OPUS_THINKING_LEVELS],
     },
     {

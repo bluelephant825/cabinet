@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeft, Check, Sparkles, ShieldCheck, Bell, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { showSuccess } from "@/lib/ui/toast";
 import { ConnectPanel } from "@/components/integrations/hub/connect-panel";
+import { GoogleDriveSection } from "@/components/settings/google-drive-section";
+import { GmailSection } from "@/components/settings/gmail-section";
 import { SetupGuide } from "@/components/integrations/hub/setup-guide";
 import { stepArtFor } from "@/components/integrations/hub/generic-setup-art";
 import { getCatalogEntry } from "@/lib/agents/mcp-catalog";
@@ -37,6 +39,19 @@ export function IntegrationDetailPage({
 }) {
   const category = CATEGORY_META[item.category].label;
   const entry = getCatalogEntry(item.id);
+  // Microsoft 365 has a personal/work toggle in the ConnectPanel; we lift it
+  // here so the left-hand setup guide can react to it (personal = no setup).
+  const isM365 = item.id === "microsoft-365";
+  const [msMode, setMsMode] = useState<"personal" | "work">("personal");
+  const m365Personal = isM365 && msMode === "personal";
+  // Personal Microsoft accounts have no Teams or SharePoint (work/school only),
+  // so trim the capability list to what actually applies.
+  const agentActions = m365Personal
+    ? ["Outlook mail & calendar", "OneDrive files"]
+    : item.actions;
+  // MCP connectors get setup steps from the catalog; native integrations carry
+  // their own on the catalog item.
+  const setupSteps = entry?.setupSteps ?? item.setupSteps;
 
   return (
     <div className="h-full overflow-y-auto bg-background">
@@ -96,7 +111,7 @@ export function IntegrationDetailPage({
             What your agents can do
           </h2>
           <ul className="mt-4 space-y-3">
-            {item.actions.map((action) => (
+            {agentActions.map((action) => (
               <li key={action} className="flex items-start gap-3">
                 <span
                   className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
@@ -108,29 +123,72 @@ export function IntegrationDetailPage({
               </li>
             ))}
           </ul>
+          {m365Personal && (
+            <p className="mt-3 text-[12px] text-muted-foreground">
+              Teams &amp; SharePoint need a work or school account. Switch to{" "}
+              <span className="font-medium text-foreground">Work / school app</span>{" "}
+              to use those.
+            </p>
+          )}
 
-          {entry?.setupSteps?.length ? (
+          {m365Personal ? (
+            <div className="mt-8 rounded-xl border border-border bg-card/50 p-4">
+              <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                No setup needed
+              </div>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                Personal accounts sign in straight with Microsoft. Click{" "}
+                <span className="font-medium text-foreground">Sign in with Microsoft</span>,
+                enter the code shown, and approve in your browser. No Azure setup
+                needed. Choose{" "}
+                <span className="font-medium text-foreground">Work / school app</span>{" "}
+                if you need to use your organization&apos;s Azure app registration.
+              </p>
+            </div>
+          ) : setupSteps?.length ? (
             <SetupGuide
-              steps={entry.setupSteps}
+              steps={setupSteps}
               brand={item.brand}
               art={stepArtFor({
                 id: item.id,
                 label: item.name,
                 brand: item.brand,
-                authBackend: entry.authBackend,
-                transport: entry.transport,
-                hasUrlCredential: !!entry.urlCredentialKey,
+                // Native integrations have no MCP catalog entry; stepArtFor
+                // matches them by id (e.g. google-drive) before these fields.
+                authBackend: entry?.authBackend ?? "",
+                transport: entry?.transport ?? "",
+                hasUrlCredential: !!entry?.urlCredentialKey,
               })}
             />
           ) : null}
 
-          {entry ? <TrustNote /> : null}
+          {entry ? (
+            <TrustNote
+              variant={
+                isM365 ? (m365Personal ? "m365-personal" : "m365-work") : "generic"
+              }
+            />
+          ) : null}
         </div>
 
         {/* Right: config / status panel */}
         <aside>
-          {item.implemented ? (
-            <ConnectPanel item={item} />
+          {item.id === "google-drive" ? (
+            // Drive connects via Google Drive for Desktop (folder mounts), not
+            // the generic MCP connect flow. OAuth support is noted as upcoming
+            // inside this section.
+            <div className="rounded-2xl border border-border bg-card/40 p-5">
+              <GoogleDriveSection />
+            </div>
+          ) : item.id === "gmail" ? (
+            // Gmail connects over IMAP with a Google App Password (its own
+            // routes + skill), not the generic MCP connect flow.
+            <div className="rounded-2xl border border-border bg-card/40 p-5">
+              <GmailSection />
+            </div>
+          ) : item.implemented ? (
+            <ConnectPanel item={item} msMode={msMode} onMsModeChange={setMsMode} />
           ) : (
             <div className="rounded-2xl border border-dashed border-border bg-card/40 p-5 text-center">
               <div
@@ -195,16 +253,63 @@ function TierBadge({ tier }: { tier: string }) {
  * Friendly, non-scary reassurance up front; the MCP/CLI/`.cabinet.env` detail
  * lives behind a "For developers" disclosure for the people who want it.
  */
-function TrustNote() {
+type TrustVariant = "generic" | "m365-personal" | "m365-work";
+
+const ENV_CODE = (
+  <code className="rounded bg-foreground/[0.06] px-1 py-0.5 text-[11px]">.cabinet.env</code>
+);
+
+const TRUST_COPY: Record<TrustVariant, { title: string; body: string; dev: ReactNode }> = {
+  generic: {
+    title: "Your token stays on this device",
+    body: "Cabinet saves it locally on your computer and never uploads it anywhere.",
+    dev: (
+      <>
+        Cabinet registers this as an MCP server in your agent CLI&apos;s config. The
+        secret is stored in {ENV_CODE} (file perms 0600) and injected into the agent
+        process at spawn, never written into the config file itself.
+      </>
+    ),
+  },
+  "m365-personal": {
+    title: "Your sign-in stays on this device",
+    body: "Personal accounts store nothing in Cabinet. Your Microsoft token is cached on this computer by the connector and never uploaded.",
+    dev: (
+      <>
+        Cabinet registers this as an MCP server in your agent CLI&apos;s config. Sign-in
+        uses Microsoft device-code; the access/refresh token is cached by{" "}
+        <code className="rounded bg-foreground/[0.06] px-1 py-0.5 text-[11px]">
+          ms-365-mcp-server
+        </code>{" "}
+        in your OS credential store (keychain), with a local 0600 file fallback.
+        Cabinet never handles the token itself.
+      </>
+    ),
+  },
+  "m365-work": {
+    title: "Your credentials stay on this device",
+    body: "Cabinet saves your Entra app credentials locally on your computer and never uploads them.",
+    dev: (
+      <>
+        Your app credentials are stored in {ENV_CODE} (file perms 0600) and injected
+        into the agent at spawn, never written into the CLI config. The runtime
+        Microsoft token is cached by the connector in your OS keychain.
+      </>
+    ),
+  },
+};
+
+function TrustNote({ variant = "generic" }: { variant?: TrustVariant }) {
   const [open, setOpen] = useState(false);
+  const copy = TRUST_COPY[variant];
   return (
     <div className="mt-8 rounded-xl border border-border bg-card/50 p-4">
       <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
         <ShieldCheck className="h-4 w-4 text-emerald-500" />
-        Your token stays on this device
+        {copy.title}
       </div>
       <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-        Cabinet saves it locally on your computer and never uploads it anywhere.
+        {copy.body}
       </p>
       <button
         type="button"
@@ -216,11 +321,7 @@ function TrustNote() {
       </button>
       {open && (
         <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-          Cabinet registers this as an MCP server in your agent CLI&apos;s config. The
-          secret is stored in{" "}
-          <code className="rounded bg-foreground/[0.06] px-1 py-0.5 text-[11px]">.cabinet.env</code>{" "}
-          (file perms 0600) and injected into the agent process at spawn — never
-          written into the config file itself.
+          {copy.dev}
         </p>
       )}
     </div>

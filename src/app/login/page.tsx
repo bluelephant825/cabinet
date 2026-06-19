@@ -116,6 +116,8 @@ function LoginForm() {
   );
 }
 
+// useSearchParams() requires a Suspense boundary so static prerender of /login
+// doesn't bail out (Next 16 build error). The form is the only consumer.
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>
