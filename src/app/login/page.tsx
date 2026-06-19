@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 function errorFromParam(code: string | null): string {
@@ -9,7 +9,7 @@ function errorFromParam(code: string | null): string {
   return "";
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   // Native form posts redirect to /login?error=… as a full navigation, so this
@@ -113,5 +113,15 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+// useSearchParams() requires a Suspense boundary so static prerender of /login
+// doesn't bail out (Next 16 build error). The form is the only consumer.
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
