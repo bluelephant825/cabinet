@@ -215,6 +215,9 @@ export function GoogleDriveTreeSection({ depth, padFn }: GoogleDriveTreeSectionP
   }, []);
 
   useEffect(() => {
+    // fetchDriveTree awaits the network call before any setState, so there is
+    // no synchronous render cascade — the rule false-positives on the async fn.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchDriveTree();
   }, [fetchDriveTree]);
 
