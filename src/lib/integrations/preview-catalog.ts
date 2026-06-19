@@ -602,7 +602,13 @@ const COVERED_BY: Record<string, string> = {
 // shown grayed-out + unclickable with a "Soon" badge, even if it already has
 // an MCP catalog entry. Widen this set (or drop it back to the CONNECTABLE
 // derivation below) as connectors are ready to ship.
-const LAUNCHED = new Set(["telegram", "discord", "google-drive", "gmail"]);
+const LAUNCHED = new Set([
+  "telegram",
+  "discord",
+  "google-drive",
+  "gmail",
+  "microsoft-365",
+]);
 
 export const PREVIEW_INTEGRATIONS: IntegrationItem[] = RAW_INTEGRATIONS.map((i) => {
   const coveredBy = COVERED_BY[i.id];

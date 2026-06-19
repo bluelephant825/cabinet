@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown, Loader2, ExternalLink, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -77,13 +77,51 @@ function pickPrimary(
   return firstSelected ?? ids[0] ?? null;
 }
 
-export function ConnectPanel({ item }: { item: IntegrationItem }) {
+export function ConnectPanel({
+  item,
+  msMode: msModeProp,
+  onMsModeChange,
+}: {
+  item: IntegrationItem;
+  /** M365 only: lifted personal/work mode so the page's setup guide can react. */
+  msMode?: "personal" | "work";
+  onMsModeChange?: (mode: "personal" | "work") => void;
+}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [targets, setTargets] = useState<Set<string>>(new Set());
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [showMore, setShowMore] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Microsoft 365 only: "personal" → no fields, built-in app + device-code
+  // sign-in; "work" → paste your own Entra app credentials.
+  const isM365 = item.id === "microsoft-365";
+  const [msModeInternal, setMsModeInternal] = useState<"personal" | "work">("personal");
+  const msAccountMode = msModeProp ?? msModeInternal;
+  const setMsAccountMode = useCallback(
+    (mode: "personal" | "work") => {
+      setMsModeInternal(mode);
+      onMsModeChange?.(mode);
+    },
+    [onMsModeChange],
+  );
+  // M365 personal device-code sign-in, driven from here so the user can
+  // authenticate at connect-time (not deferred to first agent use).
+  const [msLogin, setMsLogin] = useState<{
+    state: "idle" | "starting" | "pending" | "success" | "error";
+    sessionId?: string;
+    url?: string;
+    code?: string;
+    error?: string;
+  }>({ state: "idle" });
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+  useEffect(() => () => stopPolling(), [stopPolling]);
 
   const load = useCallback(async () => {
     try {
@@ -98,7 +136,10 @@ export function ConnectPanel({ item }: { item: IntegrationItem }) {
       const connected = new Set(entry?.connectedProviderIds ?? []);
       if (connected.size > 0) {
         setTargets(connected);
-        setShowMore(true);
+        // Only auto-expand the "other environments" list when more than one is
+        // connected; otherwise it needlessly lengthens the panel and pushes the
+        // primary action button below the fold.
+        setShowMore(connected.size > 1);
       } else {
         const primary = pickPrimary(
           supported,
@@ -115,6 +156,17 @@ export function ConnectPanel({ item }: { item: IntegrationItem }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // If the user already saved their own Entra credentials, open in "work" mode
+  // so the fields show (and aren't silently bypassed by the personal default).
+  useEffect(() => {
+    if (!isM365) return;
+    const e = data?.approved.find((a) => a.id === item.id);
+    if (!e) return;
+    if (e.credentials.some((c) => e.credentialStatus[c.envKey]?.hasValue)) {
+      setMsAccountMode("work");
+    }
+  }, [isM365, data, item.id, setMsAccountMode]);
 
   // Live Discord validation: token works + bot is in the configured server.
   const [checks, setChecks] = useState<DiscordChecks | null>(null);
@@ -186,6 +238,9 @@ export function ConnectPanel({ item }: { item: IntegrationItem }) {
   const primary = pickPrimary(supported, data.selectedEnvironments, data.defaultProvider);
   const others = supported.filter((p) => p.id !== primary);
   const needsCreds = entry.authBackend === "token" || entry.authBackend === "user-app";
+  // For M365, the credential fields only show in "work" mode; personal mode is
+  // field-free (built-in app + device-code sign-in).
+  const showMsCreds = !isM365 || msAccountMode === "work";
 
   const toggle = (id: string) =>
     setTargets((prev) => {
@@ -217,7 +272,8 @@ export function ConnectPanel({ item }: { item: IntegrationItem }) {
         body: JSON.stringify({
           id: entry.id,
           providers: [...targets],
-          credentials: needsCreds ? creds : undefined,
+          // Personal M365 sends no creds → server uses its built-in app.
+          credentials: needsCreds && showMsCreds ? creds : undefined,
         }),
       });
       const json = await res.json();
@@ -247,6 +303,75 @@ export function ConnectPanel({ item }: { item: IntegrationItem }) {
       showError(err instanceof Error ? err.message : "Disconnect failed");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const LOGIN_URL = "/api/agents/config/mcp-catalog/microsoft/login";
+
+  const cancelMsLogin = () => {
+    stopPolling();
+    if (msLogin.sessionId) {
+      void fetch(`${LOGIN_URL}?sessionId=${encodeURIComponent(msLogin.sessionId)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
+    setMsLogin({ state: "idle" });
+  };
+
+  // Personal sign-in: start device-code login, show the code, poll until the
+  // user finishes in the browser, then register the server in the chosen envs.
+  const startMsLogin = async () => {
+    if (targets.size === 0) {
+      showError("Pick at least one environment.");
+      return;
+    }
+    stopPolling();
+    setMsLogin({ state: "starting" });
+    try {
+      const res = await fetch(LOGIN_URL, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || "Could not start sign-in");
+      const sessionId: string = json.sessionId;
+      setMsLogin({
+        state: "pending",
+        sessionId,
+        url: json.verificationUri,
+        code: json.userCode,
+      });
+      // Intentionally do NOT auto-open Microsoft — the user copies the code
+      // first, then opens the page via the explicit button (clearer flow).
+      pollRef.current = setInterval(async () => {
+        try {
+          const s = await fetch(`${LOGIN_URL}?sessionId=${encodeURIComponent(sessionId)}`, {
+            cache: "no-store",
+          });
+          const sj = await s.json();
+          if (sj.status === "success") {
+            stopPolling();
+            setMsLogin({ state: "success", sessionId });
+            showSuccess("Signed in to Microsoft.");
+            await connect(); // register the MCP server now that the token is cached
+            setMsLogin({ state: "idle" }); // connected state is driven by load()
+          } else if (sj.status === "error" || sj.status === "expired") {
+            stopPolling();
+            setMsLogin({
+              state: "error",
+              error:
+                sj.error ||
+                (sj.status === "expired"
+                  ? "The code expired before sign-in finished. Try again."
+                  : "Sign-in failed."),
+            });
+          }
+        } catch {
+          /* transient — keep polling */
+        }
+      }, 3000);
+    } catch (err) {
+      setMsLogin({
+        state: "error",
+        error: err instanceof Error ? err.message : "Could not start sign-in",
+      });
     }
   };
 
@@ -308,8 +433,60 @@ export function ConnectPanel({ item }: { item: IntegrationItem }) {
         </div>
       )}
 
+      {/* Microsoft 365: choose account type before showing any fields. */}
+      {isM365 && (
+        <div className="mt-4">
+          <p className="mb-2 text-[12px] font-medium text-foreground">
+            How do you want to connect?
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMsAccountMode("personal")}
+              className={cn(
+                "rounded-lg border px-3 py-2 text-left transition-colors",
+                msAccountMode === "personal"
+                  ? "border-foreground bg-accent"
+                  : "border-border hover:bg-accent/50",
+              )}
+            >
+              <span className="block text-[13px] font-medium text-foreground">
+                Personal account
+              </span>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                outlook.com, hotmail. One-click sign-in, nothing to set up.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMsAccountMode("work")}
+              className={cn(
+                "rounded-lg border px-3 py-2 text-left transition-colors",
+                msAccountMode === "work"
+                  ? "border-foreground bg-accent"
+                  : "border-border hover:bg-accent/50",
+              )}
+            >
+              <span className="block text-[13px] font-medium text-foreground">
+                Work / school app
+              </span>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                Use your organization&apos;s Azure app registration.
+              </span>
+            </button>
+          </div>
+          {msAccountMode === "personal" && (
+            <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[11px] text-muted-foreground">
+              <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" />
+              No fields needed. Sign in with Microsoft below. Your password is
+              entered on Microsoft&apos;s own page and never stored by Cabinet.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Credentials (token / user-app backends) */}
-      {needsCreds &&
+      {needsCreds && showMsCreds &&
         entry.credentials.map((c) => {
           const saved = entry.credentialStatus[c.envKey]?.hasValue;
           return (
@@ -345,19 +522,88 @@ export function ConnectPanel({ item }: { item: IntegrationItem }) {
           );
         })}
 
-      <Button
-        className="mt-4 w-full"
-        disabled={busy || targets.size === 0 || missingRequired}
-        onClick={connect}
-      >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : isConnected ? (
-          "Update"
-        ) : (
-          "Connect"
-        )}
-      </Button>
+      {isM365 && msAccountMode === "personal" && !isConnected ? (
+        <div className="mt-4">
+          {msLogin.state === "pending" ? (
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-[12px] font-medium text-foreground">
+                Step 1: copy your code
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <code className="flex-1 rounded bg-foreground/[0.06] px-3 py-2 text-center text-[18px] font-semibold tracking-[0.25em] text-foreground">
+                  {msLogin.code}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(msLogin.code ?? "");
+                    showSuccess("Code copied");
+                  }}
+                  className="shrink-0 rounded-md border border-border px-3 py-2 text-[12px] font-medium text-foreground hover:bg-accent"
+                >
+                  Copy
+                </button>
+              </div>
+              <p className="mt-3 text-[12px] font-medium text-foreground">
+                Step 2: open Microsoft &amp; paste it
+              </p>
+              <a
+                href={msLogin.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13px] font-medium text-foreground hover:bg-accent"
+              >
+                Open Microsoft sign-in <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+              <p className="mt-3 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Waiting for you to
+                finish…
+              </p>
+              <button
+                type="button"
+                onClick={cancelMsLogin}
+                className="mt-2 text-[12px] text-muted-foreground hover:text-destructive"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <Button
+              className="w-full"
+              disabled={
+                targets.size === 0 ||
+                msLogin.state === "starting" ||
+                msLogin.state === "success" ||
+                busy
+              }
+              onClick={startMsLogin}
+            >
+              {msLogin.state === "starting" || msLogin.state === "success" || busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Sign in with Microsoft"
+              )}
+            </Button>
+          )}
+          {msLogin.state === "error" && (
+            <p className="mt-2 text-[12px] text-destructive">{msLogin.error}</p>
+          )}
+        </div>
+      ) : (
+        <Button
+          className="mt-4 w-full"
+          disabled={busy || targets.size === 0 || missingRequired}
+          onClick={connect}
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : isConnected ? (
+            "Update"
+          ) : (
+            "Connect"
+          )}
+        </Button>
+      )}
 
       {isConnected && (
         <button

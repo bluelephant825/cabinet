@@ -33,6 +33,33 @@ import {
 } from "./mcp-providers";
 import type { CatalogEntry } from "./mcp-catalog";
 
+/**
+ * Resolve an entry's `serverEnv` for writing into a CLI config. Values are
+ * `${ENVKEY}` placeholders resolved at spawn from .cabinet.env (the real secret
+ * never lands here). We DROP any placeholder whose referenced key has no value
+ * in .cabinet.env — otherwise an unset *optional* credential would be written
+ * as a blank/literal value and could override a server's built-in default. The
+ * concrete case: Microsoft 365 on a personal account leaves the Entra creds
+ * empty and relies on ms-365-mcp-server's built-in app + device-code login;
+ * writing `MS365_MCP_CLIENT_ID=${...}` with no value would break that. Static
+ * (non-placeholder) values are always kept.
+ */
+function resolveServerEnv(
+  serverEnv: Record<string, string>,
+): Record<string, string> | undefined {
+  const values = readCabinetEnvFile().values;
+  const out: Record<string, string> = {};
+  for (const [key, val] of Object.entries(serverEnv)) {
+    const placeholder = /^\$\{([A-Z][A-Z0-9_]*)\}$/.exec(val);
+    if (placeholder) {
+      const ref = values[placeholder[1]];
+      if (ref === undefined || ref === "") continue; // unset → let the server default
+    }
+    out[key] = val;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** The server entry written into a CLI config (never contains secrets). */
 function buildServerEntry(entry: CatalogEntry): Record<string, unknown> {
   if (entry.transport === "http") {
@@ -53,13 +80,19 @@ function buildServerEntry(entry: CatalogEntry): Record<string, unknown> {
     const local = path.join(PROJECT_ROOT, entry.localBuild);
     if (fs.existsSync(local)) {
       const out: Record<string, unknown> = { command: "node", args: [local] };
-      if (entry.serverEnv) out.env = { ...entry.serverEnv }; // ${ENVKEY} placeholders only
+      if (entry.serverEnv) {
+        const env = resolveServerEnv(entry.serverEnv); // ${ENVKEY} placeholders, unset ones dropped
+        if (env) out.env = env;
+      }
       return out;
     }
   }
   const out: Record<string, unknown> = { command: entry.command };
   if (entry.args) out.args = entry.args;
-  if (entry.serverEnv) out.env = { ...entry.serverEnv }; // ${ENVKEY} placeholders only
+  if (entry.serverEnv) {
+    const env = resolveServerEnv(entry.serverEnv); // ${ENVKEY} placeholders, unset ones dropped
+    if (env) out.env = env;
+  }
   return out;
 }
 

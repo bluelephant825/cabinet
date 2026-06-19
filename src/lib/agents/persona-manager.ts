@@ -598,6 +598,19 @@ export async function sendMessage(
   await writeFileContent(path.join(inboxDir, filename), content);
 }
 
+/**
+ * Coerce a frontmatter timestamp to a string. gray-matter (js-yaml) parses an
+ * unquoted ISO-8601 value (e.g. `timestamp: 2026-06-14T13:03:17.498Z`) into a
+ * JS Date, not a string — and a Date survives `|| ""`, so a later
+ * `.localeCompare` throws. Inter-agent messages written without quotes hit
+ * this, 500-ing the persona GET and crashing the heartbeat's inbox read.
+ */
+function toTimestampString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  return value != null ? String(value) : "";
+}
+
 export async function readInbox(slug: string, cabinetPath?: string): Promise<Array<{ from: string; timestamp: string; message: string; filename: string }>> {
   const inboxDir = path.join(await resolveMessagesDirForSlug(slug, cabinetPath), slug);
   await ensureDirectory(inboxDir);
@@ -610,13 +623,15 @@ export async function readInbox(slug: string, cabinetPath?: string): Promise<Arr
     const { data, content } = matter(raw);
     messages.push({
       from: (data.from as string) || "unknown",
-      timestamp: (data.timestamp as string) || "",
+      timestamp: toTimestampString(data.timestamp),
       message: content.trim(),
       filename: entry.name,
     });
   }
 
-  return messages.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  return messages.sort((a, b) =>
+    String(b.timestamp).localeCompare(String(a.timestamp))
+  );
 }
 
 export async function clearInbox(slug: string, cabinetPath?: string): Promise<void> {
