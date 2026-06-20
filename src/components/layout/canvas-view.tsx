@@ -11,6 +11,8 @@ import { findNodeByPath } from "@/lib/cabinets/tree";
 import { fetchPage } from "@/lib/api/client";
 import type { TreeNode } from "@/types";
 import { useLocale } from "@/i18n/use-locale";
+import { renderLatexToHtml } from "@/components/editor/latex-render";
+import { markdownToHtml } from "@/lib/markdown/to-html";
 
 type CardSize = { width: number; height: number };
 type CardPosition = { x: number; y: number };
@@ -28,7 +30,6 @@ type CanvasSnapshot = {
   whiteboardManualPositionedByPath?: Record<string, boolean>;
 };
 
-type ColorPalettesMap = Record<string, string[]>;
 type ResizeHandle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 type ResizeState = {
   path: string;
@@ -105,7 +106,8 @@ function isPreviewFile(node: TreeNode): boolean {
     node.type === "image" ||
     node.type === "video" ||
     node.type === "pdf" ||
-    node.type === "csv"
+    node.type === "csv" ||
+    node.type === "latex"
   );
 }
 
@@ -397,17 +399,14 @@ function fitCardSizeToContent(
     };
   }
 
-  const isMarkdownNote =
-    node.type === "file" ||
-    (node.type === "code" && (/\.mdx?$/i.test(node.name) || /\.mdx?$/i.test(node.path)));
-  if (isMarkdownNote) {
+  if (node.type === "file" || node.type === "code" || node.type === "latex") {
     return {
       width: clamp(CARD_MARKDOWN_WIDTH, CARD_MIN_WIDTH, CARD_MAX_WIDTH),
       height: clamp(CARD_MARKDOWN_HEIGHT, CARD_MIN_HEIGHT, CARD_MAX_HEIGHT),
     };
   }
 
-  if ((node.type === "csv" || node.type === "file" || node.type === "code") && content.length > 0) {
+  if (node.type === "csv" && content.length > 0) {
     const lines = content.split(/\r?\n/);
     const visibleLines = Math.min(18, lines.length);
     const longestLine = lines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -429,6 +428,34 @@ function fitCardSizeToContent(
   return currentSize;
 }
 
+function MarkdownCardPreview({ content, pagePath }: { content: string; pagePath: string }) {
+  const [html, setHtml] = useState<string>("");
+  useEffect(() => {
+    let cancelled = false;
+    void markdownToHtml(content, pagePath).then((rendered) => {
+      if (!cancelled) setHtml(rendered);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [content, pagePath]);
+
+  if (!html) {
+    return (
+      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg bg-transparent p-3 text-xs text-foreground/90">
+        {content}
+      </pre>
+    );
+  }
+
+  return (
+    <div
+      className="prose prose-zinc prose-sm max-w-none dark:prose-invert min-h-0 flex-1 overflow-auto rounded-lg p-3 text-xs"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
 function CardPreview({
   node,
   content,
@@ -440,9 +467,22 @@ function CardPreview({
   title: string;
   onMediaMeasure?: (size: AutoSizeState) => void;
 }) {
+  if (node.type === "latex") {
+    const rendered = content ? renderLatexToHtml(content) : null;
+    if (rendered && rendered.ok) {
+      return (
+        <div
+          className="latex-rendered prose prose-zinc prose-sm max-w-none dark:prose-invert min-h-0 flex-1 overflow-auto rounded-lg p-3 text-xs"
+          dangerouslySetInnerHTML={{ __html: rendered.html }}
+        />
+      );
+    }
+  }
+
   if (node.type === "image") {
     return (
       <div className="pointer-events-none min-h-0 flex-1 overflow-hidden rounded-lg bg-muted/40">
+        {/* eslint-disable-next-line @next/next/no-img-element -- dynamic local-asset URL served by the app's own /api/assets endpoint; next/image's optimizer/loader doesn't fit arbitrary vault file paths. */}
         <img
           src={assetUrl(node.path)}
           alt={title}
@@ -513,6 +553,10 @@ function CardPreview({
     }
   }
 
+  if (isMarkdownCard(node, content)) {
+    return <MarkdownCardPreview content={content} pagePath={node.path} />;
+  }
+
   return (
     <pre
       className={`min-h-0 flex-1 overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg p-3 text-xs text-foreground/90 ${
@@ -569,6 +613,29 @@ export function CanvasView() {
   const [minimapViewport, setMinimapViewport] = useState({ left: 0, top: 0, width: 0, height: 0 });
   const [showMinimap, setShowMinimap] = useState(false);
   const [selectedCardPaths, setSelectedCardPaths] = useState<string[]>([]);
+
+  // Reset per-board UI state when switching boards, and prune the selection to
+  // cards that still exist. Done during render (React's recommended pattern for
+  // adjusting state in response to a prop/derived value changing) instead of in
+  // effects, which avoids the cascading-render cost of synchronous setState in
+  // an effect body. See https://react.dev/learn/you-might-not-need-an-effect.
+  const [prevBoardScopePath, setPrevBoardScopePath] = useState(boardScopePath);
+  if (prevBoardScopePath !== boardScopePath) {
+    setPrevBoardScopePath(boardScopePath);
+    setShowMinimap(false);
+    setSelectedCardPaths([]);
+    setOpenColorPickerForPath(null);
+  }
+  const [prevBoardCards, setPrevBoardCards] = useState(boardCards);
+  if (prevBoardCards !== boardCards) {
+    setPrevBoardCards(boardCards);
+    setSelectedCardPaths((prev) => {
+      const allowed = new Set(boardCards.map((node) => node.path));
+      const next = prev.filter((path) => allowed.has(path));
+      return next.length === prev.length ? prev : next;
+    });
+  }
+
   const resizingRef = useRef<ResizeState | null>(null);
   const draggingRef = useRef<DragState | null>(null);
   const panningRef = useRef<PanState | null>(null);
@@ -679,6 +746,7 @@ export function CanvasView() {
   useEffect(() => {
     const scrollArea = scrollAreaRef.current;
     if (!scrollArea) {
+       
       setMinimapViewport({ left: 0, top: 0, width: 0, height: 0 });
       return;
     }
@@ -702,23 +770,11 @@ export function CanvasView() {
     };
   }, [boardZoom, boardScopePath, sizesLoaded]);
 
+  // Board-switch resets to local UI state are handled during render above; this
+  // effect only mirrors the cleared selection into the shared app store.
   useEffect(() => {
-    setShowMinimap(false);
-  }, [boardScopePath]);
-
-  useEffect(() => {
-    setSelectedCardPaths([]);
     clearCanvasSelectedCardPaths();
-    setOpenColorPickerForPath(null);
   }, [boardScopePath, clearCanvasSelectedCardPaths]);
-
-  useEffect(() => {
-    setSelectedCardPaths((prev) => {
-      const allowed = new Set(boardCards.map((node) => node.path));
-      const next = prev.filter((path) => allowed.has(path));
-      return next.length === prev.length ? prev : next;
-    });
-  }, [boardCards]);
 
   useEffect(() => {
     if (!openColorPickerForPath) return;
@@ -1015,9 +1071,10 @@ export function CanvasView() {
     return () => {
       cancelled = true;
     };
-  }, [cabinetPath]);
+  }, [cabinetPath, boardScopePath]);
 
   useEffect(() => {
+     
     setCardSizeByPath((prev) => {
       let changed = false;
       const next = { ...prev };
@@ -1078,6 +1135,7 @@ export function CanvasView() {
   useEffect(() => {
     if (!sizesLoaded) return;
     const scoped = cardPositionsByBoardPath[boardScopePath] ?? {};
+     
     setCardPositionByPath((prev) => {
       const next: Record<string, CardPosition> = {};
       let changed = false;
@@ -1094,6 +1152,11 @@ export function CanvasView() {
       }
       return next;
     });
+    // `cardPositionsByBoardPath` is intentionally omitted: this effect only
+    // re-derives the flat positions when the board or its cards change. The
+    // inverse effect below writes `cardPositionsByBoardPath` from
+    // `cardPositionByPath`, so depending on it here would create a sync loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardCards, boardScopePath, sizesLoaded]);
 
   useEffect(() => {
@@ -1103,6 +1166,7 @@ export function CanvasView() {
       .filter(isHexColor);
     if (paletteColors.length === 0) return;
     const paletteColorSet = new Set(paletteColors);
+     
     setCardBackgroundColorByPath((prev) => {
       let changed = false;
       const next = { ...prev };
@@ -1130,6 +1194,7 @@ export function CanvasView() {
       .map((node) => [node.path, boardPositions[node.path]] as const)
       .filter((entry): entry is readonly [string, CardPosition] => Boolean(entry[1]));
     if (existingEntries.length === 0) {
+       
       setPositionsCenteredByBoardPath((prev) => ({ ...prev, [boardScopePath]: true }));
       setPositionCenterVersionByBoardPath((prev) => ({ ...prev, [boardScopePath]: WHITEBOARD_CENTER_VERSION }));
       return;
@@ -1191,6 +1256,7 @@ export function CanvasView() {
       nextBoardPositions[node.path] = getDefaultCardPosition(index);
     });
 
+     
     setCardPositionByPath((prev) => {
       const next = { ...prev };
       for (const [path, position] of Object.entries(nextBoardPositions)) {
@@ -1210,6 +1276,7 @@ export function CanvasView() {
 
   useEffect(() => {
     if (!sizesLoaded) return;
+     
     setCardPositionsByBoardPath((prev) => {
       const currentBoardPositions = prev[boardScopePath] ?? {};
       const nextBoardPositions: Record<string, CardPosition> = {};
@@ -1401,11 +1468,12 @@ export function CanvasView() {
     let cancelled = false;
 
     const contentPaths = boardCards
-      .filter((node) => node.type === "file" || node.type === "code" || isFolderObject(node) || node.type === "csv")
+      .filter((node) => node.type === "file" || node.type === "code" || isFolderObject(node) || node.type === "csv" || node.type === "latex")
       .slice(0, 300)
       .map((node) => node.path);
 
     if (contentPaths.length === 0) {
+       
       setPageContentByPath({});
       return;
     }
@@ -1417,13 +1485,14 @@ export function CanvasView() {
             const data = await fetchPage(nodePath);
             return [nodePath, data.content] as const;
           } catch {
-            if (!nodePath.toLowerCase().endsWith(".csv")) {
+            const lower = nodePath.toLowerCase();
+            if (!lower.endsWith(".csv") && !lower.endsWith(".tex") && !lower.endsWith(".latex")) {
               return [nodePath, ""] as const;
             }
             try {
-              const csvRes = await fetch(`/api/assets/${nodePath}`, { cache: "no-store" });
-              if (!csvRes.ok) return [nodePath, ""] as const;
-              return [nodePath, await csvRes.text()] as const;
+              const assetRes = await fetch(`/api/assets/${nodePath}`, { cache: "no-store" });
+              if (!assetRes.ok) return [nodePath, ""] as const;
+              return [nodePath, await assetRes.text()] as const;
             } catch {
               return [nodePath, ""] as const;
             }
@@ -1461,6 +1530,7 @@ export function CanvasView() {
 
   useEffect(() => {
     if (!sizesLoaded) return;
+     
     setCardSizeByPath((prev) => {
       let changed = false;
       const next = { ...prev };
@@ -1503,7 +1573,7 @@ export function CanvasView() {
         const hasText = (pageContentByPath[node.path] ?? "").length > 0;
         if (node.type === "image" || node.type === "video") {
           if (!measured || measured.width <= 0 || measured.height <= 0) continue;
-        } else if (node.type === "csv" || node.type === "file" || node.type === "code" || node.type === "pdf") {
+        } else if (node.type === "csv" || node.type === "file" || node.type === "code" || node.type === "pdf" || node.type === "latex") {
           if (!hasText && node.type !== "pdf") continue;
         }
         next[scopedPath] = true;
@@ -1529,6 +1599,7 @@ export function CanvasView() {
     });
 
     let changed = false;
+     
     setCardPositionByPath((prev) => {
       const next = { ...prev };
       for (const node of boardCards) {
@@ -1726,7 +1797,7 @@ export function CanvasView() {
                           </button>
                           {openColorPickerForPath === scopedPath ? (
                             <div
-                              className="absolute right-12 top-11 z-20 flex max-w-[220px] flex-wrap gap-1 rounded-md border border-border/70 bg-background p-2 shadow-lg"
+                              className="absolute right-12 top-11 z-20 flex max-w-55 flex-wrap gap-1 rounded-md border border-border/70 bg-background p-2 shadow-lg"
                               data-card-color-picker="true"
                               onPointerDown={(event) => {
                                 event.stopPropagation();
@@ -1802,7 +1873,7 @@ export function CanvasView() {
                       >
                         {title}
                       </button>
-                      <div className="mb-2 min-w-0 break-words text-xs text-muted-foreground">{node.path}</div>
+                      <div className="mb-2 min-w-0 wrap-break-word text-xs text-muted-foreground">{node.path}</div>
                       <CardPreview
                         node={node}
                         content={content}
