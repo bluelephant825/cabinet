@@ -72,7 +72,7 @@ export function ConnectDriveDialog({
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/google-drive/browse?path=${encodeURIComponent(target)}`,
+        `/api/google-drive/browse?path=${encodeURIComponent(target)}&provider=${encodeURIComponent(provider)}`,
         { cache: "no-store" },
       );
       if (!res.ok) {
@@ -87,7 +87,7 @@ export function ConnectDriveDialog({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [provider]);
 
   // Load detection + Drive root each time the dialog opens.
   useEffect(() => {

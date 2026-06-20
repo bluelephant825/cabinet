@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
     if (realAbs !== realMount && !realAbs.startsWith(realMount + path.sep)) {
       return NextResponse.json(
-        { error: "Path is outside the Google Drive mount" },
+        { error: `Path is outside the ${providerLabel(provider)} mount` },
         { status: 400 },
       );
     }

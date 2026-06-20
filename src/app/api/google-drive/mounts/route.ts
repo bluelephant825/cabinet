@@ -5,6 +5,7 @@ import {
   readKnowledgeSources,
   DuplicateSourceError,
 } from "@/lib/knowledge-sources/store";
+import { providerLabel } from "@/lib/knowledge-sources/providers";
 import fs from "fs/promises";
 import path from "path";
 
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
       realAbsPath.startsWith(realMountPath + path.sep);
     if (!within) {
       return NextResponse.json(
-        { error: "Path is outside the Google Drive mount" },
+        { error: `Path is outside the ${providerLabel(provider)} mount` },
         { status: 400 },
       );
     }
