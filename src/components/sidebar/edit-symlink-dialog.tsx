@@ -118,7 +118,7 @@ export function EditSymlinkDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-4 w-4 text-blue-400" />
@@ -137,7 +137,10 @@ export function EditSymlinkDialog({
               e.preventDefault();
               void handleSave();
             }}
-            className="flex flex-col gap-3"
+            // min-w-0: this form is a grid item of DialogContent; without it the
+            // long absolute paths below force the form (and its truncating rows)
+            // wider than the dialog box, spilling fields past the background.
+            className="flex min-w-0 flex-col gap-3"
           >
             <p className="text-xs text-muted-foreground">
               {t("editSymlink:intro")}
@@ -165,7 +168,7 @@ export function EditSymlinkDialog({
               <label className="text-xs font-medium text-muted-foreground">
                 {t("editSymlink:targetLabel")}
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <code
                   className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-xs"
                   title={target}
@@ -189,7 +192,7 @@ export function EditSymlinkDialog({
               <label className="text-xs font-medium text-muted-foreground">
                 {t("editSymlink:repointLabel")}
               </label>
-              <div className="flex gap-2">
+              <div className="flex min-w-0 gap-2">
                 <Input
                   placeholder={target}
                   value={newTarget}

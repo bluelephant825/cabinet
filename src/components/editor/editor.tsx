@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { Sparkles, Loader2, FilePlus } from "lucide-react";
+import { Sparkles, Loader2, FilePlus, Lock } from "lucide-react";
 import { editorExtensions } from "./extensions";
 import { EditorToolbar } from "./editor-toolbar";
 import { SlashCommands } from "./slash-commands";
@@ -147,6 +147,12 @@ export function KBEditor() {
   const { t } = useLocale();
   const { currentPath, assetBase, content, saveStatus, frontmatter, isLoading, loadStatus, createMissingPage } = useEditorStore();
   const nodes = useTreeStore((s) => s.nodes);
+  // A page under a read-only Connect Knowledge mount is view-only — edits would
+  // be rejected server-side (403), so disable editing up front. The tree-builder
+  // propagates knowledgePolicy down from the mount node.
+  const isReadOnlyMount =
+    (currentPath ? findNodeByPath(nodes, currentPath) : null)?.knowledgePolicy ===
+    "read-only";
   const isRtl = frontmatter?.dir === "rtl";
   const isLoadingRef = useRef(false);
   const [sourceMode, setSourceMode] = useState(false);
@@ -395,6 +401,11 @@ export function KBEditor() {
     },
     immediatelyRender: false,
   });
+
+  // Toggle editability when navigating into/out of a read-only mount.
+  useEffect(() => {
+    editor?.setEditable(!isReadOnlyMount);
+  }, [editor, isReadOnlyMount]);
 
   // When content updates from store (after loadPage), set it in editor
   const prevPathRef = useRef<string | null>(null);
@@ -697,6 +708,12 @@ export function KBEditor() {
         >
           <FindBar editor={editor} />
           <div className="absolute inset-0 overflow-y-auto" data-editor-scroll>
+            {isReadOnlyMount && (
+              <div className="mx-auto mt-3 flex max-w-3xl items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-[12px] text-muted-foreground">
+                <Lock className="h-3.5 w-3.5 shrink-0" />
+                Read-only — this folder is connected for viewing. Edits are disabled.
+              </div>
+            )}
             <EditorContent editor={editor} />
             <EditorBubbleMenu editor={editor} />
             <TableMenu editor={editor} />

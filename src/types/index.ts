@@ -48,6 +48,14 @@ export interface TreeNode {
   isLinked?: boolean;
   /** "google-drive" when the node comes from a Drive for Desktop mount. */
   source?: "google-drive";
+  /**
+   * Set when the node is (or sits under) an inline Connect Knowledge mount.
+   * `knowledgeProvider` marks the mount node itself (drives its brand icon);
+   * `knowledgePolicy` is inherited by descendants so the UI can gate edits.
+   * See docs/CONNECT_KNOWLEDGE_PRD.md §6.
+   */
+  knowledgeProvider?: "local" | "google-drive" | "icloud" | "onedrive" | "sharepoint" | "dropbox";
+  knowledgePolicy?: "read-only" | "read-write";
   frontmatter?: Partial<FrontMatter>;
   children?: TreeNode[];
 }
@@ -56,6 +64,8 @@ export interface GoogleDriveSection {
   mountId: string;
   folderName: string;
   absPath: string;
+  /** The provider this mount belongs to (drives the section's brand icon). */
+  provider?: "local" | "google-drive" | "icloud" | "onedrive" | "sharepoint" | "dropbox";
   children: TreeNode[];
 }
 

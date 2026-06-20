@@ -1,14 +1,23 @@
-import { NextResponse } from "next/server";
-import { detectDriveDesktop } from "@/lib/google-drive/detect-desktop";
-import { getDb } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
+import { detectProvider, type CloudProviderId } from "@/lib/google-drive/detect-desktop";
+import { readKnowledgeSources } from "@/lib/knowledge-sources/store";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const detection = await detectDriveDesktop();
-    const db = getDb();
-    const mounts = db
-      .prepare("SELECT id, abs_path, folder_name, enabled, added_at FROM google_drive_mounts ORDER BY added_at ASC")
-      .all() as { id: string; abs_path: string; folder_name: string; enabled: number; added_at: string }[];
+    const cabinet = request.nextUrl.searchParams.get("cabinet") ?? "";
+    const provider = (request.nextUrl.searchParams.get("provider") ??
+      "google-drive") as CloudProviderId;
+    const detection = await detectProvider(provider);
+    const sources = await readKnowledgeSources(cabinet);
+    const mounts = sources
+      .filter((s) => s.provider === provider && s.surface === "browser")
+      .map((s) => ({
+        id: s.id,
+        abs_path: s.absPath,
+        folder_name: s.name,
+        enabled: s.enabled ? 1 : 0,
+        added_at: s.addedAt,
+      }));
 
     return NextResponse.json({
       desktopDetected: detection.detected,

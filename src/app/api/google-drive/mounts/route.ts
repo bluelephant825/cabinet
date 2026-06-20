@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import { detectDriveDesktop } from "@/lib/google-drive/detect-desktop";
-import { randomUUID } from "crypto";
+import { detectProvider, type CloudProviderId } from "@/lib/google-drive/detect-desktop";
+import {
+  addKnowledgeSource,
+  readKnowledgeSources,
+  DuplicateSourceError,
+} from "@/lib/knowledge-sources/store";
+import { providerLabel } from "@/lib/knowledge-sources/providers";
 import fs from "fs/promises";
 import path from "path";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const db = getDb();
-    const mounts = db
-      .prepare("SELECT id, abs_path, folder_name, enabled, added_at FROM google_drive_mounts ORDER BY added_at ASC")
-      .all();
+    const cabinet = request.nextUrl.searchParams.get("cabinet") ?? "";
+    const sources = await readKnowledgeSources(cabinet);
+    const mounts = sources
+      .filter((s) => s.provider === "google-drive" && s.surface === "browser")
+      .map((s) => ({
+        id: s.id,
+        abs_path: s.absPath,
+        folder_name: s.name,
+        enabled: s.enabled ? 1 : 0,
+        added_at: s.addedAt,
+      }));
     return NextResponse.json({ mounts });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -20,10 +31,21 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { absPath, folderName } = await request.json() as { absPath: string; folderName: string };
+    const { absPath, folderName, cabinet, policy, provider: rawProvider } =
+      (await request.json()) as {
+        absPath: string;
+        folderName: string;
+        cabinet?: string;
+        policy?: "read-only" | "read-write";
+        provider?: string;
+      };
+    const provider = (rawProvider ?? "google-drive") as CloudProviderId;
 
     if (!absPath || !folderName) {
-      return NextResponse.json({ error: "absPath and folderName are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "absPath and folderName are required" },
+        { status: 400 },
+      );
     }
 
     // Verify the path exists and is a directory
@@ -39,9 +61,12 @@ export async function POST(request: NextRequest) {
     // Constrain mounts to within the detected Drive root, so arbitrary host
     // directories can't be mounted and exposed through the Drive APIs. Compare
     // realpaths to defeat symlinks pointing outside the mount.
-    const detection = await detectDriveDesktop();
+    const detection = await detectProvider(provider);
     if (!detection.mountPath) {
-      return NextResponse.json({ error: "Google Drive for Desktop not detected" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Provider not detected on this machine" },
+        { status: 400 },
+      );
     }
     let realMountPath: string;
     let realAbsPath: string;
@@ -55,24 +80,30 @@ export async function POST(request: NextRequest) {
       realAbsPath === realMountPath ||
       realAbsPath.startsWith(realMountPath + path.sep);
     if (!within) {
-      return NextResponse.json({ error: "Path is outside the Google Drive mount" }, { status: 400 });
+      return NextResponse.json(
+        { error: `Path is outside the ${providerLabel(provider)} mount` },
+        { status: 400 },
+      );
     }
 
-    const db = getDb();
-    const id = randomUUID();
     try {
-      db.prepare(
-        "INSERT INTO google_drive_mounts (id, abs_path, folder_name, enabled, added_at) VALUES (?, ?, ?, 1, datetime('now'))"
-      ).run(id, absPath, folderName);
+      const source = await addKnowledgeSource(cabinet ?? "", {
+        provider,
+        absPath,
+        name: folderName,
+        policy: policy === "read-write" ? "read-write" : "read-only",
+        surface: "browser",
+      });
+      return NextResponse.json(
+        { id: source.id, absPath, folderName },
+        { status: 201 },
+      );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("UNIQUE constraint failed")) {
-        return NextResponse.json({ error: "This folder is already mounted" }, { status: 409 });
+      if (err instanceof DuplicateSourceError) {
+        return NextResponse.json({ error: err.message }, { status: 409 });
       }
       throw err;
     }
-
-    return NextResponse.json({ id, absPath, folderName }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

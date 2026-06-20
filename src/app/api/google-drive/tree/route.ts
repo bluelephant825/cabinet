@@ -1,13 +1,11 @@
-import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
 import { buildGoogleDriveTree } from "@/lib/google-drive/tree-builder";
+import { listDriveMounts } from "@/lib/knowledge-sources/store";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const db = getDb();
-    const mounts = db
-      .prepare("SELECT id, abs_path, folder_name FROM google_drive_mounts WHERE enabled = 1 ORDER BY added_at ASC")
-      .all() as { id: string; abs_path: string; folder_name: string }[];
+    const cabinet = request.nextUrl.searchParams.get("cabinet") ?? "";
+    const mounts = await listDriveMounts(cabinet);
 
     if (mounts.length === 0) {
       return NextResponse.json({ sections: [] });

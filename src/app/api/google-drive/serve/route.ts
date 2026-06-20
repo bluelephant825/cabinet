@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
-import { getDb } from "@/lib/db";
+import { resolveAuthorizedMountPaths } from "@/lib/knowledge-sources/store";
 import { decodeDrivePath } from "@/lib/google-drive/paths";
 
 const MIME_TYPES: Record<string, string> = {
@@ -47,13 +47,13 @@ export async function GET(request: NextRequest) {
 
     // Authorize lexically BEFORE touching the filesystem, so an unauthorized
     // path returns 403 without fs.realpath resolving it and leaking host file
-    // existence via a 404-vs-403 status oracle.
-    const db = getDb();
-    const mounts = db
-      .prepare("SELECT abs_path FROM google_drive_mounts WHERE enabled = 1")
-      .all() as { abs_path: string }[];
+    // existence via a 404-vs-403 status oracle. Scoped to the requesting room's
+    // connected Drive folders (?cabinet=), or the union across rooms when none
+    // is given — either way the path must sit inside a user-connected folder.
+    const cabinet = searchParams.get("cabinet");
+    const mountPaths = await resolveAuthorizedMountPaths(cabinet);
 
-    const mountNormalized = mounts.map((m) => path.normalize(m.abs_path));
+    const mountNormalized = mountPaths.map((p) => path.normalize(p));
     const inMountLexical = mountNormalized.some(
       (mp) => normalized.startsWith(mp + path.sep) || normalized === mp
     );
@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
     }
 
     const mountRealpaths = await Promise.all(
-      mounts.map(async (m) => {
-        try { return await fs.realpath(m.abs_path); } catch { return m.abs_path; }
+      mountPaths.map(async (p) => {
+        try { return await fs.realpath(p); } catch { return p; }
       })
     );
     const inMount = mountRealpaths.some(

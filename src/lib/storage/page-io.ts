@@ -4,6 +4,7 @@ import matter from "gray-matter";
 import yaml from "js-yaml";
 import { CABINET_LINK_META_CANDIDATES } from "@/lib/cabinets/files";
 import type { PageData, FrontMatter } from "@/types";
+import { parseGoogleNative } from "@/lib/google-drive/native-docs";
 import { resolveContentPath } from "./path-utils";
 import {
   readFileContent,
@@ -118,6 +119,29 @@ export async function readPage(virtualPath: string): Promise<PageData> {
   }
 
   if (filePath) {
+    // Google Workspace shortcut (.gdoc/.gsheet/…) → return Google frontmatter so
+    // the GoogleDocViewer renders it (e.g. native docs inside an inline mount).
+    const native = await parseGoogleNative(filePath);
+    if (native) {
+      const nativeParent = virtualPath.includes("/")
+        ? virtualPath.slice(0, virtualPath.lastIndexOf("/"))
+        : "";
+      return {
+        path: virtualPath,
+        assetBase: nativeParent,
+        content: "",
+        frontmatter: {
+          title: path
+            .basename(virtualPath)
+            .replace(/\.(gdoc|gsheet|gslide|gslides|gform)$/i, ""),
+          created: new Date().toISOString(),
+          modified: new Date().toISOString(),
+          tags: [],
+          google: { kind: native.kind, url: native.url },
+        },
+      };
+    }
+
     const raw = await readFileContent(filePath);
     const { data, content } = matter(raw);
 

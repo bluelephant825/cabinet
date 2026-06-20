@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "child_process";
 import fs from "fs/promises";
 import path from "path";
-import { getDb } from "@/lib/db";
+import { resolveAuthorizedMountPaths } from "@/lib/knowledge-sources/store";
 import { decodeDrivePath } from "@/lib/google-drive/paths";
 
 export const dynamic = "force-dynamic";
@@ -30,11 +30,12 @@ function revealCommand(filePath: string): { command: string; args: string[] } {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => null) as { path?: string } | null;
+    const body = await req.json().catch(() => null) as { path?: string; cabinet?: string } | null;
     const rawPath = typeof body?.path === "string" ? body.path : "";
     if (!rawPath) {
       return NextResponse.json({ error: "Missing path" }, { status: 400 });
     }
+    const cabinet = typeof body?.cabinet === "string" ? body.cabinet : null;
 
     // Accept both gdrive:-prefixed and plain absolute paths.
     const absPath = decodeDrivePath(rawPath) ?? rawPath;
@@ -42,13 +43,11 @@ export async function POST(req: NextRequest) {
 
     // Authorize lexically BEFORE touching the filesystem, so an unauthorized
     // path returns 403 without fs.realpath resolving it and leaking host file
-    // existence via a 404-vs-403 status oracle.
-    const db = getDb();
-    const mounts = db
-      .prepare("SELECT abs_path FROM google_drive_mounts WHERE enabled = 1")
-      .all() as { abs_path: string }[];
+    // existence via a 404-vs-403 status oracle. Scoped to the room's connected
+    // Drive folders (cabinet), or the union across rooms when none is given.
+    const mountPaths = await resolveAuthorizedMountPaths(cabinet);
 
-    const mountNormalized = mounts.map((m) => path.normalize(m.abs_path));
+    const mountNormalized = mountPaths.map((p) => path.normalize(p));
     const inMountLexical = mountNormalized.some(
       (mp) => normalized.startsWith(mp + path.sep) || normalized === mp
     );
@@ -69,8 +68,8 @@ export async function POST(req: NextRequest) {
     }
 
     const mountRealpaths = await Promise.all(
-      mounts.map(async (m) => {
-        try { return await fs.realpath(m.abs_path); } catch { return m.abs_path; }
+      mountPaths.map(async (p) => {
+        try { return await fs.realpath(p); } catch { return p; }
       })
     );
     const inMount = mountRealpaths.some(

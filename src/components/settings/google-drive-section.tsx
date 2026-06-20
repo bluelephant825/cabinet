@@ -24,6 +24,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { GDRIVE_MOUNTS_CHANGED_EVENT } from "@/components/sidebar/google-drive-tree";
+import { useAppStore } from "@/stores/app-store";
+import { useRoomsStore } from "@/stores/rooms-store";
+import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 
 interface Mount {
   id: string;
@@ -200,9 +203,22 @@ export function GoogleDriveSection() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
 
+  // Drive sources are per-room. Resolve the active room the same way the
+  // sidebar does (section scope → default room) so a folder connected here
+  // lands in — and shows up in — the room the user is actually looking at.
+  const routeCabinetPath = useAppStore((s) => s.section.cabinetPath);
+  const defaultRoom = useRoomsStore((s) => s.defaultRoom);
+  const cabinetPath =
+    routeCabinetPath && routeCabinetPath !== ROOT_CABINET_PATH
+      ? routeCabinetPath
+      : defaultRoom && defaultRoom !== ROOT_CABINET_PATH
+        ? defaultRoom
+        : "";
+  const cabinetQs = cabinetPath ? `?cabinet=${encodeURIComponent(cabinetPath)}` : "";
+
   const loadStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/google-drive/status", { cache: "no-store" });
+      const res = await fetch(`/api/google-drive/status${cabinetQs}`, { cache: "no-store" });
       const data = await res.json() as DriveStatus;
       setStatus(data);
     } catch {
@@ -210,7 +226,7 @@ export function GoogleDriveSection() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cabinetQs]);
 
   useEffect(() => {
     void loadStatus();
@@ -220,7 +236,7 @@ export function GoogleDriveSection() {
     const res = await fetch("/api/google-drive/mounts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ absPath, folderName }),
+      body: JSON.stringify({ absPath, folderName, cabinet: cabinetPath }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({})) as { error?: string };
@@ -238,7 +254,7 @@ export function GoogleDriveSection() {
   const removeMount = async (id: string, name: string) => {
     setRemoving(id);
     try {
-      const res = await fetch(`/api/google-drive/mounts/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/google-drive/mounts/${id}${cabinetQs}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string };
         window.dispatchEvent(

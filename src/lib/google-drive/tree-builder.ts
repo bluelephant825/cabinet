@@ -152,7 +152,7 @@ async function buildDriveNodes(
 }
 
 export async function buildGoogleDriveTree(
-  mounts: { id: string; abs_path: string; folder_name: string }[]
+  mounts: { id: string; abs_path: string; folder_name: string; provider?: GoogleDriveSection["provider"] }[]
 ): Promise<GoogleDriveSection[]> {
   const sections: GoogleDriveSection[] = [];
   for (const mount of mounts) {
@@ -162,6 +162,7 @@ export async function buildGoogleDriveTree(
       mountId: mount.id,
       folderName: mount.folder_name,
       absPath: mount.abs_path,
+      provider: mount.provider,
       children,
     });
   }

@@ -260,17 +260,22 @@ function buildKnowledgeBaseScopeInstructions(
   baseCwd: string,
   cabinetPath?: string
 ): string[] {
+  const connectKnowledgeNote =
+    "Folders added via Connect Knowledge (cloud or local mounts) appear in the tree as normal files — read them as context. Anything connected read-only (and native Google Docs/Sheets/Slides) is view-only: do not edit, move, or delete it.";
+
   if (cabinetPath) {
     return [
       `Work only inside the cabinet-scoped knowledge base rooted at /data/${cabinetPath}.`,
       `For local filesystem work, treat ${baseCwd} as the root for this run.`,
       "Do not create or modify files in sibling cabinets or the global /data root unless the user explicitly asks.",
+      connectKnowledgeNote,
     ];
   }
 
   return [
     "Work in the Cabinet knowledge base rooted at /data.",
     `For local filesystem work, treat ${baseCwd} as the root for this run.`,
+    connectKnowledgeNote,
   ];
 }
 

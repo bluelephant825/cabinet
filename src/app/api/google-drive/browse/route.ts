@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listSubdirectories, detectDriveDesktop } from "@/lib/google-drive/detect-desktop";
+import { listSubdirectories, detectProvider, type CloudProviderId } from "@/lib/google-drive/detect-desktop";
 import fs from "fs/promises";
 import path from "path";
 
 export async function GET(request: NextRequest) {
   try {
-    const detection = await detectDriveDesktop();
+    // Browse is scoped to the requested provider's mount, so the picker for
+    // iCloud/OneDrive/Dropbox navigates that provider — not always Google Drive.
+    const provider = (request.nextUrl.searchParams.get("provider") ??
+      "google-drive") as CloudProviderId;
+    const detection = await detectProvider(provider);
     if (!detection.mountPath) {
-      return NextResponse.json({ error: "Google Drive for Desktop not detected" }, { status: 404 });
+      return NextResponse.json({ error: "Provider not detected" }, { status: 404 });
     }
 
     // Resolve the Drive root's real path once — used as the containment boundary.

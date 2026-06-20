@@ -4,6 +4,7 @@ import { resolveContentPath } from "@/lib/storage/path-utils";
 import { ensureDirectory, fileExists } from "@/lib/storage/fs-operations";
 import { invalidateTreeCache } from "@/lib/storage/tree-builder";
 import { autoCommit } from "@/lib/git/git-service";
+import { assertWritablePath, ReadOnlySourceError } from "@/lib/knowledge-sources/store";
 import fs from "fs/promises";
 
 type RouteParams = { params: Promise<{ path: string[] }> };
@@ -36,6 +37,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { path: segments } = await params;
     const virtualPath = segments.join("/");
+    // Block uploading into a read-only mount (the new child sits under it).
+    await assertWritablePath(`${virtualPath}/upload`);
     const resolved = resolveContentPath(virtualPath);
     const { searchParams } = new URL(req.url);
     const skipCommit = searchParams.get("commit") === "0";
@@ -106,6 +109,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       url: `/api/assets/${virtualPath}/${filename}`,
     });
   } catch (error) {
+    if (error instanceof ReadOnlySourceError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

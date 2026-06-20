@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { removeKnowledgeSource } from "@/lib/knowledge-sources/store";
 
 export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const db = getDb();
-    const result = db.prepare("DELETE FROM google_drive_mounts WHERE id = ?").run(id);
-    if (result.changes === 0) {
+    const cabinet = request.nextUrl.searchParams.get("cabinet") ?? "";
+    const removed = await removeKnowledgeSource(cabinet, id);
+    if (!removed) {
       return NextResponse.json({ error: "Mount not found" }, { status: 404 });
     }
     return NextResponse.json({ ok: true });

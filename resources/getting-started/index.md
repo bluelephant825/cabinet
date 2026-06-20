@@ -170,7 +170,7 @@ Every editor view has a **Source** toggle in the top-right. Click it to see (and
 
 -   [[Apps and Repos]] — Embedded apps, full-screen mode, and linked repos
     
--   [[Symlinks and Load Knowledge]] — Direct symlinks, `.cabinet-meta`, `.repo.yaml`, and `CABINET_DATA_DIR`
+-   [[Connect Knowledge]] for local folders and cloud sources (Drive, iCloud, OneDrive, Dropbox), with a per-connection read-only policy
     
 -   [[Delegating Between Agents]] — Agent-to-agent dispatch, `LAUNCH_TASK` / `SCHEDULE_*` proposals, approval panel, per-row model/effort overrides
     

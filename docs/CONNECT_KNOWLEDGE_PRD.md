@@ -1,6 +1,6 @@
 # PRD — Connect Knowledge: external & cloud knowledge sources
 
-**Status:** Draft v2 (2026-06-16, revised after review)
+**Status:** Implemented (2026-06-20) — P0–P2, the F2 inline surface, multi-provider, and follow-ups all shipped on `feat/connect-knowledge-p0`. See §13 for the as-built summary.
 **Driver:** Live design review of the #109 Google Drive sidebar. Goal: a per-room knowledge-source model that keeps a dedicated Drive browser **and** lets you mount specific cloud folders inline in the tree via "Connect Knowledge".
 **Related:** `docs/SIDEBAR_FILES_PRD.md` (Connect Knowledge / symlinks), PR #109 (Google Drive for Desktop), `project_integrations_hub.md`.
 
@@ -185,7 +185,18 @@ This re-pointing happens **as part of P0** (alongside the per-room registry), so
 ---
 
 ## 12. Phasing
-- **P0:** Provider registry + per-room `knowledge-sources.json`. Connect Knowledge menu with **Local** (existing) + **Google Drive** (picker → inline symlink, per-connection policy). Per-room **Drive browser** node (cleaned up, refresh/manage in right-click). iCloud / OneDrive shown **disabled**. Hub Drive tile stays connectable but re-pointed at the per-room registry (connects into the active room; §10.5). Remove global table + bottom-section chrome.
-- **P1:** iCloud + OneDrive/SharePoint detectors + connect (flip `enabled`).
-- **P2:** Dropbox; auto-scan CloudStorage for one-click "connect detected account"; native-doc viewer parity.
+- **P0 ✅** Provider registry + per-room `knowledge-sources.json`. Connect Knowledge menu with **Local** + **Google Drive** (picker → per-connection policy). Per-room **Drive browser** node. Hub Drive tile re-pointed at the per-room registry. Global `google_drive_mounts` table dropped (migration `004`).
+- **P1 ✅** iCloud + OneDrive/SharePoint detectors + connect (`detectProvider`); tiles flipped live.
+- **P2 ✅** Dropbox; auto-scan CloudStorage (`scanCloudStorage` + `/api/knowledge-sources/scan`, surfaced as a "Detected on this Mac" picker row); native-doc viewer parity (inline `.gdoc` render via the GoogleDocViewer).
 - **Later:** API/OAuth providers (no desktop app); change-watch / auto-refresh.
+
+## 13. As-built (2026-06-20)
+Shipped on `feat/connect-knowledge-p0` (9 commits). Key pieces beyond the phase list:
+
+- **Per-room storage** — `src/lib/knowledge-sources/store.ts`: `<room>/.agents/.config/knowledge-sources.json` (read/add/remove, atomic writes, dedupe, cached cross-room union).
+- **F2 inline mounts** — `POST /api/knowledge-sources/connect-inline` symlinks a cloud folder at the clicked node and records an `inline` source (no `.cabinet-meta` written into the cloud folder). The tree-builder marks the mount node (brand icon) via `getInlineSourceMap()` and propagates `knowledgePolicy` to descendants.
+- **Read-only gating** — `assertWritablePath()` 403s any write *strictly under* a read-only inline mount across pages/assets/upload routes; the mount node itself stays disconnectable (deleting the symlink clears its registry record). The editor goes view-only (`setEditable(false)` + banner) for read-only pages.
+- **Multi-provider** — `detect-desktop.ts::detectProvider()` for Google Drive / iCloud / OneDrive / SharePoint / Dropbox; the picker, `ConnectDriveDialog`, and the `status`/`browse`/`mounts`/`connect-inline` routes are provider-parameterized. The per-room browser surface shows any provider with its brand icon.
+- **Native docs** — `src/lib/google-drive/native-docs.ts` (`parseGoogleNative`) is shared by the tree-builder (inline `.gdoc/.gsheet/…` now visible) and `readPage` (returns Google frontmatter so the GoogleDocViewer renders them).
+- **Notion/Confluence** — picker tiles route to the Integrations Hub (MCP connectors, not file sources).
+- **Provider registry** — `src/lib/knowledge-sources/providers.ts` (`KNOWLEDGE_PROVIDERS`, `CONNECT_KNOWLEDGE_TILES`, `providerLogo`/`providerLabel`).
