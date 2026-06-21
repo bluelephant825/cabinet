@@ -4,29 +4,20 @@ import {
   getMessages,
   getRecentMessages,
   listChannels,
-} from "@/lib/agents/slack-manager";
+} from "@/lib/agents/channels-manager";
 import { sendMessage, listPersonas } from "@/lib/agents/persona-manager";
 import { sendNotification, shouldNotify } from "@/lib/agents/notification-service";
 import { runQuickResponse } from "@/lib/agents/heartbeat";
-
-// Track which agents are currently responding (for typing indicator)
-const respondingAgents = new Map<string, { channel: string; since: number }>();
-
-export function getRespondingAgents(): Map<string, { channel: string; since: number }> {
-  // Clean up stale entries (older than 3 minutes)
-  const now = Date.now();
-  for (const [slug, info] of respondingAgents) {
-    if (now - info.since > 180_000) respondingAgents.delete(slug);
-  }
-  return respondingAgents;
-}
+import { setResponding, clearResponding } from "@/lib/agents/responding-state";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  // Channels are per-room; scope every read to the requesting cabinet.
+  const cabinetPath = searchParams.get("cabinetPath") || undefined;
 
   // List channels (always include defaults)
   if (searchParams.get("channels") === "true") {
-    const existing = await listChannels();
+    const existing = await listChannels(cabinetPath);
     const defaults = ["general", "marketing", "alerts"];
     const channels = [...new Set([...defaults, ...existing])];
     return NextResponse.json({ channels });
@@ -37,33 +28,37 @@ export async function GET(req: NextRequest) {
 
   // Get messages for specific channel or recent across all
   if (channel) {
-    const messages = await getMessages(channel, limit);
+    const messages = await getMessages(channel, limit, cabinetPath);
     return NextResponse.json({ messages });
   }
 
-  const messages = await getRecentMessages(limit);
+  const messages = await getRecentMessages(limit, cabinetPath);
   return NextResponse.json({ messages });
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { channel, agent, type, content, mentions, kbRefs, emoji, displayName, thread } = body;
+  const cabinetPath: string | undefined = body.cabinetPath || undefined;
 
   if (!channel || !content) {
     return NextResponse.json({ error: "channel and content required" }, { status: 400 });
   }
 
-  await postMessage({
-    channel,
-    agent: agent || "human",
-    emoji: emoji || undefined,
-    displayName: displayName || undefined,
-    type: type || "message",
-    content,
-    mentions: mentions || [],
-    kbRefs: kbRefs || [],
-    ...(thread ? { thread } : {}),
-  });
+  await postMessage(
+    {
+      channel,
+      agent: agent || "human",
+      emoji: emoji || undefined,
+      displayName: displayName || undefined,
+      type: type || "message",
+      content,
+      mentions: mentions || [],
+      kbRefs: kbRefs || [],
+      ...(thread ? { thread } : {}),
+    },
+    cabinetPath
+  );
 
   // Send external notifications for alerts and @human mentions
   if (shouldNotify(channel, content, mentions)) {
@@ -80,24 +75,24 @@ export async function POST(req: NextRequest) {
   // Route @mentions from humans to agent inboxes AND trigger quick response
   if ((agent || "human") === "human") {
     const mentionedSlugs = extractMentions(content);
-    const personas = await listPersonas();
+    const personas = await listPersonas(cabinetPath);
     const slugSet = new Set(personas.map((p) => p.slug));
 
     if (mentionedSlugs.length > 0) {
       // Specific @mentions — respond with the first mentioned agent
       for (const mentioned of mentionedSlugs) {
         if (slugSet.has(mentioned)) {
-          await sendMessage("human", mentioned, `[Slack #${channel}] ${content}`);
+          await sendMessage("human", mentioned, `[#${channel}] ${content}`, cabinetPath);
         }
       }
 
       // Trigger a quick response from the first valid mentioned agent (fire-and-forget)
       const respondingSlug = mentionedSlugs.find((s) => slugSet.has(s));
       if (respondingSlug) {
-        respondingAgents.set(respondingSlug, { channel, since: Date.now() });
-        runQuickResponse(respondingSlug, content, channel)
+        setResponding(respondingSlug, channel);
+        runQuickResponse(respondingSlug, content, channel, cabinetPath)
           .catch(() => {})
-          .finally(() => respondingAgents.delete(respondingSlug));
+          .finally(() => clearResponding(respondingSlug));
       }
     } else {
       // No specific @mention — route to the department lead for this channel
@@ -115,10 +110,10 @@ export async function POST(req: NextRequest) {
           (p) => p.department === targetDept && p.type === "lead"
         );
         if (lead) {
-          respondingAgents.set(lead.slug, { channel, since: Date.now() });
-          runQuickResponse(lead.slug, content, channel)
+          setResponding(lead.slug, channel);
+          runQuickResponse(lead.slug, content, channel, cabinetPath)
             .catch(() => {})
-            .finally(() => respondingAgents.delete(lead.slug));
+            .finally(() => clearResponding(lead.slug));
         }
       }
     }

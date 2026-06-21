@@ -10,5 +10,9 @@
   <true/>
   <key>com.apple.security.cs.allow-dyld-environment-variables</key>
   <true/>
+  <!-- Lets the hardened-runtime app drive Notes.app via AppleScript for the
+       Apple Notes importer. Without it, signed builds get errAEEventNotPermitted. -->
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
 </dict>
 </plist>

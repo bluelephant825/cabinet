@@ -9,8 +9,17 @@ export interface FrontMatter {
   order?: number;
   dir?: "ltr" | "rtl";
   google?: GoogleFrontmatter;
+  /** Set on pages imported from Apple Notes — the upsert key for re-import. */
+  appleNotes?: AppleNotesFrontmatter;
   /** Arbitrary user-defined frontmatter properties (Obsidian-style). */
   [key: string]: unknown;
+}
+
+export interface AppleNotesFrontmatter {
+  /** AppleScript note id (x-coredata://…/ICNote/p<rowid>) — stable across edits. */
+  id: string;
+  /** The note's modification date in Notes.app (ISO 8601). Newer wins on re-import. */
+  modified: string;
 }
 
 export interface GoogleFrontmatter {

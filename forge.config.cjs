@@ -159,6 +159,12 @@ module.exports = {
     appBundleId: "com.runcabinet.cabinet",
     appCopyright: "© 2026 Hila Shmuel",
     appCategoryType: "public.app-category.productivity",
+    // Required for the macOS TCC prompt when the Apple Notes importer drives
+    // Notes.app via AppleScript (paired with the apple-events entitlement).
+    extendInfo: {
+      NSAppleEventsUsageDescription:
+        "Cabinet uses automation to read your Apple Notes when you import them.",
+    },
     asar: {
       unpackDir: ".next/standalone",
     },

@@ -66,6 +66,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LinkRepoDialog } from "./link-repo-dialog";
 import { ConnectKnowledgeDialog } from "./connect-knowledge-dialog";
+import { NotionConnectDialog } from "./notion-connect-dialog";
+import { AppleNotesConnectDialog } from "./apple-notes-connect-dialog";
 import { ConnectDriveDialog } from "./connect-drive-dialog";
 import { providerLogo } from "@/lib/knowledge-sources/providers";
 import type { KnowledgeProviderId } from "@/lib/knowledge-sources/store";
@@ -153,6 +155,8 @@ function TreeNodeImpl({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [linkRepoOpen, setLinkRepoOpen] = useState(false);
   const [connectKnowledgeOpen, setConnectKnowledgeOpen] = useState(false);
+  const [notionConnectOpen, setNotionConnectOpen] = useState(false);
+  const [appleNotesConnectOpen, setAppleNotesConnectOpen] = useState(false);
   const [connectDriveOpen, setConnectDriveOpen] = useState(false);
   const [driveProvider, setDriveProvider] = useState<KnowledgeProviderId>("google-drive");
   // Inline Connect Knowledge mount metadata (set by the tree-builder).
@@ -1068,6 +1072,20 @@ function TreeNodeImpl({
           setDriveProvider(provider);
           setConnectDriveOpen(true);
         }}
+        onNotion={() => setNotionConnectOpen(true)}
+        onAppleNotes={() => setAppleNotesConnectOpen(true)}
+      />
+
+      <NotionConnectDialog
+        open={notionConnectOpen}
+        onOpenChange={setNotionConnectOpen}
+        targetPath={importTargetPath}
+      />
+
+      <AppleNotesConnectDialog
+        open={appleNotesConnectOpen}
+        onOpenChange={setAppleNotesConnectOpen}
+        targetPath={importTargetPath}
       />
 
       <ConnectDriveDialog

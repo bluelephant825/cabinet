@@ -54,6 +54,10 @@ const TRIGGER_STYLES: Record<
     label: "Telegram",
     className: "bg-muted text-muted-foreground ring-1 ring-border/60",
   },
+  channel: {
+    label: "Channel",
+    className: "bg-muted text-muted-foreground ring-1 ring-border/60",
+  },
 };
 
 function TriggerBadge({ trigger }: { trigger: TaskMeta["trigger"] }) {

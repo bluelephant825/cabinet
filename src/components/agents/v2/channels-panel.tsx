@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { Fragment, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Send, GripHorizontal, Hash, Plus, MessageCircle, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import type { SlackMessage } from "@/types/agents";
+import type { ChannelMessage } from "@/types/agents";
 import { useLocale } from "@/i18n/use-locale";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
 
@@ -15,7 +15,7 @@ interface AgentMention {
 }
 
 /**
- * Simple inline markdown renderer for Slack messages.
+ * Simple inline markdown renderer for channel messages.
  * Handles: **bold**, `code`, [links](url), → [text](path) workspace refs
  */
 function renderMessageContent(content: string, onOpenFile?: (path: string) => void, agentSlug?: string): React.ReactNode {
@@ -120,16 +120,31 @@ interface RespondingAgent {
   name: string;
 }
 
-interface SlackPanelProps {
+interface ChannelsPanelProps {
   height?: number;
   onOpenFile?: (path: string) => void;
+  /** Fill the parent (tab mode) instead of being a fixed-height resizable dock. */
+  fill?: boolean;
+  /** Room/cabinet whose channels to show. Channels are per-room. */
+  cabinetPath?: string;
 }
 
-export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPanelProps) {
+export function ChannelsPanel({ height: initialHeight = 200, onOpenFile, fill = false, cabinetPath }: ChannelsPanelProps) {
   const { t } = useLocale();
-  const [messages, setMessages] = useState<SlackMessage[]>([]);
+  // Channels are per-room; scope every request to this cabinet.
+  const cabParam = cabinetPath ? `&cabinetPath=${encodeURIComponent(cabinetPath)}` : "";
+  // Messages kept per-channel so switching paints instantly from the last-seen
+  // list (the map IS the cache) while a fresh fetch lands; `messages` is the
+  // derived view for the active channel.
+  const [messagesByChannel, setMessagesByChannel] = useState<Record<string, ChannelMessage[]>>({});
   const [channels, setChannels] = useState<string[]>([]);
   const [respondingAgents, setRespondingAgents] = useState<RespondingAgent[]>([]);
+  // Optimistic "is typing": set the instant you @mention an agent, cleared when
+  // its reply lands (or after 3 min). Client-side, so it's immediate and doesn't
+  // depend on server round-trips.
+  const [localTyping, setLocalTyping] = useState<
+    { slug: string; channel: string; name: string; emoji: string; since: number }[]
+  >([]);
   const [activeChannel, setActiveChannel] = useState("general");
   const [input, setInput] = useState("");
   const [panelHeight, setPanelHeight] = useState(initialHeight);
@@ -144,7 +159,37 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Listen for Cmd+Shift+A to toggle Slack panel
+  // Stable reference per channel so the scroll-to-bottom effect only fires when
+  // the active channel's messages actually change.
+  const messages = useMemo(
+    () => messagesByChannel[activeChannel] ?? [],
+    [messagesByChannel, activeChannel]
+  );
+
+  // Agents to show as "typing" in the active channel: optimistic local entries
+  // (dropped once their reply lands or after 3 min) plus any the server reports,
+  // deduped by slug.
+  const typingHere = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { slug: string; name: string; emoji: string }[] = [];
+    for (const t of localTyping) {
+      if (t.channel !== activeChannel || seen.has(t.slug)) continue;
+      const replied = (messagesByChannel[t.channel] ?? []).some(
+        (m) => m.agent === t.slug && new Date(m.timestamp).getTime() > t.since
+      );
+      if (replied) continue;
+      seen.add(t.slug);
+      out.push({ slug: t.slug, name: t.name, emoji: t.emoji });
+    }
+    for (const a of respondingAgents) {
+      if (a.channel !== activeChannel || seen.has(a.slug)) continue;
+      seen.add(a.slug);
+      out.push({ slug: a.slug, name: a.name, emoji: a.emoji });
+    }
+    return out;
+  }, [localTyping, respondingAgents, messagesByChannel, activeChannel]);
+
+  // Listen for Cmd+Shift+A to toggle the channels panel (dock mode only)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "a") {
@@ -156,66 +201,89 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Listen for channel switch events (from pulse strip clicks)
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const channel = (e as CustomEvent).detail;
-      if (channel) {
-        setActiveChannel(channel);
-        setCollapsed(false); // Expand if collapsed
-      }
-    };
-    window.addEventListener("cabinet:switch-slack-channel", handler);
-    return () => window.removeEventListener("cabinet:switch-slack-channel", handler);
-  }, []);
-
-  // Listen for agent responding events (typing indicators)
+  // Typing indicators — app-shell forwards the SSE `agent_responding` event.
   useEffect(() => {
     const handler = (e: Event) => {
       const agents = (e as CustomEvent).detail as RespondingAgent[];
       setRespondingAgents(agents || []);
     };
-    window.addEventListener("cabinet:agent-responding", handler);
-    return () => window.removeEventListener("cabinet:agent-responding", handler);
+    window.addEventListener("cabinet:agents/agent_responding", handler);
+    return () => window.removeEventListener("cabinet:agents/agent_responding", handler);
   }, []);
 
-  const loadMessages = useCallback(async () => {
+  // Fetch the active channel's messages (returns data; callers setState in a
+  // continuation so we never setState synchronously in an effect body).
+  const fetchMessages = useCallback(async (): Promise<ChannelMessage[] | null> => {
     try {
-      const res = await fetch(`/api/agents/slack?channel=${activeChannel}&limit=50`);
-      if (res.ok) {
-        const data = await res.json();
-        setMessages(data.messages || []);
-      }
-    } catch { /* ignore */ }
-  }, [activeChannel]);
+      const res = await fetch(`/api/agents/channels?channel=${activeChannel}&limit=50${cabParam}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.messages || [];
+    } catch {
+      return null;
+    }
+  }, [activeChannel, cabParam]);
 
-  const [channelCounts, setChannelCounts] = useState<Record<string, number>>({});
+  const applyMessages = useCallback(
+    (msgs: ChannelMessage[] | null) => {
+      if (msgs) setMessagesByChannel((prev) => ({ ...prev, [activeChannel]: msgs }));
+    },
+    [activeChannel]
+  );
 
-  // Load unread counts for non-active channels. setState only happens in
-  // the promise continuation (react-hooks/set-state-in-effect forbids
-  // synchronous setState in the effect body).
-  useEffect(() => {
-    if (channels.length === 0) return;
-    const fetchCounts = async () => {
-      const counts: Record<string, number> = {};
-      for (const ch of channels) {
-        if (ch === activeChannel) continue;
+  const refreshMessages = useCallback(
+    () => { fetchMessages().then(applyMessages); },
+    [fetchMessages, applyMessages]
+  );
+
+  // Switch channel → fetch fresh (setState lands in the .then continuation).
+  // `messages` is derived from the cache map, so the switch paints instantly.
+  useEffect(() => { fetchMessages().then(applyMessages); }, [fetchMessages, applyMessages]);
+
+  // Per-channel meta: message count (for the badge) + last-message timestamp
+  // (for recency sort). Keyed on the channel LIST only (not activeChannel) and
+  // fetched in parallel — previously this re-ran one sequential request per
+  // channel on every switch, the main source of switch lag. Returns the map;
+  // callers setState in a continuation.
+  type ChannelMeta = { count: number; lastTs: string };
+  const [channelMeta, setChannelMeta] = useState<Record<string, ChannelMeta>>({});
+
+  const fetchChannelMeta = useCallback(async (): Promise<Record<string, ChannelMeta>> => {
+    if (channels.length === 0) return {};
+    const entries = await Promise.all(
+      channels.map(async (ch) => {
+        const empty = [ch, { count: 0, lastTs: "" }] as const;
         try {
-          const res = await fetch(`/api/agents/slack?channel=${ch}&limit=100`);
-          if (res.ok) {
-            const data = await res.json();
-            counts[ch] = (data.messages || []).length;
-          }
-        } catch { /* ignore */ }
-      }
-      return counts;
-    };
-    fetchCounts().then(setChannelCounts);
-  }, [channels, activeChannel]);
+          const res = await fetch(`/api/agents/channels?channel=${ch}&limit=100${cabParam}`);
+          if (!res.ok) return empty;
+          const data = await res.json();
+          const msgs = data.messages || [];
+          // getMessages returns oldest-first, so the tail is the most recent.
+          const lastTs = msgs.length ? msgs[msgs.length - 1].timestamp : "";
+          return [ch, { count: msgs.length, lastTs }] as const;
+        } catch {
+          return empty;
+        }
+      })
+    );
+    return Object.fromEntries(entries);
+  }, [channels, cabParam]);
 
-  // Load the channel list once on mount (same setState-in-continuation shape).
+  useEffect(() => { fetchChannelMeta().then(setChannelMeta); }, [fetchChannelMeta]);
+
+  // Most recently active channels first. ISO timestamps sort lexically, and an
+  // empty lastTs (no messages) sorts to the bottom.
+  const sortedChannels = useMemo(
+    () =>
+      [...channels].sort((a, b) =>
+        (channelMeta[b]?.lastTs ?? "").localeCompare(channelMeta[a]?.lastTs ?? "")
+      ),
+    [channels, channelMeta]
+  );
+
+  // Load the channel list (re-runs when the room changes; setState in continuation).
   useEffect(() => {
-    fetch("/api/agents/slack?channels=true")
+    fetch(`/api/agents/channels?channels=true${cabParam}`)
       .then(async (res) => {
         if (!res.ok) return;
         const data = await res.json();
@@ -228,11 +296,11 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
       .catch(() => {
         setChannels(["general", "marketing", "engineering", "operations", "alerts"]);
       });
-  }, []);
+  }, [cabParam]);
 
-  // Load agents for @mention autocomplete
+  // Load this room's agents for @mention autocomplete + the typing indicator.
   useEffect(() => {
-    fetch("/api/agents/personas")
+    fetch(`/api/agents/personas${cabinetPath ? `?cabinetPath=${encodeURIComponent(cabinetPath)}` : ""}`)
       .then((r) => r.json())
       .then((d) => {
         setAgents(
@@ -244,21 +312,25 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
         );
       })
       .catch(() => {});
-  }, []);
+  }, [cabinetPath]);
 
   useEffect(() => {
-    // Listen for SSE slack refresh events
-    const handleRefresh = () => loadMessages();
-    window.addEventListener("cabinet:slack-refresh", handleRefresh);
-    return () => {
-      window.removeEventListener("cabinet:slack-refresh", handleRefresh);
+    // App-shell forwards the SSE `channel_activity` event here when an agent
+    // posts — refresh the open channel and the badge counts.
+    const handleRefresh = () => {
+      refreshMessages();
+      fetchChannelMeta().then(setChannelMeta);
     };
-  }, [loadMessages]);
+    window.addEventListener("cabinet:agents/channel_activity", handleRefresh);
+    return () => {
+      window.removeEventListener("cabinet:agents/channel_activity", handleRefresh);
+    };
+  }, [refreshMessages, fetchChannelMeta]);
 
   // Fallback poll every 10s (SSE handles real-time; this catches gaps).
   // Pause polling when the tab is hidden to free per-origin connection
   // slots for the foreground tab.
-  useVisibleInterval(loadMessages, 10000);
+  useVisibleInterval(refreshMessages, 10000);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -267,21 +339,42 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    const text = input.trim();
+    if (!text) return;
+    // Show "<agent> is typing…" immediately for any agent we @mention here.
+    const mentioned = [...text.matchAll(/@([\w-]+)/g)].map((m) => m[1]);
+    const started = agents
+      .filter((a) => mentioned.includes(a.slug))
+      .map((a) => ({ slug: a.slug, channel: activeChannel, name: a.name, emoji: a.emoji, since: Date.now() }));
+    if (started.length) {
+      setLocalTyping((prev) => [
+        ...prev.filter((t) => !started.some((s) => s.slug === t.slug && s.channel === t.channel)),
+        ...started,
+      ]);
+      // Safety net: clear these entries after 3 min even if no reply is detected.
+      const ch = activeChannel;
+      const slugs = started.map((s) => s.slug);
+      setTimeout(() => {
+        setLocalTyping((prev) =>
+          prev.filter((t) => !(t.channel === ch && slugs.includes(t.slug)))
+        );
+      }, 180_000);
+    }
     try {
-      await fetch("/api/agents/slack", {
+      await fetch("/api/agents/channels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           channel: activeChannel,
           agent: "human",
           type: "message",
-          content: input.trim(),
+          content: text,
+          cabinetPath,
           ...(threadId ? { thread: threadId } : {}),
         }),
       });
       setInput("");
-      loadMessages();
+      refreshMessages();
     } catch { /* ignore */ }
   };
 
@@ -293,7 +386,7 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
       return;
     }
     // Post a system message to create the channel
-    fetch("/api/agents/slack", {
+    fetch("/api/agents/channels", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -301,23 +394,16 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
         agent: "system",
         type: "message",
         content: `Channel #${name} created`,
+        cabinetPath,
       }),
     }).then(() => {
       setChannels((prev) => [...prev, name]);
       setActiveChannel(name);
       setShowNewChannel(false);
       setNewChannelName("");
-      loadMessages();
+      refreshMessages();
     });
   };
-
-  // Expose inputRef for Cmd+/ shortcut
-  useEffect(() => {
-    const el = inputRef.current;
-    if (el) {
-      el.setAttribute("data-slack-input", "true");
-    }
-  }, []);
 
   // Drag resize handlers
   const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -349,27 +435,60 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
     } catch { return ""; }
   };
 
+  // Day-separator label: "Today" / "Yesterday" / "Mon, Jun 17" (+ year if not
+  // this year). Lets messages spanning multiple days stay legible.
+  const formatDay = (ts: string) => {
+    try {
+      const d = new Date(ts);
+      const now = new Date();
+      const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+      const diffDays = Math.round((startOf(now) - startOf(d)) / 86_400_000);
+      if (diffDays === 0) return "Today";
+      if (diffDays === 1) return "Yesterday";
+      return d.toLocaleDateString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+      });
+    } catch { return ""; }
+  };
+
+  const sameDay = (a: string, b: string) => {
+    const da = new Date(a), db = new Date(b);
+    return (
+      da.getFullYear() === db.getFullYear() &&
+      da.getMonth() === db.getMonth() &&
+      da.getDate() === db.getDate()
+    );
+  };
+
   return (
     <div
-      className="border-t border-border flex flex-col bg-background relative transition-all"
-      style={{ height: collapsed ? 36 : panelHeight }}
+      className={cn(
+        "flex flex-col bg-background relative transition-all",
+        fill ? "h-full min-h-0" : "border-t border-border"
+      )}
+      style={fill ? undefined : { height: collapsed ? 36 : panelHeight }}
     >
-      {/* Drag handle */}
-      <div
-        className="absolute top-0 left-0 right-0 h-2 cursor-row-resize z-10 flex items-center justify-center group hover:bg-primary/5"
-        onMouseDown={handleDragStart}
-        onDoubleClick={() => setCollapsed((prev) => !prev)}
-      >
-        <GripHorizontal className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
-      </div>
+      {/* Drag handle (dock mode only; tab/fill mode fills its parent) */}
+      {!fill && (
+        <div
+          className="absolute top-0 left-0 right-0 h-2 cursor-row-resize z-10 flex items-center justify-center group hover:bg-primary/5"
+          onMouseDown={handleDragStart}
+          onDoubleClick={() => setCollapsed((prev) => !prev)}
+        >
+          <GripHorizontal className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+        </div>
+      )}
 
       {/* Channel tabs */}
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border/50 overflow-x-auto shrink-0 mt-1">
         <span className="text-[11px] text-muted-foreground/50 mr-1 shrink-0">
-          Agent Slack
+          Channels
         </span>
-        {channels.map((ch) => {
-          const count = channelCounts[ch] || 0;
+        {sortedChannels.map((ch) => {
+          const count = channelMeta[ch]?.count || 0;
           return (
             <button
               key={ch}
@@ -467,10 +586,22 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
             );
           }
 
-          return visibleMessages.map((msg) => {
+          return visibleMessages.map((msg, i) => {
             const replyCount = replyCounts.get(msg.id) || 0;
+            const showDay =
+              i === 0 || !sameDay(visibleMessages[i - 1].timestamp, msg.timestamp);
             return (
-              <div key={msg.id} className="group">
+              <Fragment key={msg.id}>
+                {showDay && (
+                  <div className="flex items-center gap-2 py-2 select-none">
+                    <div className="h-px flex-1 bg-border/40" />
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/50">
+                      {formatDay(msg.timestamp)}
+                    </span>
+                    <div className="h-px flex-1 bg-border/40" />
+                  </div>
+                )}
+                <div className="group">
                 <div className="flex items-start gap-2">
                   <span className="text-[11px] text-muted-foreground/50 mt-0.5 w-10 text-right shrink-0 tabular-nums">
                     {formatTime(msg.timestamp)}
@@ -523,24 +654,23 @@ export function SlackPanel({ height: initialHeight = 200, onOpenFile }: SlackPan
                   </div>
                 </div>
               </div>
+              </Fragment>
             );
           });
         })()}
       </div>
 
       {/* Typing indicator */}
-      {respondingAgents.filter((a) => a.channel === activeChannel).length > 0 && (
+      {typingHere.length > 0 && (
         <div className="px-3 py-1.5 border-t border-border/30 shrink-0">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
-            {respondingAgents
-              .filter((a) => a.channel === activeChannel)
-              .map((a) => (
-                <span key={a.slug} className="flex items-center gap-1">
-                  <span className="text-[10px]">{a.emoji}</span>
-                  <span className="font-medium">{a.name}</span>
-                </span>
-              ))}
-            <span className="text-muted-foreground/50">is thinking</span>
+            {typingHere.map((a) => (
+              <span key={a.slug} className="flex items-center gap-1">
+                <span className="text-[10px]">{a.emoji}</span>
+                <span className="font-medium">{a.name}</span>
+              </span>
+            ))}
+            <span className="text-muted-foreground/50">is typing</span>
             <span className="flex gap-0.5">
               <span className="h-1 w-1 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: "0ms" }} />
               <span className="h-1 w-1 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: "150ms" }} />

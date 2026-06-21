@@ -22,6 +22,7 @@ import {
   stringifyFrontmatter,
   parseFrontmatter,
 } from "@/lib/markdown/frontmatter-text";
+import { slugifyPageName } from "@/lib/markdown/wiki-links";
 import { detectEmbed } from "@/lib/embeds/detect";
 import { stripImportsAndWrappers } from "@/lib/mdx/live-code-strip";
 import { openUrlInAppropriateContext } from "@/lib/runtime/open-url";
@@ -69,26 +70,27 @@ function flattenTree(nodes: TreeNode[]): { path: string; name: string }[] {
 
 function findPageBySlug(slug: string, currentPath: string | null, nodes: TreeNode[]): string | null {
   const allPages = flattenTree(nodes);
-  // Wiki-link slugs are case-insensitive, but on-disk names preserve case
-  // (e.g. "Eureka"), so compare case-insensitively here.
-  const lowerSlug = slug.toLowerCase();
-  // The slug matches the last segment of the path
+  // The slug matches the last segment of the path. Native pages are stored with
+  // slug filenames, so an exact match works; imported pages (e.g. Notion) keep
+  // human names ("Day 1-100 Build 👩🏻‍💻"), so also match when the last segment
+  // *slugifies to* the target slug. Kept behaviourally identical to
+  // references.ts#resolvePageBySlug (the server-side rewrite mirror).
+  const lastSeg = (p: string) => p.split("/").pop() ?? p;
+  const parentOf = (p: string) => (p.includes("/") ? p.substring(0, p.lastIndexOf("/")) : "");
   const matches = allPages.filter(
     (p) =>
-      p.name.toLowerCase() === lowerSlug ||
-      p.path.toLowerCase() === lowerSlug ||
-      p.path.toLowerCase().endsWith("/" + lowerSlug)
+      p.name === slug ||
+      p.path === slug ||
+      p.path.endsWith("/" + slug) ||
+      slugifyPageName(lastSeg(p.path)) === slug
   );
   if (matches.length === 0) return null;
   if (matches.length === 1) return matches[0].path;
 
   // Prefer sibling pages (same parent directory as current page)
   if (currentPath) {
-    const parentDir = currentPath.includes("/")
-      ? currentPath.substring(0, currentPath.lastIndexOf("/"))
-      : "";
-    const target = (parentDir ? parentDir + "/" + slug : slug).toLowerCase();
-    const sibling = matches.find((m) => m.path.toLowerCase() === target);
+    const parentDir = parentOf(currentPath);
+    const sibling = matches.find((m) => parentOf(m.path) === parentDir);
     if (sibling) return sibling.path;
   }
   return matches[0].path;
@@ -222,6 +224,10 @@ export function KBEditor() {
   const handleUpdate = useCallback(
     ({ editor }: { editor: ReturnType<typeof useEditor> }) => {
       if (isLoadingRef.current || !editor) return;
+      // Ignore updates until the page has loaded — a transaction fired while the
+      // fetch is still in flight (e.g. editor mount/normalization on a fresh
+      // open) must not mark the page dirty with the empty loading state.
+      if (useEditorStore.getState().loadStatus !== "ok") return;
       const html = editor.getHTML();
       const md = htmlToMarkdown(html);
       useEditorStore.getState().updateContent(md);

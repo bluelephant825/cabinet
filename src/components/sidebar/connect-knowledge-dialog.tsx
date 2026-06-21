@@ -36,6 +36,8 @@ export function ConnectKnowledgeDialog({
   onOpenChange,
   onLocal,
   onCloud,
+  onNotion,
+  onAppleNotes,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,8 +45,20 @@ export function ConnectKnowledgeDialog({
   onLocal: () => void;
   /** A desktop-sync provider → the cloud folder picker. */
   onCloud: (provider: KnowledgeProviderId) => void;
+  /** Notion → the import-vs-sync chooser (handled by the caller). */
+  onNotion: () => void;
+  /** Apple Notes → the macOS-only import dialog (handled by the caller). */
+  onAppleNotes: () => void;
 }) {
   const setSection = useAppStore((s) => s.setSection);
+
+  // Apple Notes only exists on macOS — hide the tile elsewhere.
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /mac/i.test(navigator.platform || navigator.userAgent);
+  const tiles = isMac
+    ? CONNECT_KNOWLEDGE_TILES
+    : CONNECT_KNOWLEDGE_TILES.filter((t) => t.key !== "apple-notes");
 
   // Auto-scan: surface the desktop-sync accounts actually installed on this
   // machine, so the user can jump straight to the one they have.
@@ -66,8 +80,19 @@ export function ConnectKnowledgeDialog({
   const handlePick = (tile: ConnectKnowledgeTile) => {
     if (tile.kind === "soon") return;
     if (tile.kind === "hub") {
-      // Notion/Confluence aren't file/folder sources — they connect as MCP in
-      // the Integrations Hub. Route there, deep-linked to the connector.
+      // Notion can also be imported as files (one-time export) — offer that
+      // alongside the live MCP sync, via its own chooser. Confluence and any
+      // other hub tiles connect as MCP in the Integrations Hub directly.
+      if (tile.key === "notion") {
+        onNotion();
+        onOpenChange(false);
+        return;
+      }
+      if (tile.key === "apple-notes") {
+        onAppleNotes();
+        onOpenChange(false);
+        return;
+      }
       setSection({ type: "integrations", slug: tile.key });
       onOpenChange(false);
       return;
@@ -119,7 +144,7 @@ export function ConnectKnowledgeDialog({
         )}
 
         <div className="grid grid-cols-5 gap-4 py-2">
-          {CONNECT_KNOWLEDGE_TILES.map((tile) => {
+          {tiles.map((tile) => {
             const enabled = tile.kind !== "soon";
             return (
               <button
@@ -164,7 +189,7 @@ export function ConnectKnowledgeDialog({
                     (symlink)
                   </span>
                 )}
-                {tile.kind === "hub" && (
+                {tile.kind === "hub" && tile.key !== "apple-notes" && (
                   <span className="-mt-1.5 text-[10px] font-normal text-muted-foreground/70">
                     in Hub
                   </span>

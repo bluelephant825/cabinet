@@ -66,6 +66,7 @@ export const TRIGGER_STYLES: Record<ConversationMeta["trigger"], string> = {
   heartbeat: "bg-pink-500/12 text-pink-400 ring-1 ring-pink-500/20",
   agent: "bg-violet-500/12 text-violet-400 ring-1 ring-violet-500/20",
   telegram: "bg-cyan-500/12 text-cyan-400 ring-1 ring-cyan-500/20",
+  channel: "bg-amber-500/12 text-amber-400 ring-1 ring-amber-500/20",
 };
 
 export const TRIGGER_LABELS: Record<ConversationMeta["trigger"], string> = {
@@ -74,6 +75,7 @@ export const TRIGGER_LABELS: Record<ConversationMeta["trigger"], string> = {
   heartbeat: "Heartbeat",
   agent: "Agent",
   telegram: "Telegram",
+  channel: "Channel",
 };
 
 /* ─── Icon components ─── */

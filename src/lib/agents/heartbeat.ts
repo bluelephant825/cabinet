@@ -45,11 +45,10 @@ async function buildPersonaPromptBody(persona: AgentPersona): Promise<string> {
 }
 import { readFileContent, fileExists } from "@/lib/storage/fs-operations";
 import { autoCommit } from "@/lib/git/git-service";
-import { postMessage } from "./slack-manager";
+import { postMessage } from "./channels-manager";
 import { getGoalState, updateGoal } from "./goal-manager";
 import { startConversationRun } from "./conversation-runner";
 import { reloadDaemonSchedules } from "./daemon-client";
-import { getDaemonUrl, getOrCreateDaemonToken } from "./daemon-auth";
 import {
   defaultAdapterTypeForProvider,
   resolveExecutionProviderId,
@@ -161,7 +160,7 @@ DECISION: (optional) Any key decision made, with reasoning.
 LEARNING: (optional) Any new insight to remember long-term.
 GOAL_UPDATE [metric_name]: +N (report progress on goals, e.g. GOAL_UPDATE [reddit_replies]: +3)
 MESSAGE_TO [agent-slug]: (optional) A message to send to another agent.
-SLACK [channel-name]: (optional) A message to post to Agent Slack. Use this to report your activity.
+CHANNEL [channel-name]: (optional) A message to post to a team channel. Use this to report your activity.
 TASK_CREATE [target-agent-slug] [priority 1-5]: title | description (optional — create a structured task handoff to another agent)
 TASK_COMPLETE [task-id]: result summary (mark a pending task as completed)
 \`\`\`
@@ -235,8 +234,9 @@ async function processHeartbeatOutput(
       await sendMessage(slug, match[1], match[2].trim(), cabinetPath);
     }
 
-    const slackMatches = memoryBlock.matchAll(/SLACK\s+\[([^\]]+)\]:\s*(.*)/g);
-    for (const match of slackMatches) {
+    // Accept the legacy SLACK token too, so an agent mid-habit still posts.
+    const channelMatches = memoryBlock.matchAll(/(?:CHANNEL|SLACK)\s+\[([^\]]+)\]:\s*(.*)/g);
+    for (const match of channelMatches) {
       await postMessage({
         channel: match[1],
         agent: slug,
@@ -246,7 +246,7 @@ async function processHeartbeatOutput(
         content: match[2].trim(),
         mentions: [],
         kbRefs: [],
-      });
+      }, cabinetPath);
     }
 
     const goalMatches = memoryBlock.matchAll(/GOAL_UPDATE\s+\[([^\]]+)\]:\s*\+?(\d+)/g);
@@ -275,7 +275,7 @@ async function processHeartbeatOutput(
         type: "task",
         content: `📋 Task created for **@${toAgent}**: ${title}${description ? ` — ${description}` : ""}`,
         mentions: [toAgent], kbRefs: [],
-      });
+      }, cabinetPath);
     }
 
     const taskCompleteMatches = memoryBlock.matchAll(/TASK_COMPLETE\s+\[([^\]]+)\]:\s*(.*)/g);
@@ -310,7 +310,7 @@ async function processHeartbeatOutput(
                 type: "alert",
                 content: `**${g.metric}** at ${current}/${g.target} (floor: ${g.floor}) with ${Math.round(((endDate - Date.now()) / 86400000))}d left. @human`,
                 mentions: ["human"], kbRefs: [],
-              });
+              }, cabinetPath);
             }
           }
         }
@@ -324,7 +324,7 @@ async function processHeartbeatOutput(
     await postMessage({
       channel: persona.channels[0], agent: slug, emoji: persona.emoji, displayName: persona.name,
       type: "report", content: summaryLine, mentions: [], kbRefs: [],
-    });
+    }, cabinetPath);
   }
 
   if (inbox.length > 0 && status === "completed") await clearInbox(slug, cabinetPath);
@@ -368,7 +368,7 @@ async function processHeartbeatOutput(
         type: "alert",
         content: `Auto-paused after 3 consecutive failures. Last error: ${output.slice(0, 150)}. @human`,
         mentions: ["human"], kbRefs: [],
-      });
+      }, cabinetPath);
     }
   }
 
@@ -430,7 +430,7 @@ export async function runHeartbeat(
             type: "alert",
             content: `Heartbeat timed out or failed for ${slug}. @human`,
             mentions: ["human"], kbRefs: [],
-          });
+          }, cabinetPath);
         }
 
         await processHeartbeatOutput(
@@ -466,23 +466,24 @@ export async function startManualHeartbeat(
 }
 
 /**
- * Run a quick response to a human message in Agent Slack.
+ * Run a quick response to a human message in a team channel.
  * Lightweight variant of runHeartbeat — focused on responding to the human,
  * not executing full jobs or heartbeat duties.
  *
- * Returns the agent's response text (also posted to Slack).
+ * Returns the agent's response text (also posted to the channel).
  */
 export async function runQuickResponse(
   slug: string,
   humanMessage: string,
   channel: string,
+  cabinetPath?: string,
 ): Promise<string> {
-  const persona = await readPersona(slug);
+  const persona = await readPersona(slug, cabinetPath);
   if (!persona) return "";
 
   // Load memory for context
-  const context = await readMemory(slug, "context.md");
-  const learnings = await readMemory(slug, "learnings.md");
+  const context = await readMemory(slug, "context.md", cabinetPath);
+  const learnings = await readMemory(slug, "learnings.md", cabinetPath);
 
   // Load goal state for context
   let goalsContext = "";
@@ -498,11 +499,11 @@ export async function runQuickResponse(
       .join("\n");
   }
 
-  // Load recent Slack messages from this channel for conversation context
+  // Load recent channel messages from this channel for conversation context
   let recentMessages = "";
   try {
-    const { getMessages } = await import("./slack-manager");
-    const msgs = await getMessages(channel, 10);
+    const { getMessages } = await import("./channels-manager");
+    const msgs = await getMessages(channel, 10, cabinetPath);
     if (msgs.length > 0) {
       recentMessages = msgs
         .map(
@@ -522,8 +523,8 @@ export async function runQuickResponse(
 
 ## Context
 
-You are responding to a human message in Agent Slack channel #${channel}.
-Keep your response concise, helpful, and on-topic. Do NOT include any \`\`\`memory blocks — this is a direct conversation, not a heartbeat.
+You are responding to a human message in team channel #${channel}.
+Keep your response concise, helpful, and on-topic.
 
 ### Your Memory (recent context)
 ${context ? context.slice(-1500) : "(no previous context)"}
@@ -544,58 +545,67 @@ ${humanMessage}
 
 ---
 
-Respond naturally as ${persona.name}. Be concise (1-3 short paragraphs max). Reference specific data, KB pages, or workspace files when relevant. If asked about status or progress, reference your actual goal numbers.`;
+Respond naturally as ${persona.name}. Be concise (1-3 short paragraphs max). Reference specific data, KB pages, or workspace files when relevant. If asked about status or progress, reference your actual goal numbers.
 
-  let response = "";
-  try {
-    const sessionId = `slack-${slug}-${Date.now()}`;
-    const token = await getOrCreateDaemonToken();
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
+IMPORTANT: You may think or check files first, but put ONLY your final reply to the human between <reply> and </reply> tags — no preamble, no tool output, nothing else inside the tags.`;
 
-    await fetch(`${getDaemonUrl()}/sessions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        id: sessionId,
-        args: ["--dangerously-skip-permissions", "-p", prompt, "--output-format", "text"],
-      }),
+  // Run through the structured conversation-runner — the same path heartbeats
+  // use — instead of a raw PTY/TUI session (which never exits and only yields
+  // terminal escape codes). It produces clean text and tracks completion.
+  const cwd = cabinetPath ? path.join(DATA_DIR, cabinetPath) : DATA_DIR;
+  const providerId = resolveExecutionProviderId({
+    adapterType: persona.adapterType,
+    providerId: persona.provider,
+  });
+  const fallback = `_(${persona.name} couldn't reply just now. Try again in a moment.)_`;
+  const postReply = (text: string) =>
+    postMessage(
+      {
+        channel,
+        agent: slug,
+        emoji: persona.emoji,
+        displayName: persona.name,
+        type: "message",
+        content: text,
+        mentions: [],
+        kbRefs: [],
+      },
+      cabinetPath,
+    ).catch(() => {});
+
+  // Resolve only once the reply is posted, so the caller's "responding" entry —
+  // which drives the "is typing…" indicator — stays live for the whole run.
+  await new Promise<void>((resolve) => {
+    startConversationRun({
+      agentSlug: slug,
+      title: `${persona.name} · reply in #${channel}`,
+      // Channel @mention replies are transient — not user tasks. Tag them so the
+      // Tasks panel can hide them (see listConversationMetas).
+      trigger: "channel",
+      prompt,
+      adapterType: persona.adapterType || defaultAdapterTypeForProvider(providerId),
+      adapterConfig: persona.adapterConfig,
+      providerId,
+      cabinetPath,
+      cwd,
+      timeoutSeconds: 180,
+      onComplete: async (completion) => {
+        // The agent wraps its final answer in <reply>…</reply>; post just that
+        // (fall back to the output minus the ```cabinet block, then to a note).
+        const raw = completion.output || "";
+        const tagged = [...raw.matchAll(/<reply>([\s\S]*?)<\/reply>/gi)].at(-1);
+        const reply =
+          (tagged ? tagged[1] : raw.replace(/```cabinet[\s\S]*?```/gi, "")).trim() ||
+          fallback;
+        await postReply(reply);
+        resolve();
+      },
+    }).catch(async () => {
+      // The run failed to even start — don't leave it hanging in silence.
+      await postReply(fallback);
+      resolve();
     });
+  });
 
-    const deadline = Date.now() + 120_000; // 2 min timeout
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 2000));
-      try {
-        const res = await fetch(`${getDaemonUrl()}/session/${sessionId}/output`, {
-          headers,
-        });
-        if (res.ok) {
-          const data = await res.json() as { status: string; output: string };
-          if (data.status === "completed") { response = data.output; break; }
-        }
-      } catch { /* retry */ }
-    }
-  } catch (err) {
-    response = err instanceof Error
-      ? `Sorry, I encountered an error: ${err.message}`
-      : "Sorry, I encountered an error processing your request.";
-  }
-
-  // Post the response to Slack
-  if (response) {
-    await postMessage({
-      channel,
-      agent: slug,
-      emoji: persona.emoji,
-      displayName: persona.name,
-      type: "message",
-      content: response,
-      mentions: [],
-      kbRefs: [],
-    });
-  }
-
-  return response;
+  return "";
 }

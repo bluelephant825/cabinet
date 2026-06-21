@@ -1750,6 +1750,17 @@ export async function listConversationMetas(
   const metas = groups.flat();
 
   const filtered = metas.filter((meta) => {
+    // Channel @mention replies aren't tasks — hide them from every listing.
+    // Trigger "channel" tags new ones; the title match sweeps up older ones
+    // written as "manual" before the trigger existed (no migration needed).
+    // ponytail: title check is the retroactive fallback; drop it once old
+    // channel-reply conversations have aged out.
+    if (
+      filters.trigger !== "channel" &&
+      (meta.trigger === "channel" || / · reply in #/.test(meta.title))
+    ) {
+      return false;
+    }
     if (filters.agentSlug && meta.agentSlug !== filters.agentSlug) return false;
     if (filters.trigger && meta.trigger !== filters.trigger) return false;
     if (filters.status && meta.status !== filters.status) return false;

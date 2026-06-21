@@ -68,6 +68,9 @@ export const CONNECT_KNOWLEDGE_TILES: ConnectKnowledgeTile[] = [
   { key: "sharepoint", label: "SharePoint", kind: "cloud", provider: "sharepoint", logo: "/logos/sharepoint.svg" },
   { key: "dropbox", label: "Dropbox", kind: "cloud", provider: "dropbox", logo: "/logos/dropbox.webp" },
   { key: "box", label: "Box", kind: "soon", logo: "/logos/box.webp" },
+  // macOS only — filtered out elsewhere. "hub" kind + a dedicated handler (like
+  // notion) opens its own import dialog rather than the Integrations Hub.
+  { key: "apple-notes", label: "Apple Notes", kind: "hub", logo: "/logos/apple-notes.svg" },
   { key: "notion", label: "Notion", kind: "hub", logo: "/logos/notion.svg" },
   { key: "confluence", label: "Confluence", kind: "hub", logo: "/logos/confluence.svg" },
 ];
