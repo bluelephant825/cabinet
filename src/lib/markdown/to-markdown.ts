@@ -180,6 +180,28 @@ turndown.addRule("mdxComponent", {
   },
 });
 
+// Serialize callout blocks back to MyST admonition directives.
+turndown.addRule("callout", {
+  filter: (node) =>
+    node.nodeName === "DIV" &&
+    (node as HTMLElement).getAttribute("data-callout") === "true",
+  replacement: (content, node) => {
+    const el = node as HTMLElement;
+    const type = el.getAttribute("data-callout-type") || "info";
+    
+    // Map callout type back to MyST admonition directive name
+    const typeMap: Record<string, string> = {
+      info: "note",
+      warning: "warning",
+      error: "error",
+      success: "success",
+    };
+    const directive = typeMap[type] || "note";
+    
+    return `\n\n\`\`\`{${directive}}\n${content.trim()}\n\`\`\`\n\n`;
+  },
+});
+
 // Preserve embed blocks (YouTube/Vimeo/Loom/X/Facebook/Instagram/etc.) as HTML.
 turndown.addRule("embedBlock", {
   filter: (node) =>

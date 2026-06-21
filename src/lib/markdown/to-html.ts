@@ -206,6 +206,74 @@ function resolveRelativeUrls(html: string, pagePath: string): string {
   return html;
 }
 
+function transformMystAdmonitions(markdown: string): string {
+  const ADMONITION_REGEX = /^(\`{3,}|:{3,})(\{?)([a-zA-Z0-9_-]+)(\}?)(?:\s+([^\n]+))?\n([\s\S]*?)\n\1[ \t]*$/gm;
+
+  return markdown.replace(
+    ADMONITION_REGEX,
+    (match, fence: string, hasOpen: string, type: string, hasClose: string, title: string | undefined, content: string) => {
+      // If it's a backtick fence, it MUST have both braces to be a MyST directive (avoiding code block collision)
+      if (fence.startsWith("`") && (!hasOpen || !hasClose)) {
+        return match;
+      }
+
+      const knownAdmonitions = [
+        "note", "warning", "error", "success", "info", "tip", "important",
+        "caution", "danger", "attention", "admonition", "hint", "seealso"
+      ];
+
+      const directiveType = type.toLowerCase();
+      if (!knownAdmonitions.includes(directiveType)) {
+        return match;
+      }
+
+      // Map directive name to Cabinet callout type
+      const typeMap: Record<string, string> = {
+        note: "info",
+        info: "info",
+        tip: "info",
+        important: "info",
+        hint: "info",
+        seealso: "info",
+        warning: "warning",
+        caution: "warning",
+        attention: "warning",
+        error: "error",
+        danger: "error",
+        success: "success",
+        done: "success",
+      };
+
+      const calloutType = typeMap[directiveType] || "info";
+      const cleanTitle = title ? title.trim() : "";
+      const titlePrefix = cleanTitle ? `**${cleanTitle}**\n\n` : "";
+
+      return `\n\n<div data-callout="true" data-callout-type="${calloutType}">\n\n${titlePrefix}${content.trim()}\n\n</div>\n\n`;
+    }
+  );
+}
+
+function transformMystRoles(markdown: string): string {
+  const ROLE_REGEX = /\{([a-zA-Z0-9_-]+)\}(`{1,2})([\s\S]*?)\2/g;
+
+  return markdown.replace(
+    ROLE_REGEX,
+    (match, role: string, _backticks: string, content: string) => {
+      const roleName = role.toLowerCase();
+      if (roleName === "sub") {
+        return `<sub>${content}</sub>`;
+      }
+      if (roleName === "sup") {
+        return `<sup>${content}</sup>`;
+      }
+      if (roleName === "math") {
+        return `$${content}$`;
+      }
+      return match;
+    }
+  );
+}
+
 // Unified's plugin resolution + processor freeze runs on every `unified()`
 // call. Reuse a single frozen pipeline across every page render so
 // navigation doesn't pay that cost on the hot path.
@@ -217,9 +285,11 @@ const processor = unified()
   .freeze();
 
 export async function markdownToHtml(markdown: string, pagePath?: string): Promise<string> {
+  const withMystAdmonitions = transformMystAdmonitions(markdown);
+  const withMystRoles = transformMystRoles(withMystAdmonitions);
   // Rewrite ```jsx live fenced code blocks into <pre data-live-code> markers
   // before any other transform, so the remark pipeline preserves them as-is.
-  const withLiveCode = transformLiveCodeBlocks(markdown);
+  const withLiveCode = transformLiveCodeBlocks(withMystRoles);
   // Rewrite registered MDX components (<Callout>, <VideoPlayer/>, …) into
   // <div data-mdx-component> markers before remark sees them — otherwise the
   // Markdown parser mangles the JSX into broken paragraphs.

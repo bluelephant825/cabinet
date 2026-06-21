@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Download, FileCode, FileDown, Sparkles, Maximize } from "lucide-react";
+import { Copy, Download, FileCode, FileDown, FileText, Sparkles, Maximize } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   DropdownMenu,
@@ -133,6 +133,60 @@ export function Header() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportMyST = async (format: "pdf" | "docx" | "tex" | "html") => {
+    if (!currentPath) return;
+
+    window.dispatchEvent(
+      new CustomEvent("cabinet:toast", {
+        detail: {
+          kind: "info",
+          message: `Exporting via MyST (${format.toUpperCase()})...`,
+        },
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/export/myst?path=${encodeURIComponent(currentPath)}&format=${format}`);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Export failed");
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition");
+      let filename = `${frontmatter?.title || "export"}.${format}`;
+      if (disposition && disposition.indexOf("filename=") !== -1) {
+        const parts = disposition.split("filename=");
+        if (parts[1]) filename = parts[1].replace(/['"]/g, "");
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      window.dispatchEvent(
+        new CustomEvent("cabinet:toast", {
+          detail: {
+            kind: "success",
+            message: "Export completed successfully!",
+          },
+        })
+      );
+    } catch (error: any) {
+      window.dispatchEvent(
+        new CustomEvent("cabinet:toast", {
+          detail: {
+            kind: "error",
+            message: error.message || "Export failed",
+          },
+        })
+      );
+    }
+  };
+
   return (
     <ViewerToolbar path={currentPath || undefined} showBreadcrumb={!!currentPath}>
       {currentPath && (
@@ -173,6 +227,18 @@ export function Header() {
             <DropdownMenuItem onClick={handleDownloadMarkdown}>
               <Download className="h-4 w-4 mr-2" />
               {t("editor:header.downloadMarkdown")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExportMyST("pdf")}>
+              <FileDown className="h-4 w-4 mr-2" />
+              Export PDF (MyST)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExportMyST("docx")}>
+              <FileText className="h-4 w-4 mr-2" />
+              Export Word (MyST)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExportMyST("tex")}>
+              <FileCode className="h-4 w-4 mr-2" />
+              Export LaTeX (MyST)
             </DropdownMenuItem>
             <DropdownMenuItem onClick={async () => {
               const editorEl = document.querySelector(".tiptap");
