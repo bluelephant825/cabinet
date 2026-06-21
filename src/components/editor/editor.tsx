@@ -157,6 +157,39 @@ export function KBEditor() {
   const isLoadingRef = useRef(false);
   const [sourceMode, setSourceMode] = useState(false);
   const [sourceText, setSourceText] = useState("");
+  const [splitMode, setSplitMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return window.localStorage.getItem("kb-editor-split-mode") === "true";
+    }
+    return false;
+  });
+  const [splitHtml, setSplitHtml] = useState("");
+
+  const toggleSplitMode = useCallback(() => {
+    setSplitMode((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem("kb-editor-split-mode", String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!sourceMode || !splitMode || !currentPath) return;
+
+    const debounce = setTimeout(async () => {
+      const { body } = parseFrontmatter(sourceText);
+      try {
+        const html = await markdownToHtml(body, assetBase ?? currentPath ?? undefined);
+        setSplitHtml(html);
+      } catch (err) {
+        console.error("[KBEditor] Split preview compile failed:", err);
+      }
+    }, 150);
+
+    return () => clearTimeout(debounce);
+  }, [sourceText, sourceMode, splitMode, assetBase, currentPath]);
   // Wide mode lifts the max-w-3xl cap on the rendered page so tables get the
   // full viewport width. Read from localStorage in an effect (not the
   // initializer) to avoid an SSR hydration mismatch — same pattern as the
@@ -689,16 +722,27 @@ export function KBEditor() {
         onToggleSource={toggleSourceMode}
         wideMode={wideMode}
         onToggleWide={toggleWideMode}
+        splitMode={splitMode}
+        onToggleSplit={toggleSplitMode}
       />
 
       {sourceMode ? (
-        <div className="flex-1 overflow-y-auto p-4" dir={isRtl ? "rtl" : undefined}>
-          <textarea
-            value={sourceText}
-            onChange={(e) => setSourceText(e.target.value)}
-            className="w-full h-full min-h-[calc(100vh-12rem)] bg-transparent font-mono text-[13px] leading-relaxed resize-none focus:outline-none"
-            spellCheck={false}
-          />
+        <div className="flex-1 flex overflow-hidden border-t border-border" dir={isRtl ? "rtl" : undefined}>
+          {/* Left: Code Editor */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <textarea
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              className="w-full h-full min-h-[calc(100vh-12rem)] bg-transparent font-mono text-[13px] leading-relaxed resize-none focus:outline-none"
+              spellCheck={false}
+            />
+          </div>
+          {/* Right: Rendered Preview */}
+          {splitMode && (
+            <div className="flex-1 overflow-y-auto p-8 border-l border-border bg-background prose dark:prose-invert max-w-none">
+              <div className="tiptap" dangerouslySetInnerHTML={{ __html: splitHtml }} />
+            </div>
+          )}
         </div>
       ) : (
         <div

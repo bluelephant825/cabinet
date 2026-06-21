@@ -38,6 +38,7 @@ import {
   Code2,
   FoldHorizontal,
   UnfoldHorizontal,
+  Columns2,
 } from "lucide-react";
 import { useEditorStore } from "@/stores/editor-store";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -60,6 +61,10 @@ interface EditorToolbarProps {
   wideMode: boolean;
   /** Toggle between the default reading width and full width. */
   onToggleWide: () => void;
+  /** Whether split-screen mode is enabled in source view. */
+  splitMode: boolean;
+  /** Toggle split-screen mode. */
+  onToggleSplit: () => void;
 }
 
 type Anchor = { top: number; left?: number; right?: number };
@@ -110,7 +115,15 @@ function ToolButton({ label, icon: Icon, active, disabled, style, onAction }: To
   );
 }
 
-export function EditorToolbar({ editor, sourceMode, onToggleSource, wideMode, onToggleWide }: EditorToolbarProps) {
+export function EditorToolbar({
+  editor,
+  sourceMode,
+  onToggleSource,
+  wideMode,
+  onToggleWide,
+  splitMode,
+  onToggleSplit,
+}: EditorToolbarProps) {
   const { t, dir: uiDir } = useLocale();
   const isUiRtl = uiDir === "rtl";
   const frontmatter = useEditorStore((s) => s.frontmatter);
@@ -437,6 +450,23 @@ export function EditorToolbar({ editor, sourceMode, onToggleSource, wideMode, on
               active={wideMode}
               onAction={onToggleWide}
             />
+          )}
+          {sourceMode && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onToggleSplit}
+              className={cn(
+                "flex items-center gap-1.5 h-8 shrink-0 px-2.5 text-xs rounded-md transition-colors",
+                splitMode
+                  ? "bg-accent text-foreground ring-1 ring-inset ring-foreground/15"
+                  : "text-foreground/80 hover:bg-accent"
+              )}
+              title="Toggle Split Screen"
+            >
+              <Columns2 className="h-4 w-4" />
+              {splitMode ? "Split Screen" : "Split"}
+            </button>
           )}
           <button
             type="button"
