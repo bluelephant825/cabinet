@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
-  Blocks,
+  Plug,
   PanelLeftClose,
   PanelLeft,
   Plus,
@@ -308,7 +308,7 @@ export function Sidebar() {
               setCollapsed(true);
             }}
           >
-            <Blocks className="h-3.5 w-3.5" />
+            <Plug className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"

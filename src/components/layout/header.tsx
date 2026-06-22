@@ -324,7 +324,6 @@ export function Header() {
         </DropdownMenu>
         </>
       )}
-      {currentPath && <VersionHistory />}
     </ViewerToolbar>
   );
 }

@@ -211,6 +211,25 @@ export function KBEditor() {
       return next;
     });
   }, []);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || !sourceMode) return;
+
+    const resize = () => {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    };
+
+    resize();
+
+    window.addEventListener("resize", resize);
+    return () => {
+      window.removeEventListener("resize", resize);
+    };
+  }, [sourceText, sourceMode, wideMode, currentPath]);
+
   // Reset the tab to "page" whenever the path changes — opening a new folder
   // shouldn't skip its index.md if the previous folder was on Files. Has to
   // be an effect (not state-during-render) because Tiptap's EditorContent
@@ -225,12 +244,23 @@ export function KBEditor() {
     ({ editor }: { editor: ReturnType<typeof useEditor> }) => {
       if (isLoadingRef.current || !editor) return;
       // Ignore updates until the page has loaded — a transaction fired while the
-      // fetch is still in flight (e.g. editor mount/normalization on a fresh
+      // fetch is in flight (e.g. editor mount/normalization on a fresh
       // open) must not mark the page dirty with the empty loading state.
       if (useEditorStore.getState().loadStatus !== "ok") return;
       const html = editor.getHTML();
       const md = htmlToMarkdown(html);
-      useEditorStore.getState().updateContent(md);
+      const store = useEditorStore.getState();
+
+      // If content hasn't changed, do not trigger store updates or dirty flags
+      if (md === store.content) return;
+
+      // Block stray empty editor updates from overwriting non-empty store content when not focused
+      if (md.trim() === "" && store.content.trim() !== "" && !editor.isFocused) {
+        console.warn("[KBEditor] Blocked stray empty editor update from overwriting store content");
+        return;
+      }
+
+      store.updateContent(md);
     },
     []
   );
@@ -440,6 +470,47 @@ export function KBEditor() {
     },
     immediatelyRender: false,
   });
+
+  const handleSetMode = useCallback(async (targetMode: "edit" | "preview" | "split") => {
+    if (targetMode === "preview") {
+      if (sourceMode) {
+        // Switching FROM source mode
+        const { frontmatter: parsed, body } = parseFrontmatter(sourceText);
+        const store = useEditorStore.getState();
+        if (parsed) store.setFrontmatter(parsed as FrontMatter);
+        store.updateContent(body);
+        if (editor) {
+          isLoadingRef.current = true;
+          const html = await markdownToHtml(body, assetBase ?? currentPath ?? undefined);
+          const fm = useEditorStore.getState().frontmatter;
+          const propsHtml = fm ? buildDocumentPropertiesHtml(fm) : "";
+          editor.commands.setContent(propsHtml + (html || "<p></p>"));
+          setTimeout(() => { isLoadingRef.current = false; }, 50);
+        }
+        setSourceMode(false);
+      }
+      setSplitMode(false);
+      try { window.localStorage.setItem("kb-editor-split-mode", "false"); } catch {}
+    } else if (targetMode === "edit") {
+      if (!sourceMode) {
+        // Switching TO source mode
+        const { frontmatter: fm, content: c } = useEditorStore.getState();
+        setSourceText(stringifyFrontmatter(fm, c));
+        setSourceMode(true);
+      }
+      setSplitMode(false);
+      try { window.localStorage.setItem("kb-editor-split-mode", "false"); } catch {}
+    } else if (targetMode === "split") {
+      if (!sourceMode) {
+        // Switching TO source mode
+        const { frontmatter: fm, content: c } = useEditorStore.getState();
+        setSourceText(stringifyFrontmatter(fm, c));
+        setSourceMode(true);
+      }
+      setSplitMode(true);
+      try { window.localStorage.setItem("kb-editor-split-mode", "true"); } catch {}
+    }
+  }, [sourceMode, sourceText, editor, assetBase, currentPath]);
 
   // Toggle editability when navigating into/out of a read-only mount.
   useEffect(() => {
@@ -730,16 +801,40 @@ export function KBEditor() {
         onToggleWide={toggleWideMode}
         splitMode={splitMode}
         onToggleSplit={toggleSplitMode}
+        onSetMode={handleSetMode}
       />
 
       {sourceMode ? (
         <div className="flex-1 flex overflow-hidden border-t border-border" dir={isRtl ? "rtl" : undefined}>
           {/* Left: Code Editor */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4" data-editor-scroll>
             <textarea
+              ref={textareaRef}
               value={sourceText}
-              onChange={(e) => setSourceText(e.target.value)}
-              className="w-full h-full min-h-[calc(100vh-12rem)] bg-transparent font-mono text-[13px] leading-relaxed resize-none focus:outline-none"
+              onChange={(e) => {
+                const val = e.target.value;
+                setSourceText(val);
+                const hasFrontmatterHeader = /^---\r?\n/.test(val);
+                const { frontmatter: parsed, body } = parseFrontmatter(val);
+                const store = useEditorStore.getState();
+                if (parsed) {
+                  store.setFrontmatter(parsed as FrontMatter);
+                } else if (!hasFrontmatterHeader) {
+                  // User completely deleted the frontmatter block
+                  store.setFrontmatter({} as FrontMatter);
+                }
+                store.updateContent(body);
+              }}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                  e.preventDefault();
+                  void useEditorStore.getState().save();
+                }
+              }}
+              className={`w-full bg-transparent font-mono text-[13px] leading-relaxed resize-none focus:outline-none overflow-hidden block ${
+                wideMode ? "max-w-none" : "max-w-[48rem] mx-auto"
+              }`}
+              style={{ height: "auto" }}
               spellCheck={false}
             />
           </div>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Download, Code2, Eye, Save, AlertCircle, Loader2, RefreshCw, Columns2 } from "lucide-react";
+import { Download, Eye, Save, AlertCircle, Loader2, RefreshCw, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
+import { SplitScreenIcon } from "./editor-toolbar";
 
 interface TypstViewerProps {
   path: string;
@@ -18,14 +19,8 @@ export function TypstViewer({ path }: TypstViewerProps) {
   const [compileError, setCompileError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
-  // splitMode controls side-by-side split screen. Defaults to true.
-  const [splitMode, setSplitMode] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("typst-editor-split-mode");
-      return saved !== null ? saved === "true" : true;
-    }
-    return true;
-  });
+  // splitMode controls side-by-side split screen. Defaults to false.
+  const [splitMode, setSplitMode] = useState<boolean>(false);
 
   // viewMode controls single-panel view when splitMode is false:
   // "source" (edit only) or "preview" (compiled PDF only)
@@ -59,8 +54,8 @@ export function TypstViewer({ path }: TypstViewerProps) {
         if (prev) URL.revokeObjectURL(prev);
         return newUrl;
       });
-    } catch (e: any) {
-      setCompileError(e.message || "Failed to compile Typst document");
+    } catch (e) {
+      setCompileError(e instanceof Error ? e.message : "Failed to compile Typst document");
     } finally {
       setCompiling(false);
     }
@@ -110,9 +105,7 @@ export function TypstViewer({ path }: TypstViewerProps) {
 
   // Toggle split screen mode
   const toggleSplitMode = () => {
-    const val = !splitMode;
-    setSplitMode(val);
-    localStorage.setItem("typst-editor-split-mode", String(val));
+    setSplitMode((prev) => !prev);
   };
 
   // Save changes to disk
@@ -155,42 +148,89 @@ export function TypstViewer({ path }: TypstViewerProps) {
           size="sm"
           onClick={handleSave}
           disabled={saving || content === editContentRef.current}
-          className="gap-1.5"
+          className="h-7 w-7 p-0"
+          title={saving ? "Saving…" : "Save"}
         >
           <Save className="h-3.5 w-3.5" />
-          {saving ? "Saving…" : "Save"}
         </Button>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleSplitMode}
-          className={`gap-1.5 ${splitMode ? "bg-accent text-foreground" : "text-muted-foreground"}`}
-          title="Toggle Split Screen"
-        >
-          <Columns2 className="h-3.5 w-3.5" />
-          Split Screen
-        </Button>
-
-        {!splitMode && (
+        {!splitMode && viewMode === "preview" && (
           <>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setViewMode("source")}
-              className={`gap-1.5 ${viewMode === "source" ? "bg-accent text-foreground" : "text-muted-foreground"}`}
+              onClick={() => {
+                setViewMode("source");
+                setSplitMode(false);
+              }}
+              title="Edit Source"
+              className="h-7 w-7 p-0"
             >
-              <Code2 className="h-3.5 w-3.5" />
-              Source
+              <FileCode className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setViewMode("preview")}
-              className={`gap-1.5 ${viewMode === "preview" ? "bg-accent text-foreground" : "text-muted-foreground"}`}
+              onClick={toggleSplitMode}
+              title="Split Screen"
+              className="h-7 w-7 p-0 text-muted-foreground"
+            >
+              <SplitScreenIcon className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
+
+        {!splitMode && viewMode === "source" && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setViewMode("preview");
+                setSplitMode(false);
+              }}
+              className="h-7 w-7 p-0"
+              title="Preview"
             >
               <Eye className="h-3.5 w-3.5" />
-              Preview
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSplitMode}
+              title="Split Screen"
+              className="h-7 w-7 p-0 text-muted-foreground"
+            >
+              <SplitScreenIcon className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
+
+        {splitMode && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setViewMode("source");
+                setSplitMode(false);
+              }}
+              title="Edit Source Only"
+              className="h-7 w-7 p-0"
+            >
+              <FileCode className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setViewMode("preview");
+                setSplitMode(false);
+              }}
+              title="Preview Only"
+              className="h-7 w-7 p-0"
+            >
+              <Eye className="h-3.5 w-3.5" />
             </Button>
           </>
         )}
@@ -200,11 +240,10 @@ export function TypstViewer({ path }: TypstViewerProps) {
           size="sm"
           onClick={() => void fetchContent()}
           disabled={loading || compiling}
-          className="gap-1.5"
+          className="h-7 w-7 p-0"
           title="Reload file from disk"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${(loading || compiling) ? "animate-spin" : ""}`} />
-          Refresh
         </Button>
 
         <a
@@ -237,6 +276,12 @@ export function TypstViewer({ path }: TypstViewerProps) {
                 defaultValue={content}
                 onChange={(e) => handleSourceChange(e.target.value)}
                 onBlur={handleSave}
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                    e.preventDefault();
+                    void handleSave();
+                  }
+                }}
                 spellCheck={false}
                 className="w-full h-full bg-zinc-950 p-4 font-mono text-sm leading-relaxed text-zinc-100 outline-none resize-none"
                 style={{ minHeight: "100%" }}

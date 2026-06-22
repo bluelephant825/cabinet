@@ -31,6 +31,7 @@ export function parseFrontmatter(source: string): {
     }
     return { frontmatter: null, body };
   } catch {
-    return { frontmatter: null, body: source };
+    const body = source.slice(match[0].length).replace(/^\r?\n/, "");
+    return { frontmatter: null, body };
   }
 }

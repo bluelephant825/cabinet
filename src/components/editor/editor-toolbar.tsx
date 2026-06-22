@@ -35,10 +35,10 @@ import {
   SquareCode,
   ChevronLeft,
   ChevronRight,
-  Code2,
   FoldHorizontal,
   UnfoldHorizontal,
-  Columns2,
+  FileCode,
+  Eye,
 } from "lucide-react";
 import { useEditorStore } from "@/stores/editor-store";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -65,6 +65,28 @@ interface EditorToolbarProps {
   splitMode: boolean;
   /** Toggle split-screen mode. */
   onToggleSplit: () => void;
+  onSetMode?: (mode: "edit" | "preview" | "split") => void;
+}
+
+export function SplitScreenIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M12 3v18" />
+      <path d="M7 8h2" />
+      <path d="M7 12h2" />
+      <path d="M7 16h2" />
+    </svg>
+  );
 }
 
 type Anchor = { top: number; left?: number; right?: number };
@@ -118,11 +140,10 @@ function ToolButton({ label, icon: Icon, active, disabled, style, onAction }: To
 export function EditorToolbar({
   editor,
   sourceMode,
-  onToggleSource,
   wideMode,
   onToggleWide,
   splitMode,
-  onToggleSplit,
+  onSetMode,
 }: EditorToolbarProps) {
   const { t, dir: uiDir } = useLocale();
   const isUiRtl = uiDir === "rtl";
@@ -388,8 +409,8 @@ export function EditorToolbar({
 
   return (
     <>
-      <div className="relative flex items-stretch border-b border-border bg-background/50">
-        <div className="relative flex-1 min-w-0">
+      <div className="relative flex items-center border-b border-border bg-background/50 h-10">
+        <div className="relative flex-1 h-full min-w-0">
           {/* Scroll indicator arrows */}
           {!sourceMode && canScrollLeft && (
             <button
@@ -417,7 +438,7 @@ export function EditorToolbar({
             <div
               ref={scrollRef}
               onWheel={onWheel}
-              className="flex items-center gap-0.5 px-2 pt-1 pb-1.5 overflow-x-scroll overflow-y-hidden editor-toolbar-scroll"
+              className="flex items-center gap-0.5 px-2 h-full overflow-x-scroll overflow-y-hidden editor-toolbar-scroll"
             >
               {[...primaryItems, { separator: true } as ButtonSpec, ...secondaryItems].map((item, i) => {
                 if ("separator" in item) {
@@ -441,9 +462,9 @@ export function EditorToolbar({
         </div>
         {/* Pinned, non-scrolling source/preview toggle — always reachable
             regardless of how far the formatting row is scrolled. */}
-        <div className="shrink-0 flex items-center gap-1 ps-1 pe-2">
+        <div className="shrink-0 flex items-center gap-1 ps-1 pe-2 h-full">
           <Separator orientation="vertical" className="h-6" />
-          {!sourceMode && (
+          {!splitMode && (
             <ToolButton
               label={wideMode ? t("editor:toolbar.normalWidth") : t("editor:toolbar.wideMode")}
               icon={wideMode ? FoldHorizontal : UnfoldHorizontal}
@@ -451,37 +472,61 @@ export function EditorToolbar({
               onAction={onToggleWide}
             />
           )}
-          {sourceMode && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={onToggleSplit}
-              className={cn(
-                "flex items-center gap-1.5 h-8 shrink-0 px-2.5 text-xs rounded-md transition-colors",
-                splitMode
-                  ? "bg-accent text-foreground ring-1 ring-inset ring-foreground/15"
-                  : "text-foreground/80 hover:bg-accent"
-              )}
-              title="Toggle Split Screen"
-            >
-              <Columns2 className="h-4 w-4" />
-              {splitMode ? "Split Screen" : "Split"}
-            </button>
+
+          {/* New Mode Toggles */}
+          {!splitMode && !sourceMode && (
+            // Preview Mode
+            <>
+              <ToolButton
+                label="Edit Source"
+                icon={FileCode}
+                active={false}
+                onAction={() => onSetMode?.("edit")}
+              />
+              <ToolButton
+                label="Split Screen"
+                icon={SplitScreenIcon}
+                active={false}
+                onAction={() => onSetMode?.("split")}
+              />
+            </>
           )}
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onToggleSource}
-            className={cn(
-              "flex items-center gap-1.5 h-8 shrink-0 px-2.5 text-xs rounded-md transition-colors",
-              sourceMode
-                ? "bg-accent text-foreground ring-1 ring-inset ring-foreground/15"
-                : "text-foreground/80 hover:bg-accent"
-            )}
-          >
-            <Code2 className="h-4 w-4" />
-            {sourceMode ? t("editor:toolbar.preview") : t("editor:toolbar.markdown")}
-          </button>
+
+          {!splitMode && sourceMode && (
+            // Edit Mode
+            <>
+              <ToolButton
+                label="Preview"
+                icon={Eye}
+                active={false}
+                onAction={() => onSetMode?.("preview")}
+              />
+              <ToolButton
+                label="Split Screen"
+                icon={SplitScreenIcon}
+                active={false}
+                onAction={() => onSetMode?.("split")}
+              />
+            </>
+          )}
+
+          {splitMode && sourceMode && (
+            // Split Screen Mode
+            <>
+              <ToolButton
+                label="Edit Source Only"
+                icon={FileCode}
+                active={false}
+                onAction={() => onSetMode?.("edit")}
+              />
+              <ToolButton
+                label="Preview Only"
+                icon={Eye}
+                active={false}
+                onAction={() => onSetMode?.("preview")}
+              />
+            </>
+          )}
         </div>
       </div>
 

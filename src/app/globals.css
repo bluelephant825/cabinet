@@ -372,22 +372,10 @@ html[lang^="zh-Hant"] h1.font-ui, html[lang^="zh-Hant"] h2.font-ui {
 }
 
 .editor-toolbar-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 10%, transparent) transparent;
+  scrollbar-width: none;
 }
 .editor-toolbar-scroll::-webkit-scrollbar {
-  height: 1px;
-  width: 1px;
-}
-.editor-toolbar-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.editor-toolbar-scroll::-webkit-scrollbar-thumb {
-  background-color: color-mix(in oklch, var(--muted-foreground) 10%, transparent);
-  border-radius: 999px;
-}
-.editor-toolbar-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in oklch, var(--muted-foreground) 25%, transparent);
+  display: none;
 }
 
 /* Tiptap Editor Styles */

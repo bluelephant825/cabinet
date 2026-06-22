@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { ExternalLink, Download, WrapText, Copy, Check, Save, Code2 } from "lucide-react";
+import { ExternalLink, Download, WrapText, Copy, Check, Save, Code2, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { common, createLowlight } from "lowlight";
 import { toHtml } from "hast-util-to-html";
 import { useLocale } from "@/i18n/use-locale";
+import { SplitScreenIcon } from "./editor-toolbar";
 
 interface SourceViewerProps {
   path: string;
@@ -44,19 +45,22 @@ function formatBadge(filename: string): string {
 
 export function SourceViewer({ path }: SourceViewerProps) {
   const { t } = useLocale();
+  const filename = path.split("/").pop() || path;
+  const isHtml = filename.toLowerCase().endsWith(".html");
+
   const [content, setContent] = useState<string | null>(null);
   const [rawText, setRawText] = useState("");
   const [loading, setLoading] = useState(true);
   const [wrap, setWrap] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [sourceMode, setSourceMode] = useState(false);
+  const [sourceMode, setSourceMode] = useState(isHtml);
+  const [splitMode, setSplitMode] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const editInputRef = useRef<HTMLTextAreaElement | null>(null);
   const editOverlayRef = useRef<HTMLDivElement | null>(null);
 
   const assetUrl = `/api/assets/${path}`;
-  const filename = path.split("/").pop() || path;
   const language = detectLanguage(filename);
 
   const fetchContent = useCallback(async () => {
@@ -120,7 +124,9 @@ export function SourceViewer({ path }: SourceViewerProps) {
       }
       setContent(rawText);
       setDirty(false);
-      setSourceMode(false);
+      if (!isHtml) {
+        setSourceMode(false);
+      }
     } catch {
     }
     setSaving(false);
@@ -157,28 +163,56 @@ export function SourceViewer({ path }: SourceViewerProps) {
             {saving ? "Saving..." : "Save"}
           </Button>
         )}
-        <button
-          onClick={toggleSourceMode}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors border border-border ${
-            sourceMode
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-accent"
-          }`}
-        >
-          <Code2 className="h-3 w-3" />
-          {sourceMode ? "Preview" : "Edit"}
-        </button>
-        {!sourceMode && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`h-7 gap-1.5 text-xs ${wrap ? "bg-muted" : ""}`}
-            onClick={() => setWrap((v) => !v)}
-            title={wrap ? "Disable line wrap" : "Enable line wrap"}
-          >
-            <WrapText className="h-3.5 w-3.5" />
-            Wrap
-          </Button>
+        {isHtml ? (
+          <>
+            {splitMode ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSplitMode(false)}
+                title="Edit Single Page"
+                className="h-7 w-7 p-0"
+              >
+                <FileCode className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSplitMode(true)}
+                title="Split Screen"
+                className="h-7 w-7 p-0"
+              >
+                <SplitScreenIcon className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            <button
+              onClick={toggleSourceMode}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors border border-border ${
+                sourceMode
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              <Code2 className="h-3 w-3" />
+              {sourceMode ? "Preview" : "Edit"}
+            </button>
+            {!sourceMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-7 gap-1.5 text-xs ${wrap ? "bg-muted" : ""}`}
+                onClick={() => setWrap((v) => !v)}
+                title={wrap ? "Disable line wrap" : "Enable line wrap"}
+              >
+                <WrapText className="h-3.5 w-3.5" />
+                Wrap
+              </Button>
+            )}
+          </>
         )}
         <Button
           variant="ghost"
@@ -217,10 +251,67 @@ export function SourceViewer({ path }: SourceViewerProps) {
           Raw
         </Button>
       </ViewerToolbar>
-      <div className="flex-1 overflow-auto source-viewer-code bg-[#1e1e1e]">
+      <div className="flex-1 flex flex-col min-h-0 source-viewer-code bg-[#1e1e1e]">
         {loading ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Loading...
+          </div>
+        ) : isHtml ? (
+          <div className="flex-1 flex h-full overflow-hidden">
+            {/* LEFT: HTML EDITOR */}
+            {(splitMode || sourceMode) && (
+              <div className="flex-1 relative h-full min-h-0 overflow-auto p-0 animate-in fade-in duration-200">
+                <div
+                  ref={editOverlayRef}
+                  className="pointer-events-none absolute inset-0 overflow-auto"
+                >
+                  <div className="relative min-h-full">
+                    <pre className="absolute inset-y-0 left-0 m-0 w-[4rem] select-none bg-[#1e1e1e] pr-4 text-right font-mono text-[13px] leading-relaxed text-[#858585]">{Array.from({ length: editHighlightedLines.length }, (_, i) => i + 1).join("\n")}</pre>
+                    <pre
+                      className="m-0 min-h-full whitespace-pre bg-transparent p-0 pl-[4rem] font-mono text-[13px] leading-relaxed text-[#d4d4d4]"
+                      dangerouslySetInnerHTML={{ __html: editHighlightedLines.join("\n") }}
+                    />
+                  </div>
+                </div>
+                <textarea
+                  ref={editInputRef}
+                  value={rawText}
+                  onChange={(e) => {
+                    setRawText(e.target.value);
+                    setDirty(true);
+                  }}
+                  onBlur={handleSave}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                      e.preventDefault();
+                      void handleSave();
+                    }
+                  }}
+                  onScroll={(e) => {
+                    const target = e.currentTarget;
+                    if (editOverlayRef.current) {
+                      editOverlayRef.current.scrollTop = target.scrollTop;
+                      editOverlayRef.current.scrollLeft = target.scrollLeft;
+                    }
+                  }}
+                  className="absolute inset-y-0 left-[4rem] right-0 z-10 min-h-[calc(100vh-12rem)] resize-none bg-transparent p-0 font-mono text-[13px] leading-relaxed text-transparent caret-[#d4d4d4] focus:outline-none"
+                  wrap="off"
+                  spellCheck={false}
+                />
+              </div>
+            )}
+
+            {/* RIGHT: HTML PREVIEW */}
+            {splitMode && (
+              <div className="flex-1 flex flex-col overflow-hidden border-l border-border bg-white relative animate-in fade-in duration-200">
+                <iframe
+                  src={assetUrl}
+                  className="w-full h-full border-none bg-white"
+                  title="HTML Preview"
+                  key={content || ""}
+                />
+              </div>
+            )}
           </div>
         ) : sourceMode ? (
           <div className="relative h-full min-h-0 overflow-auto p-0">
@@ -256,21 +347,23 @@ export function SourceViewer({ path }: SourceViewerProps) {
             />
           </div>
         ) : (
-          <table className="w-full border-collapse text-[13px] leading-relaxed font-mono">
-            <tbody>
-              {highlightedLines.map((lineHtml, i) => (
-                <tr key={i} className="hover:bg-white/5">
-                  <td className="w-12 pr-4 text-right text-[#858585] select-none align-top sticky left-0 bg-[#1e1e1e]">
-                    {i + 1}
-                  </td>
-                  <td
-                    className={`text-[#d4d4d4] pl-2 ${wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre"}`}
-                    dangerouslySetInnerHTML={{ __html: lineHtml || " " }}
-                  />
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="flex-1 overflow-auto">
+            <table className="w-full border-collapse text-[13px] leading-relaxed font-mono">
+              <tbody>
+                {highlightedLines.map((lineHtml, i) => (
+                  <tr key={i} className="hover:bg-white/5">
+                    <td className="w-12 pr-4 text-right text-[#858585] select-none align-top sticky left-0 bg-[#1e1e1e]">
+                      {i + 1}
+                    </td>
+                    <td
+                      className={`text-[#d4d4d4] pl-2 ${wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre"}`}
+                      dangerouslySetInnerHTML={{ __html: lineHtml || " " }}
+                    />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
