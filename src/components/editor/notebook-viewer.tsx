@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { ExternalLink, Download, Copy, Check, AlertCircle, Edit } from "lucide-react";
+import { ExternalLink, Download, Copy, Check, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { common, createLowlight } from "lowlight";
@@ -226,7 +226,6 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
 
   const assetUrl = `/api/assets/${path}`;
   const filename = path.split("/").pop() || path;
@@ -268,49 +267,6 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (isEditing) {
-    return (
-      <div className="flex-1 flex flex-col overflow-hidden h-full w-full">
-        <ViewerToolbar
-          path={path}
-          badge="IPYNB EDITOR"
-          sublabel="Running JupyterLite (WASM)"
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-xs text-amber-800 hover:text-amber-900"
-            onClick={() => {
-              setIsEditing(false);
-              void fetchNotebook();
-            }}
-          >
-            Close Editor
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-xs"
-            onClick={() => {
-              const a = document.createElement("a");
-              a.href = assetUrl;
-              a.download = filename;
-              a.click();
-            }}
-          >
-            <Download className="h-3.5 w-3.5" />
-            Download
-          </Button>
-        </ViewerToolbar>
-        <iframe
-          src={`/jupyterlite/lab/index.html?path=${encodeURIComponent(path)}`}
-          className="flex-1 w-full h-full border-none bg-white"
-          sandbox="allow-scripts allow-same-origin allow-popups allow-downloads allow-forms"
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <ViewerToolbar
@@ -318,15 +274,6 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
         badge="IPYNB"
         sublabel={`${cellCount} cells · ${codeCellCount} code · ${language}`}
       >
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 text-xs text-amber-800 hover:text-amber-900"
-          onClick={() => setIsEditing(true)}
-        >
-          <Edit className="h-3.5 w-3.5" />
-          Edit Notebook
-        </Button>
         <Button
           variant="ghost"
           size="sm"
