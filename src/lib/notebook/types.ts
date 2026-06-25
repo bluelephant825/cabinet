@@ -32,6 +32,7 @@ export interface NotebookCellBase {
   cell_type: "code" | "markdown" | "raw";
   source: StringOrLines;
   metadata?: Record<string, unknown>;
+  id?: string;
 }
 export interface CodeCell extends NotebookCellBase {
   cell_type: "code";

@@ -202,6 +202,20 @@
   margin: 1.5rem 0;
 }
 
+.preview-substack ul,
+.preview-substack ol {
+  padding-left: 1.5rem;
+  margin: 1.25rem 0;
+}
+.preview-substack ul { list-style-type: disc; }
+.preview-substack ol { list-style-type: decimal; }
+.preview-substack li {
+  margin-bottom: 0.5rem;
+}
+.preview-substack li:last-child {
+  margin-bottom: 0;
+}
+
 .preview-substack code:not(pre code) {
   background-color: #f3f3f3;
   color: #e01e5a;
@@ -269,6 +283,20 @@
   color: #666666;
 }
 
+.preview-medium ul,
+.preview-medium ol {
+  padding-left: 1.5rem;
+  margin: 1.5rem 0;
+}
+.preview-medium ul { list-style-type: disc; }
+.preview-medium ol { list-style-type: decimal; }
+.preview-medium li {
+  margin-bottom: 0.5rem;
+}
+.preview-medium li:last-child {
+  margin-bottom: 0;
+}
+
 .preview-medium code:not(pre code) {
   background-color: rgba(242, 242, 242, 1);
   color: rgba(41, 41, 41, 1);
@@ -324,6 +352,20 @@
   margin: 1rem 0;
 }
 
+.preview-markdown ul,
+.preview-markdown ol {
+  padding-left: 1.5rem;
+  margin: 1rem 0;
+}
+.preview-markdown ul { list-style-type: disc; }
+.preview-markdown ol { list-style-type: decimal; }
+.preview-markdown li {
+  margin-bottom: 0.4rem;
+}
+.preview-markdown li:last-child {
+  margin-bottom: 0;
+}
+
 .preview-markdown code:not(pre code) {
   background-color: rgba(0, 0, 0, 0.05);
   padding: 2px 4px;
@@ -375,6 +417,20 @@
   color: #4b5563;
   font-style: italic;
   margin: 1.5rem 0;
+}
+
+.preview-default ul,
+.preview-default ol {
+  padding-left: 1.5rem;
+  margin: 1.25rem 0;
+}
+.preview-default ul { list-style-type: disc; }
+.preview-default ol { list-style-type: decimal; }
+.preview-default li {
+  margin-bottom: 0.5rem;
+}
+.preview-default li:last-child {
+  margin-bottom: 0;
 }
 
 .preview-default code:not(pre code) {

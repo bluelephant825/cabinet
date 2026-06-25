@@ -105,6 +105,35 @@ function loadFoldersFirst(): boolean {
   }
 }
 
+export type CabinetPathKind = "cabinet" | "non-cabinet" | "unknown";
+
+function findTreeNodeByPath(
+  nodes: TreeNode[],
+  target: string
+): TreeNode | null {
+  for (const node of nodes) {
+    if (node.path === target) return node;
+    if (node.children?.length) {
+      const found = findTreeNodeByPath(node.children, target);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Classify a cabinet path against the in-memory tree, no server round trip.
+ * Returns "unknown" when the tree hasn't loaded the path yet (cold deep
+ * links) so callers can safely fall back to a network check. Used to gate
+ * the cabinet-overview fetch: a "non-cabinet" directory carries no `.cabinet`
+ * manifest and the overview route would only 404 for it.
+ */
+export function getCabinetPathKind(path: string): CabinetPathKind {
+  const node = findTreeNodeByPath(useTreeStore.getState().rawNodes, path);
+  if (!node) return "unknown";
+  return node.type === "cabinet" ? "cabinet" : "non-cabinet";
+}
+
 export function sortTreeNodes(
   nodes: TreeNode[],
   sortAlphabetical: boolean,

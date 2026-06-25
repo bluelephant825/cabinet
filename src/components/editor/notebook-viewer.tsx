@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
-  ExternalLink,
   Download,
   Copy,
   Check,
@@ -23,16 +22,13 @@ import {
   Share2,
   FileText,
   ChevronDown,
-  Tag,
-  Code2,
-  Maximize2
+  Code2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { common, createLowlight } from "lowlight";
 import { toHtml } from "hast-util-to-html";
 import { markdownToHtml } from "@/lib/markdown/to-html";
-import { useLocale } from "@/i18n/use-locale";
 import katex from "katex";
 import "../notebook/notebook-preview-styles.css";
 import { useSplitResize } from "@/hooks/use-split-resize";
@@ -71,6 +67,26 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+interface JupyterMessage {
+  header: { msg_type: string };
+  parent_header?: { msg_id?: string };
+  content: {
+    text?: string | string[];
+    name?: string;
+    data?: Record<string, string | string[]>;
+    execution_count?: number | null;
+    ename?: string;
+    evalue?: string;
+    traceback?: string[];
+    execution_state?: string;
+  };
+}
+
+interface JupyterSession {
+  path?: string;
+  kernel: { id: string };
+}
 
 interface NotebookViewerProps {
   path: string;
@@ -457,7 +473,7 @@ function CellOutputView({ output }: { output: NotebookOutput }) {
 interface SortableCellWrapperProps {
   id: string;
   children: (props: {
-    dragHandleProps: any;
+    dragHandleProps: React.HTMLAttributes<HTMLElement>;
     isDragging: boolean;
   }) => React.ReactNode;
 }
@@ -572,7 +588,7 @@ function CodeCellView({
   runningCellId: string | null;
   runCell: (id: string) => void;
   onDelete?: () => void;
-  dragHandleProps: any;
+  dragHandleProps: React.HTMLAttributes<HTMLElement>;
   showDragHandle: boolean;
   onToggleTag: (tag: "hide-input" | "hide-output" | "hide-cell") => void;
 }) {
@@ -611,7 +627,7 @@ function CodeCellView({
                     <Play className="h-3 w-3 fill-current" />
                   </button>
                 )}
-                <span className="text-[10px] text-[#8B5E3C]/70 min-w-[32px] text-left">
+                <span className="text-[10px] text-[#8B5E3C]/70 min-w-8 text-left">
                   In [{count}]
                 </span>
               </div>
@@ -723,7 +739,7 @@ function MarkdownCellView({
   cell: MarkdownCell;
   onEdit: (source: string) => void;
   onDelete?: () => void;
-  dragHandleProps: any;
+  dragHandleProps: React.HTMLAttributes<HTMLElement>;
   preview: boolean;
   setPreview: (preview: boolean) => void;
   showDragHandle: boolean;
@@ -783,7 +799,7 @@ function RawCellView({
 }: {
   cell: RawCell;
   onDelete?: () => void;
-  dragHandleProps: any;
+  dragHandleProps: React.HTMLAttributes<HTMLElement>;
   showDragHandle: boolean;
   onToggleTag: (tag: "hide-input" | "hide-output" | "hide-cell") => void;
 }) {
@@ -834,7 +850,6 @@ const generateUuid = () => {
 };
 
 export function NotebookViewer({ path }: NotebookViewerProps) {
-  const { t } = useLocale();
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -863,7 +878,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const kernelIdRef = useRef<string | null>(null);
   const sessionIdRef = useRef<string>(generateUuid());
-  const pendingRequestsRef = useRef<Map<string, (msg: any) => void>>(new Map());
+  const pendingRequestsRef = useRef<Map<string, (msg: JupyterMessage) => void>>(new Map());
   const activeResolvesRef = useRef<Map<string, () => void>>(new Map());
 
   // Cached compiled markdown preview HTML blocks for the preview pane
@@ -886,8 +901,8 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
 
     setNotebook((prev) => {
       if (!prev || !prev.cells) return prev;
-      const oldIndex = prev.cells.findIndex((cell) => (cell as any).id === active.id);
-      const newIndex = prev.cells.findIndex((cell) => (cell as any).id === over.id);
+      const oldIndex = prev.cells.findIndex((cell) => cell.id === active.id);
+      const newIndex = prev.cells.findIndex((cell) => cell.id === over.id);
 
       if (oldIndex === -1 || newIndex === -1) return prev;
 
@@ -899,23 +914,6 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
     });
     setDirty(true);
   };
-
-  const allMarkdownCells = useMemo(() => {
-    return notebook?.cells?.filter((c) => c.cell_type === "markdown") ?? [];
-  }, [notebook?.cells]);
-
-  const allInPreview = useMemo(() => {
-    return allMarkdownCells.length > 0 && allMarkdownCells.every((c) => markdownPreviews[(c as any).id] === true);
-  }, [allMarkdownCells, markdownPreviews]);
-
-  const toggleAllMarkdownPreviews = useCallback(() => {
-    const nextPreviewState = !allInPreview;
-    const newPreviews: Record<string, boolean> = {};
-    allMarkdownCells.forEach((c) => {
-      newPreviews[(c as any).id] = nextPreviewState;
-    });
-    setMarkdownPreviews(newPreviews);
-  }, [allMarkdownCells, allInPreview]);
 
   const assetUrl = `/api/assets/${path}`;
   const filename = path.split("/").pop() || path;
@@ -940,7 +938,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
         void markdownToHtml(processed).then((h) => {
           setPreviewHtmls((prev) => ({
             ...prev,
-            [(cell as any).id]: renderMathInHtml(h),
+            [cell.id!]: renderMathInHtml(h),
           }));
         });
       }
@@ -957,7 +955,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
       if (json.cells) {
         json.cells = json.cells.map((cell) => ({
           ...cell,
-          id: (cell as any).id || generateUuid(),
+          id: cell.id || generateUuid(),
         }));
       }
       setNotebook(json);
@@ -973,10 +971,11 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
     void fetchNotebook();
   }, [fetchNotebook]);
 
-  const setupJupyter = async () => {
+  const kernelName = notebook?.metadata?.kernelspec?.name;
+  const setupJupyter = useCallback(async () => {
     try {
       const statusRes = await fetch("/api/jupyter/status");
-      const statusData = await statusRes.json();
+      const statusData = await statusRes.json() as { available: boolean };
       if (!statusData.available) {
         setJupyterAvailable(false);
         return;
@@ -986,9 +985,9 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
 
       const sessionsRes = await fetch("/api/jupyter/proxy/api/sessions");
       if (!sessionsRes.ok) throw new Error("Failed to get Jupyter sessions");
-      const sessions = await sessionsRes.json();
+      const sessions = await sessionsRes.json() as JupyterSession[];
       
-      let session = sessions.find((s: any) => s.path === path);
+      let session = sessions.find((s) => s.path === path);
       if (!session) {
         const createRes = await fetch("/api/jupyter/proxy/api/sessions", {
           method: "POST",
@@ -1000,12 +999,12 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
               name: path.split("/").pop() || "notebook.ipynb",
             },
             kernel: {
-              name: notebook?.metadata?.kernelspec?.name || "python3"
+              name: kernelName || "python3"
             }
           })
         });
         if (!createRes.ok) throw new Error("Failed to create Jupyter session");
-        session = await createRes.json();
+        session = await createRes.json() as JupyterSession;
       }
 
       const kernelId = session.kernel.id;
@@ -1063,10 +1062,11 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
       console.error("Error setting up Jupyter:", e);
       setKernelStatus("disconnected");
     }
-  };
+  }, [path, kernelName]);
 
+  const hasNotebook = !!notebook;
   useEffect(() => {
-    if (notebook) {
+    if (hasNotebook) {
       void setupJupyter();
     }
     return () => {
@@ -1074,7 +1074,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
         wsRef.current.close();
       }
     };
-  }, [path, !!notebook]);
+  }, [setupJupyter, hasNotebook]);
 
   const runCell = (cellId: string): Promise<void> => {
     return new Promise<void>((resolve) => {
@@ -1083,7 +1083,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
         return;
       }
       
-      const idx = notebook.cells.findIndex((c) => (c as any).id === cellId);
+      const idx = notebook.cells.findIndex((c) => c.id === cellId);
       if (idx === -1) {
         resolve();
         return;
@@ -1094,7 +1094,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
       
       setNotebook((prev) => {
         if (!prev?.cells) return prev;
-        const currentIdx = prev.cells.findIndex((c) => (c as any).id === cellId);
+        const currentIdx = prev.cells.findIndex((c) => c.id === cellId);
         if (currentIdx === -1) return prev;
         const cells = [...prev.cells];
         cells[currentIdx] = {
@@ -1141,7 +1141,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
           
           setNotebook((prev) => {
             if (!prev?.cells) return prev;
-            const currentIdx = prev.cells.findIndex((c) => (c as any).id === cellId);
+            const currentIdx = prev.cells.findIndex((c) => c.id === cellId);
             if (currentIdx === -1) return prev;
             const cells = [...prev.cells];
             const currentCell = cells[currentIdx] as CodeCell;
@@ -1157,7 +1157,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
             } else {
               outputs.push({
                 output_type: "stream",
-                name,
+                name: name as "stdout" | "stderr",
                 text: [text],
               });
             }
@@ -1172,7 +1172,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
           
           setNotebook((prev) => {
             if (!prev?.cells) return prev;
-            const currentIdx = prev.cells.findIndex((c) => (c as any).id === cellId);
+            const currentIdx = prev.cells.findIndex((c) => c.id === cellId);
             if (currentIdx === -1) return prev;
             const cells = [...prev.cells];
             const currentCell = cells[currentIdx] as CodeCell;
@@ -1180,7 +1180,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
             
             outputs.push({
               output_type: msgType,
-              data,
+              data: data || {},
               execution_count: responseMsg.content.execution_count,
             });
             
@@ -1194,7 +1194,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
           
           setNotebook((prev) => {
             if (!prev?.cells) return prev;
-            const currentIdx = prev.cells.findIndex((c) => (c as any).id === cellId);
+            const currentIdx = prev.cells.findIndex((c) => c.id === cellId);
             if (currentIdx === -1) return prev;
             const cells = [...prev.cells];
             const currentCell = cells[currentIdx] as CodeCell;
@@ -1202,9 +1202,9 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
             
             outputs.push({
               output_type: "error",
-              ename,
-              evalue,
-              traceback,
+              ename: ename || "",
+              evalue: evalue || "",
+              traceback: traceback || [],
             });
             
             cells[currentIdx] = { ...currentCell, outputs } as NbCell;
@@ -1217,7 +1217,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
           
           setNotebook((prev) => {
             if (!prev?.cells) return prev;
-            const currentIdx = prev.cells.findIndex((c) => (c as any).id === cellId);
+            const currentIdx = prev.cells.findIndex((c) => c.id === cellId);
             if (currentIdx === -1) return prev;
             const cells = [...prev.cells];
             cells[currentIdx] = {
@@ -1248,7 +1248,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
     for (let i = 0; i < notebook.cells.length; i++) {
       const cell = notebook.cells[i];
       if (cell.cell_type === "code") {
-        await runCell((cell as any).id);
+        await runCell(cell.id!);
       }
     }
   };
@@ -1291,13 +1291,13 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
             metadata: {},
             outputs: [],
             source: "",
-          } as any
+          } as CodeCell
         : {
             id: generateUuid(),
             cell_type: "markdown",
             metadata: {},
             source: "",
-          } as any;
+          } as MarkdownCell;
       return { ...prev, cells: [...cells, newCell] };
     });
     setDirty(true);
@@ -1306,7 +1306,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
   const deleteCell = (cellId: string) => {
     setNotebook((prev) => {
       if (!prev?.cells) return prev;
-      const idx = prev.cells.findIndex((c) => (c as any).id === cellId);
+      const idx = prev.cells.findIndex((c) => c.id === cellId);
       if (idx === -1) return prev;
       const cells = [...prev.cells];
       cells.splice(idx, 1);
@@ -1318,7 +1318,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
   const toggleCellTag = (cellId: string, tag: "hide-input" | "hide-output" | "hide-cell") => {
     setNotebook((prev) => {
       if (!prev?.cells) return prev;
-      const idx = prev.cells.findIndex((c) => (c as any).id === cellId);
+      const idx = prev.cells.findIndex((c) => c.id === cellId);
       if (idx === -1) return prev;
       const cells = [...prev.cells];
       const cell = cells[idx];
@@ -1346,13 +1346,11 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
     "python";
 
   const cellCount = notebook?.cells?.length ?? 0;
-  const codeCellCount =
-    notebook?.cells?.filter((c) => c.cell_type === "code").length ?? 0;
 
   const updateCellSource = (cellId: string, source: string) => {
     setNotebook((prev) => {
       if (!prev?.cells) return prev;
-      const idx = prev.cells.findIndex((c) => (c as any).id === cellId);
+      const idx = prev.cells.findIndex((c) => c.id === cellId);
       if (idx === -1) return prev;
       const cells = [...prev.cells];
       cells[idx] = { ...cells[idx], source } as NbCell;
@@ -1390,7 +1388,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
       if (tags.includes("hide-cell")) return;
 
       if (cell.cell_type === "markdown") {
-        const html = previewHtmls[(cell as any).id] || "";
+        const html = previewHtmls[cell.id!] || "";
         bodyHtml += `<div class="markdown-cell" style="margin-bottom:1.5rem">${html}</div>`;
       } else if (cell.cell_type === "code") {
         const sourceStr = joinSource(cell.source);
@@ -1636,7 +1634,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
           <div className="flex items-center gap-2">
             <select
               value={previewTemplate}
-              onChange={(e) => setPreviewTemplate(e.target.value as any)}
+              onChange={(e) => setPreviewTemplate(e.target.value as "default" | "substack" | "medium" | "markdown")}
               className="h-7 rounded-md border border-border bg-white dark:bg-slate-900 text-foreground px-2 py-0.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500/30"
             >
               <option value="default">Default / Clean</option>
@@ -1746,12 +1744,12 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
                   onDragEnd={handleDragEnd}
                 >
                   <SortableContext
-                    items={notebook.cells?.map((c) => (c as any).id) || []}
+                    items={notebook.cells?.map((c) => c.id!) || []}
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="space-y-1">
                       {notebook.cells?.map((cell) => {
-                        const cellId = (cell as any).id;
+                        const cellId = cell.id!;
                         const showDragHandle = viewMode === "editor";
                         
                         return (
@@ -1852,10 +1850,10 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
                 style={viewMode === "split" ? { width: `${100 - split.leftPct}%`, flex: "none" } : undefined}
               >
                 {/* Platform container styled by preview-styles.css */}
-                <div className={`preview-container preview-${previewTemplate} w-full max-w-full shadow-sm rounded-lg border border-border h-fit overflow-x-auto overflow-y-hidden flex-shrink-0`}>
+                <div className={`preview-container preview-${previewTemplate} w-full max-w-full shadow-sm rounded-lg border border-border h-fit overflow-x-auto overflow-y-hidden shrink-0`}>
                   {notebook.cells && notebook.cells.length > 0 ? (
                     notebook.cells.map((cell) => {
-                      const cellId = (cell as any).id;
+                      const cellId = cell.id!;
                       const tags = (cell.metadata?.tags as string[]) || [];
 
                       // 1. Check if cell is globally or cell-level hidden
