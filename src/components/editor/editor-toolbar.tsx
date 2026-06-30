@@ -39,6 +39,7 @@ import {
   UnfoldHorizontal,
   FileCode,
   Eye,
+  SquarePen,
 } from "lucide-react";
 import { useEditorStore } from "@/stores/editor-store";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -50,6 +51,7 @@ import { LinkPopover } from "./link-popover";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/i18n/use-locale";
 import { DirIcon } from "@/components/ui/dir-icon";
+import { Button } from "@/components/ui/button";
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -97,7 +99,8 @@ type PopoverKind =
   | { type: "highlight"; anchor: Anchor; range: { from: number; to: number } }
   | { type: "link"; anchor: Anchor; range: { from: number; to: number }; existing: string }
   | { type: "media"; kind: MediaKind; anchor: Anchor }
-  | { type: "embed"; anchor: Anchor };
+  | { type: "embed"; anchor: Anchor }
+  | { type: "annotate"; anchor: Anchor; range: { from: number; to: number }; existingNote: string; existingTags: string };
 
 interface ToolButtonProps {
   label: string;
@@ -172,6 +175,92 @@ export function EditorToolbar({
     };
   }, [editor]);
 
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleOpenAnnotateClick = (e: Event) => {
+      const customEvent = e as CustomEvent<{ pos: number }>;
+      const pos = customEvent.detail.pos;
+      if (typeof pos !== "number") return;
+
+      const target = customEvent.target as HTMLElement | null;
+      if (!target) return;
+
+      let from = pos;
+      let to = pos;
+      const $pos = editor.state.doc.resolve(pos);
+      const hasHighlight = $pos.marks().some((m) => m.type.name === "highlight");
+
+      if (hasHighlight) {
+        let start = pos;
+        while (
+          start > 0 &&
+          editor.state.doc.resolve(start - 1).marks().some((m) => m.type.name === "highlight")
+        ) {
+          start--;
+        }
+        let end = pos;
+        while (
+          end < editor.state.doc.nodeSize &&
+          editor.state.doc.resolve(end).marks().some((m) => m.type.name === "highlight")
+        ) {
+          end++;
+        }
+        from = start;
+        to = end;
+      } else {
+        const $prev = editor.state.doc.resolve(pos - 1);
+        const hasPrevHighlight = $prev.marks().some((m) => m.type.name === "highlight");
+        if (hasPrevHighlight) {
+          let start = pos - 1;
+          while (
+            start > 0 &&
+            editor.state.doc.resolve(start - 1).marks().some((m) => m.type.name === "highlight")
+          ) {
+            start--;
+          }
+          const end = pos;
+          from = start;
+          to = end;
+        }
+      }
+
+      // Move selection to highlight range
+      editor.chain().focus().setTextSelection({ from, to }).run();
+
+      const attrs = editor.getAttributes("highlight");
+      const existingNote = attrs["data-note"] ?? "";
+      const rawTags = attrs["data-tags"] ?? "";
+      const existingTags = rawTags
+        ? rawTags
+            .split(/[\s,]+/)
+            .map((t: string) => (t.startsWith("#") ? t.slice(1) : t))
+            .filter(Boolean)
+            .join(", ")
+        : "";
+
+      // Position the popover relative to the clicked widget container element
+      const rect = target.getBoundingClientRect();
+      const anchor: Anchor = isUiRtl
+        ? { top: rect.bottom + 6, right: window.innerWidth - rect.right }
+        : { top: rect.bottom + 6, left: rect.left };
+
+      setPopover({
+        type: "annotate",
+        anchor,
+        range: { from, to },
+        existingNote,
+        existingTags,
+      });
+    };
+
+    const dom = editor.view.dom;
+    dom.addEventListener("open-annotate-click", handleOpenAnnotateClick);
+    return () => {
+      dom.removeEventListener("open-annotate-click", handleOpenAnnotateClick);
+    };
+  }, [editor, isUiRtl]);
+
   const updateScrollState = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -241,6 +330,71 @@ export function EditorToolbar({
       : { top: btn.bottom + 6, left: btn.left };
     const range = captureRange();
     setPopover(build(anchor, range));
+  };
+
+  const cleanTagsInput = (val: string): string => {
+    return val
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .map((t) => t.startsWith("#") ? t.slice(1) : t)
+      .filter(Boolean)
+      .join(" ");
+  };
+
+  const handleAnnotateClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const isHighlight = editor.isActive("highlight");
+    const attrs = isHighlight ? editor.getAttributes("highlight") : {};
+    const existingNote = attrs["data-note"] ?? "";
+    const rawTags = attrs["data-tags"] ?? "";
+    
+    const existingTags = rawTags
+      ? rawTags
+          .split(/[\s,]+/)
+          .map((t: string) => t.startsWith("#") ? t.slice(1) : t)
+          .filter(Boolean)
+          .join(", ")
+      : "";
+
+    openPopoverFromButton(e, (anchor, range) => ({
+      type: "annotate",
+      anchor,
+      range,
+      existingNote,
+      existingTags,
+    }));
+  };
+
+  const applyAnnotation = (note: string, tagsInput: string) => {
+    if (popover?.type !== "annotate") return;
+
+    const cleanedNote = note.trim();
+    const cleanedTags = cleanTagsInput(tagsInput);
+
+    applyToRange(popover.range, () => {
+      const isHighlight = editor.isActive("highlight");
+      
+      if (isHighlight) {
+        const currentAttrs = editor.getAttributes("highlight");
+        editor.chain().focus().setMark("highlight", {
+          ...currentAttrs,
+          "data-note": cleanedNote || null,
+          "data-tags": cleanedTags || null,
+        }).run();
+      } else {
+        const { from, to } = popover.range;
+        if (from === to) {
+          editor.chain().focus().insertContent(`<mark data-note="${cleanedNote}" data-tags="${cleanedTags}"> </mark>`).run();
+        } else {
+          editor.chain().focus().setMark("highlight", {
+            color: null,
+            "data-note": cleanedNote || null,
+            "data-tags": cleanedTags || null,
+          }).run();
+        }
+      }
+    });
+
+    setPopover(null);
   };
 
   const toggleLink = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -357,6 +511,12 @@ export function EditorToolbar({
       isActive: currentHighlight != null || editor.isActive("highlight"),
       label: t("editor:toolbar.highlight"),
       style: currentHighlight ? { backgroundColor: currentHighlight } : undefined,
+    },
+    {
+      icon: SquarePen,
+      action: (e) => handleAnnotateClick(e),
+      isActive: editor.isActive("highlight") && (!!editor.getAttributes("highlight")["data-note"] || !!editor.getAttributes("highlight")["data-tags"]),
+      label: "Annotate",
     },
     { separator: true },
     { icon: List, action: () => editor.chain().focus().toggleBulletList().run(), isActive: editor.isActive("bulletList"), label: t("editor:toolbar.bulletList") },
@@ -600,6 +760,20 @@ export function EditorToolbar({
         </div>
       )}
 
+      {popover?.type === "annotate" && (
+        <div
+          data-editor-popover="true"
+          style={{ position: "fixed", top: popover.anchor.top, left: popover.anchor.left, right: popover.anchor.right, zIndex: 60 }}
+        >
+          <AnnotatePopover
+            initialNote={popover.existingNote}
+            initialTags={popover.existingTags}
+            onSave={applyAnnotation}
+            onCancel={() => setPopover(null)}
+          />
+        </div>
+      )}
+
       {popover && <ClickOutsideClose onClose={() => setPopover(null)} />}
     </>
   );
@@ -629,4 +803,67 @@ function ClickOutsideClose({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
   return null;
+}
+
+interface AnnotatePopoverProps {
+  initialNote: string;
+  initialTags: string;
+  onSave: (note: string, tags: string) => void;
+  onCancel: () => void;
+}
+
+function AnnotatePopover({
+  initialNote,
+  initialTags,
+  onSave,
+  onCancel,
+}: AnnotatePopoverProps) {
+  const [note, setNote] = useState(initialNote);
+  const [tags, setTags] = useState(initialTags);
+
+  return (
+    <div
+      className="bg-popover border border-border rounded-lg shadow-xl p-4 flex flex-col justify-between"
+      style={{ width: "400px", height: "400px" }}
+    >
+      <div className="flex-1 flex flex-col space-y-4">
+        {/* Note Textarea */}
+        <div className="flex flex-col space-y-1.5 flex-1 min-h-0">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Note:
+          </label>
+          <textarea
+            className="flex-1 w-full rounded-md border border-border bg-transparent p-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Write your note here..."
+          />
+        </div>
+
+        {/* Tags Input */}
+        <div className="flex flex-col space-y-1.5">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Tags:
+          </label>
+          <input
+            type="text"
+            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="comma-separated tags..."
+          />
+        </div>
+      </div>
+
+      {/* Buttons */}
+      <div className="flex justify-end gap-2 pt-3 border-t border-border mt-3 shrink-0">
+        <Button variant="ghost" onClick={onCancel} className="cursor-pointer">
+          Cancel
+        </Button>
+        <Button onClick={() => onSave(note, tags)} className="cursor-pointer">
+          Save
+        </Button>
+      </div>
+    </div>
+  );
 }

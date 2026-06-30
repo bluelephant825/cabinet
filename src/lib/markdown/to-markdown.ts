@@ -99,6 +99,21 @@ turndown.addRule("wikiLink", {
   },
 });
 
+// Completely drop inline annotation tags/icons during HTML-to-markdown serialization
+turndown.addRule("ignoreAnnotationTag", {
+  filter: (node) =>
+    node.nodeName === "SPAN" &&
+    (node as HTMLElement).classList.contains("inline-annotation-tag"),
+  replacement: () => "",
+});
+
+turndown.addRule("ignoreAnnotationIcon", {
+  filter: (node) =>
+    node.nodeName === "SPAN" &&
+    (node as HTMLElement).classList.contains("inline-annotation-icon"),
+  replacement: () => "",
+});
+
 // Preserve inline styled spans (text color, background color, font weight, etc.)
 // so colors and highlights survive markdown roundtrip.
 turndown.addRule("styledSpan", {

@@ -311,6 +311,48 @@ function transformMystRoles(markdown: string): string {
   );
 }
 
+function decorateHighlights(html: string): string {
+  return html.replace(/<mark\b([^>]*?)>([\s\S]*?)<\/mark>/gi, (match, attrs, content) => {
+    const noteMatch = attrs.match(/data-note=["']([^"']+)["']/i);
+    const hasNote = !!noteMatch;
+    
+    const tagsMatch = attrs.match(/data-tags=["']([^"']+)["']/i);
+    const tagsVal = tagsMatch ? tagsMatch[1] : null;
+    const tagsList = tagsVal
+      ? Array.from(
+          new Set(
+            tagsVal
+              .split(/[\s,]+/)
+              .map((t: string) => t.trim())
+              .map((t: string) => (t.startsWith("#") ? t.slice(1) : t))
+              .filter(Boolean)
+          )
+        )
+      : [];
+    
+    if (!hasNote && tagsList.length === 0) {
+      return match;
+    }
+    
+    let suffix = "";
+    if (hasNote) {
+      suffix += `<span class="inline-annotation-icon" style="display: inline-flex; align-items: center; margin-left: 4px; vertical-align: middle;">` +
+        `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: currentColor; opacity: 0.85;">` +
+        `<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>` +
+        `<path d="M18 3a4 4 0 0 1 4 4v1"></path>` +
+        `<path d="M16 3v5a1 1 0 0 0 1 1h5"></path>` +
+        `</svg></span>`;
+    }
+    
+    for (const tag of tagsList) {
+      suffix += `<span class="inline-annotation-tag" style="display: inline-flex; align-items: center; background-color: rgba(139, 94, 60, 0.1); color: rgb(139, 94, 60); font-size: 10px; font-weight: 500; border-radius: 4px; padding: 1px 4px; margin-left: 4px; vertical-align: middle;">${tag}</span>`;
+    }
+    
+    return `<mark${attrs}>${content}</mark>${suffix}`;
+  });
+}
+
+
 // Unified's plugin resolution + processor freeze runs on every `unified()`
 // call. Reuse a single frozen pipeline across every page render so
 // navigation doesn't pay that cost on the hot path.
@@ -364,6 +406,9 @@ export async function markdownToHtml(markdown: string, pagePath?: string): Promi
   if (pagePath) {
     html = resolveRelativeUrls(html, pagePath);
   }
+
+  // Decorate highlight marks with inline annotations and tags
+  html = decorateHighlights(html);
 
   return html;
 }
