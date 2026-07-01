@@ -251,8 +251,8 @@ export function KBEditor() {
       // open) must not mark the page dirty with the empty loading state.
       if (useEditorStore.getState().loadStatus !== "ok") return;
       const html = editor.getHTML();
-      const md = htmlToMarkdown(html);
       const store = useEditorStore.getState();
+      const md = htmlToMarkdown(html, store.currentPath, store.assetBase);
 
       // If content hasn't changed, do not trigger store updates or dirty flags
       if (md === store.content) return;

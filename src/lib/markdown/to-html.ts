@@ -410,5 +410,8 @@ export async function markdownToHtml(markdown: string, pagePath?: string): Promi
   // Decorate highlight marks with inline annotations and tags
   html = decorateHighlights(html);
 
+  // Strip the trailing newline from code blocks that rehype/unified automatically appends
+  html = html.replace(/<pre\b([^>]*)><code\b([^>]*)>([\s\S]*?)\n<\/code><\/pre>/gi, "<pre$1><code$2>$3</code></pre>");
+
   return html;
 }

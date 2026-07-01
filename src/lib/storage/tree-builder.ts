@@ -41,6 +41,8 @@ const AUDIO_EXTENSIONS = new Set([
 
 const MERMAID_EXTENSIONS = new Set([".mermaid", ".mmd"]);
 
+const DRAWIO_EXTENSIONS = new Set([".drawio", ".dio"]);
+
 const LATEX_EXTENSIONS = new Set([".tex", ".latex"]);
 
 const TYPST_EXTENSIONS = new Set([".typ"]);
@@ -77,6 +79,7 @@ function classifyFile(ext: string): TreeNode["type"] | null {
   if (VIDEO_EXTENSIONS.has(ext)) return "video";
   if (AUDIO_EXTENSIONS.has(ext)) return "audio";
   if (MERMAID_EXTENSIONS.has(ext)) return "mermaid";
+  if (DRAWIO_EXTENSIONS.has(ext)) return "drawio";
   if (LATEX_EXTENSIONS.has(ext)) return "latex";
   if (TYPST_EXTENSIONS.has(ext)) return "typst";
   if (DOCX_EXTENSIONS.has(ext)) return "docx";
@@ -291,6 +294,27 @@ async function buildTreeRecursive(
         knowledgePolicy: inheritedPolicy,
         frontmatter: {
           title: entry.name.replace(/\.csv$/i, ""),
+          order: sidecarOrders[entry.name],
+        },
+      });
+    } else if (
+      entry.name.toLowerCase().endsWith(".drawio.svg") ||
+      entry.name.toLowerCase().endsWith(".drawio") ||
+      entry.name.toLowerCase().endsWith(".dio")
+    ) {
+      const lowerName = entry.name.toLowerCase();
+      const title = lowerName.endsWith(".drawio.svg")
+        ? entry.name.slice(0, -11)
+        : lowerName.endsWith(".drawio")
+        ? entry.name.slice(0, -7)
+        : entry.name.slice(0, -4);
+      nodes.push({
+        name: entry.name,
+        path: vPath,
+        type: "drawio",
+        knowledgePolicy: inheritedPolicy,
+        frontmatter: {
+          title,
           order: sidecarOrders[entry.name],
         },
       });

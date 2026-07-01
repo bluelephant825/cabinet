@@ -35,6 +35,8 @@ const MIME_TYPES: Record<string, string> = {
   ".csv": "text/plain",
   ".json": "application/json",
   ".xml": "application/xml",
+  ".drawio": "application/xml",
+  ".dio": "application/xml",
   ".yaml": "text/yaml",
   ".yml": "text/yaml",
   ".tex": "text/x-tex",
@@ -191,6 +193,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const NO_CACHE_EXTS = new Set([
       ".html", ".tex", ".csv", ".md", ".markdown", ".txt",
       ".json", ".xml", ".yaml", ".yml", ".ipynb", ".typ",
+      ".svg", ".drawio", ".dio",
     ]);
     const cacheControl = NO_CACHE_EXTS.has(ext)
       ? "no-cache, must-revalidate"

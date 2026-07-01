@@ -175,6 +175,7 @@ export function AppShell() {
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setAiPanelCollapsed = useAppStore((s) => s.setAiPanelCollapsed);
   const setTaskPanelConversation = useAppStore((s) => s.setTaskPanelConversation);
+  const browseUrl = useAppStore((s) => s.browseUrl);
   const {
     update,
     refreshing: updateRefreshing,
@@ -739,6 +740,7 @@ export function AppShell() {
         if (lower.endsWith(".pptx")) return "pptx";
         if (lower.endsWith(".ipynb")) return "notebook";
         if (lower.endsWith(".mmd") || lower.endsWith(".mermaid")) return "mermaid";
+        if (lower.endsWith(".drawio") || lower.endsWith(".dio") || lower.endsWith(".drawio.svg")) return "drawio";
         if (lower.endsWith(".tex") || lower.endsWith(".latex")) return "latex";
         if (lower.endsWith(".typ")) return "typst";
         if (/\.(png|jpe?g|gif|webp|svg|bmp)$/.test(lower)) return "image";
@@ -762,6 +764,7 @@ export function AppShell() {
   const isVideo = nodeType === "video";
   const isAudio = nodeType === "audio";
   const isMermaid = nodeType === "mermaid";
+  const isDrawio = nodeType === "drawio";
   const isLatex = nodeType === "latex";
   const isTypst = nodeType === "typst";
   const isDocx = nodeType === "docx";
@@ -790,6 +793,54 @@ export function AppShell() {
     }
     prevIsApp.current = !!isApp;
   }, [isApp, setSidebarCollapsed, setAiPanelCollapsed]);
+
+  useEffect(() => {
+    if (isDrawio && (selectedNode || selectedPath)) {
+      const path = selectedNode?.path || selectedPath!;
+      const targetUrl = `${window.location.origin}/drawio/editor.html?path=${path}`;
+      if (browseUrl !== targetUrl) {
+        setAppMode("browse", targetUrl);
+      }
+    }
+  }, [isDrawio, selectedNode, selectedPath, browseUrl, setAppMode]);
+
+  useEffect(() => {
+    const handleExit = () => {
+      setAppMode("edit");
+      
+      // If the selected path itself is a drawio diagram, deselect it to parent
+      // directory to prevent redirect loop
+      const currentPath = useTreeStore.getState().selectedPath;
+      if (currentPath && (
+        currentPath.toLowerCase().endsWith(".drawio.svg") ||
+        currentPath.toLowerCase().endsWith(".drawio") ||
+        currentPath.toLowerCase().endsWith(".dio")
+      )) {
+        const lastSlash = currentPath.lastIndexOf("/");
+        const parentPath = lastSlash > 0 ? currentPath.slice(0, lastSlash) : null;
+        useTreeStore.getState().selectPage(parentPath);
+      }
+    };
+
+    const handleDrawioMessage = (event: MessageEvent) => {
+      if (event.data?.type === "drawio-saved") {
+        handleExit();
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "cabinet.drawio.last_saved_path") {
+        handleExit();
+      }
+    };
+
+    window.addEventListener("message", handleDrawioMessage);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("message", handleDrawioMessage);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [setAppMode]);
 
   const handleExitApp = () => {
     setSidebarCollapsed(false);
@@ -974,6 +1025,14 @@ export function AppShell() {
       const mmdPath = selectedNode?.path || selectedPath!;
       const mmdTitle = selectedNode?.frontmatter?.title || selectedNode?.name || mmdPath.split("/").pop() || "Diagram";
       return <MermaidViewer path={mmdPath} title={mmdTitle} />;
+    }
+
+    if (isDrawio && (selectedNode || selectedPath)) {
+      return (
+        <div className="flex-1 flex items-center justify-center bg-background">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      );
     }
 
     if (isLatex && (selectedNode || selectedPath)) {

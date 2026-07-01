@@ -358,6 +358,38 @@ turndown.addRule("latexEmbed", {
   },
 });
 
-export function htmlToMarkdown(html: string): string {
-  return turndown.turndown(html);
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function htmlToMarkdown(html: string, pagePath?: string | null, assetBase?: string | null): string {
+  let md = turndown.turndown(html);
+  const base = assetBase || pagePath;
+  if (base) {
+    const escapedBase = base.split("/").map(encodeURIComponent).join("/");
+    const p1 = escapeRegExp(base);
+    const p2 = escapeRegExp(escapedBase);
+
+    // Replace "/api/assets/base/filename" with "./filename"
+    // 1. Markdown image syntax: ![alt](/api/assets/path/file.ext)
+    const markdownImgRegex = new RegExp(`!\\\[(.*?)\\\]\\(/api/assets/(?:${p1}|${p2})/([^)]+)\\)`, "g");
+    md = md.replace(markdownImgRegex, "![$1](./$2)");
+
+    // 2. Markdown link syntax: [text](/api/assets/path/file.ext)
+    const markdownLinkRegex = new RegExp(`\\\[(.*?)\\\]\\(/api/assets/(?:${p1}|${p2})/([^)]+)\\)`, "g");
+    md = md.replace(markdownLinkRegex, "[$1](./$2)");
+
+    // 3. HTML src attribute: src="/api/assets/path/file.ext"
+    const srcRegex = new RegExp(`src="/api/assets/(?:${p1}|${p2})/([^"]+)"`, "g");
+    md = md.replace(srcRegex, `src="./$1"`);
+
+    // 4. HTML data-src attribute: data-src="/api/assets/path/file.ext"
+    const dataSrcRegex = new RegExp(`data-src="/api/assets/(?:${p1}|${p2})/([^"]+)"`, "g");
+    md = md.replace(dataSrcRegex, `data-src="./$1"`);
+
+    // 5. HTML href attribute: href="/api/assets/path/file.ext"
+    const hrefRegex = new RegExp(`href="/api/assets/(?:${p1}|${p2})/([^"]+)"`, "g");
+    md = md.replace(hrefRegex, `href="./$1"`);
+  }
+  return md;
 }

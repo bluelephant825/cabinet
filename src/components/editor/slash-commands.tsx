@@ -27,11 +27,13 @@ import {
   PieChart as PieChartIcon,
   Zap,
   FileText,
+  Workflow,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { Editor } from "@tiptap/react";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
+import { useAppStore } from "@/stores/app-store";
 import { useLocale } from "@/i18n/use-locale";
 import { MediaPopover, type MediaKind } from "./media-popover";
 import { EmbedPopover } from "./embed-popover";
@@ -178,6 +180,41 @@ const commands: SlashCommand[] = [
       editor.chain().focus().insertLatexEmbed({ path: path.trim() }).run();
     } else {
       editor.chain().focus().run();
+    }
+  } } },
+  { label: "Draw.io Diagram", icon: Workflow, description: "Insert and edit a local offline diagram", category: "advanced", action: { type: "direct", run: async (editor) => {
+    const defaultName = `diagram-${Date.now()}`;
+    const name = typeof window !== "undefined" ? window.prompt("Enter a name for the new diagram:", defaultName) : null;
+    if (name === null) return;
+    
+    const sanitized = (name.trim() || defaultName).replace(/[^a-zA-Z0-9_-]/g, "-");
+    const filename = `${sanitized}.drawio.svg`;
+    const pagePath = useEditorStore.getState().currentPath;
+    if (!pagePath) return;
+
+    const blankSvgContent = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="200px" height="120px" viewBox="0 0 200 120" content="&lt;mxfile host=&quot;Embed&quot; modified=&quot;2026-07-01T09:00:00.000Z&quot; agent=&quot;Cabinet&quot; version=&quot;21.6.8&quot; type=&quot;embed&quot;&gt;&lt;diagram id=&quot;blank&quot; name=&quot;Page-1&quot;&gt;&lt;mxGraphModel dx=&quot;1&quot; dy=&quot;1&quot; grid=&quot;1&quot; gridSize=&quot;10&quot; guides=&quot;1&quot; tooltips=&quot;1&quot; connect=&quot;1&quot; arrows=&quot;1&quot; fold=&quot;1&quot; page=&quot;1&quot; pageScale=&quot;1&quot; pageWidth=&quot;827&quot; pageHeight=&quot;1169&quot; math=&quot;0&quot; shadow=&quot;0&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;&lt;/diagram&gt;&lt;/mxfile&gt;"><rect width="198" height="118" x="1" y="1" fill="#fcfcfc" stroke="#dddddd" stroke-width="2" stroke-dasharray="5,5" rx="5"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="12" fill="#888888">Empty Diagram</text><g/></svg>`;
+
+    try {
+      const assetUrl = `/api/assets/${pagePath}/${filename}`;
+      const res = await fetch(assetUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "image/svg+xml" },
+        body: blankSvgContent
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      // Insert standard resizable image in the editor (uses relative ./ path)
+      const imageUrl = `/api/assets/${pagePath}/${filename}`;
+      editor.chain().focus().setImage({ src: imageUrl, alt: sanitized }).run();
+
+      // Launch the diagram in the built-in browser
+      const editorUrl = `${window.location.origin}/drawio/editor.html?path=${pagePath}/${filename}`;
+      useAppStore.getState().setAppMode("browse", editorUrl);
+    } catch (err) {
+      console.error("Failed to create Draw.io diagram:", err);
+      if (typeof window !== "undefined") {
+        window.alert(`Error creating diagram: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   } } },
 ];
