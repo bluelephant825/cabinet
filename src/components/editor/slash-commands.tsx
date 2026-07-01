@@ -18,6 +18,7 @@ import {
   Video,
   Sparkles,
   File,
+  FileText,
   Sigma,
   Smile,
   Type,
@@ -26,7 +27,6 @@ import {
   LineChart as LineChartIcon,
   PieChart as PieChartIcon,
   Zap,
-  FileText,
   Workflow,
 } from "lucide-react";
 import dynamic from "next/dynamic";

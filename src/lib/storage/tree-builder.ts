@@ -46,7 +46,6 @@ const DRAWIO_EXTENSIONS = new Set([".drawio", ".dio"]);
 const LATEX_EXTENSIONS = new Set([".tex", ".latex"]);
 
 const TYPST_EXTENSIONS = new Set([".typ"]);
-
 // Office types that Cabinet can render inline.
 const DOCX_EXTENSIONS = new Set([".docx"]);
 const XLSX_EXTENSIONS = new Set([".xlsx", ".xlsm"]);

@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { contextBridge, ipcRenderer } = require("electron");
 
+// Fan-out registries for browse-mode events pushed from the main process
+// (electron/browser-views.cjs). The renderer subscribes via the bridge's
+// onBrowserView* methods, which return an unsubscribe function.
 const browserViewNavigateListeners = new Set();
 const browserViewLoadFailedListeners = new Set();
 const extensionInstalledListeners = new Set();
@@ -37,10 +40,12 @@ function normalizeBridgeUrl(value) {
 contextBridge.exposeInMainWorld("CabinetDesktop", {
   runtime: "electron",
   platform: process.platform,
-  openLocalFile: (filePath) => ipcRenderer.invoke("cabinet:open-local-file", { path: filePath }),
+  // --- In-app browser ("browse mode") backed by a native WebContentsView ---
   createBrowserView: async (url) => {
     try {
-      return await ipcRenderer.invoke("cabinet:create-browser-view", { url: normalizeBridgeUrl(url) });
+      return await ipcRenderer.invoke("cabinet:create-browser-view", {
+        url: normalizeBridgeUrl(url),
+      });
     } catch {
       return { ok: false, error: "invoke-failed" };
     }
@@ -67,6 +72,8 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
     ipcRenderer.invoke("cabinet:browser-view-reload", { viewId }),
   showBrowserBookmarksMenu: (payload) =>
     ipcRenderer.invoke("cabinet:show-browser-bookmarks-menu", payload),
+  destroyBrowserView: (viewId) =>
+    ipcRenderer.invoke("cabinet:destroy-browser-view", { viewId }),
   onBrowserViewNavigated: (listener) => {
     if (typeof listener !== "function") return () => {};
     browserViewNavigateListeners.add(listener);
@@ -81,8 +88,6 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
       browserViewLoadFailedListeners.delete(listener);
     };
   },
-  destroyBrowserView: (viewId) =>
-    ipcRenderer.invoke("cabinet:destroy-browser-view", { viewId }),
   /**
    * Trigger the in-app macOS uninstall flow. Returns
    * `{ ok: true, dataPath }` on success — the renderer should show a
@@ -95,6 +100,17 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
    * cabinet's content root. Called after switching cabinets via PATCH /api/cabinets.
    */
   relaunch: () => ipcRenderer.invoke("cabinet:relaunch"),
+  /**
+   * Open a local file with the OS default application. Used for file://
+   * links clicked in the editor (e.g. open a PDF in Preview).
+   */
+  openLocalFile: (filePath) => ipcRenderer.invoke("cabinet:open-local-file", { path: filePath }),
+  /**
+   * Open an http(s) URL in the user's SYSTEM default browser (never the in-app
+   * browse view). Used for OAuth sign-in, where the embedded browser lacks the
+   * user's provider session and some providers block webviews.
+   */
+  openExternal: (url) => ipcRenderer.invoke("cabinet:open-external", { url }),
   /**
    * The OS keyboard / input languages, most-preferred first, plus the
    * Electron app + system locale. Used on the first onboarding screen to

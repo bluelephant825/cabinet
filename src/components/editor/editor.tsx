@@ -243,6 +243,14 @@ export function KBEditor() {
     setFolderTab("page");
   }, [currentPath]);
 
+  // Guards against a freshly-mounted (content: "") editor autosaving its empty
+  // initial state over a real page. Stays false until the content effect has
+  // populated this editor instance at least once. Critical when leaving browse
+  // mode: that unmounts/remounts KBEditor while the store is already
+  // loadStatus "ok", so the loadStatus guard below wouldn't catch the spurious
+  // empty onUpdate the way it does on a cold app start.
+  const hasPopulatedRef = useRef(false);
+
   const handleUpdate = useCallback(
     ({ editor }: { editor: ReturnType<typeof useEditor> }) => {
       if (isLoadingRef.current || !editor) return;
@@ -250,6 +258,9 @@ export function KBEditor() {
       // fetch is in flight (e.g. editor mount/normalization on a fresh
       // open) must not mark the page dirty with the empty loading state.
       if (useEditorStore.getState().loadStatus !== "ok") return;
+      // Ignore updates before this editor instance has been populated once —
+      // the initial empty-doc transaction must never overwrite stored content.
+      if (!hasPopulatedRef.current) return;
       const html = editor.getHTML();
       const store = useEditorStore.getState();
       const md = htmlToMarkdown(html, store.currentPath, store.assetBase);
@@ -345,9 +356,10 @@ export function KBEditor() {
             return true;
           }
 
-          // Internal links: relative paths to .md files or other KB pages
-          // Skip API asset links (PDFs, images); open external URLs in built-in browser.
+          // Skip API asset links (PDFs, images); they load directly.
           if (href.startsWith("/api/")) return false;
+
+          // External links: open in the built-in browser.
           if (/^https?:\/\//.test(href) || href.startsWith("//")) {
             event.preventDefault();
             event.stopPropagation();
@@ -575,6 +587,9 @@ export function KBEditor() {
         const fm = useEditorStore.getState().frontmatter;
         const propsHtml = fm ? buildDocumentPropertiesHtml(fm) : "";
         editor.commands.setContent(propsHtml + (html || "<p></p>"));
+        // This editor instance now reflects stored content, so user-driven
+        // onUpdate transactions are safe to persist (see hasPopulatedRef).
+        hasPopulatedRef.current = true;
         setRendered({ key, path: currentPath });
         // Surface a known-bad state instead of silently rendering blank: the
         // store has content but ProseMirror parsed it down to nothing —

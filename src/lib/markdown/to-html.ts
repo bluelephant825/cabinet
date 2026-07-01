@@ -48,20 +48,6 @@ function transformLiveCodeBlocks(markdown: string): string {
 }
 
 /**
- * Pre-process markdown to convert ![[file.tex]] embeds into
- * <div data-latex-embed> markers before the remark pipeline.
- * Only matches .tex files so wiki-link-style image embeds for other
- * types are unaffected.
- */
-function convertLatexEmbeds(markdown: string): string {
-  return markdown.replace(
-    /!\[\[([^\]]+\.tex)\]\]/g,
-    (_match, path: string) =>
-      `<div data-latex-embed="true" data-path="${path}"></div>`
-  );
-}
-
-/**
  * Pre-process markdown to convert dollar-delimited math expressions into
  * <span data-type="inlineMath"> HTML markers that the Tiptap math extension
  * can parse when loaded via setContent().
@@ -109,6 +95,28 @@ function encodeFileUrls(markdown: string): string {
   return markdown.replace(
     /\]\((file:\/\/[^)]+)\)/g,
     (_match, url: string) => `](${url.replace(/ /g, "%20")})`
+  );
+}
+
+/**
+ * Pre-process markdown to convert ![[file.tex]] embeds into
+ * <div data-latex-embed> markers before the remark pipeline.
+ * Only matches .tex files so wiki-link-style image embeds for other
+ * types are unaffected.
+ */
+function convertLatexEmbeds(markdown: string): string {
+  return markdown.replace(
+    /!\[\[([^\]]+\.(?:tex|latex))\]\]/gi,
+    (_match, path: string) => {
+      // Escape the path before it lands in the data-path attribute so a name
+      // containing `"`, `<`, `>` or `&` can't break out and inject markup.
+      const safePath = path
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return `<div data-latex-embed="true" data-path="${safePath}"></div>`;
+    }
   );
 }
 
@@ -373,7 +381,6 @@ export async function markdownToHtml(markdown: string, pagePath?: string): Promi
   // <div data-mdx-component> markers before remark sees them — otherwise the
   // Markdown parser mangles the JSX into broken paragraphs.
   const withMdx = transformMdxToHtml(withLiveCode);
-  // Pre-process wiki-links before remark (which would treat [[ as text)
   // Encode spaces in file:// link URLs before remark (which terminates
   // bare URLs at whitespace)
   const withFileUrls = encodeFileUrls(withMdx);

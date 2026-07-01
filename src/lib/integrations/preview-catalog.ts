@@ -18,8 +18,9 @@ import { MCP_CATALOG, type CatalogSetupStep } from "@/lib/agents/mcp-catalog";
 
 export type IntegrationCategory =
   | "communication"
+  | "social"
   | "productivity"
-  | "storage"
+  | "knowledge"
   | "development"
   | "crm"
   | "finance"
@@ -32,6 +33,8 @@ export interface IntegrationItem {
   id: string;
   name: string;
   category: IntegrationCategory;
+  /** Restrict to a platform — undefined means show everywhere. */
+  platform?: "macos";
   /** Absolute public path to the brand logo. */
   logo: string;
   /** One-line, outcome-focused: what an agent does with it. */
@@ -67,13 +70,14 @@ export const CATEGORY_META: Record<
 > = {
   communication: { label: "Communication", order: 0 },
   productivity: { label: "Productivity", order: 1 },
-  storage: { label: "Files & Storage", order: 2 },
-  development: { label: "Development", order: 3 },
-  crm: { label: "Sales & Support", order: 4 },
-  finance: { label: "Finance & Legal", order: 5 },
-  data: { label: "Data & Analytics", order: 6 },
-  hr: { label: "People & HR", order: 7 },
-  automation: { label: "Automation & AI", order: 8 },
+  knowledge: { label: "Knowledge", order: 2 },
+  social: { label: "Social", order: 3 },
+  development: { label: "Development", order: 4 },
+  crm: { label: "Sales & Support", order: 5 },
+  finance: { label: "Finance & Legal", order: 6 },
+  data: { label: "Data & Analytics", order: 7 },
+  hr: { label: "People & HR", order: 8 },
+  automation: { label: "Automation & AI", order: 9 },
 };
 
 export const CATEGORY_ORDER: IntegrationCategory[] = (
@@ -134,15 +138,128 @@ const RAW_INTEGRATIONS: IntegrationItem[] = [
     implemented: false,
     actions: ["Fetch meeting transcripts", "Summarise calls", "Track action items"],
   },
+
+  // ── Social ──────────────────────────────────────────────────────
   {
-    id: "google-meet",
-    name: "Google Meet",
-    category: "communication",
-    logo: L("google-meet.svg"),
-    blurb: "Capture meeting notes and recaps automatically.",
-    brand: "#00897b",
+    id: "tiktok",
+    name: "TikTok",
+    category: "social",
+    logo: L("tiktok.svg"),
+    blurb: "Track videos, trends, and engagement on your account.",
+    brand: "#010101",
     implemented: false,
-    actions: ["Fetch recordings", "Summarise meetings", "Extract decisions"],
+    actions: ["Read post performance", "Track trends & hashtags", "Summarise comments"],
+  },
+  {
+    id: "instagram",
+    name: "Instagram",
+    category: "social",
+    logo: L("instagram.svg"),
+    blurb: "Read posts, comments, and DMs — and draft replies.",
+    brand: "#E4405F",
+    implemented: false,
+    actions: ["Read posts & insights", "Triage comments & DMs", "Draft replies"],
+  },
+  {
+    id: "facebook",
+    name: "Facebook",
+    category: "social",
+    logo: L("facebook.svg"),
+    blurb: "Manage Pages, posts, and audience engagement.",
+    brand: "#1877F2",
+    implemented: false,
+    actions: ["Read Page insights", "Summarise comments", "Draft posts & replies"],
+  },
+  {
+    id: "x",
+    name: "X",
+    category: "social",
+    logo: L("x.svg"),
+    blurb: "Monitor mentions, search posts, and draft your own.",
+    brand: "#000000",
+    implemented: false,
+    actions: ["Search posts & mentions", "Summarise threads", "Draft posts"],
+  },
+
+  // ── Knowledge ───────────────────────────────────────────────────
+  {
+    id: "apple-notes",
+    name: "Apple Notes",
+    category: "knowledge",
+    platform: "macos",
+    logo: "/logos/apple-notes.svg",
+    blurb: "Import your notes as searchable, editable Markdown — offline and available to agents.",
+    brand: "#F2B600",
+    implemented: true,
+    native: true,
+    actions: [
+      "Import notes as local Markdown",
+      "Preserve folder hierarchy",
+      "Re-import upserts (never duplicates)",
+      "Include attachments with Full Disk Access",
+    ],
+  },
+  {
+    id: "notion",
+    name: "Notion",
+    category: "knowledge",
+    logo: L("notion.svg"),
+    blurb: "Read and update pages, databases, and docs.",
+    brand: "#000000",
+    implemented: true,
+    actions: ["Search workspace", "Create & edit pages", "Query databases"],
+  },
+  {
+    id: "confluence",
+    name: "Confluence",
+    category: "knowledge",
+    logo: L("confluence.svg"),
+    blurb: "Search and maintain your team's knowledge base.",
+    brand: "#172b4d",
+    implemented: false,
+    actions: ["Search spaces", "Draft pages", "Keep docs current"],
+  },
+  {
+    id: "google-drive",
+    name: "Google Drive",
+    category: "knowledge",
+    logo: L("google-drive.svg"),
+    blurb: "Browse, read, and reference Drive files as context.",
+    brand: "#1fa463",
+    implemented: false,
+    native: true,
+    actions: ["Search files", "Read docs & sheets", "Use as agent context"],
+    setupSteps: [
+      {
+        title: "Install Google Drive for Desktop",
+        body: "Download Google Drive for Desktop for your OS (macOS or Windows) and sign in. It mounts your Drive as a local folder Cabinet can read — no OAuth or Google Cloud setup needed.",
+        href: "https://support.google.com/a/users/answer/13022292?hl=en",
+      },
+      {
+        title: "Make folders available offline (recommended)",
+        body: "In Drive for Desktop, right-click the folders you want and choose \"Available offline\" so the files are on disk. Streaming-only files still appear but open more slowly.",
+      },
+      {
+        title: "Pick folders to show in Cabinet",
+        body: "In the panel on the right, choose which Drive folders to mount. They appear in the sidebar under a \"Google Drive\" section.",
+      },
+      {
+        title: "Open files in Cabinet",
+        body: "Click any mounted file to view it inline — PDFs, images, Office docs, and native Google Docs/Sheets/Slides all render in Cabinet's viewers.",
+      },
+    ],
+  },
+  {
+    id: "icloud",
+    name: "iCloud Drive",
+    category: "knowledge",
+    platform: "macos",
+    logo: "/logos/icloud.svg",
+    blurb: "Mount iCloud Drive folders as knowledge sources accessible to agents.",
+    brand: "#2196F3",
+    implemented: false,
+    native: true,
+    actions: ["Browse folders", "Read documents", "Use as agent context"],
   },
 
   // ── Productivity ────────────────────────────────────────────────
@@ -151,10 +268,10 @@ const RAW_INTEGRATIONS: IntegrationItem[] = [
     name: "Google Workspace",
     category: "productivity",
     logo: "/integrations/google-workspace-logo.webp",
-    blurb: "Connect Gmail, Drive, Docs, and Calendar in one grant.",
+    blurb: "Calendar, Contacts, Docs, Sheets, Slides, Tasks, Forms, Chat and Search via one sign-in. (Gmail and Drive have their own cards.)",
     brand: "#4285f4",
     implemented: true,
-    actions: ["Read & draft email", "Search Drive", "Manage calendar events"],
+    actions: ["Calendar & Contacts", "Docs, Sheets & Slides", "Tasks, Forms, Chat & Search"],
   },
   {
     id: "microsoft-365",
@@ -165,26 +282,6 @@ const RAW_INTEGRATIONS: IntegrationItem[] = [
     brand: "#0078d4",
     implemented: true,
     actions: ["Outlook mail & calendar", "Teams messages", "SharePoint & OneDrive files"],
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    category: "productivity",
-    logo: L("notion.svg"),
-    blurb: "Read and update pages, databases, and docs.",
-    brand: "#000000",
-    implemented: true,
-    actions: ["Search workspace", "Create & edit pages", "Query databases"],
-  },
-  {
-    id: "confluence",
-    name: "Confluence",
-    category: "productivity",
-    logo: L("confluence.svg"),
-    blurb: "Search and maintain your team's knowledge base.",
-    brand: "#172b4d",
-    implemented: false,
-    actions: ["Search spaces", "Draft pages", "Keep docs current"],
   },
   {
     id: "airtable",
@@ -231,10 +328,10 @@ const RAW_INTEGRATIONS: IntegrationItem[] = [
     name: "Google Calendar",
     category: "productivity",
     logo: L("google-calendar.svg"),
-    blurb: "Read your agenda and schedule on your behalf.",
+    blurb: "Read your agenda and schedule on your behalf. (Connects through Google Workspace.)",
     brand: "#4285f4",
-    implemented: false,
-    actions: ["Read agenda", "Create events", "Find free slots"],
+    implemented: true,
+    actions: ["Read agenda", "Create & update events", "Find free slots"],
   },
   {
     id: "gmail",
@@ -247,41 +344,11 @@ const RAW_INTEGRATIONS: IntegrationItem[] = [
     actions: ["Search inbox", "Summarise threads", "Send & reply (with approval)"],
   },
 
-  // ── Files & Storage ─────────────────────────────────────────────
-  {
-    id: "google-drive",
-    name: "Google Drive",
-    category: "storage",
-    logo: L("google-drive.svg"),
-    blurb: "Browse, read, and reference Drive files as context.",
-    brand: "#1fa463",
-    implemented: false,
-    native: true,
-    actions: ["Search files", "Read docs & sheets", "Use as agent context"],
-    setupSteps: [
-      {
-        title: "Install Google Drive for Desktop",
-        body: "Download Google Drive for Desktop for your OS (macOS or Windows) and sign in. It mounts your Drive as a local folder Cabinet can read — no OAuth or Google Cloud setup needed.",
-        href: "https://support.google.com/a/users/answer/13022292?hl=en",
-      },
-      {
-        title: "Make folders available offline (recommended)",
-        body: "In Drive for Desktop, right-click the folders you want and choose \"Available offline\" so the files are on disk. Streaming-only files still appear but open more slowly.",
-      },
-      {
-        title: "Pick folders to show in Cabinet",
-        body: "In the panel on the right, choose which Drive folders to mount. They appear in the sidebar under a \"Google Drive\" section.",
-      },
-      {
-        title: "Open files in Cabinet",
-        body: "Click any mounted file to view it inline — PDFs, images, Office docs, and native Google Docs/Sheets/Slides all render in Cabinet's viewers.",
-      },
-    ],
-  },
+  // ── Files & Storage (folded into Knowledge) ─────────────────────
   {
     id: "onedrive",
     name: "OneDrive",
-    category: "storage",
+    category: "knowledge",
     logo: L("onedrive.svg"),
     blurb: "Pull documents from OneDrive into your cabinet.",
     brand: "#0364b8",
@@ -291,7 +358,7 @@ const RAW_INTEGRATIONS: IntegrationItem[] = [
   {
     id: "sharepoint",
     name: "SharePoint",
-    category: "storage",
+    category: "knowledge",
     logo: L("sharepoint.svg"),
     blurb: "Connect team sites and document libraries.",
     brand: "#038387",
@@ -301,7 +368,7 @@ const RAW_INTEGRATIONS: IntegrationItem[] = [
   {
     id: "dropbox",
     name: "Dropbox",
-    category: "storage",
+    category: "knowledge",
     logo: L("dropbox.webp"),
     blurb: "Bring Dropbox files into agent reach.",
     brand: "#0061ff",
@@ -311,7 +378,7 @@ const RAW_INTEGRATIONS: IntegrationItem[] = [
   {
     id: "box",
     name: "Box",
-    category: "storage",
+    category: "knowledge",
     logo: L("box.webp"),
     blurb: "Access Box content securely from your cabinet.",
     brand: "#0061d5",
@@ -621,11 +688,12 @@ const CONNECTABLE = new Set(MCP_CATALOG.map((e) => e.id));
 // Sub-products that connect through a suite's single OAuth (no separate server).
 const COVERED_BY: Record<string, string> = {
   gmail: "google-workspace",
+  // Calendar is served by the Google Workspace MCP, so its card connects the
+  // Workspace suite (single OAuth) rather than a server of its own.
   "google-calendar": "google-workspace",
   // NOTE: "google-drive" is intentionally NOT covered by google-workspace —
   // it's a Cabinet-native (Drive for Desktop) integration with its own UI,
-  // distinct from the future OAuth-based Workspace MCP. See `native` above.
-  "google-meet": "google-workspace",
+  // distinct from the Workspace MCP. See `native` above.
   "microsoft-teams": "microsoft-365",
   onedrive: "microsoft-365",
   sharepoint: "microsoft-365",
@@ -641,7 +709,12 @@ const LAUNCHED = new Set([
   "discord",
   "google-drive",
   "gmail",
+  "google-workspace",
+  "google-calendar",
   "microsoft-365",
+  "microsoft-teams",
+  "notion",
+  "slack",
 ]);
 
 export const PREVIEW_INTEGRATIONS: IntegrationItem[] = RAW_INTEGRATIONS.map((i) => {

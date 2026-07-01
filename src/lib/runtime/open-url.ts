@@ -3,6 +3,7 @@
 interface CabinetDesktopBridge {
   runtime?: "electron";
   openLocalFile?: (path: string) => Promise<{ ok: boolean; error?: string }>;
+  openExternal?: (url: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 function getBridge(): CabinetDesktopBridge {
@@ -49,5 +50,21 @@ export function openUrlInAppropriateContext(
     openInBrowseMode(url);
   } else {
     window.open(url, "_blank");
+  }
+}
+
+/**
+ * Open a URL in the user's SYSTEM default browser (never the in-app browse
+ * view). Used for OAuth sign-in flows where the embedded browser lacks the
+ * user's provider session. Falls back to window.open in the web build.
+ */
+export function openExternalUrl(url: string): void {
+  const bridge = getBridge();
+  if (bridge.runtime === "electron" && bridge.openExternal) {
+    void bridge.openExternal(url);
+    return;
+  }
+  if (typeof window !== "undefined") {
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 }

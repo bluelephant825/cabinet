@@ -27,9 +27,15 @@ interface TreeState {
   dragOverZone: DragZone | null;
   movingPaths: Set<string>;
   showHiddenFiles: boolean;
+  /** Sort the tree alphabetically by name instead of by manual `order`. */
   sortAlphabetical: boolean;
+  /** When alphabetical sorting is on, place folders above files. */
   foldersFirst: boolean;
+  /** The unsorted tree as returned by the server — `nodes` is the sorted
+   *  view derived from this, so toggling sort doesn't need a server refetch. */
   rawNodes: TreeNode[];
+  /** A drag-move awaiting confirmation because alphabetical sorting is on
+   *  (manual ordering would otherwise be overridden by the sort). */
   pendingMove: {
     fromPath: string;
     toParentPath: string;
@@ -222,10 +228,6 @@ function saveCachedTree(nodes: TreeNode[], showHidden: boolean) {
 export const useTreeStore = create<TreeState>((set, get) => ({
   nodes: [],
   rawNodes: [],
-  sortAlphabetical: loadSortAlphabetical(),
-  foldersFirst: loadFoldersFirst(),
-  pendingMove: null,
-  setPendingMove: (move) => set({ pendingMove: move }),
   selectedPath: null,
   driveNode: null,
   driveLoading: false,
@@ -235,8 +237,13 @@ export const useTreeStore = create<TreeState>((set, get) => ({
   dragOverZone: null,
   movingPaths: new Set<string>(),
   showHiddenFiles: loadShowHiddenFiles(),
+  sortAlphabetical: loadSortAlphabetical(),
+  foldersFirst: loadFoldersFirst(),
+  pendingMove: null,
   focusTick: 0,
   recentlyChanged: new Set<string>(),
+
+  setPendingMove: (move) => set({ pendingMove: move }),
 
   setDriveNode: (node) => set({ driveNode: node }),
   setDriveLoading: (loading) => set({ driveLoading: loading }),
@@ -366,6 +373,8 @@ export const useTreeStore = create<TreeState>((set, get) => ({
     neighbors: { prevName?: string | null; nextName?: string | null } = {}
   ) => {
     const { sortAlphabetical } = get();
+    // Manual drag-reordering conflicts with alphabetical auto-sorting — ask
+    // the user before applying the move (TreeView renders the dialog).
     if (sortAlphabetical) {
       set({ pendingMove: { fromPath, toParentPath, neighbors } });
       return;
@@ -564,16 +573,24 @@ export const useTreeStore = create<TreeState>((set, get) => ({
   },
 
   setSortAlphabetical: (sort: boolean) => {
-    localStorage.setItem("kb-sort-alphabetical", String(sort));
+    try {
+      localStorage.setItem("kb-sort-alphabetical", String(sort));
+    } catch {
+      // Ignore storage failures (private mode, quota) — sort still applies.
+    }
     const { rawNodes, foldersFirst } = get();
     const sorted = sortTreeNodes(rawNodes, sort, foldersFirst);
     set({ sortAlphabetical: sort, nodes: sorted });
   },
 
   setFoldersFirst: (foldersFirst: boolean) => {
-    localStorage.setItem("kb-folders-first", String(foldersFirst));
+    try {
+      localStorage.setItem("kb-folders-first", String(foldersFirst));
+    } catch {
+      // Ignore storage failures (private mode, quota) — sort still applies.
+    }
     const { rawNodes, sortAlphabetical } = get();
     const sorted = sortTreeNodes(rawNodes, sortAlphabetical, foldersFirst);
-    set({ foldersFirst: foldersFirst, nodes: sorted });
+    set({ foldersFirst, nodes: sorted });
   },
 }));

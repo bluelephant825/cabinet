@@ -119,6 +119,9 @@ export function ViewerToolbar({
     [nodes, sourcePath]
   );
 
+  // Map the current file to an in-app browser URL: websites/apps open their
+  // index.html, directories/cabinets their index.md, markdown its <name>.md,
+  // everything else the raw asset.
   const browseModeUrl = useMemo(() => {
     if (!sourcePath) return null;
     const assetUrl = `/api/assets/${sourcePath.split("/").map(encodeURIComponent).join("/")}`;
@@ -126,11 +129,14 @@ export function ViewerToolbar({
     if (sourceNode?.type === "website" || sourceNode?.type === "app") {
       return `${assetUrl}/index.html`;
     }
-    if (sourceNode?.type === "directory" || sourceNode?.type === "cabinet") {
-      return `${assetUrl}/index.md`;
-    }
+    // Check the markdown file case before directory/cabinet: a `<name>.md` page
+    // can carry sub-pages and so be typed "directory", but its content still
+    // lives at `<name>.md`, not an `index.md` inside the folder.
     if (sourceNode?.type === "file" || lower.endsWith(".md")) {
       return `${assetUrl}.md`;
+    }
+    if (sourceNode?.type === "directory" || sourceNode?.type === "cabinet") {
+      return `${assetUrl}/index.md`;
     }
     return assetUrl;
   }, [sourcePath, sourceNode?.type]);

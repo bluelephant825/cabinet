@@ -8,6 +8,10 @@ const { spawn } = require("child_process");
 const { app, BrowserWindow, dialog, autoUpdater, ipcMain, Menu, WebContentsView, session, shell } = require("electron");
 const { updateElectronApp } = require("update-electron-app");
 const JSZip = require("jszip");
+const {
+  initBrowserViews,
+  destroyAllBrowserViews,
+} = require("./browser-views.cjs");
 
 if (require("electron-squirrel-startup")) {
   app.quit();
@@ -1834,7 +1838,13 @@ ipcMain.handle("cabinet:write-file", async (_event, payload) => {
   }
 });
 
+// Note: the "cabinet:open-local-file" IPC handler lives in browser-views.cjs
+// (registerHandlers); it's shared by editor file:// links and browse mode, and
+// adds a same-renderer auth check. Don't register a second handler here —
+// ipcMain.handle throws on a duplicate channel.
+
 app.on("window-all-closed", () => {
+  destroyAllBrowserViews();
   cleanupBackends();
   if (process.platform !== "darwin") {
     app.quit();
@@ -1842,6 +1852,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  destroyAllBrowserViews();
   cleanupBackends();
 });
 
@@ -1867,6 +1878,14 @@ app.whenReady().then(async () => {
   setupBrowserSession();
   await loadBrowserExtensions();
   configureAutoUpdates();
+  // Native in-app browser (browse mode). Attaches WebContentsViews to the
+  // current main window; getBaseAppUrl resolves app-relative /api/assets KB
+  // URLs; isDev enables the "Inspect Element" context menu.
+  initBrowserViews({
+    getMainWindow: () => mainWindow,
+    getBaseAppUrl: () => baseAppUrl,
+    isDev,
+  });
   await createWindow();
 
 

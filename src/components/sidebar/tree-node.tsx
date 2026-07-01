@@ -4,30 +4,16 @@ import { useState, useCallback, useEffect, useMemo, useRef, memo } from "react";
 import {
   Archive,
   ChevronRight,
-  FileText,
-  Folder,
   FolderOpen,
   FolderPlus,
   Trash2,
   FilePlus,
-  Globe,
   Pencil,
-  AppWindow,
   GitBranch,
-  Table,
   Copy,
   ClipboardCopy,
   Link2,
   Link2Off,
-  Code,
-  Image as ImageIcon,
-  Video,
-  Music,
-  Workflow,
-  File,
-  FileSpreadsheet,
-  NotebookText,
-  Presentation,
   TriangleAlert,
   ArrowRightLeft,
   Loader2,
@@ -35,7 +21,6 @@ import {
   FilePlus2,
   FolderInput,
   Settings2,
-  Sigma,
   Cloud,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -852,6 +837,8 @@ function TreeNodeImpl({
       loadPage(node.path);
     }
 
+    // While browsing, clicking a tree row keeps you in browse mode and loads
+    // that file's in-app browser URL rather than dropping back to the editor.
     const assetUrl = `/api/assets/${node.path.split("/").map(encodeURIComponent).join("/")}`;
     const browseFileUrl =
       node.type === "website" || node.type === "app"
@@ -859,7 +846,9 @@ function TreeNodeImpl({
         : // Sibling Pattern: a `<name>.md` page can carry sub-pages and so be
           // typed "directory", but its content still lives at `<name>.md`, not
           // an `index.md` inside the folder — match the markdown name first.
-          node.name.toLowerCase().endsWith(".md")
+          // Markdown pages are typed "file" with the extension stripped from
+          // the path, so they also resolve to `<name>.md`.
+          node.type === "file" || node.name.toLowerCase().endsWith(".md")
           ? `${assetUrl}.md`
           : node.type === "directory" || node.type === "cabinet"
             ? `${assetUrl}/index.md`

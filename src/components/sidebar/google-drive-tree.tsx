@@ -253,7 +253,8 @@ export function GoogleDriveTreeSection({ depth, padFn, cabinetPath }: GoogleDriv
     });
   };
 
-  const { sortAlphabetical, foldersFirst } = useTreeStore();
+  const sortAlphabetical = useTreeStore((s) => s.sortAlphabetical);
+  const foldersFirst = useTreeStore((s) => s.foldersFirst);
 
   const sortedSections = useMemo(() => {
     return sections.map((section) => ({

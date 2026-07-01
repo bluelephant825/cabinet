@@ -375,6 +375,8 @@ export function AppShell() {
     return () => window.clearTimeout(id);
   }, [selectedPath, section.cabinetPath]);
 
+  // Browse mode only makes sense over a page/cabinet surface; leaving those
+  // sections (settings, help, etc.) drops back to the editor.
   useEffect(() => {
     if (section.type !== "page" && section.type !== "cabinet" && appMode !== "edit") {
       setAppMode("edit");
@@ -1038,7 +1040,7 @@ export function AppShell() {
     if (isLatex && (selectedNode || selectedPath)) {
       const texPath = selectedNode?.path || selectedPath!;
       const texTitle = selectedNode?.frontmatter?.title || selectedNode?.name || texPath.split("/").pop() || "LaTeX";
-      return <LatexViewer path={texPath} title={texTitle} />;
+      return <LatexViewer key={texPath} path={texPath} title={texTitle} />;
     }
 
     if (isTypst && (selectedNode || selectedPath)) {
