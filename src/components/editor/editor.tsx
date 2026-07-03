@@ -807,7 +807,7 @@ export function KBEditor() {
           </button>
         </div>
       )}
-      {onFilesTab ? (
+      {onFilesTab && (
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-6 py-6">
             <FolderIndex
@@ -817,8 +817,13 @@ export function KBEditor() {
             />
           </div>
         </div>
-      ) : (
-      <>
+      )}
+      {/* Editor + toolbar stay MOUNTED on the Files tab / in source mode —
+          hidden via CSS, never unmounted. Unmounting made Tiptap re-run
+          createNodeViews() on the next mount, which flushSyncs a React node
+          view (e.g. a mermaid diagram) inside componentDidMount → React's
+          "flushSync was called from inside a lifecycle method" warning. */}
+      <div className={onFilesTab ? "hidden" : "flex-1 flex flex-col overflow-hidden"}>
       <EditorToolbar
         editor={editor}
         sourceMode={sourceMode}
@@ -830,7 +835,7 @@ export function KBEditor() {
         onSetMode={handleSetMode}
       />
 
-      {sourceMode ? (
+      {sourceMode && (
         <div ref={split.containerRef} className="relative flex-1 flex overflow-hidden border-t border-border" dir={isRtl ? "rtl" : undefined}>
           {/* Left: Code Editor */}
           <div
@@ -889,9 +894,9 @@ export function KBEditor() {
             <SplitRuler leftPct={split.leftPct} rtl={isRtl} />
           )}
         </div>
-      ) : (
+      )}
         <div
-          className="flex-1 relative"
+          className={sourceMode ? "hidden" : "flex-1 relative"}
           dir={isRtl ? "rtl" : undefined}
           style={{ "--editor-max-w": wideMode ? "none" : "48rem" } as React.CSSProperties}
         >
@@ -934,7 +939,6 @@ export function KBEditor() {
             </div>
           )}
         </div>
-      )}
 
       {/* Status bar */}
       <div className="flex items-center justify-between px-4 py-1 border-t border-border text-xs text-muted-foreground/60">
@@ -954,8 +958,7 @@ export function KBEditor() {
           {saveStatus === "error" && "Save failed"}
         </span>
       </div>
-      </>
-      )}
+      </div>
 
     </div>
   );

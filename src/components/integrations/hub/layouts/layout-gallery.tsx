@@ -61,11 +61,14 @@ export function LayoutGallery({
   items,
   onOpen,
   connectedIds,
+  msWorkAccountConnected,
 }: {
   items: IntegrationItem[];
   onOpen: (id: string) => void;
   /** Ids (incl. suite ids) that are currently connected. */
   connectedIds: Set<string>;
+  /** Whether the connected Microsoft 365 account is work/school, not personal. */
+  msWorkAccountConnected: boolean;
 }) {
   const groups = groupByCategory(items);
 
@@ -131,6 +134,7 @@ export function LayoutGallery({
                       item={item}
                       onOpen={onOpen}
                       connectedIds={connectedIds}
+                      msWorkAccountConnected={msWorkAccountConnected}
                       requested={requestedIds.has(item.id)}
                       requesting={requestingId === item.id}
                       onRequest={requestIntegration}
@@ -182,6 +186,7 @@ function GalleryTile({
   item,
   onOpen,
   connectedIds,
+  msWorkAccountConnected,
   requested,
   requesting,
   onRequest,
@@ -189,6 +194,8 @@ function GalleryTile({
   item: IntegrationItem;
   onOpen: (id: string) => void;
   connectedIds: Set<string>;
+  /** Whether the connected Microsoft 365 account is work/school, not personal. */
+  msWorkAccountConnected: boolean;
   /** This coming-soon connector has already been requested from the team. */
   requested: boolean;
   /** A request for this connector is in flight. */
@@ -196,9 +203,14 @@ function GalleryTile({
   /** Ping the team to prioritize a coming-soon connector. */
   onRequest: (item: IntegrationItem) => void;
 }) {
-  const connected =
+  const suiteConnected =
     connectedIds.has(item.id) ||
     (!!item.coveredBy && connectedIds.has(item.coveredBy));
+  // Teams / SharePoint ride on the microsoft-365 suite connection, but a
+  // personal Microsoft account can't actually reach either — only badge them
+  // "Connected" once the work/school credentials are in place.
+  const connected =
+    suiteConnected && (!item.workAccountOnly || msWorkAccountConnected);
   const tileRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<Animation | null>(null);
 

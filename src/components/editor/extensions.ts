@@ -6,8 +6,8 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
-import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { createLowlight } from "lowlight";
+import { MermaidCodeBlock } from "./extensions/mermaid-codeblock";
 import bash from "highlight.js/lib/languages/bash";
 import css from "highlight.js/lib/languages/css";
 import go from "highlight.js/lib/languages/go";
@@ -70,25 +70,7 @@ export const editorExtensions = [
     link: false,
     underline: false,
   }),
-  CodeBlockLowlight.extend({
-    parseHTML() {
-      return [
-        {
-          tag: "pre",
-          preserveWhitespace: "full" as const,
-          getAttrs: (node) => {
-            // Skip live code blocks — handled by the LiveCodeBlock extension.
-            if (
-              (node as HTMLElement).getAttribute("data-live-code") === "true"
-            ) {
-              return false;
-            }
-            return null;
-          },
-        },
-      ];
-    },
-  }).configure({
+  MermaidCodeBlock.configure({
     lowlight,
     HTMLAttributes: {
       class: "rounded-md bg-muted p-4 font-mono text-sm",
