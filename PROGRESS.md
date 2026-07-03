@@ -1498,3 +1498,12 @@
 [2026-06-20] Fix: Edit Symlink dialog fields overflowed the dialog box (reported on a Google Drive-linked symlink with a long absolute path). The form is a grid item of DialogContent and the field rows truncate, but neither the form nor the rows had min-w-0, so the long path propagated its intrinsic width up the chain and pushed the inputs/paths past the white background. Added min-w-0 to the form + the "Links to" and "Re-point" rows so truncation actually constrains, and widened the dialog sm:max-w-lg -> sm:max-w-2xl for comfortable room with absolute paths. tsc + lint clean. (Visual confirm pending — chrome MCP dropped mid-session; the app hot-reloads so it shows immediately.)
 
 [2026-06-20] Rebuilt the agent "Channels" (internal team-chat) viewer orphaned by the v2 agents migration. Found the whole src/components/mission-control/ dir is unmounted dead code (no route, nothing imports MissionControl/SlackPanel) — but the backend is live: agents still post to data/.agents/.slack/ every heartbeat (280KB, 25 channels, 91 msgs in #general) with no in-app viewer. Reused the existing live SlackPanel instead of rewriting: added a `fill` prop (h-full, hides the resize-dock chrome) and mounted it as a new "Channels" tab in the v2 Team workspace (tabs-layout.tsx, full-bleed like Schedule). Wired the tab through AgentsTabKey/ALL_TABS (agents-workspace-v2), AgentsTab/isAgentsTab (route-scheme), AGENTS_SUB_TABS (use-hash-route), and app-store agentsTab. Renamed the visible "Agent Slack" label -> "Channels" so it stops colliding with the real Slack MCP connector in the Integrations Hub. Left slack-manager/notification-service/heartbeat writes intact (user chose keep-and-rebuild over rip-out). Verified in-browser at /room/<home>/-/agents/channels: tab renders + fills, shows all 25 channel pills + 91 #general messages + composer. tsc 0 errors.
+
+[2026-07-03] Added the ability to connect remote GitHub repositories to Cabinet from the Connect Knowledge dialog. Clones the remote repository, writes .repo.yaml and .cabinet-meta configurations, and creates a symlink in the active Cabinet room.
+
+[2026-07-03] Fixed GitHub connection EEXIST error for inline-cloned repositories by skipping symbolic link creation when the local clone path matches the target Cabinet path. Defaulted the local clone directory input to the right-clicked parent folder's absolute path.
+
+[2026-07-03] Changed the logo for Confluence in the Connect Knowledge popup window to the Atlassian Confluence SVG logo from Wikimedia Commons.
+
+
+

@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LinkRepoDialog } from "./link-repo-dialog";
 import { ConnectKnowledgeDialog } from "./connect-knowledge-dialog";
+import { ConnectGithubDialog } from "./connect-github-dialog";
 import { NotionConnectDialog } from "./notion-connect-dialog";
 import { AppleNotesConnectDialog } from "./apple-notes-connect-dialog";
 import { ConnectDriveDialog } from "./connect-drive-dialog";
@@ -651,6 +652,7 @@ function TreeNodeImpl({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [linkRepoOpen, setLinkRepoOpen] = useState(false);
   const [connectKnowledgeOpen, setConnectKnowledgeOpen] = useState(false);
+  const [githubConnectOpen, setGithubConnectOpen] = useState(false);
   const [notionConnectOpen, setNotionConnectOpen] = useState(false);
   const [appleNotesConnectOpen, setAppleNotesConnectOpen] = useState(false);
   const [connectDriveOpen, setConnectDriveOpen] = useState(false);
@@ -1534,6 +1536,8 @@ function TreeNodeImpl({
 
       <LinkRepoDialog open={linkRepoOpen} onOpenChange={setLinkRepoOpen} parentPath={node.path} />
 
+      <ConnectGithubDialog open={githubConnectOpen} onOpenChange={setGithubConnectOpen} parentPath={node.path} />
+
       <ConnectKnowledgeDialog
         open={connectKnowledgeOpen}
         onOpenChange={setConnectKnowledgeOpen}
@@ -1548,6 +1552,9 @@ function TreeNodeImpl({
         }}
         onNotion={() => setNotionConnectOpen(true)}
         onAppleNotes={() => setAppleNotesConnectOpen(true)}
+        onGithub={() => {
+          setGithubConnectOpen(true);
+        }}
       />
 
       <NotionConnectDialog

@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { LinkRepoDialog } from "./link-repo-dialog";
 import { ConnectDriveDialog } from "./connect-drive-dialog";
 import { ConnectKnowledgeDialog } from "./connect-knowledge-dialog";
+import { ConnectGithubDialog } from "./connect-github-dialog";
 import { NotionConnectDialog } from "./notion-connect-dialog";
 import { AppleNotesConnectDialog } from "./apple-notes-connect-dialog";
 import type { KnowledgeProviderId } from "@/lib/knowledge-sources/store";
@@ -165,6 +166,7 @@ export function TreeView() {
   const [linkRepoOpen, setLinkRepoOpen] = useState(false);
   const [connectDriveOpen, setConnectDriveOpen] = useState(false);
   const [connectKnowledgeOpen, setConnectKnowledgeOpen] = useState(false);
+  const [githubConnectOpen, setGithubConnectOpen] = useState(false);
   const [notionConnectOpen, setNotionConnectOpen] = useState(false);
   const [appleNotesConnectOpen, setAppleNotesConnectOpen] = useState(false);
   const [driveProvider, setDriveProvider] = useState<KnowledgeProviderId>("google-drive");
@@ -977,6 +979,12 @@ export function TreeView() {
       parentPath={dataRootPath}
     />
 
+    <ConnectGithubDialog
+      open={githubConnectOpen}
+      onOpenChange={setGithubConnectOpen}
+      parentPath={dataRootPath}
+    />
+
     <ConnectKnowledgeDialog
       open={connectKnowledgeOpen}
       onOpenChange={setConnectKnowledgeOpen}
@@ -991,6 +999,9 @@ export function TreeView() {
       }}
       onNotion={() => setNotionConnectOpen(true)}
       onAppleNotes={() => setAppleNotesConnectOpen(true)}
+      onGithub={() => {
+        setGithubConnectOpen(true);
+      }}
     />
 
     <NotionConnectDialog

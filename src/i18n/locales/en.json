@@ -601,6 +601,22 @@
     "autoDetectPlaceholder": "Auto-detect from git remote (optional)",
     "shortSummaryPlaceholder": "Optional short summary for agents"
   },
+  "connectGithub": {
+    "title": "Connect GitHub Repository",
+    "intro": "Clone a remote GitHub repository to your local machine and create a symlink to it. Cabinet will auto-create the necessary .repo.yaml file so AI agents can read the repository context.",
+    "repoUrlLabel": "GitHub Repository URL",
+    "repoUrlPlaceholder": "https://github.com/username/repository.git",
+    "localPathLabel": "Local Clone Directory",
+    "localPathPlaceholder": "/Users/me/Developer/my-repo",
+    "nameLabel": "Display Name",
+    "namePlaceholder": "my-repo",
+    "branchLabel": "Branch",
+    "branchPlaceholder": "main (optional)",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Optional short summary for agents",
+    "connecting": "Connecting...",
+    "connect": "Connect"
+  },
   "recentTasks": {
     "ptyMode": "Terminal (PTY) mode",
     "revealOlder": "Reveal more older tasks",
