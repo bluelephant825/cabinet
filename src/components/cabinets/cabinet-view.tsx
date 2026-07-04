@@ -6,9 +6,10 @@ import {
   Loader2,
   Network,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ContentSheet } from "@/components/layout/content-sheet";
 import { HeaderActions } from "@/components/layout/header-actions";
+import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
 import { VersionHistory } from "@/components/editor/version-history";
 import { CabinetSchedulerControls } from "@/components/cabinets/cabinet-scheduler-controls";
 import { CabinetTaskComposer } from "@/components/cabinets/cabinet-task-composer";
@@ -160,7 +161,9 @@ export function CabinetView({ cabinetPath }: { cabinetPath: string }) {
     () => (overview?.agents || []).filter((a) => a.cabinetDepth === 0),
     [overview?.agents]
   );
-  const boardName = displayName || "there";
+  // Empty when the user is unknown — the composer drops the name entirely
+  // rather than greeting a named user as an impersonal "there" (#001).
+  const boardName = displayName;
   const agentCount = overview?.agents.length ?? 0;
   const jobCount = overview?.jobs.length ?? 0;
   const heartbeatCount = useMemo(
@@ -200,21 +203,26 @@ export function CabinetView({ cabinetPath }: { cabinetPath: string }) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* ── Header row ── */}
+    <div className="flex h-full min-h-0 flex-col">
+      {/* ── Header row — a desk toolbar (transparent, floats above the sheet),
+          matching the agents/tasks surfaces rather than a bordered bar. ── */}
         <header
-          className="flex flex-wrap items-center gap-3 border-b border-border/70 bg-background/95 py-2.5 pe-4 ps-[calc(1rem+var(--sidebar-toggle-offset,0px))] transition-[padding] duration-200 sm:pe-6 sm:ps-[calc(1.5rem+var(--sidebar-toggle-offset,0px))]"
+          className="@container flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 transition-[padding] duration-200"
+          style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}
         >
           <div className="flex min-w-0 items-center gap-3">
-            <h1 className="truncate font-ui text-[14px] font-semibold tracking-tight text-foreground">
+            {/* #004: the composer hero owns the single <h1> (the greeting), so
+                this cabinet-name title is a section heading, not a second h1. */}
+            <h2 className="truncate font-ui text-[14px] font-semibold tracking-tight text-foreground">
               {cabinetName}
-            </h1>
+            </h2>
             {loading && !overview ? (
               <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
             ) : null}
           </div>
 
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          {/* Secondary counts drop first when the desk is squeezed. */}
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground @max-[900px]:hidden">
             <CountPill label="agents" value={agentCount} />
             <CountPill label="jobs" value={jobCount} />
             <CountPill label="heartbeats" value={heartbeatCount} />
@@ -226,16 +234,16 @@ export function CabinetView({ cabinetPath }: { cabinetPath: string }) {
               onChange={(mode) => setCabinetVisibilityMode(cabinetPath, mode)}
             />
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 text-[11px]"
+            <button
+              type="button"
               onClick={() => setOrgChartOpen(true)}
               disabled={!overview || agentCount === 0}
+              title="Org chart"
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             >
               <Network className="size-3.5" />
-              Org chart
-            </Button>
+              <span className="@max-[780px]:hidden">Org chart</span>
+            </button>
 
             <CabinetSchedulerControls
               cabinetPath={cabinetPath}
@@ -244,12 +252,14 @@ export function CabinetView({ cabinetPath }: { cabinetPath: string }) {
             />
             <VersionHistory path={cabinetPath === "." ? "index" : cabinetPath} />
             <HeaderActions />
+            <TaskRailToggle />
           </div>
         </header>
 
-        {/* ── Scrollable body ── */}
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+        {/* ── Body sheet — floats on the desk like agents/tasks ── */}
+        <ContentSheet>
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
             {error ? (
               <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
                 {error}
@@ -291,6 +301,13 @@ export function CabinetView({ cabinetPath }: { cabinetPath: string }) {
                   jobs={overview?.jobs || []}
                   now={now}
                   onEventClick={handleScheduleEventClick}
+                  onViewAll={() =>
+                    setSection({
+                      type: "agents",
+                      cabinetPath,
+                      agentsTab: "schedule",
+                    })
+                  }
                 />
                 {(overview?.children?.length ?? 0) > 0 && (
                   <div className="mt-8 space-y-2">
@@ -316,7 +333,8 @@ export function CabinetView({ cabinetPath }: { cabinetPath: string }) {
               </div>
             </section>
           </div>
-        </ScrollArea>
+          </ScrollArea>
+        </ContentSheet>
 
       {/* ── Org chart modal ── */}
       <OrgChartModal

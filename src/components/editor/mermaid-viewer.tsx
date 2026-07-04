@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Download, Code2, Eye, Copy, Check, ZoomIn, ZoomOut, Maximize, FileCode, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
+import { ViewerLayout } from "@/components/layout/viewer-layout";
+import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { useLocale } from "@/i18n/use-locale";
 import { SplitScreenIcon } from "./editor-toolbar";
 
@@ -178,8 +180,9 @@ export function MermaidViewer({ path, title }: MermaidViewerProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <ViewerToolbar path={path} badge="MERMAID">
+    <ViewerLayout
+      toolbar={
+        <ViewerToolbar path={path} badge="MERMAID">
         {(splitMode || mode === "source") && (
           <Button
             variant="ghost"
@@ -293,33 +296,21 @@ export function MermaidViewer({ path, title }: MermaidViewerProps) {
         {svg && (splitMode || mode === "rendered") && !error && (
           <>
             <div className="h-4 w-px bg-border mx-0.5" />
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={zoomOut} title={t("mermaidViewer:zoomOut")}>
-              <ZoomOut className="h-3.5 w-3.5" />
-            </Button>
-            <span className="text-[11px] text-muted-foreground tabular-nums w-10 text-center select-none">
+            <ToolbarButton icon={ZoomOut} label={t("mermaidViewer:zoomOut")} iconOnly onClick={zoomOut} />
+            <span className="text-[11px] text-muted-foreground/70 tabular-nums w-10 text-center select-none">
               {Math.round(zoom * 100)}%
             </span>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={zoomIn} title={t("mermaidViewer:zoomIn")}>
-              <ZoomIn className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={resetView} title={t("mermaidViewer:resetView")}>
-              <Maximize className="h-3.5 w-3.5" />
-            </Button>
+            <ToolbarButton icon={ZoomIn} label={t("mermaidViewer:zoomIn")} iconOnly onClick={zoomIn} />
+            <ToolbarButton icon={Maximize} label={t("mermaidViewer:resetView")} iconOnly onClick={resetView} />
             <div className="h-4 w-px bg-border mx-0.5" />
           </>
         )}
         {svg && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-xs"
-            onClick={downloadSvg}
-          >
-            <Download className="h-3.5 w-3.5" />
-            SVG
-          </Button>
+          <ToolbarButton icon={Download} label="SVG" onClick={downloadSvg} />
         )}
-      </ViewerToolbar>
+        </ViewerToolbar>
+      }
+    >
       <div className="flex-1 overflow-auto">
         {loading ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -390,6 +381,6 @@ export function MermaidViewer({ path, title }: MermaidViewerProps) {
           </div>
         )}
       </div>
-    </div>
+    </ViewerLayout>
   );
 }

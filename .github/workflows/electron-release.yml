@@ -28,12 +28,12 @@ jobs:
     if: ${{ inputs.tag != '' }}
     steps:
       - name: Checkout tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -74,12 +74,12 @@ jobs:
     steps:
       # With a tag -> build that release; without -> build the dispatched branch.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -96,7 +96,7 @@ jobs:
       # step below is skipped (e.g. the release doesn't exist yet).
       - name: Upload Windows build artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cabinet-windows-${{ inputs.tag || github.sha }}
           path: out/make/**

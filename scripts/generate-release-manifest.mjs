@@ -52,7 +52,9 @@ const manifest = {
     },
     windows: {
       zipAssetName: `Cabinet-win32-x64-${version}.zip`,
-      setupExeAssetName: `Cabinet-${version} Setup.exe`,
+      // GitHub replaces the space in the Squirrel output ("Cabinet-X Setup.exe")
+      // with a dot when it stores the release asset, so match the as-uploaded name.
+      setupExeAssetName: `Cabinet-${version}.Setup.exe`,
       nupkgAssetName: `cabinet-${version}-full.nupkg`,
       releasesAssetName: "RELEASES",
     },

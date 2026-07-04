@@ -193,7 +193,7 @@ export function RoomSwitcher() {
           title={active?.name || t("rooms:switcherTitle")}
           aria-label={t("rooms:switcherTitle")}
           className={cn(
-            "group flex shrink-0 items-center gap-0.5 rounded-md p-1 cursor-pointer",
+            "group flex min-w-0 items-center gap-1 rounded-md p-1 cursor-pointer",
             "transition-colors hover:bg-accent/60 data-[popup-open]:bg-accent/60"
           )}
         >
@@ -202,8 +202,11 @@ export function RoomSwitcher() {
             iconKey={active?.icon}
             color={active?.color}
             colorKey={active?.path ?? ""}
-            className="size-6"
+            className="size-6 shrink-0"
           />
+          {/* Name is dropped from the trigger (the `title` tooltip + the header
+              still identify the room); the avatar + chevron keep the switcher
+              compact. */}
           <ChevronDown className="size-3 shrink-0 text-muted-foreground/70" />
         </DropdownMenuTrigger>
 

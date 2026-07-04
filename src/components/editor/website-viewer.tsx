@@ -1,8 +1,9 @@
 "use client";
 
 import { ExternalLink, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
+import { ViewerLayout } from "@/components/layout/viewer-layout";
+import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { useLocale } from "@/i18n/use-locale";
 
 interface WebsiteViewerProps {
@@ -17,21 +18,17 @@ export function WebsiteViewer({ path, title, fullscreen, onExit }: WebsiteViewer
   const iframeSrc = `/api/assets/${path}/index.html`;
   const exitButton =
     fullscreen && onExit ? (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1.5 text-xs"
+      <ToolbarButton
+        icon={ArrowLeft}
+        label={t("editorExtras:exitApp")}
         onClick={onExit}
-        title={t("editorExtras:exitApp")}
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Exit app
-      </Button>
+      />
     ) : null;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <ViewerToolbar
+    <ViewerLayout
+      toolbar={
+        <ViewerToolbar
         path={path}
         badge={fullscreen ? "App" : "Embedded Website"}
         showBreadcrumb={!fullscreen}
@@ -44,23 +41,21 @@ export function WebsiteViewer({ path, title, fullscreen, onExit }: WebsiteViewer
           ) : null
         }
       >
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 text-xs"
+        <ToolbarButton
+          icon={ExternalLink}
+          label="Open in new tab"
+          iconOnly
           onClick={() => window.open(iframeSrc, "_blank")}
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          Open in new tab
-        </Button>
-      </ViewerToolbar>
-
+        />
+        </ViewerToolbar>
+      }
+    >
       <iframe
         src={iframeSrc}
         className="flex-1 w-full border-0 bg-white"
         title={title}
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"
       />
-    </div>
+    </ViewerLayout>
   );
 }

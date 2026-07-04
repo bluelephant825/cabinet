@@ -1,27 +1,26 @@
 {
   "manifestVersion": 1,
-  "version": "0.4.4",
+  "version": "0.5.0",
   "channel": "stable",
-  "releaseDate": "2026-05-23T20:03:14.915Z",
-  "gitTag": "v0.4.4",
-  "gitCommit": "ec2cf043871b63691a216b1b206e1f14f5a4c477",
+  "releaseDate": "2026-07-04T16:12:09.311Z",
+  "gitTag": "v0.5.0",
   "repositoryUrl": "https://github.com/hilash/cabinet",
-  "releaseNotesUrl": "https://github.com/hilash/cabinet/releases/tag/v0.4.4",
-  "sourceTarballUrl": "https://github.com/hilash/cabinet/archive/refs/tags/v0.4.4.tar.gz",
+  "releaseNotesUrl": "https://github.com/hilash/cabinet/releases/tag/v0.5.0",
+  "sourceTarballUrl": "https://github.com/hilash/cabinet/archive/refs/tags/v0.5.0.tar.gz",
   "npmPackage": "create-cabinet",
-  "createCabinetVersion": "0.4.4",
+  "createCabinetVersion": "0.5.0",
   "cabinetaiPackage": "cabinetai",
-  "cabinetaiVersion": "0.4.4",
+  "cabinetaiVersion": "0.5.0",
   "electron": {
     "macos": {
       "arch": "arm64",
-      "zipAssetName": "Cabinet-darwin-arm64-0.4.4.zip",
-      "dmgAssetName": "Cabinet-0.4.4-arm64.dmg"
+      "zipAssetName": "Cabinet-darwin-arm64-0.5.0.zip",
+      "dmgAssetName": "Cabinet-0.5.0-arm64.dmg"
     },
     "windows": {
-      "zipAssetName": "Cabinet-win32-x64-0.4.4.zip",
-      "setupExeAssetName": "Cabinet-0.4.4 Setup.exe",
-      "nupkgAssetName": "cabinet-0.4.4-full.nupkg",
+      "zipAssetName": "Cabinet-win32-x64-0.5.0.zip",
+      "setupExeAssetName": "Cabinet-0.5.0.Setup.exe",
+      "nupkgAssetName": "cabinet-0.5.0-full.nupkg",
       "releasesAssetName": "RELEASES"
     }
   }

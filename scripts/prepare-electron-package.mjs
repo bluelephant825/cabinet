@@ -13,6 +13,9 @@ const daemonBundlePath = path.join(standaloneServerDir, "cabinet-daemon.cjs");
 const daemonMigrationsDir = path.join(standaloneServerDir, "migrations");
 const stagedNativeDir = path.join(standaloneDir, ".native");
 const stagedNodePtyDir = path.join(stagedNativeDir, "node-pty");
+// Next.js output tracing writes hashed dedup symlinks here (e.g.
+// node-pty-<hash> -> ../../node_modules/node-pty).
+const tracedNodeModulesDir = path.join(standaloneDir, ".next", "node_modules");
 const stagedSeedDir = path.join(standaloneDir, ".seed");
 const targetPlatform =
   process.env.CABINET_ELECTRON_TARGET_PLATFORM ||
@@ -101,6 +104,32 @@ async function removePath(targetPath) {
   }
 }
 
+// After we delete a traced module's real dir (e.g. node-pty), Next's hashed
+// dedup symlink to it dangles, and electron-packager crashes stat-ing the dead
+// link. Sweep any now-dangling symlinks in the traced node_modules dir.
+async function removeDanglingTracedSymlinks(dir) {
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === "ENOENT") return;
+    throw error;
+  }
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (!entry.isSymbolicLink()) return;
+      const linkPath = path.join(dir, entry.name);
+      try {
+        await fs.stat(linkPath); // follows the link; ENOENT means it's dangling
+      } catch (error) {
+        if (error && error.code === "ENOENT") {
+          await removePath(linkPath);
+        }
+      }
+    })
+  );
+}
+
 async function copyDirectory(fromPath, toPath) {
   if (!(await pathExists(fromPath))) {
     return;
@@ -159,6 +188,10 @@ async function stageDaemonRuntime() {
     // it via NODE_PATH (pointing outside the .app bundle at runtime).
     removePath(path.join(standaloneNodeModulesDir, "node-pty")),
   ]);
+
+  // Removing node-pty's real dir orphans Next's traced node-pty-<hash> symlink;
+  // sweep it (and any other dangling traced link) so packaging doesn't ENOENT.
+  await removeDanglingTracedSymlinks(tracedNodeModulesDir);
 
   await bundleDaemon();
   await copyDirectory(path.join(projectRoot, "server", "migrations"), daemonMigrationsDir);

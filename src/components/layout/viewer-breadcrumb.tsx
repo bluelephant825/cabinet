@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, Home, Cloud } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronRight, Cloud, Copy, Home } from "lucide-react";
 import { useAppStore } from "@/stores/app-store";
 import { useEditorStore } from "@/stores/editor-store";
 import { useTreeStore } from "@/stores/tree-store";
@@ -12,6 +13,35 @@ import { decodeDrivePath } from "@/lib/google-drive/paths";
 function navigateTo(segmentPath: string) {
   useTreeStore.getState().focusPath(segmentPath);
   void useEditorStore.getState().loadPage(segmentPath).catch(() => {});
+}
+
+function CopyPathButton({ path }: { path: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        // Copy an openable cabinet:// URL, not the bare internal path — the
+        // raw data-root-relative string resolves to nothing when pasted (#029).
+        void navigator.clipboard
+          .writeText(`cabinet://${path}`)
+          .then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1200);
+          })
+          .catch(() => {});
+      }}
+      className="ms-0.5 inline-flex shrink-0 items-center rounded p-1 text-muted-foreground/50 hover:bg-muted/60 hover:text-foreground transition-colors"
+      title={copied ? "Copied" : "Copy path"}
+      aria-label="Copy path"
+    >
+      {copied ? (
+        <Check className="h-3 w-3 text-emerald-600" />
+      ) : (
+        <Copy className="h-3 w-3" />
+      )}
+    </button>
+  );
 }
 
 /**
@@ -44,28 +74,40 @@ export function ViewerBreadcrumb({
       driveAbsPath.split(/[\\/]/).pop() ||
       "File";
     return (
-      <div className={cn("flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground", className)}>
-        <button
-          type="button"
-          onClick={goHome}
-          className="inline-flex shrink-0 items-center rounded px-1 py-0.5 hover:bg-muted/60 hover:text-foreground"
-          title={t("tinyExtras:home")}
-        >
-          <Home className="h-3 w-3" />
-        </button>
-        <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />
-        <span className="inline-flex shrink-0 items-center gap-1 text-muted-foreground/70">
-          <Cloud className="h-3 w-3 shrink-0 text-blue-400" />
-          Google Drive
-        </span>
-        <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />
-        <span
-          className="truncate text-[14px] font-semibold tracking-tight text-foreground"
-          title={filename}
-        >
-          {filename}
-        </span>
-      </div>
+      <nav
+        aria-label="Breadcrumb"
+        className={cn("flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground", className)}
+      >
+        <ol className="flex min-w-0 items-center gap-1">
+          <li className="flex shrink-0 items-center">
+            <button
+              type="button"
+              onClick={goHome}
+              className="inline-flex shrink-0 items-center rounded px-1 py-0.5 hover:bg-muted/60 hover:text-foreground"
+              title={t("tinyExtras:home")}
+            >
+              <Home className="h-3 w-3" />
+            </button>
+          </li>
+          <li className="flex shrink-0 items-center gap-1">
+            <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />
+            <span className="inline-flex shrink-0 items-center gap-1 text-muted-foreground/70">
+              <Cloud className="h-3 w-3 shrink-0 text-blue-400" />
+              Google Drive
+            </span>
+          </li>
+          <li className="flex min-w-0 items-center gap-1">
+            <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />
+            <span
+              aria-current="page"
+              className="truncate font-semibold text-foreground"
+              title={filename}
+            >
+              {filename}
+            </span>
+          </li>
+        </ol>
+      </nav>
     );
   }
 
@@ -79,44 +121,84 @@ export function ViewerBreadcrumb({
     leafNode?.name ||
     segments[segments.length - 1];
 
+  const labelFor = (segPath: string, seg: string) => {
+    const node = findNodeByPath(nodes, segPath);
+    return node?.frontmatter?.title || node?.name || seg;
+  };
+
+  // Ancestors = every segment except the leaf. A deep path collapses its middle
+  // into a single "…" (jumping to the grandparent, tooltip lists what's hidden)
+  // so an overloaded breadcrumb stays one tidy line instead of wrapping.
+  const ancestors = segments.slice(0, -1);
+  type Crumb =
+    | { kind: "seg"; key: string; path: string; label: string }
+    | { kind: "gap"; key: string; hiddenLabel: string; jumpPath: string };
+  let crumbs: Crumb[];
+  if (ancestors.length > 3) {
+    const firstPath = segments[0];
+    const parentPath = ancestors.join("/");
+    const jumpPath = segments.slice(0, ancestors.length - 1).join("/");
+    const hiddenLabel = ancestors
+      .slice(1, -1)
+      .map((seg, i) => labelFor(segments.slice(0, i + 2).join("/"), seg))
+      .join(" / ");
+    crumbs = [
+      { kind: "seg", key: firstPath, path: firstPath, label: labelFor(firstPath, segments[0]) },
+      { kind: "gap", key: "__gap", hiddenLabel, jumpPath },
+      { kind: "seg", key: parentPath, path: parentPath, label: labelFor(parentPath, ancestors[ancestors.length - 1]) },
+    ];
+  } else {
+    crumbs = ancestors.map((seg, i) => {
+      const p = segments.slice(0, i + 1).join("/");
+      return { kind: "seg" as const, key: p, path: p, label: labelFor(p, seg) };
+    });
+  }
+
+  // No standalone Home icon here: the first crumb already resolves to the
+  // cabinet root, so a leading Home glyph read as a duplicate "go home"
+  // affordance (the app-home dashboard stays reachable from the sidebar) (#030).
   return (
-    <div className={cn("flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground", className)}>
-      <button
-        type="button"
-        onClick={goHome}
-        className="inline-flex shrink-0 items-center rounded px-1 py-0.5 hover:bg-muted/60 hover:text-foreground"
-        title={t("tinyExtras:home")}
-      >
-        <Home className="h-3 w-3" />
-      </button>
-      {segments.map((segment, index) => {
-        const segmentPath = segments.slice(0, index + 1).join("/");
-        const isLast = index === segments.length - 1;
-        const node = findNodeByPath(nodes, segmentPath);
-        const label = node?.frontmatter?.title || node?.name || segment;
-        return (
-          <div key={segmentPath} className="flex min-w-0 items-center gap-1">
-            <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />
-            {isLast ? (
-              <span
-                className="truncate text-[14px] font-semibold tracking-tight text-foreground"
-                title={leafTitle}
+    <nav
+      aria-label="Breadcrumb"
+      className={cn("flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground", className)}
+    >
+      <ol className="flex min-w-0 items-center gap-1">
+        {crumbs.map((c, i) => (
+          <li key={c.key} className="flex min-w-0 items-center gap-1">
+            {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />}
+            {c.kind === "gap" ? (
+              <button
+                type="button"
+                onClick={() => navigateTo(c.jumpPath)}
+                className="shrink-0 rounded px-1.5 py-0.5 hover:bg-muted/60 hover:text-foreground"
+                title={c.hiddenLabel}
               >
-                {leafTitle}
-              </span>
+                …
+              </button>
             ) : (
               <button
                 type="button"
-                onClick={() => navigateTo(segmentPath)}
-                className="max-w-[14rem] shrink-0 truncate rounded px-1 py-0.5 hover:bg-muted/60 hover:text-foreground"
-                title={`Open ${label}`}
+                onClick={() => navigateTo(c.path)}
+                className="max-w-[12rem] shrink-0 truncate rounded px-1 py-0.5 hover:bg-muted/60 hover:text-foreground"
+                title={`Open ${c.label}`}
               >
-                {label}
+                {c.label}
               </button>
             )}
-          </div>
-        );
-      })}
-    </div>
+          </li>
+        ))}
+        <li className="flex min-w-0 items-center gap-1">
+          {crumbs.length > 0 && <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />}
+          <span
+            aria-current="page"
+            className="truncate font-semibold text-foreground"
+            title={leafTitle}
+          >
+            {leafTitle}
+          </span>
+        </li>
+      </ol>
+      <CopyPathButton path={path} />
+    </nav>
   );
 }

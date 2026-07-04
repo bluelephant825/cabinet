@@ -24,6 +24,19 @@ interface ReleaseEntry {
 
 const RELEASE_HIGHLIGHTS: ReleaseEntry[] = [
   {
+    version: "0.5.0",
+    date: "2026-07-04",
+    headline: "Largest release since v0.4.0 (238 commits)",
+    bullets: [
+      "🟢 Connect Knowledge: bring Google Drive, iCloud, OneDrive/SharePoint, and Dropbox into any room",
+      "🟢 Integrations Hub: Slack, Gmail/Calendar/Drive, Microsoft Teams, and Snowflake",
+      "🟢 Channels: per-room team chat where @mentioning an agent gets a real reply",
+      "🔵 Editor: inline Mermaid diagrams, LaTeX rendering, and a Link/Embed paste chooser",
+      "🟢 In-app browser: open web pages inside the desktop app",
+      "🟣 Models: added Claude Fable 5 and bumped Opus to 4.8",
+    ],
+  },
+  {
     version: "0.4.3",
     date: "2026-04-30",
     headline: "First fully working DMG since v0.3.4",

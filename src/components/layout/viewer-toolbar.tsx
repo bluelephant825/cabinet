@@ -8,6 +8,7 @@ import { NavArrows } from "@/components/layout/nav-arrows";
 import { ReturnToChip } from "@/components/layout/return-to-chip";
 import { ViewerBreadcrumb } from "@/components/layout/viewer-breadcrumb";
 import { NewTaskButton } from "@/components/composer/new-task-button";
+import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
 import { useAppStore } from "@/stores/app-store";
 import { useTreeStore } from "@/stores/tree-store";
 import { useLocale } from "@/i18n/use-locale";
@@ -213,7 +214,7 @@ export function ViewerToolbar({
   return (
     <header
       className={cn(
-        "flex shrink-0 items-center justify-between gap-x-3 gap-y-2 border-b border-border/70 bg-background px-4 py-2 transition-[padding] duration-200 md:h-12 md:py-0",
+        "flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0",
         className
       )}
       style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}
@@ -251,6 +252,7 @@ export function ViewerToolbar({
         {modeButtons}
         <HeaderActions />
         <NewTaskButton />
+        <TaskRailToggle />
       </div>
     </header>
   );

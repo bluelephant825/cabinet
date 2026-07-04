@@ -199,6 +199,10 @@ module.exports = {
       {
         name: "cabinet",
         authors: "Hila Shmuel",
+        // electron-winstaller requires a nuspec <description>; without it the
+        // Squirrel maker fails ("Description is required").
+        description:
+          "Cabinet is an AI-first, self-hosted knowledge base and startup OS.",
       },
       ["win32"]
     ),

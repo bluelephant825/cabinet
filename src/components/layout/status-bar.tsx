@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { GitBranch, RefreshCw, Check, CloudDownload, Star, X, HelpCircle, AlertTriangle, XCircle, CircleDot, Loader2, Terminal, PanelRight, Heart, History as HistoryIcon } from "lucide-react";
+import { GitBranch, RefreshCw, Check, CloudDownload, Star, X, HelpCircle, AlertTriangle, XCircle, CircleDot, Loader2, Terminal, Heart, History as HistoryIcon } from "lucide-react";
 import { ActivityFeed } from "@/components/history/activity-feed";
 import { useCabinetUpdate } from "@/hooks/use-cabinet-update";
 import { useEditorStore } from "@/stores/editor-store";
@@ -14,7 +14,6 @@ import {
 } from "@/stores/health-store";
 import { useGithubStatsStore } from "@/stores/github-stats-store";
 import { StarExplosion, formatGithubStars } from "@/components/layout/star-explosion";
-import { useTaskRail } from "@/components/tasks/rail/task-rail-context";
 import { dedupFetch } from "@/lib/api/dedup-fetch";
 import { useLocale } from "@/i18n/use-locale";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -183,11 +182,18 @@ export function StatusBar() {
   const editorContent = useEditorStore((s) => s.content);
   const editorLoadStatus = useEditorStore((s) => s.loadStatus);
   const wordCount = useMemo(() => countWords(editorContent), [editorContent]);
+  // Audit #010: the editor store keeps `currentPath`/`content` after the user
+  // navigates to home/cabinet, so a bare currentPath check leaks a stale word
+  // count and "Saved · Xs ago" onto surfaces with no editor. Gate editor-only
+  // chrome on the editor page ("page" section) actually being active.
+  const activeSection = useAppStore((s) => s.section);
+  const isEditorActive = activeSection.type === "page";
   // Only meaningful for the markdown editor surface — viewers (PDF, CSV,
   // image, media, office) never populate the editor store's content, so
   // the count would always read 0 there. loadStatus === "ok" means a
   // markdown page actually loaded.
-  const showWordCount = !!currentPath && editorLoadStatus === "ok";
+  const showWordCount =
+    isEditorActive && !!currentPath && editorLoadStatus === "ok";
 
   // Audit #018: rerender every 10s so the relative timestamp ticks. The
   // indicator only mounts when a page is open, so this isn't a global cost.
@@ -210,9 +216,6 @@ export function StatusBar() {
   const setSection = useAppStore((s) => s.setSection);
   const terminalOpen = useAppStore((s) => s.terminalOpen);
   const toggleTerminal = useAppStore((s) => s.toggleTerminal);
-  const taskRailOpen = useAppStore((s) => s.taskRailOpen);
-  const toggleTaskRail = useAppStore((s) => s.toggleTaskRail);
-  const { runningCount, flash: taskRailFlash } = useTaskRail();
   const [isGitRepo, setIsGitRepo] = useState(false);
   // Audit #049: track when the last successful pull completed so the Sync
   // button's tooltip can answer "did the team's overnight work land?"
@@ -424,7 +427,7 @@ export function StatusBar() {
     <footer
       role="contentinfo"
       aria-label={t("status:bar.ariaLabel")}
-      className="relative flex items-center justify-between px-3 py-1 border-t border-border text-[11px] text-muted-foreground/60 bg-background"
+      className="@container relative flex items-center justify-between px-3 py-1 text-[11px] text-muted-foreground bg-transparent"
     >
       <div className="flex min-w-0 items-center gap-3">
         <div className="relative">
@@ -473,7 +476,7 @@ export function StatusBar() {
             ) : (
               <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500 animate-pulse" aria-hidden="true" />
             )}
-            <span>
+            <span className="@max-[820px]:hidden">
               {checkingHealth
                 ? t("status:server.checkingShort")
                 : appAlive && daemonAlive && anyProviderReady
@@ -658,7 +661,7 @@ export function StatusBar() {
             </div>
           )}
         </div>
-        {currentPath && (
+        {isEditorActive && currentPath && (
           saveStatus === "error" ? (
             // Audit #126: clickable retry instead of forcing the user to
             // type a character to re-trigger autosave. Successful retry
@@ -758,16 +761,19 @@ export function StatusBar() {
             {t("status:update2.updateAvailable", { version: update.latest.version })}
           </button>
         )}
-        {/* Activity: per-room file-history feed (who touched what). */}
+        {/* #005: this is the per-room file-history feed (who touched what) —
+            distinct from the main "Activity" run feed on the home screen.
+            Label it "File history" so one screen never shows two "Activity"
+            surfaces meaning different things. */}
         <button
           type="button"
           onClick={() => setShowActivity(true)}
-          title="File activity in this room (who changed what)"
-          aria-label="Open file activity"
+          title="File history in this room (who changed what)"
+          aria-label="Open file history"
           className="flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground"
         >
           <HistoryIcon className="h-3 w-3" />
-          Activity
+          <span className="@max-[820px]:hidden">File history</span>
         </button>
         {showActivity ? <ActivityFeed onClose={() => setShowActivity(false)} /> : null}
         {/* Audit #015: clickable so users can see *what* is uncommitted
@@ -796,11 +802,20 @@ export function StatusBar() {
             className="flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-current"
           >
             <GitBranch className="h-3 w-3" />
-            {uncommitted > 0
-              ? uncommitted === 1
-                ? t("status:git2.uncommittedFile", { count: uncommitted })
-                : t("status:git2.uncommittedFiles", { count: uncommitted })
-              : t("status:git2.allCommitted")}
+            {/* Icon-only when the desk is squeezed; the count folds into a
+                superscript badge so it isn't lost, tooltip carries the rest. */}
+            <span className="@max-[820px]:hidden">
+              {uncommitted > 0
+                ? uncommitted === 1
+                  ? t("status:git2.uncommittedFile", { count: uncommitted })
+                  : t("status:git2.uncommittedFiles", { count: uncommitted })
+                : t("status:git2.allCommitted")}
+            </span>
+            {uncommitted > 0 && (
+              <span className="hidden tabular-nums font-semibold @max-[820px]:inline">
+                {uncommitted}
+              </span>
+            )}
           </button>
           {showUncommittedPopup && uncommitted > 0 && (
             <div className="absolute bottom-full start-0 mb-2 z-50 w-80 rounded-lg border border-border bg-background p-2 shadow-lg">
@@ -934,7 +949,7 @@ export function StatusBar() {
             }
           >
             <RefreshCw className={`h-3 w-3 ${pulling ? "animate-spin" : ""}`} />
-            {t("status:git2.sync")}
+            <span className="@max-[820px]:hidden">{t("status:git2.sync")}</span>
           </button>
         )}
         <button
@@ -944,7 +959,7 @@ export function StatusBar() {
           className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 ${terminalOpen ? "text-primary" : ""}`}
         >
           <Terminal className="h-3 w-3" />
-          {t("status:git2.terminal")}
+          <span className="@max-[820px]:hidden">{t("status:git2.terminal")}</span>
         </button>
       </div>
       {/* Audit #018: status-bar carries live state on the left (status pill,
@@ -962,7 +977,7 @@ export function StatusBar() {
           className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/55 px-2.5 py-1 text-muted-foreground transition-all hover:-translate-y-px hover:border-foreground/15 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1"
         >
           <HelpCircle className="h-3.5 w-3.5" />
-          <span className="text-[10px] font-semibold tracking-[0.04em] text-foreground">
+          <span className="text-[10px] font-semibold tracking-[0.04em] text-foreground @max-[820px]:hidden">
             {t("status:help.label")}
           </span>
         </button>
@@ -980,7 +995,7 @@ export function StatusBar() {
             title={t("status:help.starsTitle", {
               count: formatGithubStars(displayStars),
             })}
-            className="relative inline-flex items-center gap-1 rounded-full border border-border bg-muted/55 px-2.5 py-1 text-muted-foreground transition-all hover:-translate-y-px hover:border-foreground/15 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1"
+            className="relative inline-flex items-center gap-1 rounded-full border border-border bg-muted/55 px-2.5 py-1 text-muted-foreground transition-all hover:-translate-y-px hover:border-foreground/15 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 @max-[820px]:hidden"
           >
             {starsExploding && <StarExplosion />}
             <Star className="h-3 w-3 fill-current text-amber-500/75" />
@@ -997,39 +1012,15 @@ export function StatusBar() {
           onClick={shareCabinet}
           aria-label={t("status:help.share")}
           title={t("status:help.shareSubtitle")}
-          className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/55 px-2.5 py-1 text-muted-foreground transition-all hover:-translate-y-px hover:border-foreground/15 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1"
+          className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/55 px-2.5 py-1 text-muted-foreground transition-all hover:-translate-y-px hover:border-foreground/15 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 @max-[820px]:hidden"
         >
           <Heart className="h-3.5 w-3.5 fill-current text-rose-300/60 transition-transform group-hover:scale-110" />
           <span className="text-[10px] font-semibold tracking-[0.04em] text-foreground">
             {t("status:help.share")}
           </span>
         </button>
-        {/* Rail toggle — kept as the rightmost status-bar control so it sits
-            right against the rail's reserved gutter. */}
-        <button
-          type="button"
-          onClick={toggleTaskRail}
-          aria-label={taskRailOpen ? t("taskRail:hide") : t("taskRail:show")}
-          aria-pressed={taskRailOpen}
-          title={
-            runningCount > 0
-              ? t("taskRail:toggleRunning", { count: runningCount })
-              : taskRailOpen
-                ? t("taskRail:hide")
-                : t("taskRail:show")
-          }
-          className={`relative inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/55 px-2.5 py-1 text-muted-foreground transition-all hover:-translate-y-px hover:border-foreground/15 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 ${
-            taskRailOpen ? "border-foreground/15 bg-muted text-primary" : ""
-          } ${taskRailFlash ? "animate-pulse !text-emerald-600 dark:!text-emerald-400" : ""}`}
-        >
-          <PanelRight className="h-3.5 w-3.5" />
-          {runningCount > 0 && (
-            <span
-              className="cabinet-task-heartbeat inline-block size-2 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.7)]"
-              aria-hidden="true"
-            />
-          )}
-        </button>
+        {/* The tasks-rail toggle moved to each surface's top bar (right of the
+            "New …" action). Reach the rail from anywhere with ⌥⌘L. */}
         {showCommunityPopup && (
           <div className="absolute bottom-full end-0 mb-2 z-50 w-64 rounded-lg border border-border bg-background p-1.5 shadow-lg">
             <button
@@ -1059,6 +1050,9 @@ export function StatusBar() {
                 <span className="text-[10px] text-muted-foreground">{t("status:help.discordSubtitle")}</span>
               </span>
             </a>
+            {/* #007: "GitHub" and "Star" both linked to the same repo URL —
+                collapse into one "Star on GitHub" row. Share is dropped here
+                since it already has its own dedicated status-bar pill. */}
             <a
               href={GITHUB_REPO_URL}
               target="_blank"
@@ -1068,25 +1062,16 @@ export function StatusBar() {
             >
               <GitHubIcon className="h-3.5 w-3.5 text-foreground" />
               <span className="flex flex-col">
-                <span className="font-medium text-foreground">{t("status:help.github")}</span>
+                <span className="font-medium text-foreground">
+                  {displayStars === null
+                    ? "Star on GitHub"
+                    : `Star on GitHub · ${formatGithubStars(displayStars)}`}
+                </span>
                 <span className="text-[10px] text-muted-foreground">{t("status:help.githubSubtitle")}</span>
               </span>
             </a>
-            <a
-              href={GITHUB_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setShowCommunityPopup(false)}
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-muted"
-            >
-              <Star className="h-3.5 w-3.5 fill-current text-amber-500" />
-              <span className="flex flex-col">
-                <span className="font-medium text-foreground">
-                  {displayStars === null ? "Star Cabinet" : `${formatGithubStars(displayStars)} stars`}
-                </span>
-                <span className="text-[10px] text-muted-foreground">{t("status:help.ifUseful")}</span>
-              </span>
-            </a>
+            {/* Share also lives in the menu so it stays reachable once its
+                standalone pill collapses on a squeezed desk. */}
             <button
               type="button"
               onClick={() => {
@@ -1095,7 +1080,7 @@ export function StatusBar() {
               }}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-muted"
             >
-              <Heart className="h-3.5 w-3.5 fill-current text-rose-500" />
+              <Heart className="h-3.5 w-3.5 fill-current text-rose-300/70" />
               <span className="flex flex-col">
                 <span className="font-medium text-foreground">{t("status:help.share")}</span>
                 <span className="text-[10px] text-muted-foreground">{t("status:help.shareSubtitle")}</span>

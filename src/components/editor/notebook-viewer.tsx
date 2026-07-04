@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
+import { ViewerLayout } from "@/components/layout/viewer-layout";
 import { common, createLowlight } from "lowlight";
 import { toHtml } from "hast-util-to-html";
 import { markdownToHtml } from "@/lib/markdown/to-html";
@@ -1512,9 +1513,9 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-background text-foreground h-full">
-      {/* red-designed Viewer Toolbar matching NotebookPress style */}
-      <ViewerToolbar
+    <ViewerLayout
+      toolbar={
+        <ViewerToolbar
         path={path}
         badge="IPYNB"
         sublabel={`${cellCount} cells · ${language}`}
@@ -1709,7 +1710,9 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
             <Download className="h-3.5 w-3.5" />
           </Button>
         </div>
-      </ViewerToolbar>
+        </ViewerToolbar>
+      }
+    >
 
       {/* Main Workspace Frame */}
       <div ref={split.containerRef} className="flex-1 flex overflow-hidden relative">
@@ -1923,6 +1926,6 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
           </>
         ) : null}
       </div>
-    </div>
+    </ViewerLayout>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronDown, ListFilter, Search } from "lucide-react";
+import { ChevronDown, ListFilter, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Search input + N filter chips + list pane shell, shared across all tabs. */
@@ -13,6 +13,7 @@ export function ListShell({
   searchPlaceholder = "Search",
   filters,
   trailingActions,
+  bare = false,
   loading,
   empty,
   children,
@@ -30,6 +31,9 @@ export function ListShell({
   /** Action(s) anchored to the right of the filter row (e.g. "Pause all
    *  heartbeats" on the Heartbeats tab, "Org chart" on the Agents tab). */
   trailingActions?: ReactNode;
+  /** Drop the bordered list panel so children (e.g. a card grid) sit directly
+   *  on the sheet. Default false = bordered list. */
+  bare?: boolean;
   loading: boolean;
   /** Shown when not loading and the list has no items. */
   empty: { title: string; hint?: string };
@@ -53,10 +57,21 @@ export function ListShell({
           <input
             type="text"
             placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="h-8 w-full rounded-md border border-border/70 bg-background pl-8 pr-3 text-[12.5px] outline-none placeholder:text-muted-foreground focus:border-ring"
+            className="h-8 w-full rounded-md border border-border/70 bg-background pl-8 pr-8 text-[12.5px] outline-none placeholder:text-muted-foreground focus:border-ring"
           />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          ) : null}
         </div>
         {filters}
         {trailingActions ? (
@@ -64,21 +79,37 @@ export function ListShell({
         ) : null}
       </div>
 
-      <div className="min-h-0 max-h-full overflow-y-auto rounded-xl border border-border/70 bg-card">
+      <div
+        className={cn(
+          "min-h-0 max-h-full overflow-y-auto",
+          !bare && "rounded-xl border border-border/70 bg-card"
+        )}
+      >
         {loading ? (
-          <div className="divide-y divide-border/60">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="flex h-9 animate-pulse items-center gap-3 px-3"
-              >
-                <div className="size-4 rounded-full bg-muted/60" />
-                <div className="size-5 shrink-0 rounded-full bg-muted/60" />
-                <div className="h-2.5 w-32 rounded bg-muted/60" />
-                <div className="ms-auto h-2.5 w-20 rounded bg-muted/40" />
-              </div>
-            ))}
-          </div>
+          bare ? (
+            <div className="grid grid-cols-1 gap-3 pb-2 pt-0.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-[140px] animate-pulse rounded-xl border border-border/60 bg-muted/30"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-border/60">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex h-9 animate-pulse items-center gap-3 px-3"
+                >
+                  <div className="size-4 rounded-full bg-muted/60" />
+                  <div className="size-5 shrink-0 rounded-full bg-muted/60" />
+                  <div className="h-2.5 w-32 rounded bg-muted/60" />
+                  <div className="ms-auto h-2.5 w-20 rounded bg-muted/40" />
+                </div>
+              ))}
+            </div>
+          )
         ) : (
           <EmptyOrChildren empty={empty}>{children}</EmptyOrChildren>
         )}
@@ -115,14 +146,17 @@ export function FilterChip<V extends string>({
   options,
   value,
   onChange,
+  ariaLabel,
 }: {
   options: { value: V; label: string }[];
   value: V;
   onChange: (v: V) => void;
+  ariaLabel?: string;
 }) {
   return (
     <div className="relative">
       <select
+        aria-label={ariaLabel}
         value={value}
         onChange={(e) => onChange(e.target.value as V)}
         className={cn(

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { ExternalLink, Download, Eye, Save, AlertCircle, Loader2, Info, RefreshCw, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
+import { ViewerLayout } from "@/components/layout/viewer-layout";
 import { renderLatexToHtml } from "./latex-render";
 import { SplitScreenIcon } from "./editor-toolbar";
 import { useSplitResize } from "@/hooks/use-split-resize";
@@ -113,8 +114,9 @@ export function LatexViewer({ path }: LatexViewerProps) {
   }, [content, path, assetUrl]);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <ViewerToolbar path={path} badge="TEX" sublabel={filename}>
+    <ViewerLayout
+      toolbar={
+        <ViewerToolbar path={path} badge="TEX" sublabel={filename}>
         {(splitMode || mode === "source") && (
           <Button
             variant="ghost"
@@ -243,6 +245,8 @@ export function LatexViewer({ path }: LatexViewerProps) {
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       </ViewerToolbar>
+      }
+    >
 
       <div className="flex-1 overflow-auto">
         {loading ? (
@@ -341,6 +345,6 @@ export function LatexViewer({ path }: LatexViewerProps) {
           </div>
         )}
       </div>
-    </div>
+    </ViewerLayout>
   );
 }

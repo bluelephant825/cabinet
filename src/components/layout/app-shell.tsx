@@ -40,6 +40,7 @@ import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { TaskRail } from "@/components/tasks/rail/task-rail";
 import { TaskRailProvider } from "@/components/tasks/rail/task-rail-context";
 import { SearchPalette } from "@/components/search/search-palette";
+import { FileHistoryPanel } from "@/components/editor/version-history";
 import { KeyboardShortcutsModal } from "@/components/help/keyboard-shortcuts-modal";
 import { WhatsNewCard } from "@/components/help/whats-new-card";
 import { NarrowViewportHint } from "@/components/layout/narrow-viewport-hint";
@@ -48,6 +49,7 @@ import { useGlobalHotkeys } from "@/hooks/use-global-hotkeys";
 import { dedupFetch } from "@/lib/api/dedup-fetch";
 import { subscribeConversationEvents } from "@/lib/agents/conversation-events-client";
 import { StatusBar } from "@/components/layout/status-bar";
+import { ContentSheet } from "@/components/layout/content-sheet";
 import { DaemonHealthBanner } from "@/components/layout/daemon-health-banner";
 import { TourModal } from "@/components/onboarding/tour/tour-modal";
 import { useTour } from "@/components/onboarding/tour/use-tour";
@@ -1129,15 +1131,51 @@ export function AppShell() {
     return <OnboardingWizard onComplete={handleWizardComplete} />;
   }
 
+  // The default markdown editor renders its own chrome (breadcrumb + folder
+  // tabs + formatting toolbar) on the desk and its body in a ContentSheet, so
+  // it opts out of app-shell's single full-view sheet. Every other view is a
+  // single elevated sheet.
+  const isDefaultEditor =
+    section.type === "page" &&
+    appMode !== "browse" &&
+    !driveLoading &&
+    !isApp && !isCsv && !isPdf && !isWebsite && !isNotebook && !isCode &&
+    !isImage && !isVideo && !isAudio && !isMermaid && !isLatex && !isDocx &&
+    !isXlsx && !isPptx && !isUnknown && !googleFrontmatter?.url;
+
+  // Viewers migrated to ViewerLayout put their toolbar on the desk and wrap
+  // only their body in a ContentSheet — so they, like the editor, opt out of
+  // the app-shell sheet (otherwise the toolbar sits back on a double sheet).
+  const isSelfSheetedViewer =
+    isCsv || isCode || isImage || isMermaid ||
+    isPdf || isVideo || isAudio || isUnknown || isLatex ||
+    isWebsite || isApp || isDocx || isXlsx || isPptx || isNotebook ||
+    !!googleFrontmatter?.url;
+
+  // Views that place their controls on the desk and their body in a
+  // ContentSheet manage their own layout — skip the app-shell sheet wrapper.
+  const bareLayout =
+    isDefaultEditor ||
+    isSelfSheetedViewer ||
+    section.type === "tasks" ||
+    section.type === "agents" ||
+    // The room/cabinet dashboard puts its header on the desk and wraps its body
+    // in a ContentSheet, like agents/tasks — but only in edit mode; browse mode
+    // hands off to BrowserView, which still wants the app-shell sheet.
+    (section.type === "cabinet" && appMode !== "browse");
+
   return (
     <TaskRailProvider>
     {/* When the rail is open we reserve a 30px gutter on the inline-end
         edge: the whole app shrinks into the remaining width (the "iframe")
         and the fixed, full-height rail lives in that gutter. */}
     <div
-      className={`flex h-screen bg-background text-foreground transition-[padding] duration-200 ease-out${
-        taskRailOpen && !isMobile ? " pe-7.5" : ""
-      }`}
+      className="flex h-screen bg-[var(--gutter)] text-foreground transition-[padding] duration-200 ease-out"
+      style={
+        isMobile
+          ? undefined
+          : { paddingTop: 10, paddingInlineEnd: taskRailOpen ? 30 : 10, paddingBottom: 0, paddingInlineStart: 0 }
+      }
     >
       {/* Audit #031: SR-only live region announcing the active page title
           on every route change. role="status" + aria-live="polite" so it
@@ -1152,14 +1190,24 @@ export function AppShell() {
         className="sr-only"
       />
       <Sidebar />
+      {/* The main column is transparent (shows the desk gutter). The content
+          "sheet" floats inside it (rounded + shadow); the status bar sits
+          BELOW the sheet, on the desk — outside the floating page. */}
       <div
-        className="flex-1 flex flex-col overflow-hidden max-md:pb-[calc(56px+env(safe-area-inset-bottom))]"
+        className="flex-1 flex flex-col min-w-0 overflow-hidden max-md:pb-[calc(56px+env(safe-area-inset-bottom))]"
         style={{ '--sidebar-toggle-offset': sidebarCollapsed ? 'calc(2.25rem + var(--traffic-clearance, 0px))' : '0px' } as React.CSSProperties}
       >
         <DaemonHealthBanner />
         {!isMobile && <NarrowViewportHint />}
-        <main className="flex-1 flex flex-col overflow-hidden">
-          {renderContent()}
+        {/* The main column IS the desk (transparent). Content floats on an
+            elevated ContentSheet; the editor manages its own layout — its
+            toolbars sit on the desk — so it opts out of the default sheet. */}
+        <main className="flex-1 flex flex-col overflow-hidden min-h-0 gap-1.5">
+          {bareLayout ? (
+            renderContent()
+          ) : (
+            <ContentSheet>{renderContent()}</ContentSheet>
+          )}
         </main>
         {terminalOpen && terminalPosition === "bottom" && <TerminalTabs />}
         {!isMobile && <StatusBar />}
@@ -1169,6 +1217,7 @@ export function AppShell() {
       {!isMobile && <TaskRail />}
       <TaskDetailPanel />
       <SearchPalette />
+      <FileHistoryPanel />
       <KeyboardShortcutsModal />
       <WhatsNewCard />
       <ConfirmDialogHost />

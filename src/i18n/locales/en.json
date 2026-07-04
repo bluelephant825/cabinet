@@ -1811,6 +1811,7 @@
   "sidebar": {
     "settings": "Settings",
     "createPage": "Create page",
+    "new": "New",
     "newPage": "New page",
     "newMenu": "Create new…",
     "newAgent": "New Agent",

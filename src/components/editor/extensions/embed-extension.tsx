@@ -7,7 +7,7 @@ import {
   providerLabel,
   type EmbedProvider,
 } from "@/lib/embeds/detect";
-import { Youtube, Video as VideoIcon, Film, Globe, Twitter, Facebook, Instagram, Music, Music2 } from "lucide-react";
+import { Youtube, Video as VideoIcon, Film, Globe, Twitter, Facebook, Instagram, Music, Music2, Link2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface EmbedAttrs {
@@ -73,6 +73,27 @@ function EmbedComponent(props: NodeViewProps) {
   const attrs = props.node.attrs as EmbedAttrs;
   const ratio = attrs.aspectRatio ? parseFloat(attrs.aspectRatio) : undefined;
 
+  // Replace this embed block with a plain link back to the original URL.
+  const convertToLink = () => {
+    const pos = props.getPos();
+    if (typeof pos !== "number") return;
+    const url = attrs.originalUrl ?? attrs.src;
+    if (!url) return;
+    props.editor
+      .chain()
+      .focus()
+      .insertContentAt(
+        { from: pos, to: pos + props.node.nodeSize },
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: url, marks: [{ type: "link", attrs: { href: url } }] },
+          ],
+        }
+      )
+      .run();
+  };
+
   const renderBody = () => {
     if (attrs.provider === "video") {
       return (
@@ -120,6 +141,16 @@ function EmbedComponent(props: NodeViewProps) {
         <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
           <ProviderIcon provider={attrs.provider} className="w-3 h-3" /> {providerLabel(attrs.provider)}
         </div>
+        {props.editor.isEditable && (
+          <button
+            type="button"
+            onClick={convertToLink}
+            title="Convert this embed to a plain link"
+            className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+          >
+            <Link2 className="w-3 h-3" /> Link
+          </button>
+        )}
       </div>
     </NodeViewWrapper>
   );

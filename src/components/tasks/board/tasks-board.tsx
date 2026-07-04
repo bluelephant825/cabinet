@@ -35,7 +35,9 @@ import { KanbanView } from "./kanban-view";
 import { ListView } from "./list-view";
 import { ScheduleView } from "@/components/cabinets/schedule-view";
 import { ViewToggle, type BoardViewMode } from "./view-toggle";
+import { ContentSheet } from "@/components/layout/content-sheet";
 import { DensityToggle, type BoardDensity } from "./density-toggle";
+import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
 import {
   ExplainerCard,
   ExplainerIcon,
@@ -414,38 +416,42 @@ export function TasksBoard({
   const draggedAgent = draggedTask ? agentsBySlug.get(draggedTask.agentSlug ?? "") : undefined;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
+    <div className="flex h-full min-h-0 flex-col text-foreground">
       <header
-        className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/70 bg-background px-4 py-2 transition-[padding] duration-200 md:h-12 md:flex-nowrap md:py-0"
-        style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}
+        className="@container flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1 px-3 pt-1 transition-[padding] duration-200 md:flex-nowrap"
+        style={{ paddingInlineStart: `calc(0.75rem + var(--sidebar-toggle-offset, 0px))` }}
       >
-        {standalone && (
-          <Link
-            href="/"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <DirIcon ltr={ArrowLeft} rtl={ArrowRight} className="size-4" />
-          </Link>
-        )}
-        <h1 className="font-ui text-[14px] font-semibold tracking-tight">{t("tasksBoard:title")}</h1>
-        {refreshing && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
-        {view !== "schedule" && (
-          <ExplainerIcon
-            state={boardExplainer}
-            ariaLabel="About the task board"
-          />
-        )}
-        <div className="flex items-center gap-2 md:ms-2">
+        <div className="mb-1.5 flex items-center gap-2">
+          {standalone && (
+            <Link
+              href="/"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <DirIcon ltr={ArrowLeft} rtl={ArrowRight} className="size-4" />
+            </Link>
+          )}
+          <h1 className="font-ui text-[14px] font-semibold tracking-tight">{t("tasksBoard:title")}</h1>
+          {refreshing && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+          {view !== "schedule" && (
+            <ExplainerIcon
+              state={boardExplainer}
+              ariaLabel="About the task board"
+            />
+          )}
+        </div>
+        <div className="flex items-end gap-2 md:ms-2">
           <ViewToggle value={view} onChange={setView} />
           {/* Density only affects kanban/list rows — the schedule grid
               ignores it, so don't surface a no-op control there. */}
           {view !== "schedule" && (
-            <DensityToggle value={density} onChange={setDensity} />
+            <div className="mb-1.5">
+              <DensityToggle value={density} onChange={setDensity} />
+            </div>
           )}
         </div>
 
         {/* right-side: depth, trigger, selection */}
-        <div className="ms-auto flex items-center gap-2">
+        <div className="ms-auto mb-1.5 flex items-center gap-2">
           {/* visibility depth dropdown */}
           <DepthDropdown
             mode={visibilityMode}
@@ -621,6 +627,7 @@ export function TasksBoard({
           <div className="h-3.5 w-px bg-border/60" />
 
           <NewWorkButton onCreate={openComposer} />
+          <TaskRailToggle />
         </div>
       </header>
 
@@ -635,7 +642,7 @@ export function TasksBoard({
         void handleDragEnd(e);
       }}
     >
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <ContentSheet className="relative">
         {!loading && tasks.length > 0 && filteredTasks.length === 0 && (
           <div className="flex items-center justify-between gap-3 border-b border-border bg-amber-500/10 px-3 py-2 text-[12px] text-amber-900 dark:text-amber-200">
             <span>
@@ -664,8 +671,8 @@ export function TasksBoard({
                 <ExplainerCard state={boardExplainer}>
                   <p>
                     Every task your team has run or has queued, in one place.
-                    Kanban groups them by status; List is a flat, sortable
-                    feed of the same tasks.
+                    Kanban groups them by status; List is a flat feed of the
+                    same tasks, newest activity first.
                   </p>
                   <p>
                     Click any task to open it. Use the filters in the header
@@ -696,6 +703,8 @@ export function TasksBoard({
                 agents={overview?.agents ?? []}
                 agentsBySlug={agentsBySlug}
                 selectedId={selectedId}
+                selection={selection}
+                onToggleSelection={toggleSelection}
                 now={now}
                 onSelect={(id) => void openTaskById(id)}
                 onRefresh={refresh}
@@ -745,7 +754,7 @@ export function TasksBoard({
           </main>
         )}
 
-      </div>
+      </ContentSheet>
 
       <DragOverlay dropAnimation={null}>
         {draggedTask && draggedLane ? (

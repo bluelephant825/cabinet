@@ -7,7 +7,6 @@ import {
   HeartPulse,
   Loader2,
   Plus,
-  RefreshCw,
   Users,
 } from "lucide-react";
 import { ChannelsPanel } from "@/components/agents/v2/channels-panel";
@@ -28,6 +27,9 @@ import { AgentsTab } from "./agents-tab";
 import { RoutinesTab } from "./routines-tab";
 import { HeartbeatsTab } from "./heartbeats-tab";
 import { ScheduleView } from "@/components/cabinets/schedule-view";
+import { ContentSheet } from "@/components/layout/content-sheet";
+import { FolderTabs } from "@/components/layout/folder-tabs";
+import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
 
 export type AgentsTabKey = "agents" | "routines" | "heartbeats" | "schedule" | "channels";
 
@@ -49,13 +51,14 @@ export function TabsLayout({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar tab={tab} onTabChange={onTabChange} />
+      <ContentSheet>
       {tab === "schedule" ? (
-        // Full-bleed: the calendar fills the area below the tab bar.
+        // Full-bleed: the calendar fills the sheet below the tab bar.
         <div className="min-h-0 flex-1">
           <ScheduleMount />
         </div>
       ) : tab === "channels" ? (
-        // Full-bleed: the team channels viewer fills the area below the tab bar.
+        // Full-bleed: the team channels viewer fills the sheet below the tab bar.
         // ponytail: onOpenFile omitted → in-message file links are inert (add a
         // nav handler if users want to click through to KB pages).
         <div className="min-h-0 flex-1">
@@ -68,6 +71,7 @@ export function TabsLayout({
           {tab === "heartbeats" && <HeartbeatsTab />}
         </div>
       )}
+      </ContentSheet>
     </div>
   );
 }
@@ -136,38 +140,25 @@ function TopBar({
   tab: AgentsTabKey;
   onTabChange: (next: AgentsTabKey) => void;
 }) {
-  const { t } = useLocale();
-  const { loading, refresh, visibilityMode, setVisibilityMode } =
+  const { loading, visibilityMode, setVisibilityMode } =
     useAgentsContext();
   return (
     <header
-      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/70 bg-background px-4 py-2 transition-[padding] duration-200 md:h-12 md:flex-nowrap md:py-0"
-      style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}
+      className="@container flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1 px-3 pt-1 transition-[padding] duration-200 md:flex-nowrap"
+      style={{ paddingInlineStart: `calc(0.75rem + var(--sidebar-toggle-offset, 0px))` }}
     >
-      <div className="flex items-center gap-2">
-        <h1 className="font-ui text-[14px] font-semibold tracking-tight">Team</h1>
+      <div className="order-2 min-w-0 flex-1 md:order-1">
+        <TabStrip tab={tab} onTabChange={onTabChange} />
+      </div>
+      <div className="order-1 ms-auto flex items-center gap-2 mb-1.5 md:order-2">
         {loading && (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
         )}
-      </div>
-      <div className="order-3 w-full overflow-x-auto md:order-2 md:ms-2 md:w-auto md:overflow-visible">
-        <TabStrip tab={tab} onTabChange={onTabChange} />
-      </div>
-      <div className="order-2 ms-auto flex items-center gap-2 md:order-3">
         <DepthDropdown mode={visibilityMode} onChange={setVisibilityMode} />
-        <Divider className="hidden md:block" />
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          title={t("agents:workspace.refresh")}
-          aria-label={t("agents:workspace.refresh")}
-          className="hidden md:inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-        >
-          <RefreshCw className="size-3.5" />
-        </button>
         <Divider className="hidden md:block" />
         <MasterToggle />
         <NewButton tab={tab} />
+        <TaskRailToggle />
       </div>
     </header>
   );
@@ -191,55 +182,74 @@ function Divider({ className }: { className?: string }) {
 function MasterToggle() {
   const { agents, toggleAllAgentsActive, bulkToggleInFlight } =
     useAgentsContext();
-  const anyActive = agents.some((a) => a.active);
   const activeCount = agents.filter((a) => a.active).length;
   const totalCount = agents.length;
-  const summaryLine = anyActive
-    ? `${activeCount} of ${totalCount} ${totalCount === 1 ? "agent" : "agents"} running`
-    : totalCount === 0
+  const allActive = totalCount > 0 && activeCount === totalCount;
+  const partial = activeCount > 0 && activeCount < totalCount;
+  const summaryLine =
+    totalCount === 0
       ? "No agents in this team"
-      : "Every agent is stopped";
-  const actionLine = anyActive
+      : activeCount === 0
+        ? "Every agent is stopped"
+        : `${activeCount} of ${totalCount} ${totalCount === 1 ? "agent" : "agents"} running`;
+  const actionLine = allActive
     ? "Click to stop the whole team. All heartbeats and routines will be paused."
     : "Click to start the whole team. Heartbeats and routines fire on their schedule.";
+  // Caption + thumb sit opposite each other. The thumb position is derived
+  // from the track width (a fixed inset, or 100% minus the thumb) with
+  // logical properties, so it stays flush if the pill is widened and mirrors
+  // under RTL — no magic translate tied to the English caption width. Partial
+  // reads as a softer green (not amber) with a paler count caption, so it
+  // stays on-brand with the full-on emerald while signalling "not everyone".
+  const caption = allActive
+    ? "Team on"
+    : partial
+      ? `${activeCount}/${totalCount}`
+      : "Team off";
+  const thumbInsetStart = allActive
+    ? "calc(100% - 1.5rem)"
+    : "0.25rem";
   return (
     <div className="relative inline-flex">
       <SwitchPrimitive.Root
-        checked={anyActive}
+        checked={allActive}
         onCheckedChange={() => void toggleAllAgentsActive()}
         disabled={totalCount === 0 || bulkToggleInFlight}
-        aria-label={anyActive ? "Stop every agent" : "Start every agent"}
+        aria-label={allActive ? "Stop every agent" : "Start every agent"}
         aria-busy={bulkToggleInFlight}
         className={cn(
-          "peer group/master relative inline-flex h-7 w-[5.5rem] shrink-0 cursor-pointer items-center rounded-md border border-transparent transition-colors outline-none",
+          "peer group/master relative inline-flex h-7 w-24 shrink-0 cursor-pointer items-center rounded-md border border-transparent transition-colors outline-none",
           "focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
           "disabled:cursor-not-allowed",
           bulkToggleInFlight ? "opacity-80" : "disabled:opacity-50",
-          "data-[checked]:bg-emerald-500 data-[unchecked]:bg-muted-foreground/30"
+          partial
+            ? "bg-emerald-500/70"
+            : "data-[checked]:bg-emerald-500 data-[unchecked]:bg-muted-foreground/30"
         )}
       >
         <span
           aria-hidden
+          style={
+            allActive
+              ? { insetInlineStart: "0.5rem" }
+              : { insetInlineEnd: "0.5rem" }
+          }
           className={cn(
-            "pointer-events-none absolute inset-y-0 left-2 flex items-center text-[10.5px] font-bold uppercase tracking-wider text-white transition-opacity",
-            "opacity-0 group-data-[checked]/master:opacity-100"
+            "pointer-events-none absolute inset-y-0 flex items-center text-[10px] font-bold uppercase tracking-wide",
+            allActive
+              ? "text-white"
+              : partial
+                ? "text-white/80"
+                : "text-muted-foreground/80"
           )}
         >
-          Team on
-        </span>
-        <span
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-y-0 right-2 flex items-center text-[9px] font-bold uppercase tracking-wide text-muted-foreground/80 transition-opacity",
-            "opacity-100 group-data-[checked]/master:opacity-0"
-          )}
-        >
-          Team off
+          {caption}
         </span>
         <SwitchPrimitive.Thumb
+          style={{ insetInlineStart: thumbInsetStart }}
           className={cn(
-            "pointer-events-none relative z-10 block size-5 rounded bg-background shadow-sm ring-0 transition-transform",
-            "data-[checked]:translate-x-16 data-[unchecked]:translate-x-1"
+            "pointer-events-none absolute inset-y-1 z-10 block aspect-square rounded bg-background shadow-sm ring-0",
+            "transition-[inset-inline-start]"
           )}
         />
       </SwitchPrimitive.Root>
@@ -256,7 +266,11 @@ function MasterToggle() {
         )}
       >
         <p className="text-[12px] font-semibold">
-          {anyActive ? "Team is running" : "Team is stopped"}
+          {allActive
+            ? "Team is running"
+            : partial
+              ? "Team partially running"
+              : "Team is stopped"}
         </p>
         <p className="mt-1 text-[11px] text-muted-foreground">
           {summaryLine}.
@@ -287,46 +301,26 @@ function TabStrip({
     channels: undefined,
   };
   return (
-    <nav
-      className="flex h-7 items-center rounded-lg border border-border/60 p-0.5"
-      role="tablist"
-    >
-      {TABS.map((t) => {
-        const active = tab === t.key;
+    <FolderTabs
+      ariaLabel="Team views"
+      active={tab}
+      onSelect={(id) => onTabChange(id as AgentsTabKey)}
+      tabs={TABS.map((t) => {
         const Icon = t.icon;
-        const count = counts[t.key];
-        return (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onTabChange(t.key)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
-              active
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Icon className="size-3.5" />
-            {t.label}
-            {typeof count === "number" ? (
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-px text-[9.5px] font-semibold tabular-nums",
-                  active
-                    ? "bg-primary-foreground/20 text-primary-foreground"
-                    : "bg-muted/60 text-muted-foreground/80"
-                )}
-              >
-                {count}
-              </span>
-            ) : null}
-          </button>
-        );
+        return {
+          id: t.key,
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              <Icon className="size-3.5" />
+              {/* Squeezed by open side panels the tab strip runs out of room,
+                  so drop the word to an icon-only tab below ~900px of desk. */}
+              <span className="@max-[900px]:hidden">{t.label}</span>
+            </span>
+          ),
+          count: counts[t.key],
+        };
       })}
-    </nav>
+    />
   );
 }
 

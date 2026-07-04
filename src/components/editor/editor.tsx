@@ -7,10 +7,13 @@ import { editorExtensions } from "./extensions";
 import { EditorToolbar } from "./editor-toolbar";
 import { SlashCommands } from "./slash-commands";
 import { EditorMentionPicker } from "./mention-picker";
+import { PasteLinkMenu } from "./paste-link-menu";
 import { EditorBubbleMenu } from "./bubble-menu";
 import { TableMenu } from "./table-menu";
 import { FindBar } from "./find-bar";
 import { FolderIndex } from "./folder-index";
+import { ContentSheet } from "@/components/layout/content-sheet";
+import { FolderTabs } from "@/components/layout/folder-tabs";
 import { useEditorStore } from "@/stores/editor-store";
 import { useAppStore } from "@/stores/app-store";
 import { useTreeStore } from "@/stores/tree-store";
@@ -239,6 +242,14 @@ export function KBEditor() {
   // calls flushSync internally; setState during the parent render explodes
   // when EditorContent renders in the same pass.
   const [folderTab, setFolderTab] = useState<"page" | "files">("page");
+  // Inline "Link vs Embed" chooser after a bare URL is pasted on its own line.
+  const [pasteMenu, setPasteMenu] = useState<{
+    url: string;
+    from: number;
+    to: number;
+    top: number;
+    left: number;
+  } | null>(null);
   useEffect(() => {
     setFolderTab("page");
   }, [currentPath]);
@@ -436,8 +447,35 @@ export function KBEditor() {
           if (detected) {
             const isGenericFallback =
               detected.provider === "iframe" || detected.provider === "video";
-            const { $from } = editor.state.selection;
+            const { $from, from } = editor.state.selection;
             const onEmptyLine = $from.parent.textContent.length === 0;
+
+            // Generic web page on its own line: don't force an iframe (many sites
+            // refuse framing -> dead grey box). Drop a plain link and let the user
+            // pick Link vs Embed via the inline menu (Embed is frame-checked).
+            if (detected.provider === "iframe" && onEmptyLine) {
+              editor
+                .chain()
+                .focus()
+                .insertContent({
+                  type: "text",
+                  text,
+                  marks: [{ type: "link", attrs: { href: text } }],
+                })
+                .run();
+              const to = editor.state.selection.from;
+              const coords = editor.view.coordsAtPos(to);
+              setPasteMenu({
+                url: text,
+                from,
+                to,
+                top: coords.bottom + 4,
+                left: coords.left,
+              });
+              return true;
+            }
+
+            // Media providers embed anywhere; video files embed on their own line.
             if (!isGenericFallback || onEmptyLine) {
               editor.commands.setEmbed({ url: text });
               return true;
@@ -678,6 +716,26 @@ export function KBEditor() {
     });
   };
 
+  // Any further edit (typing, clicking away) means "keep the link" — close the menu.
+  useEffect(() => {
+    if (!pasteMenu || !editor) return;
+    const close = () => setPasteMenu(null);
+    editor.on("update", close);
+    return () => {
+      editor.off("update", close);
+    };
+  }, [pasteMenu, editor]);
+
+  const embedFromPasteMenu = () => {
+    if (!pasteMenu || !editor) return;
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: pasteMenu.from, to: pasteMenu.to })
+      .setEmbed({ url: pasteMenu.url })
+      .run();
+    setPasteMenu(null);
+  };
 
   if (currentPath === null) {
     return (
@@ -705,35 +763,42 @@ export function KBEditor() {
     const folderNode = findNodeByPath(nodes, currentPath);
     const folderChildren = folderNode?.children ?? [];
     const hasChildren = folderChildren.length > 0;
+    // Float the placeholder + folder index on the elevated cream sheet, same
+    // as every other editor view — a bare desk-flat column reads as an
+    // off-system, unfinished screen (#025).
     return (
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
-          <div className="space-y-3">
-            <p className="text-lg font-medium tracking-[-0.02em] text-foreground">
-              {inferredTitle}
-            </p>
-            <p className="text-sm text-muted-foreground/80">
-              This folder doesn&apos;t have a markdown sibling page
-              {hasChildren
-                ? " yet — its contents are listed below."
-                : " yet."}
-            </p>
-            <button
-              onClick={() => void createMissingPage(inferredTitle)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <FilePlus className="h-3.5 w-3.5" />
-              Create page
-            </button>
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <ContentSheet>
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
+              <div className="space-y-3">
+                <p className="text-lg font-medium tracking-[-0.02em] text-foreground">
+                  {inferredTitle}
+                </p>
+                <p className="text-sm text-muted-foreground/80">
+                  This folder doesn&apos;t have a markdown sibling page
+                  {hasChildren
+                    ? " yet — its contents are listed below."
+                    : " yet."}
+                </p>
+                <button
+                  onClick={() => void createMissingPage(inferredTitle)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  <FilePlus className="h-3.5 w-3.5" />
+                  Create page
+                </button>
+              </div>
+              {hasChildren && (
+                <FolderIndex
+                  key={currentPath}
+                  folderPath={currentPath}
+                  entries={folderChildren}
+                />
+              )}
+            </div>
           </div>
-          {hasChildren && (
-            <FolderIndex
-              key={currentPath}
-              folderPath={currentPath}
-              entries={folderChildren}
-            />
-          )}
-        </div>
+        </ContentSheet>
       </div>
     );
   }
@@ -777,64 +842,56 @@ export function KBEditor() {
   const onFilesTab = showFolderTabs && folderTab === "files";
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {showFolderTabs && (
-        <div className="flex items-center gap-1 px-3 pt-2 border-b border-border">
-          <button
-            onClick={() => setFolderTab("page")}
-            className={`px-3 py-1.5 text-[12px] rounded-t-md border-b-2 -mb-px transition-colors ${
-              folderTab === "page"
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-            aria-pressed={folderTab === "page"}
-          >
-            Page
-          </button>
-          <button
-            onClick={() => setFolderTab("files")}
-            className={`px-3 py-1.5 text-[12px] rounded-t-md border-b-2 -mb-px transition-colors ${
-              folderTab === "files"
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-            aria-pressed={folderTab === "files"}
-          >
-            Files
-            <span className="ms-1.5 text-muted-foreground/60">
-              {renderedFolderChildren.length}
-            </span>
-          </button>
-        </div>
-      )}
-      {onFilesTab && (
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-6 py-6">
-            <FolderIndex
-              key={currentPath}
-              folderPath={currentPath}
-              entries={renderedFolderChildren}
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      {/* Chrome row on the desk: folder tabs on the left; on the Page tab the
+          formatting toolbar scrolls to the right of them (transparent, faded).
+          Only the tabs connect down into the sheet below. */}
+      <div className="flex shrink-0 items-end gap-3 ps-4 pe-2 min-h-[34px]">
+        {showFolderTabs && (
+          <FolderTabs
+            className="shrink-0"
+            ariaLabel="Page views"
+            active={folderTab}
+            onSelect={(id) => setFolderTab(id as "page" | "files")}
+            tabs={[
+              { id: "page", label: "Page" },
+              { id: "files", label: "Files", count: renderedFolderChildren.length },
+            ]}
+          />
+        )}
+        {!onFilesTab && (
+          <div className="min-w-0 flex-1 mb-0.5 animate-in fade-in slide-in-from-left-3 duration-300 ease-out">
+            <EditorToolbar
+              editor={editor}
+              sourceMode={sourceMode}
+              onToggleSource={toggleSourceMode}
+              wideMode={wideMode}
+              onToggleWide={toggleWideMode}
+              splitMode={splitMode}
+              onToggleSplit={toggleSplitMode}
+              onSetMode={handleSetMode}
             />
           </div>
-        </div>
+        )}
+      </div>
+      {/* Files tab: elevated sheet holding the folder index. */}
+      {onFilesTab && (
+        <ContentSheet>
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-6 py-6">
+              <FolderIndex
+                key={currentPath}
+                folderPath={currentPath}
+                entries={renderedFolderChildren}
+              />
+            </div>
+          </div>
+        </ContentSheet>
       )}
-      {/* Editor + toolbar stay MOUNTED on the Files tab / in source mode —
-          hidden via CSS, never unmounted. Unmounting made Tiptap re-run
-          createNodeViews() on the next mount, which flushSyncs a React node
-          view (e.g. a mermaid diagram) inside componentDidMount → React's
-          "flushSync was called from inside a lifecycle method" warning. */}
-      <div className={onFilesTab ? "hidden" : "flex-1 flex flex-col overflow-hidden"}>
-      <EditorToolbar
-        editor={editor}
-        sourceMode={sourceMode}
-        onToggleSource={toggleSourceMode}
-        wideMode={wideMode}
-        onToggleWide={toggleWideMode}
-        splitMode={splitMode}
-        onToggleSplit={toggleSplitMode}
-        onSetMode={handleSetMode}
-      />
-
+      {/* The editor body stays MOUNTED on the Files tab (hidden via CSS), else
+          Tiptap re-runs createNodeViews and flushSyncs inside a lifecycle. */}
+      <div className={onFilesTab ? "hidden" : "flex-1 flex flex-col overflow-hidden min-h-0"}>
+      <ContentSheet>
       {sourceMode && (
         <div ref={split.containerRef} className="relative flex-1 flex overflow-hidden border-t border-border" dir={isRtl ? "rtl" : undefined}>
           {/* Left: Code Editor */}
@@ -913,17 +970,26 @@ export function KBEditor() {
             <TableMenu editor={editor} />
             <SlashCommands editor={editor} />
             <EditorMentionPicker editor={editor} />
+            {pasteMenu && (
+              <PasteLinkMenu
+                url={pasteMenu.url}
+                top={pasteMenu.top}
+                left={pasteMenu.left}
+                onEmbed={embedFromPasteMenu}
+                onDismiss={() => setPasteMenu(null)}
+              />
+            )}
 
             {/* AI Edit Prompt + slash hint */}
             <div className="max-w-(--editor-max-w,48rem) mx-auto px-8 pb-8 flex items-center gap-4">
               <button
                 onClick={handleOpenAI}
-                className="group flex items-center gap-2 text-[13px] text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer"
+                className="group flex items-center gap-2 text-[13px] text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer"
               >
                 <Sparkles className="h-3.5 w-3.5 group-hover:text-primary transition-colors" />
                 <span>{t("editorExtras:editWithAi")}</span>
               </button>
-              <span className="text-[11px] text-muted-foreground/30 select-none">
+              <span className="text-[11px] text-muted-foreground/60 select-none">
                 <kbd className="rounded px-1 py-0.5 font-mono text-[10px] ring-1 ring-foreground/10">/</kbd>
                 {" "}for commands
               </span>
@@ -958,6 +1024,7 @@ export function KBEditor() {
           {saveStatus === "error" && "Save failed"}
         </span>
       </div>
+      </ContentSheet>
       </div>
 
     </div>
