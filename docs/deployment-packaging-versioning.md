@@ -188,9 +188,10 @@ This is the release flow to use right now.
 
 ### Release prerequisites
 
-Make sure GitHub Actions has the secrets needed for the parts you want to ship:
+npm publishing uses **npm trusted publishing (OIDC)**, not an `NPM_TOKEN` secret. Both `cabinetai` and `create-cabinet` must have this repo + the `Release` workflow registered as a trusted publisher on npmjs.com; CI upgrades to `npm@latest` in the publish jobs because OIDC auth needs npm >= 11.5.1 (Node 22 ships npm 10.x, which only does OIDC provenance, not auth). There is no npm token to rotate.
 
-- `NPM_TOKEN` - required to publish `create-cabinet`
+macOS notarization/signing still needs GitHub Actions secrets (consumed by the separate `electron-release.yml`):
+
 - `APPLE_ID` - required for macOS notarization
 - `APPLE_APP_PASSWORD` - required for macOS notarization
 - `APPLE_TEAM_ID` - required for macOS notarization
@@ -234,12 +235,15 @@ git push origin v0.2.1
 
 10. Let GitHub Actions publish the release artifacts.
 
-The release workflow triggered by `vX.Y.Z` tags is responsible for:
+The tag-triggered `Release` workflow (`.github/workflows/release.yml`) runs three chained jobs (verified 2026-07-04, shipping v0.5.0):
 
-- creating the GitHub Release
-- uploading `cabinet-release.json`
-- publishing `create-cabinet@X.Y.Z` to npm
-- building and publishing Electron macOS artifacts
+1. `release-assets` - verify the tag matches `package.json`, regenerate `cabinet-release.json`, build the web app, and create a **draft** GitHub Release with the manifest attached.
+2. `publish-cabinetai` - `npm publish` from `cabinetai/`, publishing `cabinetai@X.Y.Z`.
+3. `publish-cli` - `npm publish` from `cli/`, publishing `create-cabinet@X.Y.Z`.
+
+The jobs are chained with `needs:`, so a failed draft-release job blocks both npm publishes, and a failed `cabinetai` publish blocks `create-cabinet`.
+
+The Electron macOS DMG/ZIP is **not** built by this workflow. It is the separate, manually-dispatched `electron-release.yml`. So a tag gives you the draft release plus both npm packages; you trigger the desktop build yourself and then publish the draft (see Known Gaps below). Because `create-cabinet` installs the matching GitHub release tarball, `npx create-cabinet@latest` stays broken until the draft release is published (the tarball URL 404s while it is a draft).
 
 ### What to verify after the tag ships
 
@@ -311,4 +315,4 @@ Release/CI (so the manifest can't lie):
 
 ---
 
-Last Updated: 2026-05-19
+Last Updated: 2026-07-04
