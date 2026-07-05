@@ -1600,7 +1600,7 @@ export function BrowserView() {
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header />
       <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-        <div className="grid grid-cols-[1fr_minmax(0,720px)_1fr] items-center gap-3 border-b border-border/70 bg-background/80 px-4 py-2 text-sm text-muted-foreground">
+        <div className="grid grid-cols-[1fr_minmax(0,720px)_1fr] items-center gap-3 border-b border-border/70 bg-[#F1E4D3] px-4 py-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2 truncate">
             <button
               type="button"
@@ -1772,7 +1772,7 @@ export function BrowserView() {
           </div>
         </div>
         {bookmarksBarVisible ? (
-          <div className="border-b border-border/70 bg-background/80 px-4 py-1.5">
+          <div className="border-b border-border/70 bg-[#F1E4D3] px-4 py-1.5">
             <div className="flex items-center gap-1.5 overflow-x-auto">
               {bookmarkBarNodes.length > 0 ? (
                 bookmarkBarNodes.map((node) => (
@@ -1795,7 +1795,7 @@ export function BrowserView() {
             </div>
           </div>
         ) : null}
-        <div ref={containerRef} className="relative flex-1 min-h-0">
+        <div ref={containerRef} className="relative flex-1 min-h-0 rounded-[20px] overflow-hidden">
           {browserMode === "iframe" ? (
             <>
               <iframe
@@ -1807,7 +1807,7 @@ export function BrowserView() {
                   iframeLoadedTokenRef.current = iframeLoadTokenRef.current;
                   setIframeLoadedToken(iframeLoadTokenRef.current);
                 }}
-                className="h-full w-full border-0 bg-white"
+                className="h-full w-full border-0 bg-transparent"
                 sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-top-navigation-by-user-activation"
               />
               {iframeFailure ? (
@@ -1821,7 +1821,7 @@ export function BrowserView() {
             </>
           ) : (
             <>
-              <div className="h-full w-full bg-white" />
+              <div className="h-full w-full bg-transparent" />
               {electronFailure ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/85 p-6 text-center">
                   <div className="max-w-xl rounded border border-border bg-background px-4 py-3 text-sm text-muted-foreground">

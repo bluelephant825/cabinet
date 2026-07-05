@@ -365,6 +365,7 @@ function registerHandlers() {
     });
     view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     view.setVisible(false);
+    view.setBackgroundColor("#00000000");
 
     const defaultUA = view.webContents.userAgent || "";
     view.webContents.userAgent = defaultUA

@@ -330,7 +330,7 @@ export function Sidebar() {
         </div>
       </aside>
       {!isMobile && !collapsed && (
-        <div className="relative -ms-px h-screen w-px shrink-0 bg-border">
+        <div className="relative -ms-px h-screen w-[2px] shrink-0 bg-transparent">
           <div
             role="separator"
             aria-orientation="vertical"
@@ -355,7 +355,7 @@ export function Sidebar() {
                 setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
               }
             }}
-            className="absolute inset-y-0 inset-x-0 mx-auto w-3 cursor-col-resize bg-transparent focus-visible:outline-none focus-visible:bg-primary/40"
+            className="absolute inset-y-0 inset-x-0 mx-auto w-[2px] bg-[#e8d7d1] cursor-col-resize focus-visible:outline-none focus-visible:bg-primary/40 before:content-[''] before:absolute before:inset-y-0 before:-inset-x-2 before:cursor-col-resize"
           />
         </div>
       )}

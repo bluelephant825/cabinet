@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { ExternalLink, Download, WrapText, Copy, Check, Save, Code2, FileCode } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { ExternalLink, Download, WrapText, Copy, Check, Save, Code2, FileCode, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
-import { common, createLowlight } from "lowlight";
-import { toHtml } from "hast-util-to-html";
 import { useLocale } from "@/i18n/use-locale";
+import Editor, { loader } from "@monaco-editor/react";
+import { useTheme } from "@/components/theme-provider";
+import { useEditorSettings } from "@/hooks/use-editor-settings";
+
+if (typeof window !== "undefined") {
+  loader.config({ paths: { vs: "/monaco/vs" } });
+}
 import { SplitScreenIcon } from "./editor-toolbar";
 import { useSplitResize } from "@/hooks/use-split-resize";
 import { SplitRuler } from "./split-ruler";
@@ -16,14 +21,12 @@ interface SourceViewerProps {
   title: string;
 }
 
-const lowlight = createLowlight(common);
-
 const EXT_TO_LANG: Record<string, string> = {
   ".js": "javascript", ".cjs": "javascript", ".mjs": "javascript",
   ".ts": "typescript", ".tsx": "typescript", ".jsx": "javascript",
   ".py": "python", ".rb": "ruby", ".php": "php",
   ".sh": "bash", ".bash": "bash", ".zsh": "bash", ".ps1": "powershell",
-  ".css": "css", ".scss": "scss", ".html": "xml",
+  ".css": "css", ".scss": "scss", ".html": "html",
   ".json": "json", ".jsonc": "json",
   ".yaml": "yaml", ".yml": "yaml", ".toml": "ini", ".ini": "ini",
   ".xml": "xml", ".sql": "sql", ".graphql": "graphql", ".gql": "graphql",
@@ -47,6 +50,8 @@ function formatBadge(filename: string): string {
 
 export function SourceViewer({ path }: SourceViewerProps) {
   const { t } = useLocale();
+  const { resolvedTheme } = useTheme();
+  const settings = useEditorSettings();
   const filename = path.split("/").pop() || path;
   const isHtml = filename.toLowerCase().endsWith(".html");
 
@@ -55,16 +60,18 @@ export function SourceViewer({ path }: SourceViewerProps) {
   const [loading, setLoading] = useState(true);
   const [wrap, setWrap] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [sourceMode, setSourceMode] = useState(isHtml);
+  const [sourceMode, setSourceMode] = useState(!isHtml);
   const [splitMode, setSplitMode] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  const editInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const editOverlayRef = useRef<HTMLDivElement | null>(null);
   const split = useSplitResize("kb-source-viewer-split-ratio");
 
-  const assetUrl = `/api/assets/${path}`;
+  const assetUrl = `/api/assets/${path.split("/").map(encodeURIComponent).join("/")}`;
   const language = detectLanguage(filename);
+
+  const editorTheme = settings.theme === "app"
+    ? (resolvedTheme === "dark" ? "vs-dark" : "light")
+    : settings.theme;
 
   const fetchContent = useCallback(async () => {
     setLoading(true);
@@ -84,48 +91,25 @@ export function SourceViewer({ path }: SourceViewerProps) {
     void fetchContent();
   }, [fetchContent]);
 
-  const highlightedLines = useMemo(() => {
-    if (!content) return [];
-    try {
-      const tree = language
-        ? lowlight.highlight(language, content)
-        : lowlight.highlightAuto(content);
-      const html = toHtml(tree);
-      return html.split("\n");
-    } catch {
-      return content.split("\n").map((line) =>
-        line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      );
-    }
-  }, [content, language]);
+  useEffect(() => {
+    setSourceMode(!isHtml);
+    setSplitMode(false);
+  }, [path, isHtml]);
 
-  const editHighlightedLines = useMemo(() => {
-    if (!rawText) return [" "];
-    try {
-      const tree = language
-        ? lowlight.highlight(language, rawText)
-        : lowlight.highlightAuto(rawText);
-      const html = toHtml(tree);
-      return html.split("\n");
-    } catch {
-      return rawText.split("\n").map((line) =>
-        line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      );
-    }
-  }, [rawText, language]);
-
-  const handleSave = async () => {
+  const handleSave = async (valueToSave?: string) => {
     setSaving(true);
+    const text = typeof valueToSave === "string" ? valueToSave : rawText;
     try {
       const res = await fetch(assetUrl, {
         method: "PUT",
         headers: { "Content-Type": "text/plain" },
-        body: rawText,
+        body: text,
       });
       if (!res.ok) {
         throw new Error(`Save failed: ${res.status}`);
       }
-      setContent(rawText);
+      setContent(text);
+      setRawText(text);
       setDirty(false);
       if (!isHtml) {
         setSourceMode(false);
@@ -159,7 +143,7 @@ export function SourceViewer({ path }: SourceViewerProps) {
             variant="ghost"
             size="sm"
             className="h-7 gap-1.5 text-xs"
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             disabled={saving}
           >
             <Save className="h-3.5 w-3.5" />
@@ -168,26 +152,91 @@ export function SourceViewer({ path }: SourceViewerProps) {
         )}
         {isHtml ? (
           <>
-            {splitMode ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSplitMode(false)}
-                title="Edit Single Page"
-                className="h-7 w-7 p-0"
-              >
-                <FileCode className="h-3.5 w-3.5" />
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSplitMode(true)}
-                title="Split Screen"
-                className="h-7 w-7 p-0"
-              >
-                <SplitScreenIcon className="h-3.5 w-3.5" />
-              </Button>
+            {!splitMode && !sourceMode && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSourceMode(true);
+                    setSplitMode(false);
+                  }}
+                  title="Edit Source"
+                  className="h-7 w-7 p-0"
+                >
+                  <FileCode className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSourceMode(true);
+                    setSplitMode(true);
+                  }}
+                  title="Split Screen"
+                  className="h-7 w-7 p-0"
+                >
+                  <SplitScreenIcon className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+
+            {!splitMode && sourceMode && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSourceMode(false);
+                    setSplitMode(false);
+                  }}
+                  className="h-7 w-7 p-0"
+                  title="Preview"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSourceMode(true);
+                    setSplitMode(true);
+                  }}
+                  title="Split Screen"
+                  className="h-7 w-7 p-0"
+                >
+                  <SplitScreenIcon className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+
+            {splitMode && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSourceMode(true);
+                    setSplitMode(false);
+                  }}
+                  title="Edit Source Only"
+                  className="h-7 w-7 p-0"
+                >
+                  <FileCode className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSourceMode(false);
+                    setSplitMode(false);
+                  }}
+                  title="Preview Only"
+                  className="h-7 w-7 p-0"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
+              </>
             )}
           </>
         ) : (
@@ -254,7 +303,7 @@ export function SourceViewer({ path }: SourceViewerProps) {
           Raw
         </Button>
       </ViewerToolbar>
-      <div className="flex-1 flex flex-col min-h-0 source-viewer-code bg-[#1e1e1e]">
+      <div className={`flex-grow flex flex-col min-h-0 source-viewer-code ${isHtml && !sourceMode && !splitMode ? "bg-transparent" : "bg-background"}`}>
         {loading ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Loading...
@@ -264,45 +313,33 @@ export function SourceViewer({ path }: SourceViewerProps) {
             {/* LEFT: HTML EDITOR */}
             {(splitMode || sourceMode) && (
               <div
-                className="relative h-full min-h-0 overflow-auto p-0 animate-in fade-in duration-200"
+                className="relative h-full min-h-0 overflow-hidden p-0 animate-in fade-in duration-200"
                 style={splitMode ? { width: `${split.leftPct}%`, flex: "none" } : { flex: "1 1 0%" }}
               >
-                <div
-                  ref={editOverlayRef}
-                  className="pointer-events-none absolute inset-0 overflow-auto"
-                >
-                  <div className="relative min-h-full">
-                    <pre className="absolute inset-y-0 left-0 m-0 w-16 select-none bg-[#1e1e1e] pr-4 text-right font-mono text-[13px] leading-relaxed text-[#858585]">{Array.from({ length: editHighlightedLines.length }, (_, i) => i + 1).join("\n")}</pre>
-                    <pre
-                      className="m-0 min-h-full whitespace-pre bg-transparent p-0 pl-16 font-mono text-[13px] leading-relaxed text-[#d4d4d4]"
-                      dangerouslySetInnerHTML={{ __html: editHighlightedLines.join("\n") }}
-                    />
-                  </div>
-                </div>
-                <textarea
-                  ref={editInputRef}
+                <Editor
+                  height="100%"
+                  language="html"
+                  theme={editorTheme}
                   value={rawText}
-                  onChange={(e) => {
-                    setRawText(e.target.value);
-                    setDirty(true);
+                  onChange={(val) => {
+                    setRawText(val || "");
+                    setDirty(val !== content);
                   }}
-                  onBlur={handleSave}
-                  onKeyDown={(e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                      e.preventDefault();
-                      void handleSave();
-                    }
+                  onMount={(editor, monaco) => {
+                    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+                      void handleSave(editor.getValue());
+                    });
                   }}
-                  onScroll={(e) => {
-                    const target = e.currentTarget;
-                    if (editOverlayRef.current) {
-                      editOverlayRef.current.scrollTop = target.scrollTop;
-                      editOverlayRef.current.scrollLeft = target.scrollLeft;
-                    }
+                  options={{
+                    minimap: { enabled: true },
+                    fontFamily: settings.fontFamily,
+                    fontSize: settings.fontSize,
+                    fontLigatures: settings.fontLigatures,
+                    lineHeight: settings.lineHeight,
+                    fontWeight: settings.fontWeight,
+                    wordWrap: "on",
+                    automaticLayout: true,
                   }}
-                  className="absolute inset-y-0 left-16 right-0 z-10 min-h-[calc(100vh-12rem)] resize-none bg-transparent p-0 font-mono text-[13px] leading-relaxed text-transparent caret-[#d4d4d4] focus:outline-none"
-                  wrap="off"
-                  spellCheck={false}
                 />
               </div>
             )}
@@ -319,14 +356,16 @@ export function SourceViewer({ path }: SourceViewerProps) {
             )}
 
             {/* RIGHT: HTML PREVIEW */}
-            {splitMode && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-white relative animate-in fade-in duration-200">
-                <iframe
-                  src={assetUrl}
-                  className="w-full h-full border-none bg-white"
-                  title="HTML Preview"
-                  key={content || ""}
-                />
+            {(splitMode || !sourceMode) && (
+              <div className={`flex-grow flex flex-col min-h-0 bg-transparent relative animate-in fade-in duration-200 ${!splitMode ? "p-4" : "overflow-hidden w-full h-full"}`}>
+                <div className={`relative flex-grow flex flex-col min-h-0 bg-transparent w-full h-full ${!splitMode ? "rounded-[20px] overflow-hidden border border-border/50 shadow-sm" : ""}`}>
+                  <iframe
+                    src={assetUrl}
+                    className="w-full h-full border-none bg-transparent"
+                    title="HTML Preview"
+                    key={content || ""}
+                  />
+                </div>
               </div>
             )}
             {/* Drag ruler */}
@@ -335,55 +374,53 @@ export function SourceViewer({ path }: SourceViewerProps) {
             )}
           </div>
         ) : sourceMode ? (
-          <div className="relative h-full min-h-0 overflow-auto p-0">
-            <div
-              ref={editOverlayRef}
-              className="pointer-events-none absolute inset-0 overflow-auto"
-            >
-              <div className="relative min-h-full">
-                <pre className="absolute inset-y-0 left-0 m-0 w-16 select-none bg-[#1e1e1e] pr-4 text-right font-mono text-[13px] leading-relaxed text-[#858585]">{Array.from({ length: editHighlightedLines.length }, (_, i) => i + 1).join("\n")}</pre>
-                <pre
-                  className="m-0 min-h-full whitespace-pre bg-transparent p-0 pl-16 font-mono text-[13px] leading-relaxed text-[#d4d4d4]"
-                  dangerouslySetInnerHTML={{ __html: editHighlightedLines.join("\n") }}
-                />
-              </div>
-            </div>
-            <textarea
-              ref={editInputRef}
+          <div className="relative h-full min-h-0 overflow-hidden p-0">
+            <Editor
+              height="100%"
+              language={language || "plaintext"}
+              theme={editorTheme}
               value={rawText}
-              onChange={(e) => {
-                setRawText(e.target.value);
-                setDirty(true);
+              onChange={(val) => {
+                setRawText(val || "");
+                setDirty(val !== content);
               }}
-              onScroll={(e) => {
-                const target = e.currentTarget;
-                if (editOverlayRef.current) {
-                  editOverlayRef.current.scrollTop = target.scrollTop;
-                  editOverlayRef.current.scrollLeft = target.scrollLeft;
-                }
+              onMount={(editor, monaco) => {
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+                  void handleSave(editor.getValue());
+                });
               }}
-              className="absolute inset-y-0 left-16 right-0 z-10 min-h-[calc(100vh-12rem)] resize-none bg-transparent p-0 font-mono text-[13px] leading-relaxed text-transparent caret-[#d4d4d4] focus:outline-none"
-              wrap="off"
-              spellCheck={false}
+              options={{
+                minimap: { enabled: true },
+                fontFamily: settings.fontFamily,
+                fontSize: settings.fontSize,
+                fontLigatures: settings.fontLigatures,
+                lineHeight: settings.lineHeight,
+                fontWeight: settings.fontWeight,
+                wordWrap: "on",
+                automaticLayout: true,
+              }}
             />
           </div>
         ) : (
-          <div className="flex-1 overflow-auto">
-            <table className="w-full border-collapse text-[13px] leading-relaxed font-mono">
-              <tbody>
-                {highlightedLines.map((lineHtml, i) => (
-                  <tr key={i} className="hover:bg-white/5">
-                    <td className="w-12 pr-4 text-right text-[#858585] select-none align-top sticky left-0 bg-[#1e1e1e]">
-                      {i + 1}
-                    </td>
-                    <td
-                      className={`text-[#d4d4d4] pl-2 ${wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre"}`}
-                      dangerouslySetInnerHTML={{ __html: lineHtml || " " }}
-                    />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="relative h-full min-h-0 overflow-hidden p-0">
+            <Editor
+              height="100%"
+              language={language || "plaintext"}
+              theme={editorTheme}
+              value={content || ""}
+              options={{
+                readOnly: true,
+                minimap: { enabled: true },
+                fontFamily: settings.fontFamily,
+                fontSize: settings.fontSize,
+                fontLigatures: settings.fontLigatures,
+                lineHeight: settings.lineHeight,
+                fontWeight: settings.fontWeight,
+                wordWrap: wrap ? "on" : "off",
+                automaticLayout: true,
+                domReadOnly: true,
+              }}
+            />
           </div>
         )}
       </div>

@@ -914,7 +914,7 @@ function TreeNodeImpl({
           // an `index.md` inside the folder — match the markdown name first.
           // Markdown pages are typed "file" with the extension stripped from
           // the path, so they also resolve to `<name>.md`.
-          node.type === "file" || node.name.toLowerCase().endsWith(".md")
+          (node.type === "file" && !isHtmlPath(node.path)) || node.name.toLowerCase().endsWith(".md")
           ? `${assetUrl}.md`
           : node.type === "directory" || node.type === "cabinet"
             ? `${assetUrl}/index.md`

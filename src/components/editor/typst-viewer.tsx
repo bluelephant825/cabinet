@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Editor, { loader } from "@monaco-editor/react";
+import { useTheme } from "@/components/theme-provider";
+import { useEditorSettings } from "@/hooks/use-editor-settings";
+
+if (typeof window !== "undefined") {
+  loader.config({ paths: { vs: "/monaco/vs" } });
+}
+
 import { Download, Eye, Save, AlertCircle, Loader2, RefreshCw, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
@@ -14,7 +22,10 @@ interface TypstViewerProps {
 }
 
 export function TypstViewer({ path }: TypstViewerProps) {
+  const { resolvedTheme } = useTheme();
+  const settings = useEditorSettings();
   const [content, setContent] = useState("");
+  const [localContent, setLocalContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [compiling, setCompiling] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +37,7 @@ export function TypstViewer({ path }: TypstViewerProps) {
 
   // viewMode controls single-panel view when splitMode is false:
   // "source" (edit only) or "preview" (compiled PDF only)
-  const [viewMode, setViewMode] = useState<"source" | "preview">("source");
+  const [viewMode, setViewMode] = useState<"source" | "preview">("preview");
 
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const split = useSplitResize("kb-typst-viewer-split-ratio");
@@ -73,6 +84,7 @@ export function TypstViewer({ path }: TypstViewerProps) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
       setContent(text);
+      setLocalContent(text);
       editContentRef.current = text;
       void compileTypst(text);
     } catch (e) {
@@ -91,6 +103,11 @@ export function TypstViewer({ path }: TypstViewerProps) {
       });
     };
   }, [fetchContent]);
+
+  useEffect(() => {
+    setViewMode("preview");
+    setSplitMode(false);
+  }, [path]);
 
   // Debounced compilation when user edits source
   const handleSourceChange = (val: string) => {
@@ -136,6 +153,7 @@ export function TypstViewer({ path }: TypstViewerProps) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       }
       setContent(newContent);
+      setLocalContent(newContent);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
@@ -278,19 +296,31 @@ export function TypstViewer({ path }: TypstViewerProps) {
               className="flex flex-col overflow-hidden min-w-0"
               style={splitMode ? { width: `${split.leftPct}%`, flex: "none" } : { flex: "1 1 0%" }}
             >
-              <textarea
-                defaultValue={content}
-                onChange={(e) => handleSourceChange(e.target.value)}
-                onBlur={handleSave}
-                onKeyDown={(e) => {
-                  if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                    e.preventDefault();
-                    void handleSave();
-                  }
+              <Editor
+                height="100%"
+                language="typst"
+                theme={settings.theme === "app" ? (resolvedTheme === "dark" ? "vs-dark" : "light") : settings.theme}
+                value={localContent}
+                onChange={(val) => {
+                  const value = val || "";
+                  setLocalContent(value);
+                  handleSourceChange(value);
                 }}
-                spellCheck={false}
-                className="w-full h-full bg-zinc-950 p-4 font-mono text-sm leading-relaxed text-zinc-100 outline-none resize-none"
-                style={{ minHeight: "100%" }}
+                onMount={(editor, monaco) => {
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+                    void handleSave();
+                  });
+                }}
+                options={{
+                  minimap: { enabled: true },
+                  fontFamily: settings.fontFamily,
+                  fontSize: settings.fontSize,
+                  fontLigatures: settings.fontLigatures,
+                  lineHeight: settings.lineHeight,
+                  fontWeight: settings.fontWeight,
+                  wordWrap: "on",
+                  automaticLayout: true,
+                }}
               />
             </div>
           )}

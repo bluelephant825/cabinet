@@ -573,7 +573,7 @@ export function TreeView() {
           <div
             role="tablist"
             aria-label={t("treeView:drawersAriaLabel")}
-            className="mx-[9px] grid grid-cols-3 gap-1 rounded-b-lg bg-muted/40 p-0.5 pt-1.5 border border-border/60"
+            className="mx-[5px] mt-1 grid grid-cols-3 gap-1 rounded-lg bg-muted/40 p-0.5 pt-1.5 border border-border/60"
           >
                 {([
                   {
@@ -676,7 +676,7 @@ export function TreeView() {
                         className={cn(
                           "relative flex w-full flex-col items-center gap-0.5 rounded-md px-1.5 pt-2 pb-1.5 transition-all duration-150",
                           active
-                            ? "-translate-y-px bg-background text-foreground shadow-[0_1px_0_rgba(0,0,0,0.06),0_6px_14px_-10px_rgba(0,0,0,0.35)] ring-1 ring-border/70"
+                            ? "-translate-y-px bg-[#E4D1B7] text-foreground shadow-[0_1px_0_rgba(0,0,0,0.06),0_6px_14px_-10px_rgba(0,0,0,0.35)] ring-1 ring-border/70"
                             : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
                         )}
                       >

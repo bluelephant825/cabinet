@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import Editor, { loader } from "@monaco-editor/react";
+import { useTheme } from "@/components/theme-provider";
+import { useEditorSettings } from "@/hooks/use-editor-settings";
+
+if (typeof window !== "undefined") {
+  loader.config({ paths: { vs: "/monaco/vs" } });
+}
+
 import { ExternalLink, Download, Eye, Save, AlertCircle, Loader2, Info, RefreshCw, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
@@ -18,10 +26,13 @@ interface LatexViewerProps {
 type ViewMode = "rendered" | "source";
 
 export function LatexViewer({ path }: LatexViewerProps) {
+  const { resolvedTheme } = useTheme();
+  const settings = useEditorSettings();
   const [content, setContent] = useState("");
+  const [localContent, setLocalContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<ViewMode>("source");
+  const [mode, setMode] = useState<ViewMode>("rendered");
   const [splitMode, setSplitMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const split = useSplitResize("kb-latex-viewer-split-ratio");
@@ -45,6 +56,7 @@ export function LatexViewer({ path }: LatexViewerProps) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
       setContent(text);
+      setLocalContent(text);
       setPreviewContent(text);
       editContentRef.current = text;
     } catch (e) {
@@ -57,6 +69,11 @@ export function LatexViewer({ path }: LatexViewerProps) {
   useEffect(() => {
     void fetchContent();
   }, [fetchContent]);
+
+  useEffect(() => {
+    setMode("rendered");
+    setSplitMode(false);
+  }, [path]);
 
   // Re-fetch when the user returns to the window/tab — picks up a file that
   // was replaced on disk while this viewer stayed mounted on the same path.
@@ -106,6 +123,7 @@ export function LatexViewer({ path }: LatexViewerProps) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       }
       setContent(newContent);
+      setLocalContent(newContent);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
@@ -267,19 +285,31 @@ export function LatexViewer({ path }: LatexViewerProps) {
                 className="flex flex-col overflow-hidden min-w-0 animate-in fade-in duration-200"
                 style={splitMode ? { width: `${split.leftPct}%`, flex: "none" } : { flex: "1 1 0%" }}
               >
-                <textarea
-                  defaultValue={content}
-                  onChange={(e) => handleSourceChange(e.target.value)}
-                  onBlur={handleSave}
-                  onKeyDown={(e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                      e.preventDefault();
-                      void handleSave();
-                    }
+                <Editor
+                  height="100%"
+                  language="latex"
+                  theme={settings.theme === "app" ? (resolvedTheme === "dark" ? "vs-dark" : "light") : settings.theme}
+                  value={localContent}
+                  onChange={(val) => {
+                    const value = val || "";
+                    setLocalContent(value);
+                    handleSourceChange(value);
                   }}
-                  spellCheck={false}
-                  className="block w-full h-full bg-zinc-950 p-4 font-mono text-sm leading-relaxed text-zinc-100 outline-none resize-none"
-                  style={{ minHeight: "100%" }}
+                  onMount={(editor, monaco) => {
+                    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+                      void handleSave();
+                    });
+                  }}
+                  options={{
+                    minimap: { enabled: true },
+                    fontFamily: settings.fontFamily,
+                    fontSize: settings.fontSize,
+                    fontLigatures: settings.fontLigatures,
+                    lineHeight: settings.lineHeight,
+                    fontWeight: settings.fontWeight,
+                    wordWrap: "on",
+                    automaticLayout: true,
+                  }}
                 />
               </div>
             )}

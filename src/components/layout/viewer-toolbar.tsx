@@ -14,6 +14,7 @@ import { useTreeStore } from "@/stores/tree-store";
 import { useLocale } from "@/i18n/use-locale";
 import { findNodeByPath } from "@/lib/cabinets/tree";
 import { cn } from "@/lib/utils";
+import { isHtmlPath } from "@/lib/ui/html-view-mode";
 
 /**
  * Unified toolbar used by every file viewer (PDF, CSV, source, office, media,
@@ -133,7 +134,7 @@ export function ViewerToolbar({
     // Check the markdown file case before directory/cabinet: a `<name>.md` page
     // can carry sub-pages and so be typed "directory", but its content still
     // lives at `<name>.md`, not an `index.md` inside the folder.
-    if (sourceNode?.type === "file" || lower.endsWith(".md")) {
+    if ((sourceNode?.type === "file" && !isHtmlPath(sourcePath)) || lower.endsWith(".md")) {
       return `${assetUrl}.md`;
     }
     if (sourceNode?.type === "directory" || sourceNode?.type === "cabinet") {

@@ -2,6 +2,14 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
+import Editor, { loader } from "@monaco-editor/react";
+import { useTheme } from "@/components/theme-provider";
+import { useEditorSettings } from "@/hooks/use-editor-settings";
+
+if (typeof window !== "undefined") {
+  loader.config({ paths: { vs: "/monaco/vs" } });
+}
+
 import { Sparkles, Loader2, FilePlus, Lock } from "lucide-react";
 import { editorExtensions } from "./extensions";
 import { EditorToolbar } from "./editor-toolbar";
@@ -152,6 +160,8 @@ function resolveInternalLink(
 
 export function KBEditor() {
   const { t } = useLocale();
+  const { resolvedTheme } = useTheme();
+  const settings = useEditorSettings();
   const { currentPath, assetBase, content, saveStatus, frontmatter, isLoading, loadStatus, createMissingPage } = useEditorStore();
   const nodes = useTreeStore((s) => s.nodes);
   // A page under a read-only Connect Knowledge mount is view-only — edits would
@@ -218,23 +228,7 @@ export function KBEditor() {
     });
   }, []);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea || !sourceMode) return;
 
-    const resize = () => {
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    };
-
-    resize();
-
-    window.addEventListener("resize", resize);
-    return () => {
-      window.removeEventListener("resize", resize);
-    };
-  }, [sourceText, sourceMode, wideMode, currentPath]);
 
   // Reset the tab to "page" whenever the path changes — opening a new folder
   // shouldn't skip its index.md if the previous folder was on Files. Has to
@@ -896,39 +890,46 @@ export function KBEditor() {
         <div ref={split.containerRef} className="relative flex-1 flex overflow-hidden border-t border-border" dir={isRtl ? "rtl" : undefined}>
           {/* Left: Code Editor */}
           <div
-            className="overflow-y-auto p-4 min-w-0"
+            className="overflow-hidden p-0 relative min-w-0"
             style={splitMode ? { width: `${split.leftPct}%`, flex: "none" } : { flex: "1 1 0%" }}
             data-editor-scroll
           >
-            <textarea
-              ref={textareaRef}
-              value={sourceText}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSourceText(val);
-                const hasFrontmatterHeader = /^---\r?\n/.test(val);
-                const { frontmatter: parsed, body } = parseFrontmatter(val);
-                const store = useEditorStore.getState();
-                if (parsed) {
-                  store.setFrontmatter(parsed as FrontMatter);
-                } else if (!hasFrontmatterHeader) {
-                  // User completely deleted the frontmatter block
-                  store.setFrontmatter({} as FrontMatter);
-                }
-                store.updateContent(body);
-              }}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                  e.preventDefault();
-                  void useEditorStore.getState().save();
-                }
-              }}
-              className={`w-full bg-transparent font-mono text-[13px] leading-relaxed resize-none focus:outline-none overflow-hidden block ${
-                wideMode ? "max-w-none" : "max-w-3xl mx-auto"
-              }`}
-              style={{ height: "auto" }}
-              spellCheck={false}
-            />
+            <div className={`h-full w-full ${wideMode ? "max-w-none" : "max-w-3xl mx-auto"}`}>
+              <Editor
+                height="100%"
+                language="markdown"
+                theme={settings.theme === "app" ? (resolvedTheme === "dark" ? "vs-dark" : "light") : settings.theme}
+                value={sourceText}
+                onChange={(val) => {
+                  const value = val || "";
+                  setSourceText(value);
+                  const hasFrontmatterHeader = /^---\r?\n/.test(value);
+                  const { frontmatter: parsed, body } = parseFrontmatter(value);
+                  const store = useEditorStore.getState();
+                  if (parsed) {
+                    store.setFrontmatter(parsed as FrontMatter);
+                  } else if (!hasFrontmatterHeader) {
+                    store.setFrontmatter({} as FrontMatter);
+                  }
+                  store.updateContent(body);
+                }}
+                onMount={(editor, monaco) => {
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+                    void useEditorStore.getState().save();
+                  });
+                }}
+                options={{
+                  minimap: { enabled: true },
+                  fontFamily: settings.fontFamily,
+                  fontSize: settings.fontSize,
+                  fontLigatures: settings.fontLigatures,
+                  lineHeight: settings.lineHeight,
+                  fontWeight: settings.fontWeight,
+                  wordWrap: "on",
+                  automaticLayout: true,
+                }}
+              />
+            </div>
           </div>
           {/* Divider */}
           {splitMode && (

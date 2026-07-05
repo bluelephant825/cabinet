@@ -54,6 +54,7 @@ import { CliMcpSection } from "@/components/settings/cli-mcp-section";
 import { IntegrationsHubSection } from "@/components/settings/integrations-hub-section";
 import { BuiltInToolsSection } from "@/components/settings/built-in-tools-section";
 import { ExtensionsSection } from "@/components/settings/extensions-section";
+import { EditorSettingsSection } from "@/components/settings/editor-settings-section";
 import { UpdateSummary } from "@/components/system/update-summary";
 import { useCabinetUpdate } from "@/hooks/use-cabinet-update";
 import { useTheme } from "@/components/theme-provider";
@@ -1487,6 +1488,10 @@ export function SettingsPage() {
 
               <div className="border-t border-border pt-6">
                 <LanguageSection />
+              </div>
+
+              <div className="border-t border-border pt-6">
+                <EditorSettingsSection />
               </div>
             </div>
           )}
