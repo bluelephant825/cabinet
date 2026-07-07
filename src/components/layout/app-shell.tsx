@@ -1049,7 +1049,7 @@ export function AppShell() {
       return <MermaidViewer path={mmdPath} title={mmdTitle} />;
     }
 
-    if (isDrawio && (selectedNode || selectedPath)) {
+    if ((isDrawio || isExcalidraw) && (selectedNode || selectedPath)) {
       return (
         <div className="flex-1 flex items-center justify-center bg-background">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />

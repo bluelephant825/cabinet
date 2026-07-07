@@ -188,6 +188,7 @@ You are **strictly forbidden** from fabricating arbitrary HTML or JSX tags. You 
 
 - `<Callout type="info|warning|error|success" title?="string">children</Callout>` — A highlighted info/warning/error/success banner.
 - `<VideoPlayer url="string" />` — An embedded video player.
+- `<ModelViewer src="string" alt?="string" autoRotate?="true|false" cameraControls?="true|false" shadowIntensity?="string" />` — A 3D model viewer rendering GLTF/GLB assets.
 
 Rules when writing MDX into a page:
 

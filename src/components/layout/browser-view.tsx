@@ -1599,7 +1599,7 @@ export function BrowserView() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header />
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden bg-[var(--gutter)]">
         <div className="grid grid-cols-[1fr_minmax(0,720px)_1fr] items-center gap-3 border-b border-border/70 bg-[#F1E4D3] px-4 py-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2 truncate">
             <button
@@ -1795,7 +1795,15 @@ export function BrowserView() {
             </div>
           </div>
         ) : null}
-        <div ref={containerRef} className="relative flex-1 min-h-0 rounded-[20px] overflow-hidden">
+        <div
+          ref={containerRef}
+          className="relative flex-1 min-h-0 rounded-[20px] overflow-hidden bg-background"
+          style={{
+            transform: "translate3d(0, 0, 0)",
+            clipPath: "inset(0% 0% 0% 0% round 20px)",
+            isolation: "isolate",
+          }}
+        >
           {browserMode === "iframe" ? (
             <>
               <iframe
@@ -1808,6 +1816,11 @@ export function BrowserView() {
                   setIframeLoadedToken(iframeLoadTokenRef.current);
                 }}
                 className="h-full w-full border-0 bg-transparent"
+                style={{
+                  clipPath: "inset(0% 0% 0% 0% round 20px)",
+                  borderRadius: "20px",
+                  overflow: "hidden",
+                }}
                 sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-top-navigation-by-user-activation"
               />
               {iframeFailure ? (

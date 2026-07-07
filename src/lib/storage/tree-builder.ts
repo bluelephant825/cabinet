@@ -67,8 +67,8 @@ const UNKNOWN_EXTENSIONS = new Set([
   ".zip", ".tar", ".tgz", ".gz", ".rar", ".7z",
   // Installers / packages
   ".dmg", ".pkg", ".apk", ".ipa", ".msi", ".deb", ".rpm",
-  // Design
-  ".fig", ".sketch", ".psd", ".ai", ".xd",
+  // Design / 3D
+  ".fig", ".sketch", ".psd", ".ai", ".xd", ".glb", ".gltf",
   // Other documents
   ".epub", ".mobi", ".rtf",
 ]);

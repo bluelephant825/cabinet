@@ -264,7 +264,9 @@ export function stripMdxForPlaintext(markdown: string): string {
       ? `: ${stripMdxForPlaintext(parsed.children)}`
       : parsed.props.url
         ? `: ${parsed.props.url}`
-        : "";
+        : parsed.props.src
+          ? `: ${parsed.props.src}`
+          : "";
     out += `[${parsed.name}${variant}${body}]`;
     last = end;
   }

@@ -11,8 +11,8 @@ const ExcalidrawEditor = dynamic(
 export default function ExcalidrawEditorPage() {
   return (
     <Suspense fallback={
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-neutral-900 text-sm text-neutral-400">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-700 border-t-indigo-500" />
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-transparent text-sm text-muted-foreground">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-indigo-500" />
         Loading Excalidraw Editor...
       </div>
     }>

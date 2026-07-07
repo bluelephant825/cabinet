@@ -358,7 +358,7 @@ export function SourceViewer({ path }: SourceViewerProps) {
             {/* RIGHT: HTML PREVIEW */}
             {(splitMode || !sourceMode) && (
               <div className={`flex-grow flex flex-col min-h-0 bg-transparent relative animate-in fade-in duration-200 ${!splitMode ? "p-4" : "overflow-hidden w-full h-full"}`}>
-                <div className={`relative flex-grow flex flex-col min-h-0 bg-transparent w-full h-full ${!splitMode ? "rounded-[20px] overflow-hidden border border-border/50 shadow-sm" : ""}`}>
+                <div className={`relative flex-grow flex flex-col min-h-0 bg-transparent w-full h-full ${!splitMode ? "rounded-[20px] overflow-hidden" : ""}`}>
                   <iframe
                     src={assetUrl}
                     className="w-full h-full border-none bg-transparent"

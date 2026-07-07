@@ -1,14 +1,11 @@
 "use client";
 
 import { Node, mergeAttributes } from "@tiptap/core";
-import {
-  ReactNodeViewRenderer,
-  NodeViewWrapper,
-  type NodeViewProps,
-} from "@tiptap/react";
-import { useState } from "react";
-import { Puzzle, Pencil, Check, Video } from "lucide-react";
+import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import { useState, useEffect, useRef } from "react";
+import { Puzzle, Pencil, Check, Video, Box } from "lucide-react";
 import { detectEmbed } from "@/lib/embeds/detect";
+import { useEditorStore } from "@/stores/editor-store";
 import {
   getMdxComponentSpec,
   isAllowedMdxComponent,
@@ -44,6 +41,104 @@ const CALLOUT_TONES: Record<string, string> = {
   error: "border-red-400/60 bg-red-50 dark:bg-red-950/30",
   success: "border-emerald-400/60 bg-emerald-50 dark:bg-emerald-950/30",
 };
+
+function resolveAssetUrl(src: string, pagePath: string | null): string {
+  if (!src) return "";
+  if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:")) {
+    return src;
+  }
+  if (src.startsWith("/api/assets/")) {
+    return src;
+  }
+  
+  let cleanSrc = src;
+  if (src.startsWith("./")) {
+    cleanSrc = src.substring(2);
+  } else if (src.startsWith("/")) {
+    cleanSrc = src.substring(1);
+    return `/api/assets/${cleanSrc}`;
+  }
+
+  if (!pagePath) return `/api/assets/${cleanSrc}`;
+
+  // If the path starts with the room name (first segment of pagePath),
+  // it is already an absolute virtual path from the root.
+  const firstSegment = pagePath.split("/")[0];
+  if (firstSegment && (cleanSrc === firstSegment || cleanSrc.startsWith(firstSegment + "/"))) {
+    return `/api/assets/${cleanSrc}`;
+  }
+
+  const pageDir = pagePath.includes("/")
+    ? pagePath.substring(0, pagePath.lastIndexOf("/"))
+    : "";
+  
+  const virtualPath = pageDir ? `${pageDir}/${cleanSrc}` : cleanSrc;
+  return `/api/assets/${virtualPath}`;
+}
+
+function ModelViewerPreview({ src, alt, autoRotate, cameraControls, shadowIntensity }: {
+  src: string;
+  alt?: string;
+  autoRotate?: boolean | string;
+  cameraControls?: boolean | string;
+  shadowIntensity?: string | number;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    import("@google/model-viewer")
+      .then(() => setLoaded(true))
+      .catch((err) => console.error("Failed to load @google/model-viewer", err));
+  }, []);
+
+  // Block Prosemirror from capturing pointer / drag / selection events on the interactive 3D canvas
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const stopEvent = (e: Event) => {
+      e.stopPropagation();
+    };
+
+    const events = ["mousedown", "mouseup", "mousemove", "pointerdown", "pointerup", "pointermove", "touchstart", "touchend", "touchmove", "dragstart"];
+    for (const eventName of events) {
+      el.addEventListener(eventName, stopEvent, { passive: false });
+    }
+
+    return () => {
+      for (const eventName of events) {
+        el.removeEventListener(eventName, stopEvent);
+      }
+    };
+  }, [loaded]);
+
+  if (!loaded) {
+    return (
+      <div className="flex h-64 w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/20 text-xs text-muted-foreground animate-pulse">
+        Loading 3D Viewer...
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      draggable={false}
+      className="relative h-64 w-full overflow-hidden rounded-md border border-border bg-muted/10"
+    >
+      <model-viewer
+        src={src}
+        alt={alt ?? "3D Model"}
+        auto-rotate={autoRotate ? "true" : undefined}
+        camera-controls={cameraControls ? "true" : undefined}
+        shadow-intensity={shadowIntensity !== undefined ? String(shadowIntensity) : "0.5"}
+        draggable={false}
+        style={{ width: "100%", height: "100%", display: "block" }}
+      />
+    </div>
+  );
+}
 
 /** Render a best-effort preview for known components, generic fallback else. */
 function ComponentPreview({ name, props, childrenString }: MdxComponentAttrs) {
@@ -88,6 +183,34 @@ function ComponentPreview({ name, props, childrenString }: MdxComponentAttrs) {
         src={detected?.embedUrl ?? url}
         controls
         className="w-full rounded-md border border-border bg-black"
+      />
+    );
+  }
+
+  if (name === "ModelViewer") {
+    const src = String(props.src ?? "").trim();
+    if (!src) {
+      return (
+        <div className="flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+          <Box className="h-4 w-4" />
+          No 3D model asset URL/path set — click the pencil to add one.
+        </div>
+      );
+    }
+    const basePath = useEditorStore((s) => s.assetBase || s.currentPath);
+    const resolvedSrc = resolveAssetUrl(src, basePath);
+
+    const autoRotate = props.autoRotate === true || props.autoRotate === "true";
+    const cameraControls = props.cameraControls !== false && props.cameraControls !== "false";
+    const shadowIntensity = props.shadowIntensity !== undefined ? String(props.shadowIntensity) : undefined;
+
+    return (
+      <ModelViewerPreview
+        src={resolvedSrc}
+        alt={props.alt ? String(props.alt) : undefined}
+        autoRotate={autoRotate}
+        cameraControls={cameraControls}
+        shadowIntensity={shadowIntensity}
       />
     );
   }
@@ -179,8 +302,17 @@ function MdxComponentView(props: NodeViewProps) {
     >
       <div className="mb-2 flex items-center justify-between gap-2" contentEditable={false}>
         <span className="inline-flex items-center gap-1.5 font-mono text-xs text-primary">
-          <Puzzle className="h-3.5 w-3.5" />
-          {`<${attrs.name} ${spec?.selfClosing ? "/" : ""}>`}
+          {attrs.name === "ModelViewer" ? (
+            <>
+              <Box className="h-3.5 w-3.5" />
+              <span>3D Model Viewer</span>
+            </>
+          ) : (
+            <>
+              <Puzzle className="h-3.5 w-3.5" />
+              <span>{`<${attrs.name} ${spec?.selfClosing ? "/" : ""}>`}</span>
+            </>
+          )}
           {!known && (
             <span className="ml-1 rounded bg-amber-500/15 px-1 text-[10px] text-amber-600">
               unregistered
@@ -202,7 +334,7 @@ function MdxComponentView(props: NodeViewProps) {
           {(spec?.props ?? Object.keys(attrs.props).map((name) => ({ name }))).map(
             (p: MdxPropSpec) => (
               <label key={p.name} className="flex items-center gap-2 text-xs">
-                <span className="w-24 shrink-0 font-mono text-muted-foreground">
+                <span className="w-32 shrink-0 font-mono text-muted-foreground">
                   {p.name}
                 </span>
                 {"enum" in p && p.enum ? (

@@ -45,9 +45,8 @@ interface CreateFileRequest {
 
 function sanitizeBaseName(name: string): string {
   return name
-    .trim()
-    .replace(/[/\\]+/g, "-")
-    .replace(/[^a-zA-Z0-9._ -]/g, "")
+    .replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, "-")
+    .replace(/\.\.+/g, "-")
     .replace(/\s+/g, " ")
     .trim();
 }

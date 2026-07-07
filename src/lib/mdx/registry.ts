@@ -50,6 +50,18 @@ export const MDX_COMPONENT_REGISTRY: Record<string, MdxComponentSpec> = {
       { name: "url", description: "URL of the video to play.", required: true },
     ],
   },
+  ModelViewer: {
+    name: "ModelViewer",
+    description: "A 3D model viewer rendering GLTF/GLB assets.",
+    selfClosing: true,
+    props: [
+      { name: "src", description: "URL or relative path of the GLTF/GLB asset.", required: true },
+      { name: "alt", description: "Alternative text description for accessibility." },
+      { name: "autoRotate", description: "Enable automatic rotation of the model (true|false)." },
+      { name: "cameraControls", description: "Enable user camera controls (true|false)." },
+      { name: "shadowIntensity", description: "Intensity of shadows (number from 0 to 1)." },
+    ],
+  },
   NotebookCell: {
     name: "NotebookCell",
     description:

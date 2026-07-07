@@ -28,6 +28,7 @@ import {
   PieChart as PieChartIcon,
   Zap,
   Workflow,
+  Box,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { Editor } from "@tiptap/react";
@@ -167,6 +168,7 @@ const commands: SlashCommand[] = [
   { label: "Math", icon: Sigma, description: "Insert a LaTeX math expression", category: "advanced", action: { type: "popover", kind: { type: "math" } } },
   { label: "MDX Callout", icon: Puzzle, description: "Insert a verified MDX <Callout> component", category: "advanced", action: { type: "direct", run: (editor) => editor.chain().focus().insertMdxComponent({ name: "Callout", props: { type: "info" }, children: "Your message here." }).run() } },
   { label: "MDX Video", icon: Video, description: "Insert a verified MDX <VideoPlayer /> component", category: "advanced", action: { type: "direct", run: (editor) => editor.chain().focus().insertMdxComponent({ name: "VideoPlayer", props: { url: "" } }).run() } },
+  { label: "3D", icon: Box, description: "Insert a verified MDX <ModelViewer /> component", category: "advanced", action: { type: "direct", run: (editor) => editor.chain().focus().insertMdxComponent({ name: "ModelViewer", props: { src: "" } }).run() } },
   { label: "Emoji", icon: Smile, description: "Pick an emoji", category: "advanced", action: { type: "popover", kind: { type: "emoji" } } },
 
   // Live code blocks — charts & dashboards
@@ -187,7 +189,10 @@ const commands: SlashCommand[] = [
     const name = typeof window !== "undefined" ? window.prompt("Enter a name for the new diagram:", defaultName) : null;
     if (name === null) return;
     
-    const sanitized = (name.trim() || defaultName).replace(/[^a-zA-Z0-9_-]/g, "-");
+    const sanitized = (name.trim() || defaultName)
+      .replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, "-")
+      .replace(/\.\.+/g, "-")
+      .trim();
     const filename = `${sanitized}.drawio.svg`;
     const pagePath = useEditorStore.getState().currentPath;
     if (!pagePath) return;
@@ -222,7 +227,10 @@ const commands: SlashCommand[] = [
     const name = typeof window !== "undefined" ? window.prompt("Enter a name for the new Excalidraw drawing:", defaultName) : null;
     if (name === null) return;
     
-    const sanitized = (name.trim() || defaultName).replace(/[^a-zA-Z0-9_-]/g, "-");
+    const sanitized = (name.trim() || defaultName)
+      .replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, "-")
+      .replace(/\.\.+/g, "-")
+      .trim();
     const filename = `${sanitized}.excalidraw.svg`;
     const pagePath = useEditorStore.getState().currentPath;
     if (!pagePath) return;

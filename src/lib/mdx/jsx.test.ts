@@ -71,3 +71,22 @@ test("nested same-name components match the correct closing tag", () => {
   assert.equal(markers.length, 1);
   assert.match(out, /data-name="Callout"/);
 });
+
+test("ModelViewer transform, serialize, and strip", () => {
+  const md = '<ModelViewer src="car.glb" autoRotate={true} cameraControls />';
+  const out = transformMdxToHtml(md);
+  assert.match(out, /data-mdx-component="true"/);
+  assert.match(out, /data-name="ModelViewer"/);
+  assert.match(out, /car\.glb/);
+
+  assert.equal(
+    serializeMdxComponent("ModelViewer", { src: "car.glb", autoRotate: true }, ""),
+    '<ModelViewer src="car.glb" autoRotate />'
+  );
+
+  assert.equal(
+    stripMdxForPlaintext('<ModelViewer src="car.glb" />'),
+    "[ModelViewer: car.glb]"
+  );
+});
+

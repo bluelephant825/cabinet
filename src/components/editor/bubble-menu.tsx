@@ -156,8 +156,8 @@ export function EditorBubbleMenu({ editor }: Props) {
         shouldShow={({ editor: e, state }) => {
           // Preserve Tiptap's built-in behaviour: only show on text selections.
           if (state.selection.empty) return false;
-          // Hide when an image is selected.
-          if (state.selection.constructor.name === "NodeSelection" && (state.selection as any).node?.type.name === "image") {
+          // Hide when a block/node is selected (NodeSelection), e.g. images or MDX components.
+          if (state.selection.constructor.name === "NodeSelection") {
             return false;
           }
           // Hide the formatting toolbar when a math node is selected —

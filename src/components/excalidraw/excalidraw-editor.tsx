@@ -137,7 +137,7 @@ export function ExcalidrawEditor() {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-neutral-900 text-sm text-neutral-400">
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-transparent text-sm text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
         Loading diagram data...
       </div>
@@ -151,14 +151,14 @@ export function ExcalidrawEditor() {
     : filename;
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-neutral-950 text-neutral-100 overflow-hidden">
+    <div className="flex h-screen w-screen flex-col bg-transparent text-foreground overflow-hidden">
       {/* Top Header */}
-      <header className="h-12 border-b border-neutral-800 bg-neutral-900/90 backdrop-blur px-4 py-2 flex items-center justify-between z-10 select-none">
+      <header className="h-12 border-b border-border bg-transparent px-4 py-2 flex items-center justify-between z-10 select-none">
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-xs tracking-wider uppercase text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded">
+          <span className="font-semibold text-xs tracking-wider uppercase text-muted-foreground bg-muted px-2 py-0.5 rounded">
             Excalidraw
           </span>
-          <h1 className="text-sm font-medium text-neutral-200 max-w-xs truncate">
+          <h1 className="text-sm font-medium text-foreground max-w-xs truncate">
             {displayTitle}
           </h1>
         </div>
@@ -185,7 +185,7 @@ export function ExcalidrawEditor() {
 
           <button
             onClick={handleExit}
-            className="flex items-center gap-1.5 rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-3.5 py-1.5 text-xs font-semibold active:scale-95 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 rounded-md bg-muted hover:bg-muted/80 text-muted-foreground px-3.5 py-1.5 text-xs font-semibold active:scale-95 transition-all cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5" />
             Exit

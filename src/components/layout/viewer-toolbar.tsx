@@ -131,6 +131,12 @@ export function ViewerToolbar({
     if (sourceNode?.type === "website" || sourceNode?.type === "app") {
       return `${assetUrl}/index.html`;
     }
+    if (sourceNode?.type === "drawio") {
+      return `${window.location.origin}/drawio/editor.html?path=${sourcePath}`;
+    }
+    if (sourceNode?.type === "excalidraw") {
+      return `${window.location.origin}/excalidraw/editor?path=${sourcePath}`;
+    }
     // Check the markdown file case before directory/cabinet: a `<name>.md` page
     // can carry sub-pages and so be typed "directory", but its content still
     // lives at `<name>.md`, not an `index.md` inside the folder.
@@ -215,7 +221,7 @@ export function ViewerToolbar({
   return (
     <header
       className={cn(
-        "flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0",
+        "flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0 bg-[var(--gutter)]",
         className
       )}
       style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}

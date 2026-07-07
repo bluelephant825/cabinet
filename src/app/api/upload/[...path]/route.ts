@@ -68,7 +68,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    let filename = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    let filename = file.name
+      .replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, "-")
+      .replace(/\.\.+/g, "-")
+      .trim();
+    if (!filename) {
+      filename = "file";
+    }
     const ext = path.extname(filename);
     const base = path.basename(filename, ext);
     let filePath = path.join(resolved, filename);

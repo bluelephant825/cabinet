@@ -359,6 +359,9 @@ function getFileIconPath(filename: string): string {
       return "/icons/lua.svg";
     case ".env":
       return "/icons/settings.svg";
+    case ".glb":
+    case ".gltf":
+      return "/icons/3d.svg";
     default:
       return "/icons/document.svg";
   }
@@ -909,16 +912,20 @@ function TreeNodeImpl({
     const browseFileUrl =
       node.type === "website" || node.type === "app"
         ? `${assetUrl}/index.html`
-        : // Sibling Pattern: a `<name>.md` page can carry sub-pages and so be
-          // typed "directory", but its content still lives at `<name>.md`, not
-          // an `index.md` inside the folder — match the markdown name first.
-          // Markdown pages are typed "file" with the extension stripped from
-          // the path, so they also resolve to `<name>.md`.
-          (node.type === "file" && !isHtmlPath(node.path)) || node.name.toLowerCase().endsWith(".md")
-          ? `${assetUrl}.md`
-          : node.type === "directory" || node.type === "cabinet"
-            ? `${assetUrl}/index.md`
-            : assetUrl;
+        : node.type === "drawio"
+          ? `${window.location.origin}/drawio/editor.html?path=${node.path}`
+          : node.type === "excalidraw"
+            ? `${window.location.origin}/excalidraw/editor?path=${node.path}`
+            : // Sibling Pattern: a `<name>.md` page can carry sub-pages and so be
+              // typed "directory", but its content still lives at `<name>.md`, not
+              // an `index.md` inside the folder — match the markdown name first.
+              // Markdown pages are typed "file" with the extension stripped from
+              // the path, so they also resolve to `<name>.md`.
+              (node.type === "file" && !isHtmlPath(node.path)) || node.name.toLowerCase().endsWith(".md")
+              ? `${assetUrl}.md`
+              : node.type === "directory" || node.type === "cabinet"
+                ? `${assetUrl}/index.md`
+                : assetUrl;
 
     if (appMode === "browse") {
       setAppMode("browse", browseFileUrl);
