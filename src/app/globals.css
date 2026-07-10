@@ -663,6 +663,7 @@ html[lang^="zh-Hant"] h1.font-ui, html[lang^="zh-Hant"] h2.font-ui {
   padding: 0.5rem 0.75rem;
   text-align: start;
   vertical-align: top;
+  position: relative;
 }
 
 .tiptap th {

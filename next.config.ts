@@ -25,6 +25,14 @@ function resolveAllowedDevOrigins(): string[] {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: resolveAllowedDevOrigins(),
+  experimental: {
+    // Next 16's proxy layer (src/proxy.ts) caps request bodies at 10MB by
+    // default, making req.formData() fail with "Failed to parse body as
+    // FormData" for larger uploads before the route handler runs. Raise it
+    // above the 300MB video upload limit (+ multipart framing overhead)
+    // enforced in /api/upload.
+    proxyClientMaxBodySize: "350mb",
+  },
   compiler: {
     removeConsole: {
       exclude: ["error", "warn"],

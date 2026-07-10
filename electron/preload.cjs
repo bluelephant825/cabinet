@@ -74,6 +74,8 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
     ipcRenderer.invoke("cabinet:show-browser-bookmarks-menu", payload),
   destroyBrowserView: (viewId) =>
     ipcRenderer.invoke("cabinet:destroy-browser-view", { viewId }),
+  executeBrowserViewJavaScript: (viewId, code) =>
+    ipcRenderer.invoke("cabinet:execute-browser-view-javascript", { viewId, code }),
   onBrowserViewNavigated: (listener) => {
     if (typeof listener !== "function") return () => {};
     browserViewNavigateListeners.add(listener);

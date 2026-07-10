@@ -42,14 +42,16 @@ import type { TreeNode, FrontMatter } from "@/types";
 import { useLocale } from "@/i18n/use-locale";
 import { useSplitResize } from "@/hooks/use-split-resize";
 import { SplitRuler } from "./split-ruler";
+import { handleSidebarDrop } from "./drop-from-sidebar";
+import { buildSafeFileForm } from "@/lib/upload/safe-file-form";
 
 async function uploadFile(pagePath: string, file: File): Promise<string | null> {
-  const formData = new FormData();
-  formData.append("file", file);
+  const { form, headers } = buildSafeFileForm(file);
   try {
     const res = await fetch(`/api/upload/${pagePath}`, {
       method: "POST",
-      body: formData,
+      headers,
+      body: form,
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -489,7 +491,12 @@ export function KBEditor() {
 
         return false;
       },
-      handleDrop: (_view, event) => {
+      handleDrop: (view, event) => {
+        // Sidebar drag-and-drop: check for our custom MIME type first.
+        if (editor && event.dataTransfer?.types.includes("application/x-cabinet-node")) {
+          if (handleSidebarDrop(editor, event, view)) return true;
+        }
+
         const files = event.dataTransfer?.files;
         if (!files || files.length === 0) return false;
 

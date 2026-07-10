@@ -11,6 +11,17 @@ import { appendOrder, setEntryOrder } from "@/lib/storage/order-store";
 type RouteParams = { params: Promise<{ path: string[] }> };
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB
+const MAX_VIDEO_UPLOAD_BYTES = 300 * 1024 * 1024; // 300MB
+const VIDEO_EXTENSIONS = new Set([
+  ".mp4",
+  ".webm",
+  ".mov",
+  ".m4v",
+  ".ogg",
+  ".ogv",
+  ".avi",
+  ".mkv",
+]);
 const EXECUTABLE_EXTENSIONS = new Set([
   ".exe",
   ".msi",
@@ -52,23 +63,41 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (file.size > MAX_UPLOAD_BYTES) {
+    // Clients send the real filename percent-encoded in a header because
+    // undici's multipart parser rejects non-ASCII filenames in the
+    // Content-Disposition part ("Failed to parse body as FormData",
+    // vercel/next.js#76893). Fall back to the multipart filename when absent.
+    let originalName = file.name;
+    const headerName = req.headers.get("x-cabinet-filename");
+    if (headerName) {
+      try {
+        originalName = decodeURIComponent(headerName);
+      } catch {
+        // Malformed encoding — keep the multipart filename.
+      }
+    }
+
+    const isVideo =
+      VIDEO_EXTENSIONS.has(path.extname(originalName).toLowerCase()) ||
+      (file.type || "").startsWith("video/");
+    const maxBytes = isVideo ? MAX_VIDEO_UPLOAD_BYTES : MAX_UPLOAD_BYTES;
+    if (file.size > maxBytes) {
       return NextResponse.json(
         {
-          error: `File exceeds ${MAX_UPLOAD_BYTES / 1024 / 1024}MB size limit`,
+          error: `File exceeds ${maxBytes / 1024 / 1024}MB size limit`,
         },
         { status: 413 }
       );
     }
 
-    if (hasExecutableExtension(file.name)) {
+    if (hasExecutableExtension(originalName)) {
       return NextResponse.json(
         { error: "Executable files are not allowed" },
         { status: 415 }
       );
     }
 
-    let filename = file.name
+    let filename = originalName
       .replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, "-")
       .replace(/\.\.+/g, "-")
       .trim();
@@ -111,11 +140,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const mimeType = file.type || "";
     let markdown: string;
     if (mimeType.startsWith("image/")) {
-      markdown = `![${file.name}](./${filename})`;
+      markdown = `![${originalName}](./${filename})`;
     } else if (mimeType.startsWith("video/")) {
       markdown = `<video src="./${filename}" controls></video>`;
     } else {
-      markdown = `[${file.name}](./${filename})`;
+      markdown = `[${originalName}](./${filename})`;
     }
 
     return NextResponse.json({

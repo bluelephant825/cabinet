@@ -909,23 +909,30 @@ function TreeNodeImpl({
     // While browsing, clicking a tree row keeps you in browse mode and loads
     // that file's in-app browser URL rather than dropping back to the editor.
     const assetUrl = `/api/assets/${node.path.split("/").map(encodeURIComponent).join("/")}`;
+    const lowerPath = node.path.toLowerCase();
+    const isVideo = lowerPath.endsWith(".mp4") || lowerPath.endsWith(".webm") || lowerPath.endsWith(".ogg");
+    const isAudio = lowerPath.endsWith(".mp3") || lowerPath.endsWith(".wav") || lowerPath.endsWith(".m4a") || lowerPath.endsWith(".aac");
     const browseFileUrl =
-      node.type === "website" || node.type === "app"
-        ? `${assetUrl}/index.html`
-        : node.type === "drawio"
-          ? `${window.location.origin}/drawio/editor.html?path=${node.path}`
-          : node.type === "excalidraw"
-            ? `${window.location.origin}/excalidraw/editor?path=${node.path}`
-            : // Sibling Pattern: a `<name>.md` page can carry sub-pages and so be
-              // typed "directory", but its content still lives at `<name>.md`, not
-              // an `index.md` inside the folder — match the markdown name first.
-              // Markdown pages are typed "file" with the extension stripped from
-              // the path, so they also resolve to `<name>.md`.
-              (node.type === "file" && !isHtmlPath(node.path)) || node.name.toLowerCase().endsWith(".md")
-              ? `${assetUrl}.md`
-              : node.type === "directory" || node.type === "cabinet"
-                ? `${assetUrl}/index.md`
-                : assetUrl;
+      lowerPath.endsWith(".glb") || lowerPath.endsWith(".gltf")
+        ? "/threejs-editor/index.html"
+        : isVideo || isAudio
+          ? `/media-player?path=${encodeURIComponent(node.path)}&type=${isVideo ? "video" : "audio"}&title=${encodeURIComponent(node.name)}`
+          : node.type === "website" || node.type === "app"
+            ? `${assetUrl}/index.html`
+            : node.type === "drawio"
+              ? `${window.location.origin}/drawio/editor.html?path=${node.path}`
+              : node.type === "excalidraw"
+                ? `${window.location.origin}/excalidraw/editor?path=${node.path}`
+                : // Sibling Pattern: a `<name>.md` page can carry sub-pages and so be
+                  // typed "directory", but its content still lives at `<name>.md`, not
+                  // an `index.md` inside the folder — match the markdown name first.
+                  // Markdown pages are typed "file" with the extension stripped from
+                  // the path, so they also resolve to `<name>.md`.
+                  (node.type === "file" && !isHtmlPath(node.path)) || node.name.toLowerCase().endsWith(".md")
+                  ? `${assetUrl}.md`
+                  : node.type === "directory" || node.type === "cabinet"
+                    ? `${assetUrl}/index.md`
+                    : assetUrl;
 
     if (appMode === "browse") {
       setAppMode("browse", browseFileUrl);
@@ -1065,6 +1072,16 @@ function TreeNodeImpl({
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
       e.dataTransfer.setData("text/plain", node.path);
+      e.dataTransfer.setData(
+        "application/x-cabinet-node",
+        JSON.stringify({
+          path: node.path,
+          type: node.type,
+          name: node.name,
+          hasRepo: node.hasRepo,
+          isLinked: node.isLinked,
+        })
+      );
       e.dataTransfer.effectAllowed = "move";
 
       const source = rowRef.current;
@@ -1089,7 +1106,7 @@ function TreeNodeImpl({
         e.dataTransfer.setDragImage(ghost, 12, 12);
       }
     },
-    [node.path]
+    [node.path, node.type, node.name, node.hasRepo, node.isLinked]
   );
 
   const handleDragEnd = useCallback(() => {

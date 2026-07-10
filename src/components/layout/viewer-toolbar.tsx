@@ -126,8 +126,17 @@ export function ViewerToolbar({
   // everything else the raw asset.
   const browseModeUrl = useMemo(() => {
     if (!sourcePath) return null;
-    const assetUrl = `/api/assets/${sourcePath.split("/").map(encodeURIComponent).join("/")}`;
     const lower = sourcePath.toLowerCase();
+    if (lower.endsWith(".glb") || lower.endsWith(".gltf")) {
+      return "/threejs-editor/index.html";
+    }
+    const isVideo = lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".ogg");
+    const isAudio = lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".m4a") || lower.endsWith(".aac");
+    if (isVideo || isAudio) {
+      const filename = sourcePath.split("/").pop() || "Media";
+      return `/media-player?path=${encodeURIComponent(sourcePath)}&type=${isVideo ? "video" : "audio"}&title=${encodeURIComponent(filename)}`;
+    }
+    const assetUrl = `/api/assets/${sourcePath.split("/").map(encodeURIComponent).join("/")}`;
     if (sourceNode?.type === "website" || sourceNode?.type === "app") {
       return `${assetUrl}/index.html`;
     }
@@ -140,8 +149,8 @@ export function ViewerToolbar({
     // Check the markdown file case before directory/cabinet: a `<name>.md` page
     // can carry sub-pages and so be typed "directory", but its content still
     // lives at `<name>.md`, not an `index.md` inside the folder.
-    if ((sourceNode?.type === "file" && !isHtmlPath(sourcePath)) || lower.endsWith(".md")) {
-      return `${assetUrl}.md`;
+    if (lower.endsWith(".md")) {
+      return assetUrl;
     }
     if (sourceNode?.type === "directory" || sourceNode?.type === "cabinet") {
       return `${assetUrl}/index.md`;

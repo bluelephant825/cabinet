@@ -55,6 +55,7 @@ export interface TreeNode {
     | "notebook"
     | "latex"
     | "typst"
+    | "model3d"
     | "unknown";
   hasRepo?: boolean;
   isLinked?: boolean;

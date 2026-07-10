@@ -32,7 +32,7 @@ const IMAGE_EXTENSIONS = new Set([
 ]);
 
 const VIDEO_EXTENSIONS = new Set([
-  ".mp4", ".webm", ".mov", ".m4v",
+  ".mp4", ".webm", ".mov", ".m4v", ".mkv", ".avi", ".ogv",
 ]);
 
 const AUDIO_EXTENSIONS = new Set([
@@ -48,6 +48,8 @@ const EXCALIDRAW_EXTENSIONS = new Set([".excalidraw"]);
 const LATEX_EXTENSIONS = new Set([".tex", ".latex"]);
 
 const TYPST_EXTENSIONS = new Set([".typ"]);
+
+const MODEL3D_EXTENSIONS = new Set([".glb", ".gltf"]);
 // Office types that Cabinet can render inline.
 const DOCX_EXTENSIONS = new Set([".docx"]);
 const XLSX_EXTENSIONS = new Set([".xlsx", ".xlsm"]);
@@ -68,7 +70,7 @@ const UNKNOWN_EXTENSIONS = new Set([
   // Installers / packages
   ".dmg", ".pkg", ".apk", ".ipa", ".msi", ".deb", ".rpm",
   // Design / 3D
-  ".fig", ".sketch", ".psd", ".ai", ".xd", ".glb", ".gltf",
+  ".fig", ".sketch", ".psd", ".ai", ".xd", ".gltf",
   // Other documents
   ".epub", ".mobi", ".rtf",
 ]);
@@ -84,6 +86,7 @@ function classifyFile(ext: string): TreeNode["type"] | null {
   if (EXCALIDRAW_EXTENSIONS.has(ext)) return "excalidraw";
   if (LATEX_EXTENSIONS.has(ext)) return "latex";
   if (TYPST_EXTENSIONS.has(ext)) return "typst";
+  if (MODEL3D_EXTENSIONS.has(ext)) return "model3d";
   if (DOCX_EXTENSIONS.has(ext)) return "docx";
   if (XLSX_EXTENSIONS.has(ext)) return "xlsx";
   if (PPTX_EXTENSIONS.has(ext)) return "pptx";

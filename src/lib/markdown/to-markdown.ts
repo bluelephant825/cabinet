@@ -194,6 +194,21 @@ turndown.addRule("video", {
   },
 });
 
+// Preserve <audio> tags with all attrs (file-uploaded audio).
+turndown.addRule("audio", {
+  filter: "audio" as never,
+  replacement: (_content, node) => {
+    const el = node as HTMLElement;
+    const src = el.getAttribute("src") ?? "";
+    if (src) return `\n<audio src="${src}" controls></audio>\n`;
+    const attrs: string[] = [];
+    for (const attr of Array.from(el.attributes)) {
+      attrs.push(`${attr.name}="${attr.value.replace(/"/g, "&quot;")}"`);
+    }
+    return `<audio${attrs.length ? " " + attrs.join(" ") : ""}></audio>`;
+  },
+});
+
 // Serialize MDX component markers back to JSX. The editor stores each verified
 // component as <div data-mdx-component data-name data-props data-children>;
 // turndown turns it back into `<Name …/>` or `<Name …>children</Name>`.
@@ -252,6 +267,10 @@ turndown.addRule("embedBlock", {
 
     if (provider === "video") {
       return `\n<video src="${src}" controls></video>\n`;
+    }
+
+    if (provider === "audio") {
+      return `\n<audio src="${src}" controls></audio>\n`;
     }
 
     const attrs = [

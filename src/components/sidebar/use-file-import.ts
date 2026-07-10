@@ -2,10 +2,10 @@
 
 import { useCallback, useState } from "react";
 import { useTreeStore } from "@/stores/tree-store";
+import { buildSafeFileForm } from "@/lib/upload/safe-file-form";
 
 async function uploadOne(targetVirtualPath: string, file: File): Promise<void> {
-  const form = new FormData();
-  form.append("file", file);
+  const { form, headers } = buildSafeFileForm(file);
   const encoded = targetVirtualPath
     .split("/")
     .filter(Boolean)
@@ -13,6 +13,7 @@ async function uploadOne(targetVirtualPath: string, file: File): Promise<void> {
     .join("/");
   const res = await fetch(`/api/upload/${encoded}`, {
     method: "POST",
+    headers,
     body: form,
   });
   if (!res.ok) {

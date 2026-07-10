@@ -33,6 +33,10 @@ const PptxViewer = dynamic(
   () => import("@/components/editor/office/pptx-viewer").then((m) => m.PptxViewer),
   { ssr: false }
 );
+const Model3dViewer = dynamic(
+  () => import("@/components/editor/model3d-viewer").then((m) => m.Model3dViewer),
+  { ssr: false }
+);
 import { HomeScreen } from "@/components/home/home-screen";
 import type { ConversationMeta } from "@/types/conversations";
 import { TerminalTabs } from "@/components/terminal/terminal-tabs";
@@ -748,6 +752,7 @@ export function AppShell() {
         if (lower.endsWith(".excalidraw") || lower.endsWith(".excalidraw.svg")) return "excalidraw";
         if (lower.endsWith(".tex") || lower.endsWith(".latex")) return "latex";
         if (lower.endsWith(".typ")) return "typst";
+        if (lower.endsWith(".glb") || lower.endsWith(".gltf")) return "model3d";
         if (/\.(png|jpe?g|gif|webp|svg|bmp)$/.test(lower)) return "image";
         if (/\.(mp4|mov|webm|avi|mkv)$/.test(lower)) return "video";
         if (/\.(mp3|wav|ogg|flac|m4a)$/.test(lower)) return "audio";
@@ -776,6 +781,7 @@ export function AppShell() {
   const isDocx = nodeType === "docx";
   const isXlsx = nodeType === "xlsx";
   const isPptx = nodeType === "pptx";
+  const isModel3d = nodeType === "model3d";
   const isUnknown = nodeType === "unknown";
   const googleFrontmatter = selectedNode?.frontmatter?.google;
   const hasPersistentUpdateState =
@@ -1037,6 +1043,11 @@ export function AppShell() {
       const imgTitle = selectedNode?.frontmatter?.title || selectedNode?.name || imgPath.split("/").pop() || "Image";
       return <ImageViewer path={imgPath} title={imgTitle} />;
     }
+    if (isModel3d && (selectedNode || selectedPath)) {
+      const modelPath = selectedNode?.path || selectedPath!;
+      const modelTitle = selectedNode?.frontmatter?.title || selectedNode?.name || modelPath.split("/").pop() || "Model";
+      return <Model3dViewer path={modelPath} title={modelTitle} />;
+    }
     if ((isVideo || isAudio) && (selectedNode || selectedPath)) {
       const mediaPath = selectedNode?.path || selectedPath!;
       const mediaTitle = selectedNode?.frontmatter?.title || selectedNode?.name || mediaPath.split("/").pop() || "Media";
@@ -1141,7 +1152,7 @@ export function AppShell() {
     !driveLoading &&
     !isApp && !isCsv && !isPdf && !isWebsite && !isNotebook && !isCode &&
     !isImage && !isVideo && !isAudio && !isMermaid && !isLatex && !isDocx &&
-    !isXlsx && !isPptx && !isUnknown && !googleFrontmatter?.url;
+    !isXlsx && !isPptx && !isModel3d && !isUnknown && !googleFrontmatter?.url;
 
   // Viewers migrated to ViewerLayout put their toolbar on the desk and wrap
   // only their body in a ContentSheet — so they, like the editor, opt out of
@@ -1150,7 +1161,7 @@ export function AppShell() {
     isCsv || isCode || isImage || isMermaid ||
     isPdf || isVideo || isAudio || isUnknown || isLatex ||
     isWebsite || isApp || isDocx || isXlsx || isPptx || isNotebook ||
-    !!googleFrontmatter?.url;
+    isModel3d || !!googleFrontmatter?.url;
 
   // Views that place their controls on the desk and their body in a
   // ContentSheet manage their own layout — skip the app-shell sheet wrapper.

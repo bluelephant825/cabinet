@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { buildSafeFileForm } from "@/lib/upload/safe-file-form";
 
 export type AttachmentStatus = "uploading" | "ready" | "error";
 
@@ -84,8 +85,7 @@ export function useComposerAttachments(
       });
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
+        const { form, headers } = buildSafeFileForm(file);
         const encodedDir = dir
           .split("/")
           .filter(Boolean)
@@ -93,7 +93,8 @@ export function useComposerAttachments(
           .join("/");
         const response = await fetch(`/api/upload/${encodedDir}?commit=0`, {
           method: "POST",
-          body: formData,
+          headers,
+          body: form,
           signal: controller.signal,
         });
         if (!response.ok) {

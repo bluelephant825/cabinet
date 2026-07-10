@@ -378,7 +378,8 @@ function registerHandlers() {
     win.contentView.addChildView(view);
     browserViews.set(viewId, { view, ownerWebContentsId: event.sender.id });
 
-    view.webContents.on("did-navigate", (_navEvent, nextUrl) => {
+    view.webContents.on("did-finish-load", () => {
+      const nextUrl = view.webContents.getURL();
       sendBrowserViewNavigateEvent(event.sender.id, viewId, String(nextUrl || "about:blank"));
     });
     view.webContents.on("did-navigate-in-page", (_navEvent, nextUrl) => {
@@ -550,6 +551,22 @@ function registerHandlers() {
     }
     destroyBrowserView(viewId);
     return { ok: true };
+  });
+
+  ipcMain.handle("cabinet:execute-browser-view-javascript", async (event, payload) => {
+    if (!isMainRendererSender(event)) return { ok: false, error: "unauthorized" };
+    const viewId = typeof payload?.viewId === "string" ? payload.viewId : "";
+    const code = typeof payload?.code === "string" ? payload.code : "";
+    const entry = browserViews.get(viewId);
+    if (!entry || entry.ownerWebContentsId !== event.sender.id) {
+      return { ok: false, error: "not-found" };
+    }
+    try {
+      const result = await entry.view.webContents.executeJavaScript(code);
+      return { ok: true, result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 
   ipcMain.handle("cabinet:show-browser-bookmarks-menu", async (event, payload) => {

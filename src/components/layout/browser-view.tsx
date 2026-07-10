@@ -37,6 +37,7 @@ import {
 import { Header } from "@/components/layout/header";
 import { useAppStore } from "@/stores/app-store";
 import { useLocale } from "@/i18n/use-locale";
+import { useTreeStore } from "@/stores/tree-store";
 
 type BrowserViewBounds = { x: number; y: number; width: number; height: number };
 type BrowserViewNavResult = {
@@ -88,6 +89,7 @@ type BrowserBridge = {
     }) => void
   ) => () => void;
   destroyBrowserView: (viewId: string) => Promise<{ ok: boolean }>;
+  executeBrowserViewJavaScript?: (viewId: string, code: string) => Promise<{ ok: boolean; result?: any; error?: string }>;
   getExtensions?: () => Promise<BrowserExtension[]>;
   updateExtension?: (id: string, updates: Partial<BrowserExtension>) => Promise<{ ok: boolean }>;
   showExtensionPopup?: (payload: { extensionId: string; x: number; y: number }) => Promise<{ ok: boolean }>;
@@ -636,6 +638,7 @@ export function BrowserView() {
   const { t } = useLocale();
   const url = useAppStore((s) => s.browseUrl);
   const setAppMode = useAppStore((s) => s.setAppMode);
+  const selectedPath = useTreeStore((s) => s.selectedPath);
   const initialSessionRef = useRef<BrowserSessionState>(loadBrowserSessionState());
   const [addressValue, setAddressValue] = useState(toAddressBarValue(url ?? initialSessionRef.current.url ?? ""));
   const [browserMode, setBrowserMode] = useState<"initializing" | "electron" | "iframe">(() => {
@@ -1190,6 +1193,124 @@ export function BrowserView() {
     };
   }, []);
 
+  const handleAutoImportGlb = async (viewId: string, filePath: string) => {
+    const bridge = getBridge();
+    if (!bridge.executeBrowserViewJavaScript) return;
+
+    try {
+      // 1. Fetch the file content from the local API asset route
+      const response = await fetch(`/api/assets/${filePath.split("/").map(encodeURIComponent).join("/")}`);
+      if (!response.ok) return;
+
+      const blob = await response.blob();
+      
+      // 2. Convert the file contents to Base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Str = reader.result as string;
+        const filename = filePath.split("/").pop() || "model.glb";
+
+        // 3. Construct the script to execute inside Three.js editor
+        const code = `
+          (async () => {
+            const checkReady = () => {
+              return window.editor && window.editor.loader && typeof window.editor.loader.loadFiles === 'function';
+            };
+
+            const run = async () => {
+              try {
+                // Prevent duplicate imports of the same file
+                if (window.__lastImportedFile === ${JSON.stringify(filename)}) {
+                  return;
+                }
+                window.__lastImportedFile = ${JSON.stringify(filename)};
+
+                const base64Data = ${JSON.stringify(base64Str)};
+                const response = await fetch(base64Data);
+                const blob = await response.blob();
+                const file = new File([blob], ${JSON.stringify(filename)}, { type: "model/gltf-binary" });
+                
+                // Clear existing editor scene first to make it a clean import
+                if (typeof window.editor.clear === 'function') {
+                  window.editor.clear();
+                }
+
+                window.editor.loader.loadFiles([file]);
+              } catch (err) {
+                console.error("Auto-import failed:", err);
+              }
+            };
+
+            if (checkReady()) {
+              run();
+            } else {
+              const interval = setInterval(() => {
+                if (checkReady()) {
+                  clearInterval(interval);
+                  run();
+                }
+              }, 100);
+            }
+          })();
+        `;
+
+        // 4. Inject script into the electron browser view
+        await bridge.executeBrowserViewJavaScript!(viewId, code);
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      console.error("Failed to read/encode GLB file for auto-import", err);
+    }
+  };
+
+  const handleIframeAutoImportGlb = async (iframe: HTMLIFrameElement, filePath: string) => {
+    if (!filePath) return;
+    try {
+      const response = await fetch(`/api/assets/${filePath.split("/").map(encodeURIComponent).join("/")}`);
+      if (!response.ok) return;
+
+      const blob = await response.blob();
+      const filename = filePath.split("/").pop() || "model.glb";
+
+      const win = iframe.contentWindow;
+      if (!win) return;
+
+      const checkReady = () => {
+        return (win as any).editor && (win as any).editor.loader && typeof (win as any).editor.loader.loadFiles === 'function';
+      };
+
+      const run = async () => {
+        try {
+          if ((win as any).__lastImportedFile === filename) {
+            return;
+          }
+          (win as any).__lastImportedFile = filename;
+
+          const file = new File([blob], filename, { type: "model/gltf-binary" });
+          
+          if (typeof (win as any).editor.clear === 'function') {
+            (win as any).editor.clear();
+          }
+          (win as any).editor.loader.loadFiles([file]);
+        } catch (err) {
+          console.error("Iframe auto-import failed:", err);
+        }
+      };
+
+      if (checkReady()) {
+        run();
+      } else {
+        const interval = setInterval(() => {
+          if (checkReady()) {
+            clearInterval(interval);
+            run();
+          }
+        }, 100);
+      }
+    } catch (err) {
+      console.error("Failed to read/encode GLB file for iframe auto-import", err);
+    }
+  };
 
   useEffect(() => {
     const bridge = getBridge();
@@ -1199,6 +1320,12 @@ export function BrowserView() {
       const activeViewId = viewIdRef.current;
       if (!activeViewId || payload?.viewId !== activeViewId) return;
       const nextUrl = normalizeSessionUrl(payload?.url || "about:blank");
+
+      // Auto-import GLB/GLTF model if loading Three.js editor
+      if (nextUrl.includes("/threejs-editor/") && selectedPath && (selectedPath.toLowerCase().endsWith(".glb") || selectedPath.toLowerCase().endsWith(".gltf"))) {
+        handleAutoImportGlb(activeViewId, selectedPath);
+      }
+
       const history = iframeHistoryRef.current;
       const currentIndex = iframeHistoryIndexRef.current;
       const navAction = iframeNavActionRef.current;
@@ -1258,7 +1385,25 @@ export function BrowserView() {
     return () => {
       unsubscribe();
     };
-  }, [setAppMode]);
+  }, [setAppMode, selectedPath]);
+
+  // Load model when selectedPath changes while Three.js editor is active
+  useEffect(() => {
+    const is3dModel = selectedPath && (selectedPath.toLowerCase().endsWith(".glb") || selectedPath.toLowerCase().endsWith(".gltf"));
+    if (!is3dModel || !url?.includes("/threejs-editor/")) return;
+
+    if (browserMode === "electron") {
+      const activeViewId = viewIdRef.current;
+      if (activeViewId) {
+        handleAutoImportGlb(activeViewId, selectedPath);
+      }
+    } else if (browserMode === "iframe") {
+      const iframe = iframeRef.current;
+      if (iframe) {
+        handleIframeAutoImportGlb(iframe, selectedPath);
+      }
+    }
+  }, [selectedPath, url, browserMode]);
 
   useEffect(() => {
     const bridge = getBridge();
@@ -1814,6 +1959,13 @@ export function BrowserView() {
                 onLoad={() => {
                   iframeLoadedTokenRef.current = iframeLoadTokenRef.current;
                   setIframeLoadedToken(iframeLoadTokenRef.current);
+
+                  // Same-origin auto-import fallback for web browsers
+                  const iframe = iframeRef.current;
+                  const is3dModel = selectedPath && (selectedPath.toLowerCase().endsWith(".glb") || selectedPath.toLowerCase().endsWith(".gltf"));
+                  if (iframe && is3dModel && url?.includes("/threejs-editor/")) {
+                    handleIframeAutoImportGlb(iframe, selectedPath);
+                  }
                 }}
                 className="h-full w-full border-0 bg-transparent"
                 style={{
@@ -1821,7 +1973,7 @@ export function BrowserView() {
                   borderRadius: "20px",
                   overflow: "hidden",
                 }}
-                sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-top-navigation-by-user-activation"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-downloads allow-top-navigation-by-user-activation"
               />
               {iframeFailure ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/85 p-6 text-center">

@@ -49,6 +49,8 @@ const MIME_TYPES: Record<string, string> = {
   ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
   ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ".ipynb": "application/json",
+  ".glb": "model/gltf-binary",
+  ".gltf": "model/gltf+json",
 };
 
 // Editable text sources (LaTeX, CSV, markdown, notebooks, …) are viewed in-app
