@@ -107,6 +107,7 @@ import {
 } from "../src/lib/telemetry";
 
 import { findActiveJupyterServer } from "../src/lib/notebook/jupyter";
+import { slidevManager } from "./slidev-manager";
 
 const PORT = getDaemonPort();
 const CABINET_MANIFEST_FILE = ".cabinet";
@@ -1930,6 +1931,52 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Slidev start server
+  if (url.pathname === "/slidev/start" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const { filePath } = JSON.parse(body) as { filePath: string };
+        if (!filePath) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "filePath is required" }));
+          return;
+        }
+        const slidevUrl = await slidevManager.start(filePath);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ url: slidevUrl }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message || "Failed to start Slidev" }));
+      }
+    });
+    return;
+  }
+
+  // Slidev stop server
+  if (url.pathname === "/slidev/stop" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const { filePath } = JSON.parse(body) as { filePath: string };
+        if (!filePath) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "filePath is required" }));
+          return;
+        }
+        const stopped = slidevManager.stop(filePath);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ stopped }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message || "Failed to stop Slidev" }));
+      }
+    });
+    return;
+  }
+
   // Health check
   if (url.pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -2253,6 +2300,11 @@ server.listen(PORT, () => {
 
 function shutdown(): void {
   console.log("\nShutting down...");
+  try {
+    slidevManager.shutdownAll();
+  } catch (e) {
+    console.error("Error shutting down Slidev servers:", e);
+  }
   emitTelemetry("app.exited", {});
   clearSessionId();
   for (const [, task] of scheduledJobs) {

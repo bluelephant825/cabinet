@@ -20,6 +20,7 @@ import { TypstViewer } from "@/components/editor/typst-viewer";
 import { FileFallbackViewer } from "@/components/editor/file-fallback-viewer";
 import dynamic from "next/dynamic";
 import { GoogleDocViewer } from "@/components/editor/google-doc-viewer";
+import { SlidevViewer } from "@/components/editor/slidev-viewer";
 
 const DocxViewer = dynamic(
   () => import("@/components/editor/office/docx-viewer").then((m) => m.DocxViewer),
@@ -247,6 +248,18 @@ export function AppShell() {
       return null;
     }
   });
+
+  const [presentMode, setPresentMode] = useState(false);
+
+  useEffect(() => {
+    const handleTogglePresent = () => setPresentMode((p) => !p);
+    window.addEventListener("cabinet-toggle-present", handleTogglePresent);
+    return () => window.removeEventListener("cabinet-toggle-present", handleTogglePresent);
+  }, []);
+
+  useEffect(() => {
+    setPresentMode(false);
+  }, [selectedPath]);
 
   const loadProviders = useAppStore((s) => s.loadProviders);
 
@@ -806,6 +819,15 @@ export function AppShell() {
     prevIsApp.current = !!isApp;
   }, [isApp, setSidebarCollapsed, setAiPanelCollapsed]);
 
+  const prevPresentMode = useRef(false);
+  useEffect(() => {
+    if (presentMode && !prevPresentMode.current) {
+      setSidebarCollapsed(true);
+      setAiPanelCollapsed(true);
+    }
+    prevPresentMode.current = !!presentMode;
+  }, [presentMode, setSidebarCollapsed, setAiPanelCollapsed]);
+
   useEffect(() => {
     if (isDrawio && (selectedNode || selectedPath)) {
       const path = selectedNode?.path || selectedPath!;
@@ -992,6 +1014,16 @@ export function AppShell() {
       );
     }
 
+    // Slidev Presentation Mode
+    if (presentMode && selectedNode && (selectedNode.path.endsWith(".md") || selectedNode.path.endsWith(".mdx") || selectedNode.type === "file")) {
+      return (
+        <SlidevViewer
+          filePath={selectedNode.path}
+          onExit={() => setPresentMode(false)}
+        />
+      );
+    }
+
     // Page-based views (when a KB page is selected)
     // A cabinet's own markdown can be opened as a data page, so only render
     // the dashboard when navigation explicitly targets the cabinet section.
@@ -1166,6 +1198,7 @@ export function AppShell() {
   // Views that place their controls on the desk and their body in a
   // ContentSheet manage their own layout — skip the app-shell sheet wrapper.
   const bareLayout =
+    presentMode ||
     isDefaultEditor ||
     isSelfSheetedViewer ||
     section.type === "tasks" ||

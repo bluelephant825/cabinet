@@ -1097,7 +1097,7 @@ export function TreeView() {
     </Dialog>
 
     <Dialog open={!!pendingMove} onOpenChange={(open) => !open && setPendingMove(null)}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Disable Alphabetical Sorting?</DialogTitle>
           <DialogDescription>

@@ -40,6 +40,7 @@ import {
   FileCode,
   Eye,
   SquarePen,
+  Play,
 } from "lucide-react";
 import { useEditorStore } from "@/stores/editor-store";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -675,6 +676,14 @@ export function EditorToolbar({
         {/* Pinned, non-scrolling source/preview toggle — always reachable
             regardless of how far the formatting row is scrolled. */}
         <div className="shrink-0 flex items-center gap-1 ps-1 pe-2">
+          <ToolButton
+            label="Present (Slidev)"
+            icon={Play}
+            active={false}
+            onAction={() => {
+              window.dispatchEvent(new CustomEvent("cabinet-toggle-present"));
+            }}
+          />
           <Separator orientation="vertical" className="h-5" />
           {!splitMode && (
             <ToolButton
