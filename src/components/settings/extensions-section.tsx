@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Blocks, Trash2, ExternalLink, Loader2 } from "lucide-react";
-import { useLocale } from "@/i18n/use-locale";
+import { Blocks, Trash2, Loader2, Settings } from "lucide-react";
 import { showError } from "@/lib/ui/toast";
+import { useAppStore } from "@/stores/app-store";
+import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 
 interface Extension {
   id: string;
@@ -17,10 +18,37 @@ interface Extension {
   enabled?: boolean;
   iconDataUrl?: string | null;
   popupHtml?: string | null;
+  runtimeId?: string;
+  optionsPage?: string | null;
+}
+
+interface ExtensionResult {
+  ok: boolean;
+  extension?: Extension;
+  error?: string;
+}
+
+interface ExtensionsBridge {
+  getExtensions?: () => Promise<Extension[]>;
+  installExtension?: (urlOrId: string) => Promise<ExtensionResult>;
+  uninstallExtension?: (id: string) => Promise<ExtensionResult>;
+  toggleExtension?: (id: string, enabled: boolean) => Promise<ExtensionResult>;
+  onExtensionInstalled?: (listener: (ext: Extension) => void) => () => void;
+}
+
+function getBridge(): ExtensionsBridge | null {
+  if (typeof window === "undefined") return null;
+  return (
+    (window as unknown as { CabinetDesktop?: ExtensionsBridge })
+      .CabinetDesktop ?? null
+  );
+}
+
+function errorMessage(e: unknown, fallback: string): string {
+  return e instanceof Error && e.message ? e.message : fallback;
 }
 
 export function ExtensionsSection() {
-  const { t } = useLocale();
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState(false);
@@ -28,12 +56,10 @@ export function ExtensionsSection() {
 
   const loadExtensions = async () => {
     try {
-      if (typeof window !== "undefined" && (window as any).CabinetDesktop) {
-        const desktop = (window as any).CabinetDesktop;
-        if (desktop.getExtensions) {
-          const list = await desktop.getExtensions();
-          setExtensions(list || []);
-        }
+      const desktop = getBridge();
+      if (desktop?.getExtensions) {
+        const list = await desktop.getExtensions();
+        setExtensions(list || []);
       }
     } catch (e) {
       console.error("Failed to load extensions", e);
@@ -45,30 +71,28 @@ export function ExtensionsSection() {
   useEffect(() => {
     loadExtensions();
 
-    if (typeof window !== "undefined" && (window as any).CabinetDesktop) {
-      const desktop = (window as any).CabinetDesktop;
-      if (desktop.onExtensionInstalled) {
-        const unsub = desktop.onExtensionInstalled((ext: Extension) => {
-          setExtensions((prev) => {
-            const index = prev.findIndex((e) => e.id === ext.id);
-            if (index >= 0) {
-              const next = [...prev];
-              next[index] = ext;
-              return next;
-            }
-            return [...prev, ext];
-          });
-          window.dispatchEvent(
-            new CustomEvent("cabinet:toast", {
-              detail: {
-                kind: "success",
-                message: `Extension installed: ${ext.name}`,
-              },
-            })
-          );
+    const desktop = getBridge();
+    if (desktop?.onExtensionInstalled) {
+      const unsub = desktop.onExtensionInstalled((ext: Extension) => {
+        setExtensions((prev) => {
+          const index = prev.findIndex((e) => e.id === ext.id);
+          if (index >= 0) {
+            const next = [...prev];
+            next[index] = ext;
+            return next;
+          }
+          return [...prev, ext];
         });
-        return unsub;
-      }
+        window.dispatchEvent(
+          new CustomEvent("cabinet:toast", {
+            detail: {
+              kind: "success",
+              message: `Extension installed: ${ext.name}`,
+            },
+          })
+        );
+      });
+      return unsub;
     }
   }, []);
 
@@ -77,28 +101,33 @@ export function ExtensionsSection() {
     const val = extensionUrlOrId.trim();
     if (!val) return;
 
+    const desktop = getBridge();
+    if (!desktop?.installExtension) {
+      showError(
+        "Extension install is only available in the Cabinet desktop app."
+      );
+      return;
+    }
+
     setInstalling(true);
     try {
-      if (typeof window !== "undefined" && (window as any).CabinetDesktop) {
-        const desktop = (window as any).CabinetDesktop;
-        const res = await desktop.installExtension(val);
-        if (res.ok) {
-          setExtensionUrlOrId("");
-          await loadExtensions();
-          window.dispatchEvent(
-            new CustomEvent("cabinet:toast", {
-              detail: {
-                kind: "success",
-                message: `Extension installed: ${res.extension.name}`,
-              },
-            })
-          );
-        } else {
-          showError("Failed to install extension: " + res.error);
-        }
+      const res = await desktop.installExtension(val);
+      if (res.ok && res.extension) {
+        setExtensionUrlOrId("");
+        await loadExtensions();
+        window.dispatchEvent(
+          new CustomEvent("cabinet:toast", {
+            detail: {
+              kind: "success",
+              message: `Extension installed: ${res.extension.name}`,
+            },
+          })
+        );
+      } else {
+        showError("Failed to install extension: " + res.error);
       }
-    } catch (e: any) {
-      showError(e.message || "Failed to install extension");
+    } catch (e) {
+      showError(errorMessage(e, "Failed to install extension"));
     } finally {
       setInstalling(false);
     }
@@ -106,8 +135,8 @@ export function ExtensionsSection() {
 
   const handleUninstall = async (id: string) => {
     try {
-      if (typeof window !== "undefined" && (window as any).CabinetDesktop) {
-        const desktop = (window as any).CabinetDesktop;
+      const desktop = getBridge();
+      if (desktop?.uninstallExtension) {
         const res = await desktop.uninstallExtension(id);
         if (res.ok) {
           setExtensions((prev) => prev.filter((ext) => ext.id !== id));
@@ -115,15 +144,15 @@ export function ExtensionsSection() {
           showError("Failed to uninstall extension: " + res.error);
         }
       }
-    } catch (e: any) {
-      showError(e.message || "Failed to uninstall extension");
+    } catch (e) {
+      showError(errorMessage(e, "Failed to uninstall extension"));
     }
   };
 
   const handleToggle = async (id: string, enabled: boolean) => {
     try {
-      if (typeof window !== "undefined" && (window as any).CabinetDesktop) {
-        const desktop = (window as any).CabinetDesktop;
+      const desktop = getBridge();
+      if (desktop?.toggleExtension) {
         const res = await desktop.toggleExtension(id, enabled);
         if (res.ok) {
           setExtensions((prev) =>
@@ -133,9 +162,21 @@ export function ExtensionsSection() {
           showError("Failed to toggle extension: " + res.error);
         }
       }
-    } catch (e: any) {
-      showError(e.message || "Failed to toggle extension");
+    } catch (e) {
+      showError(errorMessage(e, "Failed to toggle extension"));
     }
+  };
+
+  const handleOpenOptions = (ext: Extension) => {
+    if (!ext.optionsPage) return;
+    const runtimeId = ext.runtimeId || ext.id;
+    const url = `chrome-extension://${runtimeId}/${ext.optionsPage}`;
+
+    const setSection = useAppStore.getState().setSection;
+    const setAppMode = useAppStore.getState().setAppMode;
+
+    setSection({ type: "cabinet", cabinetPath: ROOT_CABINET_PATH });
+    setAppMode("browse", url);
   };
 
   return (
@@ -181,6 +222,7 @@ export function ExtensionsSection() {
               <div key={ext.id} className="p-4 flex items-start gap-4">
                 <div className="w-10 h-10 bg-muted rounded flex items-center justify-center shrink-0 overflow-hidden">
                   {ext.iconDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- icon is a data URL; next/image adds no value
                     <img src={ext.iconDataUrl} alt="" className="w-8 h-8 object-contain" />
                   ) : (
                     <Blocks className="w-5 h-5 text-muted-foreground" />
@@ -201,6 +243,17 @@ export function ExtensionsSection() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {ext.optionsPage && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={ext.enabled === false}
+                      onClick={() => handleOpenOptions(ext)}
+                      title={ext.enabled === false ? "Enable extension to open options" : "Extension options"}
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Switch
                     checked={ext.enabled !== false}
                     onCheckedChange={(checked) => handleToggle(ext.id, checked)}

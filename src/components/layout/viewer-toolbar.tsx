@@ -14,7 +14,6 @@ import { useTreeStore } from "@/stores/tree-store";
 import { useLocale } from "@/i18n/use-locale";
 import { findNodeByPath } from "@/lib/cabinets/tree";
 import { cn } from "@/lib/utils";
-import { isHtmlPath } from "@/lib/ui/html-view-mode";
 
 /**
  * Unified toolbar used by every file viewer (PDF, CSV, source, office, media,
@@ -27,29 +26,13 @@ import { isHtmlPath } from "@/lib/ui/html-view-mode";
  * Pass viewer-specific actions (Wrap/Copy/Download/Raw etc.) as `children` —
  * they render immediately before the global `HeaderActions`.
  */
-export function ViewerToolbar({
-  path,
-  badge,
-  sublabel,
-  showBreadcrumb = true,
-  leading,
-  children,
-  className,
-  showModeButtons = true,
-}: {
-  path?: string;
-  badge?: string;
-  sublabel?: string;
-  showBreadcrumb?: boolean;
-  /** Extra leading element (e.g. a viewer's own Back button for full-screen mode). */
-  leading?: ReactNode;
-  children?: ReactNode;
-  className?: string;
-  showModeButtons?: boolean;
-}) {
+/**
+ * Fullscreen "focus" toggle shared by the viewer toolbar and the cabinet
+ * dashboard header. Collapses the side panels while in focus and restores
+ * them on exit.
+ */
+export function ViewerFocusButton() {
   const { t } = useLocale();
-  const appMode = useAppStore((s) => s.appMode);
-  const setAppMode = useAppStore((s) => s.setAppMode);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setAiPanelCollapsed = useAppStore((s) => s.setAiPanelCollapsed);
   const openTaskPanelCompose = useAppStore((s) => s.openTaskPanelCompose);
@@ -113,6 +96,27 @@ export function ViewerToolbar({
     }
   };
 
+  return (
+    <button
+      aria-label={inFullscreen ? t("editor:header.exitFocus") : t("editor:header.focus")}
+      title={inFullscreen ? t("editor:header.exitFocus") : t("editor:header.focus")}
+      onClick={handleFocus}
+      className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer text-foreground/80"
+    >
+      {inFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+    </button>
+  );
+}
+
+/**
+ * Edit/browse/canvas mode switcher shared by the viewer toolbar and the
+ * cabinet dashboard header. Shows the two modes that are not active.
+ */
+export function ViewerModeButtons({ path }: { path?: string }) {
+  const { t } = useLocale();
+  const appMode = useAppStore((s) => s.appMode);
+  const setAppMode = useAppStore((s) => s.setAppMode);
+
   const nodes = useTreeStore((s) => s.nodes);
   const selectedPath = useTreeStore((s) => s.selectedPath);
   const sourcePath = path || selectedPath;
@@ -162,7 +166,7 @@ export function ViewerToolbar({
     setAppMode("browse", browseModeUrl);
   };
 
-  const modeButtons = showModeButtons ? (
+  return (
     <>
       {appMode === "edit" && (
         <>
@@ -225,8 +229,29 @@ export function ViewerToolbar({
         </>
       )}
     </>
-  ) : null;
+  );
+}
 
+export function ViewerToolbar({
+  path,
+  badge,
+  sublabel,
+  showBreadcrumb = true,
+  leading,
+  children,
+  className,
+  showModeButtons = true,
+}: {
+  path?: string;
+  badge?: string;
+  sublabel?: string;
+  showBreadcrumb?: boolean;
+  /** Extra leading element (e.g. a viewer's own Back button for full-screen mode). */
+  leading?: ReactNode;
+  children?: ReactNode;
+  className?: string;
+  showModeButtons?: boolean;
+}) {
   return (
     <header
       className={cn(
@@ -253,19 +278,10 @@ export function ViewerToolbar({
       <div className="flex shrink-0 items-center gap-1">
         <NavArrows />
         {children}
-        {path && (
-          <button
-            aria-label={inFullscreen ? t("editor:header.exitFocus") : t("editor:header.focus")}
-            title={inFullscreen ? t("editor:header.exitFocus") : t("editor:header.focus")}
-            onClick={handleFocus}
-            className="inline-flex items-center justify-center rounded-md h-7 w-7 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer text-foreground/80"
-          >
-            {inFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-          </button>
-        )}
+        {path && <ViewerFocusButton />}
         {/* File History on every viewer, not just the markdown editor. */}
         {path ? <VersionHistory path={path} /> : null}
-        {modeButtons}
+        {showModeButtons ? <ViewerModeButtons path={path} /> : null}
         <HeaderActions />
         <NewTaskButton />
         <TaskRailToggle />

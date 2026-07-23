@@ -7,6 +7,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 const browserViewNavigateListeners = new Set();
 const browserViewLoadFailedListeners = new Set();
 const extensionInstalledListeners = new Set();
+const browserViewNavigateRequestListeners = new Set();
+const browserViewClosedListeners = new Set();
 
 ipcRenderer.on("cabinet:browser-view-navigated", (_event, payload) => {
   for (const listener of browserViewNavigateListeners) {
@@ -26,6 +28,22 @@ ipcRenderer.on("cabinet:browser-view-load-failed", (_event, payload) => {
 
 ipcRenderer.on("cabinet:extension-installed", (_event, payload) => {
   for (const listener of extensionInstalledListeners) {
+    try {
+      listener(payload);
+    } catch {}
+  }
+});
+
+ipcRenderer.on("cabinet:browser-view-navigate", (_event, payload) => {
+  for (const listener of browserViewNavigateRequestListeners) {
+    try {
+      listener(payload);
+    } catch {}
+  }
+});
+
+ipcRenderer.on("cabinet:browser-view-closed", (_event, payload) => {
+  for (const listener of browserViewClosedListeners) {
     try {
       listener(payload);
     } catch {}
@@ -72,10 +90,14 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
     ipcRenderer.invoke("cabinet:browser-view-reload", { viewId }),
   showBrowserBookmarksMenu: (payload) =>
     ipcRenderer.invoke("cabinet:show-browser-bookmarks-menu", payload),
+  showExtensionsMenu: (payload) =>
+    ipcRenderer.invoke("cabinet:show-extensions-menu", payload),
   destroyBrowserView: (viewId) =>
     ipcRenderer.invoke("cabinet:destroy-browser-view", { viewId }),
   executeBrowserViewJavaScript: (viewId, code) =>
     ipcRenderer.invoke("cabinet:execute-browser-view-javascript", { viewId, code }),
+  openBrowserViewDevTools: (viewId) =>
+    ipcRenderer.invoke("cabinet:open-browser-view-devtools", { viewId }),
   onBrowserViewNavigated: (listener) => {
     if (typeof listener !== "function") return () => {};
     browserViewNavigateListeners.add(listener);
@@ -88,6 +110,20 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
     browserViewLoadFailedListeners.add(listener);
     return () => {
       browserViewLoadFailedListeners.delete(listener);
+    };
+  },
+  onBrowserViewNavigateRequest: (listener) => {
+    if (typeof listener !== "function") return () => {};
+    browserViewNavigateRequestListeners.add(listener);
+    return () => {
+      browserViewNavigateRequestListeners.delete(listener);
+    };
+  },
+  onBrowserViewClosed: (listener) => {
+    if (typeof listener !== "function") return () => {};
+    browserViewClosedListeners.add(listener);
+    return () => {
+      browserViewClosedListeners.delete(listener);
     };
   },
   /**
@@ -134,6 +170,7 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
   getExtensions: () => ipcRenderer.invoke("cabinet:get-extensions"),
   updateExtension: (id, updates) => ipcRenderer.invoke("cabinet:update-extension", { id, updates }),
   showExtensionPopup: (payload) => ipcRenderer.invoke("cabinet:show-extension-popup", payload),
+  showNativeToast: (payload) => ipcRenderer.invoke("cabinet:show-native-toast", payload),
   readFile: (filePath) => ipcRenderer.invoke("cabinet:read-file", { path: filePath }),
   writeFile: (filePath, content) => ipcRenderer.invoke("cabinet:write-file", { path: filePath, content }),
   onExtensionInstalled: (listener) => {

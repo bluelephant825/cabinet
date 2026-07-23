@@ -38,6 +38,7 @@ export function SystemToasts() {
 
   useEffect(() => {
     function handler(event: Event) {
+      if (event.defaultPrevented) return;
       const detail = (event as CustomEvent).detail as
         | {
             kind?: ToastKind;

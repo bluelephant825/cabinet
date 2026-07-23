@@ -5,6 +5,7 @@ import { ExternalLink, Download, WrapText, Copy, Check, Save, Code2, FileCode, E
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { useLocale } from "@/i18n/use-locale";
+import { HtmlHighlighter } from "./html-highlighter";
 import Editor, { loader } from "@monaco-editor/react";
 import { useTheme } from "@/components/theme-provider";
 import { useEditorSettings } from "@/hooks/use-editor-settings";
@@ -303,7 +304,7 @@ export function SourceViewer({ path }: SourceViewerProps) {
           Raw
         </Button>
       </ViewerToolbar>
-      <div className={`flex-grow flex flex-col min-h-0 source-viewer-code ${isHtml && !sourceMode && !splitMode ? "bg-transparent" : "bg-background"}`}>
+      <div className={`grow flex flex-col min-h-0 source-viewer-code ${isHtml && !sourceMode && !splitMode ? "bg-transparent" : "bg-background"}`}>
         {loading ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Loading...
@@ -357,14 +358,16 @@ export function SourceViewer({ path }: SourceViewerProps) {
 
             {/* RIGHT: HTML PREVIEW */}
             {(splitMode || !sourceMode) && (
-              <div className={`flex-grow flex flex-col min-h-0 bg-transparent relative animate-in fade-in duration-200 ${!splitMode ? "p-4" : "overflow-hidden w-full h-full"}`}>
-                <div className={`relative flex-grow flex flex-col min-h-0 bg-transparent w-full h-full ${!splitMode ? "rounded-[20px] overflow-hidden" : ""}`}>
-                  <iframe
-                    src={assetUrl}
-                    className="w-full h-full border-none bg-transparent"
-                    title="HTML Preview"
-                    key={content || ""}
-                  />
+              <div className={`grow flex flex-col min-h-0 bg-transparent relative animate-in fade-in duration-200 ${!splitMode ? "p-4" : "overflow-hidden w-full h-full"}`}>
+                <div className={`relative grow flex flex-col min-h-0 bg-transparent w-full h-full ${!splitMode ? "rounded-[20px] overflow-hidden" : ""}`}>
+                  <HtmlHighlighter htmlPath={path}>
+                    <iframe
+                      src={assetUrl}
+                      className="w-full h-full border-none bg-transparent"
+                      title="HTML Preview"
+                      key={content || ""}
+                    />
+                  </HtmlHighlighter>
                 </div>
               </div>
             )}

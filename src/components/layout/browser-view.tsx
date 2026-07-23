@@ -16,8 +16,7 @@ import {
   Tags,
   Trash2,
   Blocks,
-  Pin,
-  PinOff,
+  Bug,
 } from "lucide-react";
 import type { IconNode } from "lucide-react";
 import {
@@ -28,16 +27,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Header } from "@/components/layout/header";
 import { useAppStore } from "@/stores/app-store";
 import { useLocale } from "@/i18n/use-locale";
 import { useTreeStore } from "@/stores/tree-store";
+import { openExternalUrl } from "@/lib/runtime/open-url";
 
 type BrowserViewBounds = { x: number; y: number; width: number; height: number };
 type BrowserViewNavResult = {
@@ -89,10 +83,33 @@ type BrowserBridge = {
     }) => void
   ) => () => void;
   destroyBrowserView: (viewId: string) => Promise<{ ok: boolean }>;
-  executeBrowserViewJavaScript?: (viewId: string, code: string) => Promise<{ ok: boolean; result?: any; error?: string }>;
+  executeBrowserViewJavaScript?: (viewId: string, code: string) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
+  openBrowserViewDevTools?: (viewId: string) => Promise<{ ok: boolean; error?: string }>;
+  onBrowserViewNavigateRequest?: (
+    listener: (payload: { url?: string }) => void
+  ) => () => void;
+  onBrowserViewClosed?: (
+    listener: (payload: { viewId?: string }) => void
+  ) => () => void;
   getExtensions?: () => Promise<BrowserExtension[]>;
   updateExtension?: (id: string, updates: Partial<BrowserExtension>) => Promise<{ ok: boolean }>;
-  showExtensionPopup?: (payload: { extensionId: string; x: number; y: number }) => Promise<{ ok: boolean }>;
+  showExtensionPopup?: (payload: { extensionId: string; x: number; y: number }) => Promise<{ ok: boolean; error?: string }>;
+  showNativeToast?: (payload: { kind?: string; message: string; durationMs?: number }) => Promise<{ ok: boolean }>;
+  showExtensionsMenu?: (payload: {
+    x: number;
+    y: number;
+    items: { id: string; name: string; iconDataUrl?: string | null; pinned?: boolean }[];
+  }) => Promise<{ ok: boolean; cancelled?: boolean; extensionId?: string; togglePinId?: string }>;
+};
+
+type ThreeJsEditorWindow = Window & {
+  __lastImportedFile?: string;
+  editor?: {
+    clear?: () => void;
+    loader?: {
+      loadFiles?: (files: File[]) => void;
+    };
+  };
 };
 
 type BrowserExtension = {
@@ -105,6 +122,7 @@ type BrowserExtension = {
   pinned?: boolean;
   iconDataUrl?: string | null;
   popupHtml?: string | null;
+  contentScriptMatches?: string[];
 };
 
 type BrowserSessionState = {
@@ -188,6 +206,47 @@ function toBridgeBookmarkMenuItems(nodes: BookmarkNode[]): BrowserBookmarkMenuIt
 function getBridge(): Partial<BrowserBridge> & { runtime?: "electron" } {
   return (window as unknown as { CabinetDesktop?: Partial<BrowserBridge> & { runtime?: "electron" } })
     .CabinetDesktop ?? {};
+}
+
+function matchPatternToUrl(pattern: string): string | null {
+  // <all_urls> matches every URL — no single target to navigate to.
+  if (pattern === "<all_urls>") return null;
+  // Chrome match patterns: <scheme>://<host>/<path>
+  // e.g. "https://www.youtube.com/*" → "https://www.youtube.com/"
+  try {
+    const match = pattern.match(/^(\*|https?|file|ftp):\/\/(\*|[^/]+)\/(.*)$/);
+    if (!match) return null;
+    const scheme = match[1] === "*" ? "https" : match[1];
+    const host = match[2] === "*" ? "" : match[2];
+    if (!host) return null;
+    return `${scheme}://${host}/`;
+  } catch {
+    return null;
+  }
+}
+
+function urlMatchesPattern(url: string, pattern: string): boolean {
+  // <all_urls> matches any http(s) URL.
+  if (pattern === "<all_urls>") {
+    try {
+      const target = new URL(url);
+      return target.protocol === "http:" || target.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+  try {
+    const match = pattern.match(/^(\*|https?|file|ftp):\/\/(\*|[^/]+)\/(.*)$/);
+    if (!match) return false;
+    const [, schemePart, hostPart, pathPart] = match;
+    const target = new URL(url);
+    if (schemePart !== "*" && target.protocol.replace(":", "") !== schemePart) return false;
+    if (hostPart !== "*" && target.hostname !== hostPart) return false;
+    const pathGlob = pathPart.replace(/\*$/, "");
+    return target.pathname.startsWith(pathGlob) || pathPart === "*";
+  } catch {
+    return false;
+  }
 }
 
 const TAG_CLOUD_DATA_URL_PREFIX = "data:text/html;cabinet-tag-cloud=1;charset=utf-8,";
@@ -649,6 +708,7 @@ export function BrowserView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bookmarksMenuRef = useRef<HTMLDivElement | null>(null);
   const bookmarksTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const extensionsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const iframeLoadTokenRef = useRef(0);
   const iframeLoadedTokenRef = useRef(0);
@@ -890,24 +950,115 @@ export function BrowserView() {
     setAddressValue("");
   };
 
-  const handleToggleExtensionPin = async (ext: BrowserExtension) => {
+  const handleRunExtension = async (ext: BrowserExtension, rect: { left: number; bottom: number }) => {
     const bridge = getBridge();
-    const newPinned = !ext.pinned;
-    if (bridge.updateExtension) {
-      await bridge.updateExtension(ext.id, { pinned: newPinned });
-      setExtensions(prev => prev.map(e => e.id === ext.id ? { ...e, pinned: newPinned } : e));
+    if (!bridge.showExtensionPopup) return;
+    const result = await bridge.showExtensionPopup({
+      extensionId: ext.id,
+      x: Math.round(rect.left),
+      y: Math.round(rect.bottom + 8),
+    });
+    if (!result?.ok) {
+      if (result?.error === "No popup defined" && ext.contentScriptMatches?.length) {
+        // Content-script extension: navigate to a supported page so the
+        // extension's content script can inject. If we're already on a
+        // matching page, just inform the user.
+        const currentUrl = addressValue || url || "";
+        const alreadyOnMatch = ext.contentScriptMatches.some((pattern) =>
+          urlMatchesPattern(currentUrl, pattern)
+        );
+        if (alreadyOnMatch) {
+          window.dispatchEvent(
+            new CustomEvent("cabinet:toast", {
+              detail: {
+                kind: "info",
+                message: `${ext.name} is active on this page — look for its UI on the page.`,
+              },
+            })
+          );
+        } else {
+          // Navigate to the first match pattern's origin (e.g. https://www.youtube.com/)
+          const target = matchPatternToUrl(ext.contentScriptMatches[0]);
+          if (target) {
+            setAppMode("browse", target);
+            setAddressValue(toAddressBarValue(target));
+            window.dispatchEvent(
+              new CustomEvent("cabinet:toast", {
+                detail: {
+                  kind: "info",
+                  message: `Opening ${target} — ${ext.name} will activate on supported pages.`,
+                },
+              })
+            );
+          } else {
+            const isAllUrls = ext.contentScriptMatches.some(
+              (p) => p === "<all_urls>" || p === "*://*/*"
+            );
+            window.dispatchEvent(
+              new CustomEvent("cabinet:toast", {
+                detail: {
+                  kind: "info",
+                  message: isAllUrls
+                    ? `${ext.name} works on any web page — open a site in the browser to use it.`
+                    : `${ext.name} runs on supported pages — navigate to a matching site in the browser to use it.`,
+                },
+              })
+            );
+          }
+        }
+      } else {
+        const message =
+          result?.error === "No popup defined"
+            ? `${ext.name} has no popup UI — it runs directly on supported pages (open one in the browser to use it).`
+            : `Couldn't open ${ext.name}: ${result?.error || "unknown error"}`;
+        window.dispatchEvent(
+          new CustomEvent("cabinet:toast", {
+            detail: { kind: "info", message },
+          })
+        );
+      }
     }
   };
 
-  const handleRunExtension = async (ext: BrowserExtension, event: React.MouseEvent) => {
+  const openExtensionsNativeMenu = async () => {
+    const trigger = extensionsTriggerRef.current;
+    if (!trigger) return;
     const bridge = getBridge();
-    if (bridge.showExtensionPopup) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      await bridge.showExtensionPopup({
-        extensionId: ext.id,
-        x: Math.round(rect.left),
-        y: Math.round(rect.bottom + 8),
-      });
+    if (!bridge.showExtensionsMenu) return;
+    const enabledExts = extensions.filter(ext => ext.enabled !== false);
+    if (enabledExts.length === 0) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const x = Math.max(0, Math.round(rect.left));
+    const y = Math.max(0, Math.round(rect.bottom + 6));
+
+    const result = await bridge.showExtensionsMenu({
+      x,
+      y,
+      items: enabledExts.map(ext => ({
+        id: ext.id,
+        name: ext.name,
+        iconDataUrl: ext.iconDataUrl,
+        pinned: ext.pinned,
+      })),
+    });
+    if (!result?.ok || result.cancelled) return;
+    if (result.togglePinId) {
+      const ext = extensions.find(e => e.id === result.togglePinId);
+      if (ext) {
+        const newPinned = !ext.pinned;
+        if (bridge.updateExtension) {
+          await bridge.updateExtension(ext.id, { pinned: newPinned });
+          setExtensions(prev => prev.map(e => e.id === ext.id ? { ...e, pinned: newPinned } : e));
+        }
+      }
+      return;
+    }
+    if (result.extensionId) {
+      const ext = extensions.find(e => e.id === result.extensionId);
+      if (ext) {
+        handleRunExtension(ext, { left: rect.left, bottom: rect.bottom });
+      }
     }
   };
 
@@ -1193,6 +1344,42 @@ export function BrowserView() {
     };
   }, []);
 
+  useEffect(() => {
+    const bridge = getBridge();
+    const subscribe = bridge.onBrowserViewNavigateRequest;
+    if (!subscribe) return;
+    const unsubscribe = subscribe((payload) => {
+      const targetUrl = payload?.url;
+      if (!targetUrl) return;
+      // Navigate the browser view to the requested URL (e.g. extension settings page)
+      const viewId = viewIdRef.current;
+      if (viewId && bridge.loadBrowserViewUrl) {
+        void bridge.loadBrowserViewUrl(viewId, targetUrl);
+        setAddressValue(toAddressBarValue(targetUrl));
+      } else {
+        setAppMode("browse", targetUrl);
+        setAddressValue(toAddressBarValue(targetUrl));
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [setAppMode]);
+
+  useEffect(() => {
+    const bridge = getBridge();
+    const subscribe = bridge.onBrowserViewClosed;
+    if (!subscribe) return;
+    const unsubscribe = subscribe((payload) => {
+      const activeViewId = viewIdRef.current;
+      if (!activeViewId || payload?.viewId !== activeViewId) return;
+      setAppMode("edit");
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [setAppMode]);
+
   const handleAutoImportGlb = async (viewId: string, filePath: string) => {
     const bridge = getBridge();
     if (!bridge.executeBrowserViewJavaScript) return;
@@ -1272,26 +1459,26 @@ export function BrowserView() {
       const blob = await response.blob();
       const filename = filePath.split("/").pop() || "model.glb";
 
-      const win = iframe.contentWindow;
+      const win = iframe.contentWindow as ThreeJsEditorWindow | null;
       if (!win) return;
 
       const checkReady = () => {
-        return (win as any).editor && (win as any).editor.loader && typeof (win as any).editor.loader.loadFiles === 'function';
+        return typeof win.editor?.loader?.loadFiles === 'function';
       };
 
       const run = async () => {
         try {
-          if ((win as any).__lastImportedFile === filename) {
+          if (win.__lastImportedFile === filename) {
             return;
           }
-          (win as any).__lastImportedFile = filename;
+          win.__lastImportedFile = filename;
 
           const file = new File([blob], filename, { type: "model/gltf-binary" });
           
-          if (typeof (win as any).editor.clear === 'function') {
-            (win as any).editor.clear();
+          if (typeof win.editor?.clear === 'function') {
+            win.editor.clear();
           }
-          (win as any).editor.loader.loadFiles([file]);
+          win.editor?.loader?.loadFiles?.([file]);
         } catch (err) {
           console.error("Iframe auto-import failed:", err);
         }
@@ -1460,6 +1647,30 @@ export function BrowserView() {
       ro.disconnect();
       window.removeEventListener("resize", updateBounds);
     };
+  }, [browserMode]);
+
+  // In Electron browse mode, the native WebContentsView sits above all DOM
+  // content — CSS z-index can't raise toasts above it. Intercept toast events
+  // and forward them to the Electron main process, which renders a native
+  // Menu.popup() above the BrowserView (same pattern as the extensions menu).
+  useEffect(() => {
+    if (browserMode !== "electron") return;
+    const bridge = getBridge();
+    if (!bridge.showNativeToast) return;
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        | { kind?: string; message?: string; durationMs?: number }
+        | undefined;
+      if (!detail?.message) return;
+      event.preventDefault();
+      void bridge.showNativeToast!({
+        kind: detail.kind,
+        message: detail.message,
+        durationMs: detail.durationMs,
+      });
+    };
+    window.addEventListener("cabinet:toast", handler);
+    return () => window.removeEventListener("cabinet:toast", handler);
   }, [browserMode]);
 
   const isDialogOpen = managerOpen || bookmarkDialogOpen || managerEditDialogOpen;
@@ -1744,7 +1955,7 @@ export function BrowserView() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header />
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden bg-[var(--gutter)]">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden bg-(--gutter)">
         <div className="grid grid-cols-[1fr_minmax(0,720px)_1fr] items-center gap-3 border-b border-border/70 bg-[#F1E4D3] px-4 py-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2 truncate">
             <button
@@ -1783,6 +1994,23 @@ export function BrowserView() {
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
+            {browserMode === "electron" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const bridge = getBridge();
+                  const viewId = viewIdRef.current;
+                  if (viewId && bridge.openBrowserViewDevTools) {
+                    void bridge.openBrowserViewDevTools(viewId);
+                  }
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
+                aria-label="Toggle DevTools"
+                title="Toggle DevTools — inspect the browser page and see content script errors"
+              >
+                <Bug className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -1849,12 +2077,13 @@ export function BrowserView() {
               <button
                 key={ext.id}
                 type="button"
-                onClick={(e) => handleRunExtension(ext, e)}
+                onClick={(e) => handleRunExtension(ext, e.currentTarget.getBoundingClientRect())}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
                 title={ext.name}
                 aria-label={ext.name}
               >
                 {ext.iconDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- icon is a data URL; next/image adds no value
                   <img src={ext.iconDataUrl} alt="" className="w-4 h-4 object-contain" />
                 ) : (
                   <Blocks className="h-4 w-4" />
@@ -1862,45 +2091,19 @@ export function BrowserView() {
               </button>
             ))}
 
-            {/* Extensions Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted cursor-pointer"
-                title="Extensions"
-                aria-label="Extensions"
-              >
-                <Blocks className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                {extensions.filter(ext => ext.enabled !== false).length === 0 ? (
-                  <div className="p-3 text-xs text-muted-foreground text-center">No extensions enabled</div>
-                ) : (
-                  extensions.filter(ext => ext.enabled !== false).map(ext => (
-                    <div key={ext.id} className="flex items-center justify-between px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm cursor-pointer group">
-                      <div className="flex items-center gap-2 flex-1 overflow-hidden" onClick={(e) => handleRunExtension(ext, e)}>
-                        {ext.iconDataUrl ? (
-                          <img src={ext.iconDataUrl} alt="" className="w-4 h-4 object-contain shrink-0" />
-                        ) : (
-                          <Blocks className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="truncate">{ext.name}</span>
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleExtensionPin(ext);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-muted rounded text-muted-foreground"
-                        title={ext.pinned ? "Unpin extension" : "Pin extension"}
-                      >
-                        {ext.pinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Extensions Button (native menu) */}
+            <button
+              ref={extensionsTriggerRef}
+              type="button"
+              onClick={() => {
+                void openExtensionsNativeMenu();
+              }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
+              title="Extensions"
+              aria-label="Extensions"
+            >
+              <Blocks className="h-4 w-4" />
+            </button>
           </div>
           <div className="flex justify-end gap-2">
             {url ? (
@@ -1979,7 +2182,18 @@ export function BrowserView() {
                 <div className="absolute inset-0 flex items-center justify-center bg-background/85 p-6 text-center">
                   <div className="max-w-md rounded border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
                     <div>This page can’t be rendered in an iframe.</div>
-                    <div className="mt-1">Use “Open externally”.</div>
+                    {url ? (
+                      <button
+                        type="button"
+                        onClick={() => openExternalUrl(url)}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-muted transition-colors"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Open in new tab
+                      </button>
+                    ) : (
+                      <div className="mt-1">Use “Open externally”.</div>
+                    )}
                   </div>
                 </div>
               ) : null}

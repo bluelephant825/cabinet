@@ -36,6 +36,7 @@
   "dependencies": {
     "@aarkue/tiptap-math-extension": "^1.4.0",
     "@base-ui/react": "^1.3.0",
+    "@highlighters/core": "^1.2.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -79,6 +80,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "docx-preview": "^0.3.7",
+    "electron-chrome-extensions": "^4.9.0",
     "electron-squirrel-startup": "^1.0.1",
     "emoji-mart": "^5.6.0",
     "flexsearch": "^0.8.212",

@@ -39,6 +39,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { RegistryTemplate } from "@/lib/registry/registry-manifest";
 import { TiltCard } from "@/components/ui/tilt-card";
+import { ViewerFocusButton, ViewerModeButtons } from "@/components/layout/viewer-toolbar";
+import { HeaderActions } from "@/components/layout/header-actions";
+import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
+import { ContentSheet } from "@/components/layout/content-sheet";
 
 type QuickAction = {
   /** Key under `home:quickActions.*` for the visible button label. */
@@ -689,8 +693,22 @@ export function HomeScreen() {
     : t("home:composerPlaceholder");
 
   return (
-    <div className="flex-1 flex flex-col items-center px-4 overflow-hidden">
-      <div className="flex-1 flex flex-col items-center justify-center w-full max-w-xl space-y-8">
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <header
+        className="flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0 bg-[var(--gutter)]"
+        style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden" />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ViewerFocusButton />
+          <ViewerModeButtons path={ROOT_CABINET_PATH} />
+          <HeaderActions />
+          <TaskRailToggle />
+        </div>
+      </header>
+      <ContentSheet>
+        <div className="flex-1 flex flex-col items-center justify-center w-full px-4 overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center w-full max-w-xl space-y-8">
         {/*
          * Audit #005 (review feedback 2026-05-02): the prior text-xl/2xl
          * fix was too aggressive — the greeting felt undersized on a
@@ -870,6 +888,8 @@ export function HomeScreen() {
           </p>
         </div>
       )}
+        </div>
+      </ContentSheet>
     </div>
   );
 }

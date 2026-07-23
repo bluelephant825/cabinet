@@ -381,10 +381,10 @@ export function AppShell() {
     return () => window.clearTimeout(id);
   }, [selectedPath, section.cabinetPath]);
 
-  // Browse mode only makes sense over a page/cabinet surface; leaving those
-  // sections (settings, help, etc.) drops back to the editor.
+  // Browse mode only makes sense over a page/cabinet/home/settings surface;
+  // leaving those sections (help, etc.) drops back to the editor.
   useEffect(() => {
-    if (section.type !== "page" && section.type !== "cabinet" && appMode !== "edit") {
+    if (section.type !== "page" && section.type !== "cabinet" && section.type !== "home" && section.type !== "settings" && appMode !== "edit") {
       setAppMode("edit");
     }
   }, [section.type, appMode, setAppMode]);
@@ -878,8 +878,12 @@ export function AppShell() {
   // Determine what to render in the main area
   const renderContent = () => {
     // System sections (non-page views)
+    if (section.type === "home" && appMode === "browse") return <BrowserView />;
+    if (section.type === "home" && appMode === "canvas") return <CanvasView />;
     if (section.type === "home") return <HomeScreen />;
     if (section.type === "registry") return <RegistryBrowser />;
+    if (section.type === "settings" && appMode === "browse") return <BrowserView />;
+    if (section.type === "settings" && appMode === "canvas") return <CanvasView />;
     if (section.type === "settings") return <SettingsPage />;
     if (section.type === "integrations") return <IntegrationsHubPage />;
     if (section.type === "help") return <HelpPage />;
@@ -1170,10 +1174,11 @@ export function AppShell() {
     isSelfSheetedViewer ||
     section.type === "tasks" ||
     section.type === "agents" ||
+    (section.type === "settings" && appMode === "edit") ||
     // The room/cabinet dashboard puts its header on the desk and wraps its body
     // in a ContentSheet, like agents/tasks — but only in edit mode; browse mode
     // hands off to BrowserView, which still wants the app-shell sheet.
-    (section.type === "cabinet" && appMode !== "browse");
+    ((section.type === "home" || section.type === "cabinet") && appMode !== "browse");
 
   return (
     <TaskRailProvider>
@@ -1181,7 +1186,7 @@ export function AppShell() {
         edge: the whole app shrinks into the remaining width (the "iframe")
         and the fixed, full-height rail lives in that gutter. */}
     <div
-      className="flex h-screen bg-[var(--gutter)] text-foreground transition-[padding] duration-200 ease-out"
+      className="flex h-screen bg-(--gutter) text-foreground transition-[padding] duration-200 ease-out"
       style={
         isMobile
           ? undefined

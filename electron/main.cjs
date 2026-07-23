@@ -4,12 +4,13 @@ const fs = require("fs");
 const path = require("path");
 const net = require("net");
 const { spawn } = require("child_process");
-const { app, BrowserWindow, dialog, autoUpdater, ipcMain, WebContentsView, session } = require("electron");
+const { app, BrowserWindow, dialog, autoUpdater, ipcMain, WebContentsView, session, shell, webContents } = require("electron");
 const { updateElectronApp } = require("update-electron-app");
 const JSZip = require("jszip");
 const {
   initBrowserViews,
   destroyAllBrowserViews,
+  getExtensionsManager,
 } = require("./browser-views.cjs");
 
 if (require("electron-squirrel-startup")) {
@@ -20,6 +21,11 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 }
+
+// BackForwardCache is known to crash the browser process (SIGSEGV) in
+// Electron when navigating back/forward on pages where MV3 extension
+// content scripts are injected. Disable it until upstream fixes land.
+app.commandLine.appendSwitch("disable-features", "BackForwardCache");
 
 const isDev = !app.isPackaged;
 
@@ -217,6 +223,322 @@ function parseBrowserExtensions() {
 
 const runtimeExtensionIds = new Map();
 
+/**
+ * Patch extension JS files to replace unsupported Chrome APIs with
+ * fallbacks that work in Electron:
+ * - chrome.tabs.create({ url }) → window.open(url)
+ * - chrome.sidePanel.open({ windowId }) → window.open(chrome.runtime.getURL('sidepanel/panel.html'))
+ * - chrome.windows.getCurrent() → Promise.resolve({ id: 0 })
+ * - chrome.windows.create({ url, ... }) → window.open(url)
+ * - chrome.offscreen.* → no-op stubs
+ * - chrome.tabCapture.* → stubs that reject gracefully
+ */
+function patchExtensionUnsupportedApis(extensionPath) {
+  try {
+    const allFiles = fs.readdirSync(extensionPath, { recursive: true });
+    let patched = 0;
+
+    // Read the manifest to find the side panel path, content scripts, and
+    // background/service worker files so they receive our API stub wrapper.
+    let defaultPanelPath = "sidepanel/panel.html";
+    let contentScriptFiles = new Set();
+    let backgroundFiles = new Set();
+    try {
+      const manifest = JSON.parse(fs.readFileSync(path.join(extensionPath, "manifest.json"), "utf8"));
+      const sp = manifest.side_panel || manifest.__cabinet_side_panel;
+      if (sp && typeof sp.default_path === "string") defaultPanelPath = sp.default_path;
+      for (const cs of manifest.content_scripts || []) {
+        for (const js of cs.js || []) contentScriptFiles.add(js.replace(/^\.\//, ""));
+      }
+      const bg = manifest.background;
+      if (bg) {
+        if (typeof bg.service_worker === "string") {
+          backgroundFiles.add(bg.service_worker.replace(/^\.\//, ""));
+        }
+        for (const js of bg.scripts || []) {
+          if (typeof js === "string") backgroundFiles.add(js.replace(/^\.\//, ""));
+        }
+      }
+      if (backgroundFiles.size > 0) {
+        console.log(`[cabinet] detected ${backgroundFiles.size} background file(s): ${Array.from(backgroundFiles).join(", ")}`);
+      }
+    } catch (e) {
+      console.warn(`[cabinet] could not parse manifest.json: ${e?.message || e}`);
+    }
+
+    // A stub preamble that safely overrides unsupported chrome APIs.
+    // This runs before any extension code, so all references to these APIs
+    // will use our stubs instead of Electron's potentially-crashing native bindings.
+    const STUB_PREAMBLE = `
+;(function(){
+  var nativeChrome = (typeof globalThis !== 'undefined' ? globalThis.chrome : undefined) || (typeof window !== 'undefined' ? window.chrome : undefined) || (typeof self !== 'undefined' ? self.chrome : undefined);
+  if (!nativeChrome) return;
+  if (nativeChrome.__cabinet_wrapped) return;
+
+  var stubbedChrome = Object.create(nativeChrome);
+  Object.defineProperty(stubbedChrome, "__cabinet_wrapped", {
+    value: true,
+    enumerable: false,
+    configurable: true
+  });
+
+  // chrome.sidePanel — not supported. Track per-tab panel paths set via
+  // setOptions so open() can navigate to the right page.
+  var __cabinetPanelPaths = {};
+  var __cabinetDefaultPanelPath = ${JSON.stringify(defaultPanelPath)};
+  stubbedChrome.sidePanel = stubbedChrome.sidePanel || {};
+  stubbedChrome.sidePanel.open = stubbedChrome.sidePanel.open || function(opts) {
+    var tabId = opts && typeof opts.tabId === 'number' ? opts.tabId : undefined;
+    var p = (tabId !== undefined && __cabinetPanelPaths[tabId]) || __cabinetDefaultPanelPath;
+    var url = stubbedChrome.runtime.getURL(p);
+    console.log("__cabinet_open_panel__:" + url);
+    return Promise.resolve();
+  };
+  stubbedChrome.sidePanel.setOptions = stubbedChrome.sidePanel.setOptions || function(opts) {
+    try {
+      if (opts && typeof opts.tabId === 'number' && typeof opts.path === 'string') {
+        __cabinetPanelPaths[opts.tabId] = opts.path;
+      }
+    } catch(e) {}
+    return Promise.resolve();
+  };
+  stubbedChrome.sidePanel.setPanelBehavior = stubbedChrome.sidePanel.setPanelBehavior || function() { return Promise.resolve(); };
+
+  // chrome.tabCapture — not supported
+  stubbedChrome.tabCapture = stubbedChrome.tabCapture || {};
+  stubbedChrome.tabCapture.getMediaStreamId = stubbedChrome.tabCapture.getMediaStreamId || function() { return Promise.reject(new Error('tabCapture not supported')); };
+
+  // chrome.commands — not supported
+  stubbedChrome.commands = stubbedChrome.commands || {};
+  stubbedChrome.commands.onCommand = stubbedChrome.commands.onCommand || { addListener: function(){}, removeListener: function(){}, hasListener: function(){ return false; } };
+  stubbedChrome.commands.getAll = stubbedChrome.commands.getAll || function(cb) {
+    var cmds = (stubbedChrome.runtime.getManifest && stubbedChrome.runtime.getManifest().commands) || {};
+    var list = Object.keys(cmds).map(function(name) {
+      return { name: name, shortcut: cmds[name].suggested_key && cmds[name].suggested_key.default || '' };
+    });
+    if (typeof cb === 'function') { try { cb(list); } catch(e) {} }
+    return Promise.resolve(list);
+  };
+
+  // chrome.permissions — not supported
+  stubbedChrome.permissions = stubbedChrome.permissions || {};
+  stubbedChrome.permissions.getAll = stubbedChrome.permissions.getAll || function(cb) {
+    var result = { origins: [], permissions: [] };
+    if (typeof cb === 'function') { try { cb(result); } catch(e) {} }
+    return Promise.resolve(result);
+  };
+  stubbedChrome.permissions.contains = stubbedChrome.permissions.contains || function(perm, cb) {
+    var ok = false;
+    if (typeof cb === 'function') { try { cb(ok); } catch(e) {} }
+    return Promise.resolve(ok);
+  };
+  stubbedChrome.permissions.request = stubbedChrome.permissions.request || function(perm, cb) {
+    var ok = true;
+    if (typeof cb === 'function') { try { cb(ok); } catch(e) {} }
+    return Promise.resolve(ok);
+  };
+  stubbedChrome.permissions.remove = stubbedChrome.permissions.remove || function(perm, cb) {
+    if (typeof cb === 'function') { try { cb(true); } catch(e) {} }
+    return Promise.resolve(true);
+  };
+
+  // chrome.notifications — not supported
+  var __noopEvent = { addListener: function(){}, removeListener: function(){}, hasListener: function(){ return false; } };
+  stubbedChrome.notifications = stubbedChrome.notifications || {};
+  stubbedChrome.notifications.create = stubbedChrome.notifications.create || function(a, b, cb) {
+    var callback = typeof a === 'function' ? a : (typeof b === 'function' ? b : cb);
+    if (typeof callback === 'function') { try { callback(''); } catch(e) {} }
+    return Promise.resolve('');
+  };
+  stubbedChrome.notifications.clear = stubbedChrome.notifications.clear || function(id, cb) {
+    if (typeof cb === 'function') { try { cb(true); } catch(e) {} }
+    return Promise.resolve(true);
+  };
+  stubbedChrome.notifications.update = stubbedChrome.notifications.update || function() { return Promise.resolve(false); };
+  stubbedChrome.notifications.onClicked = stubbedChrome.notifications.onClicked || __noopEvent;
+  stubbedChrome.notifications.onClosed = stubbedChrome.notifications.onClosed || __noopEvent;
+  stubbedChrome.notifications.onButtonClicked = stubbedChrome.notifications.onButtonClicked || __noopEvent;
+
+  // chrome.action.onClicked / chrome.browserAction.onClicked — Electron
+  // doesn't fire these from Cabinet's custom toolbar. Capture listeners so
+  // the main process can trigger them via self.__cabinetTriggerActionClick(tab).
+  var __cabinetActionListeners = [];
+  function __cabinetWrapActionEvent(evt) {
+    if (!evt) return;
+    var listeners = evt.listeners || [];
+    var origAdd = evt.addListener ? evt.addListener.bind(evt) : null;
+    evt.addListener = function(listener) {
+      listeners.push(listener);
+      __cabinetActionListeners.push(listener);
+      if (origAdd) try { origAdd(listener); } catch(e) {}
+    };
+    evt.listeners = listeners;
+    if (!evt.removeListener) evt.removeListener = function(listener) {
+      var idx = listeners.indexOf(listener);
+      if (idx >= 0) listeners.splice(idx, 1);
+      idx = __cabinetActionListeners.indexOf(listener);
+      if (idx >= 0) __cabinetActionListeners.splice(idx, 1);
+    };
+  }
+  stubbedChrome.action = stubbedChrome.action || {};
+  stubbedChrome.browserAction = stubbedChrome.browserAction || {};
+  stubbedChrome.action.onClicked = stubbedChrome.action.onClicked || { addListener: function(){}, listeners: [] };
+  stubbedChrome.browserAction.onClicked = stubbedChrome.browserAction.onClicked || { addListener: function(){}, listeners: [] };
+  __cabinetWrapActionEvent(stubbedChrome.action.onClicked);
+  __cabinetWrapActionEvent(stubbedChrome.browserAction.onClicked);
+
+  self.__cabinetTriggerActionClick = function(tab) {
+    for (var i = 0; i < __cabinetActionListeners.length; i++) {
+      try { __cabinetActionListeners[i](tab); } catch(e) { console.error(e); }
+    }
+  };
+
+  // Service-worker keepalive — periodic extension API call resets the idle timer.
+  if (typeof window === 'undefined' && stubbedChrome.runtime && stubbedChrome.runtime.getPlatformInfo) {
+    try {
+      setInterval(function() {
+        try { stubbedChrome.runtime.getPlatformInfo(function(){ void stubbedChrome.runtime.lastError; }); } catch(e) {}
+      }, 20000);
+    } catch(e) {}
+  }
+
+  try {
+    Object.defineProperty(globalThis, 'chrome', {
+      value: stubbedChrome,
+      writable: true,
+      configurable: true,
+      enumerable: true
+    });
+  } catch(e) {
+    try { globalThis.chrome = stubbedChrome; } catch(e) {}
+  }
+  try {
+    Object.defineProperty(globalThis, 'browser', {
+      value: globalThis.browser || stubbedChrome,
+      writable: true,
+      configurable: true,
+      enumerable: true
+    });
+  } catch(e) {
+    try { globalThis.browser = globalThis.browser || stubbedChrome; } catch(e) {}
+  }
+})();
+`;
+
+    for (const relPath of allFiles) {
+      const fullPath = path.join(extensionPath, String(relPath));
+      if (!fullPath.endsWith(".js") && !fullPath.endsWith(".mjs") && !fullPath.endsWith(".cjs")) continue;
+      if (!fs.existsSync(fullPath)) continue;
+      let content = fs.readFileSync(fullPath, "utf8");
+
+      const normalizedRel = String(relPath).replace(/\\/g, "/");
+      const isBackground = backgroundFiles.has(normalizedRel);
+      const isContentScript = contentScriptFiles.has(normalizedRel);
+      const needsStub =
+        isContentScript ||
+        isBackground ||
+        content.includes("chrome.sidePanel") ||
+        content.includes("browser.sidePanel") ||
+        content.includes("chrome.tabCapture") ||
+        content.includes("browser.tabCapture") ||
+        content.includes("chrome.commands") ||
+        content.includes("browser.commands") ||
+        content.includes("chrome.permissions") ||
+        content.includes("browser.permissions") ||
+        content.includes("chrome.notifications") ||
+        content.includes("browser.notifications") ||
+        content.includes("chrome.action.onClicked") ||
+        content.includes("browser.action.onClicked") ||
+        content.includes("chrome.browserAction.onClicked") ||
+        content.includes("browser.browserAction.onClicked");
+
+      if (isContentScript || isBackground) {
+        console.log(`[cabinet] detected ${isContentScript ? "content script" : "background"} file: ${normalizedRel}`);
+      }
+
+      if (!needsStub) continue;
+
+      const STUB_VERSION = "v17";
+      const beginMarker = "// __cabinet_api_stubs_begin__";
+      const endMarker = "// __cabinet_api_stubs_end__";
+      const versionMarker = `// __cabinet_api_stubs_${STUB_VERSION}__`;
+
+      // Already patched with the current version
+      if (content.includes(versionMarker)) continue;
+
+      console.log(`[cabinet] patching ${relPath} (reason: ${isBackground ? "background file" : isContentScript ? "content script" : "uses unsupported APIs"})`);
+
+      // Strip any older stub block (marker-delimited)
+      const beginIdx = content.indexOf(beginMarker);
+      const endIdx = content.indexOf(endMarker);
+      if (beginIdx !== -1 && endIdx !== -1 && endIdx > beginIdx) {
+        content = content.slice(0, beginIdx) + content.slice(endIdx + endMarker.length);
+      } else if (content.includes("__cabinet_api_stubs__")) {
+        // Legacy v1 stub without end marker — cannot strip safely; skip and
+        // let the extension be reinstalled fresh instead.
+        console.warn(`[cabinet] ${relPath} has legacy stubs; reinstall the extension to update`);
+        continue;
+      }
+
+      content = `${beginMarker}\n${versionMarker}\n${STUB_PREAMBLE}\n${endMarker}\n${content}`;
+      fs.writeFileSync(fullPath, content, "utf8");
+      patched++;
+      console.log(`[cabinet] prepended API stubs (${STUB_VERSION}) to ${relPath}`);
+    }
+    if (patched > 0) {
+      console.log(`[cabinet] patched ${patched} file(s) in ${extensionPath}`);
+    }
+  } catch (e) {
+    console.warn(`[cabinet] could not patch unsupported APIs in ${extensionPath}:`, e?.message || e);
+  }
+}
+
+/**
+ * Strip unsupported permissions and manifest keys from the extension's
+ * manifest.json before loading. Electron may crash (SIGSEGV) when it
+ * encounters permissions like `sidePanel`, `tabCapture`, or `offscreen`
+ * that it doesn't recognise.
+ */
+function patchExtensionManifest(extensionPath) {
+  try {
+    const manifestPath = path.join(extensionPath, "manifest.json");
+    if (!fs.existsSync(manifestPath)) return;
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    let modified = false;
+
+    // Remove unsupported permissions
+    const unsupportedPerms = ["sidePanel", "tabCapture", "offscreen", "notifications"];
+    if (Array.isArray(manifest.permissions)) {
+      const before = manifest.permissions.length;
+      manifest.permissions = manifest.permissions.filter((p) => !unsupportedPerms.includes(p));
+      if (manifest.permissions.length !== before) modified = true;
+    }
+
+    // Grant the `tabs` permission: in Electron, extensions relying on
+    // `activeTab` never get tab URLs from chrome.tabs.query (activeTab's
+    // click-time grant is not implemented), which breaks extensions that
+    // need to identify the current page (e.g. MindStudio).
+    if (Array.isArray(manifest.permissions) && manifest.permissions.includes("activeTab") && !manifest.permissions.includes("tabs")) {
+      manifest.permissions.push("tabs");
+      modified = true;
+    }
+
+    // Remove unsupported manifest keys (preserve the panel path for our stubs)
+    if (manifest.side_panel) {
+      manifest.__cabinet_side_panel = manifest.side_panel;
+      delete manifest.side_panel;
+      modified = true;
+    }
+
+    if (modified) {
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+      console.log(`[cabinet] stripped unsupported permissions/keys from manifest in ${extensionPath}`);
+    }
+  } catch (e) {
+    console.warn(`[cabinet] could not patch manifest in ${extensionPath}:`, e?.message || e);
+  }
+}
+
 async function loadBrowserExtensions() {
   const extensionPaths = parseBrowserExtensions();
   
@@ -233,6 +555,9 @@ async function loadBrowserExtensions() {
 
   for (const extensionPath of extensionPaths) {
     try {
+      // Patch unsupported Chrome APIs before loading
+      patchExtensionManifest(extensionPath);
+      patchExtensionUnsupportedApis(extensionPath);
       // session.loadExtension is deprecated, fallback to session.extensions.loadExtension if available
       let ext;
       if (browserSession.extensions && browserSession.extensions.loadExtension) {
@@ -247,6 +572,65 @@ async function loadBrowserExtensions() {
       console.error(error);
     }
   }
+
+  // Backfill contentScriptMatches, optionsPage, and popupHtml for extensions
+  // installed before these fields were added to the persisted data.
+  let updated = false;
+  for (const ext of persisted) {
+    if (!ext.path) continue;
+    const manifestPath = path.join(ext.path, "manifest.json");
+    if (!fs.existsSync(manifestPath)) continue;
+
+    let manifest = null;
+    function getManifest() {
+      if (!manifest) {
+        try {
+          manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        } catch {}
+      }
+      return manifest;
+    }
+
+    // Backfill contentScriptMatches
+    if (!ext.contentScriptMatches) {
+      const m = getManifest();
+      if (m) {
+        const matches = [];
+        if (Array.isArray(m.content_scripts)) {
+          for (const cs of m.content_scripts) {
+            if (Array.isArray(cs.matches)) {
+              for (const match of cs.matches) {
+                if (typeof match === "string" && !matches.includes(match)) {
+                  matches.push(match);
+                }
+              }
+            }
+          }
+        }
+        ext.contentScriptMatches = matches;
+        updated = true;
+      }
+    }
+
+    // Backfill optionsPage
+    if (ext.optionsPage === undefined) {
+      const m = getManifest();
+      if (m) {
+        ext.optionsPage = m.options_page || m.options_ui?.page || null;
+        updated = true;
+      }
+    }
+
+    // Backfill popupHtml
+    if (ext.popupHtml === undefined) {
+      const m = getManifest();
+      if (m) {
+        ext.popupHtml = m.action?.default_popup || m.browser_action?.default_popup || null;
+        updated = true;
+      }
+    }
+  }
+  if (updated) writePersistedExtensions(persisted);
 }
 
 /** The primary window if it still exists and isn't destroyed, else null. */
@@ -833,11 +1217,15 @@ async function openRoomWindow(suffix) {
 ipcMain.handle("cabinet:open-window", (_event, suffix) => openRoomWindow(suffix));
 
 async function installExtensionFromWebStore(extensionId) {
-  const url = `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=114.0.0.0&acceptformat=crx2,crx3&x=id%3D${extensionId}%26uc`;
+  const prodversion = process.versions.chrome || "126.0.0.0";
+  const url = `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=${prodversion}&acceptformat=crx2,crx3&x=id%3D${extensionId}%26uc`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to download extension CRX");
+  if (!res.ok) throw new Error(`Failed to download extension CRX (HTTP ${res.status})`);
   const arrayBuffer = await res.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
+  if (buffer.length < 16) {
+    throw new Error("Chrome Web Store returned no CRX data. Check the extension ID and that the extension is still available.");
+  }
 
   let zipDataOffset = 0;
   const magic = buffer.readUInt32LE(0);
@@ -907,6 +1295,7 @@ async function installExtensionFromWebStore(extensionId) {
   };
 
   const popupHtml = manifest.action?.default_popup || manifest.browser_action?.default_popup || null;
+  const optionsPage = manifest.options_page || manifest.options_ui?.page || null;
   
   let iconDataUrl = null;
   const icons = manifest.icons || {};
@@ -936,6 +1325,9 @@ async function installExtensionFromWebStore(extensionId) {
   }
 
   const browserSession = getBrowserSession();
+  // Patch unsupported Chrome APIs before loading
+  patchExtensionManifest(outDir);
+  patchExtensionUnsupportedApis(outDir);
   let loadedExt;
   if (browserSession.extensions && browserSession.extensions.loadExtension) {
     loadedExt = await browserSession.extensions.loadExtension(outDir, { allowFileAccess: true });
@@ -943,6 +1335,21 @@ async function installExtensionFromWebStore(extensionId) {
     loadedExt = await browserSession.loadExtension(outDir, { allowFileAccess: true });
   }
   runtimeExtensionIds.set(outDir, loadedExt.id);
+
+  // Collect content-script match patterns so the renderer can navigate to
+  // a supported page when the user clicks an extension with no popup.
+  const contentScriptMatches = [];
+  if (Array.isArray(manifest.content_scripts)) {
+    for (const cs of manifest.content_scripts) {
+      if (Array.isArray(cs.matches)) {
+        for (const m of cs.matches) {
+          if (typeof m === "string" && !contentScriptMatches.includes(m)) {
+            contentScriptMatches.push(m);
+          }
+        }
+      }
+    }
+  }
 
   const extData = {
     id: extensionId,
@@ -952,6 +1359,8 @@ async function installExtensionFromWebStore(extensionId) {
     description: resolveI18n(manifest.description) || "",
     popupHtml,
     iconDataUrl,
+    contentScriptMatches,
+    optionsPage,
   };
 
   const persisted = readPersistedExtensions();
@@ -966,13 +1375,36 @@ async function installExtensionFromWebStore(extensionId) {
   return extData;
 }
 
+function enrichExtension(ext) {
+  if (!ext) return ext;
+  const runtimeId = runtimeExtensionIds.get(ext.path) || ext.id;
+  let optionsPage = ext.optionsPage;
+  if (optionsPage === undefined) {
+    try {
+      const manifestPath = path.join(ext.path, "manifest.json");
+      if (fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        optionsPage = manifest.options_page || manifest.options_ui?.page || null;
+      }
+    } catch {
+      optionsPage = null;
+    }
+  }
+  return {
+    ...ext,
+    runtimeId,
+    optionsPage,
+  };
+}
+
 ipcMain.handle("cabinet:web-store-install", async (event, payload) => {
   try {
     const ext = await installExtensionFromWebStore(payload.extensionId);
+    const enriched = enrichExtension(ext);
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("cabinet:extension-installed", ext);
+      mainWindow.webContents.send("cabinet:extension-installed", enriched);
     }
-    return { ok: true, extension: ext };
+    return { ok: true, extension: enriched };
   } catch (error) {
     return { ok: false, error: error.message };
   }
@@ -980,13 +1412,15 @@ ipcMain.handle("cabinet:web-store-install", async (event, payload) => {
 
 ipcMain.handle("cabinet:install-extension", async (event, payload) => {
   try {
-    let extensionId = payload.urlOrId;
-    if (extensionId.includes("/")) {
-      const parts = extensionId.split("/");
-      extensionId = parts[parts.length - 1];
+    const raw = String(payload.urlOrId || "").trim();
+    // Chrome extension IDs are exactly 32 chars in [a-p]. Extract from a bare
+    // ID or from any Web Store URL shape (trailing slash, query params, etc.).
+    const match = raw.match(/[a-p]{32}/);
+    if (!match) {
+      return { ok: false, error: "Could not find a valid extension ID in the input. Paste the Chrome Web Store URL or the 32-character extension ID." };
     }
-    const ext = await installExtensionFromWebStore(extensionId);
-    return { ok: true, extension: ext };
+    const ext = await installExtensionFromWebStore(match[0]);
+    return { ok: true, extension: enrichExtension(ext) };
   } catch (error) {
     return { ok: false, error: error.message };
   }
@@ -1025,7 +1459,7 @@ ipcMain.handle("cabinet:toggle-extension", async (event, payload) => {
       }
     }
     
-    return { ok: true, extension: persisted[extIndex] };
+    return { ok: true, extension: enrichExtension(persisted[extIndex]) };
   } catch (error) {
     return { ok: false, error: error.message };
   }
@@ -1040,13 +1474,94 @@ ipcMain.handle("cabinet:update-extension", async (event, payload) => {
     
     persisted[extIndex] = { ...persisted[extIndex], ...updates };
     writePersistedExtensions(persisted);
-    return { ok: true, extension: persisted[extIndex] };
+    return { ok: true, extension: enrichExtension(persisted[extIndex]) };
   } catch (error) {
     return { ok: false, error: error.message };
   }
 });
 
 let currentExtensionPopup = null;
+let extensionPanelWindow = null;
+
+// Open an extension page (side panel, settings…) in a dedicated window
+// docked to the right of the main window. Crucially this must NOT replace
+// the page in the main browser view: extensions like MindStudio query the
+// active tab for its URL/content, so the page they operate on has to stay
+// loaded.
+function openExtensionPanelWindow(url) {
+  try {
+    if (extensionPanelWindow && !extensionPanelWindow.isDestroyed()) {
+      // Reloading aborts any in-flight work in the panel (e.g. a MindStudio
+      // agent streaming its output) — only navigate when the target differs.
+      const currentUrl = extensionPanelWindow.webContents.getURL();
+      if (currentUrl !== url) {
+        extensionPanelWindow.loadURL(url);
+      }
+      extensionPanelWindow.show();
+      extensionPanelWindow.focus();
+      return;
+    }
+    const panelWidth = 420;
+    let x;
+    let y;
+    let height = 720;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const b = mainWindow.getBounds();
+      x = b.x + b.width - panelWidth - 8;
+      y = b.y + 60;
+      height = Math.max(480, b.height - 120);
+    }
+    extensionPanelWindow = new BrowserWindow({
+      width: panelWidth,
+      height,
+      ...(typeof x === "number" ? { x, y } : {}),
+      title: "Extension",
+      parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+      webPreferences: {
+        partition: BROWSER_VIEW_PARTITION,
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        // Chromium throttles timers/rendering in unfocused windows, which can
+        // stall or drop a streaming AI generation (WebSocket pings time out)
+        // while the user reads the article in the main window.
+        backgroundThrottling: false,
+      },
+    });
+    extensionPanelWindow.on("closed", () => {
+      extensionPanelWindow = null;
+    });
+    if (isDev) {
+      // F12 / Cmd+Shift+I opens DevTools on the panel to debug extension
+      // streaming issues (network tab shows dropped SSE/WebSocket streams).
+      extensionPanelWindow.webContents.on("before-input-event", (_e, input) => {
+        const combo = input.type === "keyDown" &&
+          (input.key === "F12" || (input.key.toLowerCase() === "i" && input.meta && input.shift));
+        if (combo) extensionPanelWindow.webContents.openDevTools({ mode: "detach" });
+      });
+    }
+    extensionPanelWindow.loadURL(url);
+  } catch (e) {
+    console.warn("[cabinet] could not open extension panel window:", e?.message || e);
+  }
+}
+
+// Open-url requests relayed from extension service workers through
+// content-script stubs and the browser-view preload.
+ipcMain.on("cabinet:extension-open-url", (_event, payload) => {
+  const url = typeof payload?.url === "string" ? payload.url : "";
+  if (!url) return;
+  if (url.startsWith("chrome-extension://")) {
+    openExtensionPanelWindow(url);
+    return;
+  }
+  if (!/^https?:\/\//.test(url)) return;
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("cabinet:browser-view-navigate", { url });
+    }
+  } catch {}
+});
 
 ipcMain.handle("cabinet:show-extension-popup", async (event, payload) => {
   if (!isMainRendererSender(event)) return { ok: false, error: "unauthorized" };
@@ -1054,7 +1569,98 @@ ipcMain.handle("cabinet:show-extension-popup", async (event, payload) => {
     const { extensionId, x, y } = payload;
     let persisted = readPersistedExtensions();
     const ext = persisted.find(e => e.id === extensionId);
-    if (!ext || !ext.popupHtml) return { ok: false, error: "No popup defined" };
+    if (!ext) return { ok: false, error: "Not found" };
+    if (!ext.popupHtml) {
+      // No popup — simulate chrome.action.onClicked in the extension's
+      // service worker using the extensionsManager if available.
+      const extensionsManager = getExtensionsManager();
+      const allWC = webContents.getAllWebContents();
+      let activeTab = allWC.find((wc) => {
+        if (wc.isDestroyed()) return false;
+        const url = wc.getURL();
+        return /^https?:\/\//.test(url) &&
+          !/^https?:\/\/(localhost|127\.0\.0\.1)([:\/]|$)/.test(url) &&
+          wc.id !== mainWindow?.webContents?.id;
+      });
+      if (!activeTab) {
+        const focusedWC = webContents.getFocusedWebContents();
+        if (focusedWC && !focusedWC.isDestroyed()) {
+          const url = focusedWC.getURL();
+          if (/^https?:\/\//.test(url) && !/^https?:\/\/(localhost|127\.0\.0\.1)([:\/]|$)/.test(url)) {
+            activeTab = focusedWC;
+          }
+        }
+      }
+      if (!activeTab) {
+        activeTab = allWC.find((wc) => {
+          if (wc.isDestroyed()) return false;
+          const url = wc.getURL();
+          return /^https?:\/\//.test(url) && wc.id !== mainWindow?.webContents?.id;
+        });
+      }
+
+      if (extensionsManager && extensionsManager.api && extensionsManager.api.browserAction && activeTab) {
+        try {
+          extensionsManager.api.browserAction.activateClick({
+            extensionId: extensionId,
+            tabId: activeTab.id,
+            anchorRect: { x, y, width: 0, height: 0 },
+            alignment: "left"
+          });
+          return { ok: true };
+        } catch (err) {
+          console.error(`[cabinet] failed to trigger action click via extensionsManager: ${err?.message || err}`);
+        }
+      }
+
+      const runtimeId = runtimeExtensionIds.get(ext.path) || extensionId;
+      const possibleExtensionIds = new Set([runtimeId, extensionId]);
+
+      // Find the extension's service worker webContents.
+      const swCandidates = allWC.filter((wc) => {
+        if (wc.isDestroyed()) return false;
+        const url = wc.getURL() || "";
+        return [...possibleExtensionIds].some((id) =>
+          url === `chrome-extension://${id}` || url.startsWith(`chrome-extension://${id}/`)
+        );
+      });
+
+      const tab = activeTab
+        ? {
+            id: activeTab.id,
+            url: activeTab.getURL(),
+            title: activeTab.getTitle(),
+            active: true,
+            windowId: 0,
+          }
+        : { id: 0, url: "", title: "", active: false, windowId: 0 };
+
+      for (const swWC of swCandidates) {
+        try {
+          await swWC.executeJavaScript(
+            `self.__cabinetTriggerActionClick(${JSON.stringify(tab)})`
+          );
+          return { ok: true };
+        } catch (err) {
+          console.error(`[cabinet] failed to trigger action click in extension webContents ${swWC.id}: ${err?.message || err}`);
+        }
+      }
+
+      if (!swCandidates.length) {
+        const candidateUrls = allWC
+          .filter((wc) => !wc.isDestroyed())
+          .map((wc) => wc.getURL())
+          .filter(Boolean);
+        console.warn(`[cabinet] no extension webContents found for ${extensionId} (runtimeId=${runtimeId}). candidate URLs: ${JSON.stringify(candidateUrls)}`);
+      } else if (!activeTab) {
+        console.warn(`[cabinet] found ${swCandidates.length} extension webContents for ${extensionId}, but no active browser tab to pass to the click handler.`);
+      } else {
+        console.warn(`[cabinet] extension click dispatch failed for ${extensionId} (runtimeId=${runtimeId}) after trying ${swCandidates.length} candidate webContents.`);
+      }
+
+      console.warn(`[cabinet] showExtensionPopup returning No popup defined for ${extensionId} (runtimeId=${runtimeId})`);
+      return { ok: false, error: "No popup defined" };
+    }
 
     if (currentExtensionPopup) {
       try {
@@ -1102,11 +1708,59 @@ ipcMain.handle("cabinet:show-extension-popup", async (event, payload) => {
 
     updateBounds(currentWidth, currentHeight);
     mainWindow.contentView.addChildView(view);
-    
+
     currentExtensionPopup = view;
+
+    // Forward console messages from the popup to the main renderer so
+    // extension popup errors are visible in the app's DevTools console.
+    view.webContents.on("console-message", (_e, level, message) => {
+      const prefix = `[extension-popup]`;
+      const levelName = ["verbose", "info", "warning", "error"][level] || "log";
+      try {
+        mainWindow.webContents.send("cabinet:browser-view-console", {
+          level: levelName,
+          message: `${prefix} ${message}`,
+        });
+      } catch {}
+    });
 
     view.webContents.loadURL(popupUrl);
     view.webContents.focus();
+
+    // Redirect navigations out of the popup (e.g. settings, side panel).
+    // The API stubs use location.href navigation because window.open()
+    // from chrome-extension:// pages crashes Electron's browser process.
+    const redirectPopupUrl = (openUrl) => {
+      if (openUrl.startsWith("chrome-extension://")) {
+        // Open extension pages (settings, sidepanel) in the dedicated panel
+        // window, keeping the current page in the browser view intact.
+        openExtensionPanelWindow(openUrl);
+      } else {
+        // Open external URLs in the default OS browser
+        try {
+          shell.openExternal(openUrl);
+        } catch {}
+      }
+      // Close the popup after redirecting
+      if (currentExtensionPopup === view) {
+        try {
+          mainWindow.contentView.removeChildView(view);
+        } catch {}
+        currentExtensionPopup = null;
+      }
+    };
+
+    view.webContents.setWindowOpenHandler(({ url: openUrl }) => {
+      redirectPopupUrl(openUrl);
+      return { action: "deny" };
+    });
+
+    view.webContents.on("will-navigate", (navEvent, navUrl) => {
+      // Allow the initial popup load; redirect everything else.
+      if (navUrl === popupUrl) return;
+      navEvent.preventDefault();
+      redirectPopupUrl(navUrl);
+    });
 
     view.webContents.on("blur", () => {
       if (currentExtensionPopup === view) {
@@ -1160,7 +1814,7 @@ ipcMain.handle("cabinet:uninstall-extension", async (event, payload) => {
 });
 
 ipcMain.handle("cabinet:get-extensions", () => {
-  return readPersistedExtensions();
+  return readPersistedExtensions().map(enrichExtension);
 });
 
 // Read a file from the active cabinet's content directory. Used by the LaTeX
@@ -1267,6 +1921,15 @@ app.on("second-instance", () => {
   win.focus();
 });
 
+app.on("web-contents-created", (event, wc) => {
+  wc.on("console-message", (event, level, message) => {
+    if (message && message.startsWith("__cabinet_open_panel__:")) {
+      const url = message.substring("__cabinet_open_panel__:".length);
+      openExtensionPanelWindow(url);
+    }
+  });
+});
+
 app.whenReady().then(async () => {
   const defaultUA = app.userAgentFallback || "";
   app.userAgentFallback = defaultUA.replace(/Electron\/[\d\.]+ ?/g, "").replace(/cabinet\/[\d\.]+ ?/g, "").replace(/\s+/g, " ").trim() || "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
@@ -1281,6 +1944,7 @@ app.whenReady().then(async () => {
     getMainWindow: () => mainWindow,
     getBaseAppUrl: () => baseAppUrl,
     isDev,
+    openExtensionPanelWindow: (url) => openExtensionPanelWindow(url),
   });
   await createWindow();
 

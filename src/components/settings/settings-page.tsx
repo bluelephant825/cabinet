@@ -46,6 +46,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { NavArrows } from "@/components/layout/nav-arrows";
+import { ViewerFocusButton, ViewerModeButtons } from "@/components/layout/viewer-toolbar";
+import { HeaderActions } from "@/components/layout/header-actions";
+import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
+import { ContentSheet } from "@/components/layout/content-sheet";
+import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import { SkillLibrary } from "@/components/skills/skill-library";
 import { DataLocationsSection } from "@/components/settings/data-locations-section";
 import { UninstallSection } from "@/components/settings/uninstall-section";
@@ -953,7 +959,7 @@ export function SettingsPage() {
       items: [
         { id: "providers", label: t("settings:tabs.providers"), icon: <Cpu className="h-3.5 w-3.5" /> },
         {
-          id: "integrations" as Tab,
+          id: "integrations-hub" as Tab,
           label: t("settings:tabs.integrations"),
           icon: <Blocks className="h-3.5 w-3.5" />,
           onSelect: () => useAppStore.getState().setSection({ type: "integrations" }),
@@ -974,23 +980,20 @@ export function SettingsPage() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div
-        className="flex items-center justify-between px-4 py-3 border-b border-border transition-[padding] duration-200"
-        style={{ paddingLeft: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <header
+        className="flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0 bg-[var(--gutter)]"
+        style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}
       >
-        <div className="flex items-center gap-2">
-          <Settings className="h-4 w-4" />
-          {/*
-           * Audit #059: Settings is the page topic, so its top heading
-           * should be H1, not H2. Visual size kept identical via Tailwind.
-           */}
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+          <Settings className="h-4 w-4 shrink-0" />
           <h1 className="text-[15px] font-semibold tracking-[-0.02em]">
             {t("settings:page.title")}
           </h1>
         </div>
-        <div className="flex items-center gap-1.5">
-<Button
+        <div className="flex shrink-0 items-center gap-1.5">
+          <NavArrows />
+          <Button
             variant="ghost"
             size="sm"
             className="h-7 gap-1.5 text-[12px]"
@@ -999,9 +1002,14 @@ export function SettingsPage() {
             <RefreshCw className="h-3.5 w-3.5" />
             {t("settings:page.refresh")}
           </Button>
+          <ViewerFocusButton />
+          <ViewerModeButtons path={ROOT_CABINET_PATH} />
+          <HeaderActions />
+          <TaskRailToggle />
         </div>
-      </div>
+      </header>
 
+      <ContentSheet>
       {/* Audit #040: vertical sidebar instead of a 9-tab horizontal strip. */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <nav
@@ -2576,6 +2584,7 @@ export function SettingsPage() {
           </ScrollArea>
         </div>
       </div>
+      </ContentSheet>
     </div>
   );
 }

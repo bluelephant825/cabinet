@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { ipcRenderer, webFrame } = require("electron");
 
 // Spoof navigator.userAgentData and provide a fake chrome.webstorePrivate to pass Google's strict client-side checks
@@ -16,6 +17,17 @@ webFrame.executeJavaScript(`
   window.chrome = window.chrome || {};
   window.chrome.webstorePrivate = window.chrome.webstorePrivate || {};
 `);
+
+// Forward open-url requests relayed from extension service workers (via
+// content-script stubs posting to the page) to the main process, which
+// navigates the main browser view to the requested extension page.
+window.addEventListener("message", (event) => {
+  const data = event?.data;
+  if (!data || data.type !== "__cabinet_open_url") return;
+  const url = typeof data.url === "string" ? data.url : "";
+  if (!url.startsWith("chrome-extension://") && !/^https?:\/\//.test(url)) return;
+  ipcRenderer.send("cabinet:extension-open-url", { url });
+});
 
 document.addEventListener(
   "click",
