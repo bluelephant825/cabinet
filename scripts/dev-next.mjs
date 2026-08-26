@@ -252,7 +252,7 @@ async function main() {
     }
     child = spawn(
       process.execPath,
-      [nextBin, "dev", "-p", String(port), ...process.argv.slice(2)],
+      [nextBin, "dev", PROJECT_ROOT, "-p", String(port), ...process.argv.slice(2)],
       {
         cwd: PROJECT_ROOT,
         stdio: "inherit",

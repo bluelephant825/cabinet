@@ -46,7 +46,7 @@ const nextConfig: NextConfig = {
   // dev. Disable it entirely — actual Next.js compile errors still surface
   // via the terminal and the error overlay.
   devIndicators: false,
-  serverExternalPackages: ["node-pty", "simple-git", "better-sqlite3"],
+  serverExternalPackages: ["node-pty", "simple-git", "better-sqlite3", "node-cron"],
   outputFileTracingExcludes: {
     "/*": [
       ".next/dev/**/*",
