@@ -9,6 +9,15 @@ import {
   removeInlineSourceByTreePath,
 } from "@/lib/knowledge-sources/store";
 import { staleProcessResponse } from "@/lib/api/stale-process-response";
+import { storageOverCap } from "@/lib/cloud/tier";
+
+// Free cloud tier at its storage cap: block content writes (mirrors the upload route; reads,
+// renames, and deletes stay allowed). Inert off-cloud — storageOverCap is always false there.
+const storageFull = () =>
+  NextResponse.json(
+    { error: "Storage full: the free plan is capped. Upgrade for more room.", errorKind: "storage" },
+    { status: 402 }
+  );
 
 type RouteParams = { params: Promise<{ path: string[] }> };
 
@@ -39,6 +48,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const { path: segments } = await params;
     const virtualPath = segments.join("/");
     await assertWritablePath(virtualPath);
+    if (await storageOverCap()) return storageFull();
     const body = await req.json();
     await writePage(virtualPath, body.content, body.frontmatter);
     autoCommit(virtualPath, "Update");
@@ -58,6 +68,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { path: segments } = await params;
     const virtualPath = segments.join("/");
     await assertWritablePath(virtualPath);
+    if (await storageOverCap()) return storageFull();
     const body = await req.json();
     if (body.kind === "folder") {
       await createFolder(virtualPath);

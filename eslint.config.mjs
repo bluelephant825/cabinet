@@ -11,6 +11,9 @@ const eslintConfig = defineConfig([
       "react-hooks": reactHooks,
     },
     rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-require-imports": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/preserve-manual-memoization": "warn",
       "react-hooks/purity": "warn",

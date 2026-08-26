@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
+
+// Imperative handle so a parent can type into the session on demand (e.g. a
+// "Run" button that sends a command to an embedded terminal).
+export interface WebTerminalHandle {
+  sendInput: (text: string) => void;
+}
 
 interface WebTerminalProps {
   sessionId?: string;
@@ -11,6 +17,13 @@ interface WebTerminalProps {
   providerId?: string;
   adapterType?: string;
   cwd?: string; // DATA_DIR-relative working directory for shell sessions
+  // One-shot command typed into a fresh shell session once it's ready (e.g.
+  // "codex login"). Ignored on reconnect. Lets a caller drive a specific CLI
+  // in an embedded terminal without a bespoke adapter.
+  initialInput?: string;
+  // Observe decoded terminal output (e.g. to scrape a login URL). Best-effort,
+  // fired per chunk; the caller does its own accumulation/parsing.
+  onData?: (text: string) => void;
   onClose: () => void;
 }
 
@@ -61,19 +74,36 @@ function replacePastedTextNotice(output: string, displayPrompt?: string): string
   return output.replace(/\[Pasted text #\d+(?: \+\d+ lines)?\]/g, displayPrompt);
 }
 
-export function WebTerminal({
+export const WebTerminal = forwardRef<WebTerminalHandle, WebTerminalProps>(function WebTerminal({
   sessionId,
   prompt,
   displayPrompt,
   providerId,
   adapterType,
   cwd,
+  initialInput,
+  onData,
   reconnect,
   themeSurface = "terminal",
   onClose,
-}: WebTerminalProps) {
+}: WebTerminalProps, ref) {
+  const onDataRef = useRef(onData);
+  useEffect(() => { onDataRef.current = onData; }, [onData]);
   const termRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  // Queue input sent before the socket is open (e.g. a "Run" click fired while
+  // the shell is still connecting) and flush it on open, so no command is lost.
+  const pendingInputRef = useRef<string[]>([]);
+  useImperativeHandle(ref, () => ({
+    sendInput: (text: string) => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try { ws.send(text); } catch { pendingInputRef.current.push(text); }
+      } else {
+        pendingInputRef.current.push(text);
+      }
+    },
+  }), []);
   const xtermRef = useRef<import("@xterm/xterm").Terminal | null>(null);
   const fitAddonRef = useRef<import("@xterm/addon-fit").FitAddon | null>(null);
   const onCloseRef = useRef(onClose);
@@ -94,6 +124,7 @@ export function WebTerminal({
     let sessionFinished = false;
     let terminalReady = false;
     let wsOpen = false;
+    let sentInitial = false;
     const pendingWrites: Array<string | Uint8Array> = [];
 
     // Route every terminal write through here so bytes that arrive before
@@ -176,6 +207,13 @@ export function WebTerminal({
           if (disposed) return;
           setError(null);
           wsOpen = true;
+          // Flush any input queued before the socket opened.
+          if (pendingInputRef.current.length && ws) {
+            for (const text of pendingInputRef.current) {
+              try { ws.send(text); } catch { /* dropped */ }
+            }
+            pendingInputRef.current = [];
+          }
           // Only send resize if xterm is already alive — otherwise startTerminal
           // will send one itself once the fit addon has real dimensions.
           if (terminal && ws) {
@@ -194,13 +232,28 @@ export function WebTerminal({
           const data = event.data;
           if (data instanceof ArrayBuffer) {
             if (data.byteLength === 0) return;
-            writeToTerminal(new Uint8Array(data));
+            const bytes = new Uint8Array(data);
+            writeToTerminal(bytes);
+            if (onDataRef.current) {
+              try { onDataRef.current(new TextDecoder().decode(bytes)); } catch { /* ignore */ }
+            }
           } else if (typeof data === "string") {
             if (data.length === 0) return;
             writeToTerminal(replacePastedTextNotice(data, displayPrompt));
+            onDataRef.current?.(data);
           }
           // Silently skip other types (Blob etc.) — binaryType is set to
           // "arraybuffer" so we never expect them.
+
+          // First output means the shell has printed its prompt and is ready
+          // for input — type the one-shot command now (once). The small delay
+          // lets a slow prompt finish rendering before we submit.
+          if (initialInput && !reconnect && !sentInitial && wsOpen) {
+            sentInitial = true;
+            setTimeout(() => {
+              try { ws?.send(initialInput + "\r"); } catch { /* socket gone */ }
+            }, 500);
+          }
         };
 
         ws.onerror = () => {
@@ -258,13 +311,21 @@ export function WebTerminal({
 
       if (disposed) return;
 
+      // The app bundles JetBrains Mono under a hashed next/font family exposed
+      // via --font-mono, so the literal "JetBrains Mono" name never matched and
+      // the terminal fell back to a system mono. Read the resolved var and put
+      // it first, with a literal stack as fallback.
+      const monoFamily = readRootVar("--font-mono", "")
+        .replace(/var\([^)]*\)/g, "")
+        .replace(/^[\s,]+/, "")
+        .trim();
       terminal = new Terminal({
         cursorBlink: true,
         cursorStyle: "bar",
         fontSize: 13,
         fontFamily:
-          "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
-        lineHeight: 1.2,
+          `${monoFamily ? monoFamily + ", " : ""}'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace`,
+        lineHeight: 1.3,
         letterSpacing: 0,
         theme: getTerminalTheme(themeSurface),
         scrollback: 10000,
@@ -390,7 +451,7 @@ export function WebTerminal({
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [sessionId, prompt, displayPrompt, providerId, adapterType, cwd, reconnect, themeSurface]);
+  }, [sessionId, prompt, displayPrompt, providerId, adapterType, cwd, initialInput, reconnect, themeSurface]);
 
   const surfaceBackground = themeSurface === "page" ? "var(--background)" : "var(--terminal-bg)";
   const surfaceForeground = themeSurface === "page" ? "var(--foreground)" : "var(--terminal-fg)";
@@ -415,4 +476,4 @@ export function WebTerminal({
       />
     </div>
   );
-}
+});

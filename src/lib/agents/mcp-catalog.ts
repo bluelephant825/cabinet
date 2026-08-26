@@ -16,6 +16,10 @@
  * the UI without verification). `cabinet` = a first-party server we build and
  * maintain (e.g. Discord) — first-party but NOT vendor-official, so it gets its
  * own label rather than borrowing "official" or hiding under "community".
+ * `vendor` = published by the vendor themselves (their domain, their OAuth) but
+ * NOT listed in the Official MCP Registry, so the `official` badge can't be
+ * verified and would be a claim we can't back. Calling it `community` would be
+ * the opposite lie. It gets its own honest label.
  *
  * Auth backends are deployment-aware (see `deployment-mode.ts`):
  *   - `cli-pkce`  — official remote HTTP server; the CLI performs PKCE
@@ -28,7 +32,9 @@
  *                   secret server-side). Not used by the local build.
  */
 
-export type TrustTier = "official" | "registry" | "cabinet" | "community";
+import { buildSlackCreateUrl, buildSlackManifestJson } from "./slack-manifest";
+
+export type TrustTier = "official" | "registry" | "vendor" | "cabinet" | "community";
 
 export type AuthBackend = "cli-pkce" | "user-app" | "token" | "cabinet-broker";
 
@@ -52,6 +58,21 @@ export interface CatalogSetupStep {
   copy?: string;
   /** Optional external link the user opens to perform this step. */
   href?: string;
+  /**
+   * Primary call-to-action — rendered as a filled button, not a text link. Use
+   * for the one thing the user should click (e.g. Slack's prefilled create-app
+   * deep link), never for secondary reading material.
+   */
+  action?: { label: string; href: string };
+  /**
+   * A make-or-break caveat, lifted out of the body prose so it can't be skimmed
+   * past. `warning` = skip this and setup fails.
+   */
+  callout?: { tone: "warning" | "info"; body: string };
+  /** Cropped screenshot of the real third-party control this step refers to. */
+  image?: { src: string; alt: string; caption?: string; frameLabel?: string };
+  /** Collapsed escape hatch for users who can't or won't use `action`. */
+  fallback?: { summary: string; body: string; copy?: string };
 }
 
 export interface CatalogEntry {
@@ -73,6 +94,14 @@ export interface CatalogEntry {
   registryId?: string;
   /** Declared tier; the UI shows the *verified* tier, falling back to this offline. */
   trustTier: TrustTier;
+  /** Display name of the publisher for the `vendor` tier — e.g. "Meta". */
+  vendorName?: string;
+  /**
+   * Cannot be connected on Cabinet Cloud — sign-in needs a local terminal / desktop app on the
+   * user's own machine (e.g. a CLI `login`, the Figma desktop app's local MCP server, `sf org
+   * login`). The catalog route filters these out when `isCloud()`. Inert (undefined) off-cloud.
+   */
+  cloudUnsupported?: true;
   authBackend: AuthBackend;
   /** Used when authBackend can't run locally (confidential client, no PKCE). */
   fallbackAuthBackend?: AuthBackend;
@@ -142,6 +171,14 @@ export interface CatalogEntry {
      */
     scopes?: string;
   };
+  /**
+   * User-facing copy shown when `claude mcp get <server>` reports "failed to
+   * connect" for a server that HAS a token (registered + authenticated, but
+   * still rejected by the remote). Curated per integration because the CLI's
+   * own output carries no vendor-specific reason (see `claude-mcp-login.ts`).
+   * Omit for a neutral, vendor-agnostic fallback.
+   */
+  connectFailureHint?: string;
   /** Credentials collected for `token` / `user-app` backends. */
   credentials: CatalogCredential[];
   /** Display-only: what the agent can do once connected. */
@@ -174,6 +211,25 @@ export interface CatalogEntry {
   };
 }
 
+/**
+ * Single source of truth for Slack's scopes. Feeds BOTH `oauthClient.scopes`
+ * (what the CLI requests at sign-in) and the manifest (what the app is created
+ * with). Widening the list here widens both — they cannot drift.
+ *
+ * Deliberately 6, not the ~26 Slack auto-adds when you flip the MCP toggle by
+ * hand. The manifest path is what makes this small set achievable.
+ */
+const SLACK_SCOPES =
+  "chat:write channels:read channels:history users:read search:read.public search:read.users";
+
+const SLACK_CALLBACK_PORT = 8765;
+
+const SLACK_MANIFEST_OPTIONS = {
+  appName: "Cabinet",
+  scopes: SLACK_SCOPES,
+  callbackPort: SLACK_CALLBACK_PORT,
+};
+
 const SLACK: CatalogEntry = {
   id: "slack",
   label: "Slack",
@@ -197,14 +253,15 @@ const SLACK: CatalogEntry = {
   oauthClient: {
     clientIdEnvKey: "SLACK_CLIENT_ID",
     clientSecretEnvKey: "SLACK_CLIENT_SECRET",
-    callbackPort: 8765,
-    // Pinned to a read + post + search set so a self-made app only needs these
-    // 6 user-token scopes granted — avoids the full ~26 (and sensitive ones like
-    // users:read.email that locked-down workspaces block). Widen to add files,
-    // private channels, DMs, canvases, or reactions as needed.
-    scopes:
-      "chat:write channels:read channels:history users:read search:read.public search:read.users",
+    callbackPort: SLACK_CALLBACK_PORT,
+    scopes: SLACK_SCOPES,
   },
+  // Users of the 3-step flow above get the MCP toggle turned ON by
+  // construction (the manifest sets `is_mcp_enabled`), so a "failed to
+  // connect" on a registered + authenticated server is now most likely an
+  // app that was never installed to the workspace, not the toggle.
+  connectFailureHint:
+    "Slack rejected the connection. Most likely the app hasn't been installed to your workspace yet, so go to OAuth & Permissions and click Install to Workspace. If it's already installed, check your app's MCP toggle under Features → Agents, then sign in again.",
   credentials: [
     {
       envKey: "SLACK_CLIENT_ID",
@@ -212,7 +269,7 @@ const SLACK: CatalogEntry = {
       kind: "plain",
       required: true,
       placeholder: "1234567890.1234567890",
-      hint: "From your Slack app's Basic Information page. Required — Slack's MCP server needs your own app (it has no one-click sign-in).",
+      hint: "From your Slack app's Basic Information page. Required, because Slack's MCP server needs your own app (it has no one-click sign-in).",
     },
     {
       envKey: "SLACK_CLIENT_SECRET",
@@ -231,27 +288,48 @@ const SLACK: CatalogEntry = {
   ],
   setupSteps: [
     {
-      title: "Create your own Slack app",
-      body: "Slack's MCP server has no one-click sign-in — it requires an app you own. Open Slack's app dashboard, click Create New App → From scratch, give it a name (e.g. \"Cabinet\"), and pick your workspace.",
-      href: "https://api.slack.com/apps",
+      title: "Create your Slack app",
+      body: "Slack's MCP server has no one-click sign-in, so it needs an app you own. This button opens Slack with everything already filled in: pick your workspace, check the summary, and click Create.",
+      action: { label: "Create my Slack app", href: buildSlackCreateUrl(SLACK_MANIFEST_OPTIONS) },
+      callout: {
+        tone: "warning",
+        body: "Choose the workspace carefully. Slack won't let an app move to a different one later.",
+      },
+      image: {
+        src: "/integrations/slack/01-create.png",
+        alt: "Slack's review summary dialog showing User Scopes (6) and Redirect URLs (1), with a Create button",
+        caption: "Slack shows you exactly what it's about to create: 6 scopes, one redirect URL.",
+        frameLabel: "What you'll see in Slack",
+      },
+      fallback: {
+        summary: "Prefer to paste it yourself?",
+        body: "In Slack, choose Create an App → From a manifest, pick your workspace, and paste this:",
+        copy: buildSlackManifestJson(SLACK_MANIFEST_OPTIONS),
+      },
     },
     {
-      title: "Enable MCP server access",
-      body: "Slack only allows MCP for apps that opt in. In your app settings, open Agents & AI Apps (App Assistant) and turn on MCP server access. Skip this and you'll sign in fine but every connection is rejected with \"App is not enabled for Slack MCP server access.\"",
-      href: "https://api.slack.com/apps",
+      title: "Install it into your workspace",
+      body: "Slack drops you on your new app's page. Open OAuth & Permissions, click Install to Workspace (Slack shows your workspace's name on the button), then Allow.",
+      image: {
+        src: "/integrations/slack/02-install.png",
+        alt: "Slack's permission review screen for the Cabinet app with Cancel and Allow buttons",
+        caption: "Approving here is what gives your agents access.",
+        frameLabel: "What you'll see in Slack",
+      },
     },
     {
-      title: "Add the redirect URL and scopes",
-      body: "In OAuth & Permissions, add the redirect URL http://localhost:8765/callback (click Save URLs), then add these scopes under User Token Scopes (not Bot Token Scopes — Slack signs you in with a user token), and Install to Workspace. They let agents read public channels, search, and post.",
-      copy: "chat:write channels:read channels:history users:read search:read.public search:read.users",
-    },
-    {
-      title: "Paste your Client ID & Secret below",
-      body: "On the app's Basic Information page, copy the Client ID and Client Secret into the fields in the connect panel. Slack needs these because it doesn't support automatic client registration; they're stored in .cabinet.env (0600).",
-    },
-    {
-      title: "Connect & sign in",
-      body: "Click Connect & sign in. Cabinet opens Slack in your browser to approve access — once you do, your agents can use Slack and the \"does not support dynamic client registration\" error is gone.",
+      title: "Paste your Client ID & Secret, then connect",
+      body: "On the app's Basic Information page, copy the Client ID and Client Secret into the fields below, then click Connect & sign in and approve in your browser.",
+      image: {
+        src: "/integrations/slack/03-credentials.png",
+        alt: "Slack's App Credentials panel showing Client ID and a masked Client Secret with a Show button",
+        caption: "The Client Secret is hidden until you press Show.",
+        frameLabel: "What you'll see in Slack",
+      },
+      callout: {
+        tone: "info",
+        body: "Both are stored in .cabinet.env (permissions 0600) on this device. The secret is never written into any config file.",
+      },
     },
   ],
 };
@@ -395,7 +473,7 @@ const NOTION: CatalogEntry = {
   setupSteps: [
     {
       title: "Connect Notion",
-      body: "Click Connect to register Notion. The first time an agent uses it, its CLI opens Notion in the browser — approve access and pick which pages or databases to share.",
+      body: "Click Connect to register Notion. The first time an agent uses it, its CLI opens Notion in the browser. Approve access and pick which pages or databases to share.",
     },
     {
       title: "Choose what to share",
@@ -431,7 +509,7 @@ const GITHUB: CatalogEntry = {
   setupSteps: [
     {
       title: "Sign in with GitHub",
-      body: "Click Connect & sign in — your agent's CLI opens GitHub in the browser. Authorize access and choose which organizations/repositories to grant.",
+      body: "Click Connect & sign in. Your agent's CLI opens GitHub in the browser. Authorize access and choose which organizations/repositories to grant.",
     },
     {
       title: "Scope the access",
@@ -465,7 +543,7 @@ const LINEAR: CatalogEntry = {
   setupSteps: [
     {
       title: "Sign in with Linear",
-      body: "Click Connect & sign in — your agent's CLI opens Linear in the browser. Approve access to your workspace.",
+      body: "Click Connect & sign in. Your agent's CLI opens Linear in the browser. Approve access to your workspace.",
     },
   ],
 };
@@ -495,7 +573,7 @@ const ATLASSIAN: CatalogEntry = {
   setupSteps: [
     {
       title: "Sign in with Atlassian",
-      body: "Click Connect & sign in — your agent's CLI opens Atlassian in the browser. Approve access to your Jira / Confluence site.",
+      body: "Click Connect & sign in. Your agent's CLI opens Atlassian in the browser. Approve access to your Jira / Confluence site.",
     },
   ],
 };
@@ -503,7 +581,7 @@ const ATLASSIAN: CatalogEntry = {
 const STRIPE: CatalogEntry = {
   id: "stripe",
   label: "Stripe",
-  blurb: "Query payments, customers, and invoices — and take action.",
+  blurb: "Query payments, customers, and invoices, and take action.",
   iconSlug: "stripe",
   bgImage: "/integrations/stripe-bg.webp",
   logo: "/logos/stripe.svg",
@@ -524,7 +602,7 @@ const STRIPE: CatalogEntry = {
   setupSteps: [
     {
       title: "Sign in with Stripe",
-      body: "Click Connect & sign in — your agent's CLI opens Stripe in the browser and authorizes access (scoped by a restricted key under the hood).",
+      body: "Click Connect & sign in. Your agent's CLI opens Stripe in the browser and authorizes access (scoped by a restricted key under the hood).",
     },
   ],
 };
@@ -568,7 +646,7 @@ const MICROSOFT_365: CatalogEntry = {
       kind: "plain",
       required: false,
       placeholder: "00000000-0000-0000-0000-000000000000",
-      hint: "Work/school only — from your Microsoft Entra (Azure AD) app registration. Leave blank for a personal account.",
+      hint: "Work/school only: from your Microsoft Entra (Azure AD) app registration. Leave blank for a personal account.",
     },
     {
       envKey: "MS365_MCP_TENANT_ID",
@@ -584,7 +662,7 @@ const MICROSOFT_365: CatalogEntry = {
       kind: "secret",
       required: false,
       placeholder: "••••••••",
-      hint: "Saved securely on this device only — never uploaded.",
+      hint: "Saved securely on this device only, never uploaded.",
     },
   ],
   actions: [
@@ -621,7 +699,7 @@ const TELEGRAM: CatalogEntry = {
   logo: "/logos/telegram.svg",
   // No official MCP; community ones are MTProto (full user-account). We ship our
   // own Bot-API server (mcps/mcp-telegram/) — safe-by-default, like Discord.
-  sourceUrl: "https://github.com/hilash/cabinet/tree/main/mcps/mcp-telegram",
+  sourceUrl: "https://github.com/cabinetai/cabinet/tree/main/mcps/mcp-telegram",
   trustTier: "cabinet",
   authBackend: "token",
   transport: "stdio",
@@ -637,7 +715,7 @@ const TELEGRAM: CatalogEntry = {
       kind: "secret",
       required: true,
       placeholder: "123456:ABC-DEF…",
-      hint: "Saved securely on this device only — never uploaded.",
+      hint: "Saved securely on this device only, never uploaded.",
     },
     {
       envKey: "TELEGRAM_CHAT_ID",
@@ -679,7 +757,7 @@ const TELEGRAM: CatalogEntry = {
     },
     {
       title: "Paste the bot token",
-      body: "Paste the token below — it's stored only on this device.",
+      body: "Paste the token below. It's stored only on this device.",
     },
     {
       title: "Add the bot to your chat",
@@ -711,7 +789,7 @@ const DISCORD: CatalogEntry = {
   // Cabinet-maintained (distinct from vendor-`official`). The server is released
   // on its own cadence (NOT coupled to the app's CI) — bump this pin when a new
   // cabinet-mcp-discord is published to npm.
-  sourceUrl: "https://github.com/hilash/cabinet/tree/main/mcps/mcp-discord",
+  sourceUrl: "https://github.com/cabinetai/cabinet/tree/main/mcps/mcp-discord",
   trustTier: "cabinet",
   authBackend: "token",
   transport: "stdio",
@@ -727,7 +805,7 @@ const DISCORD: CatalogEntry = {
       kind: "secret",
       required: true,
       placeholder: "your bot token",
-      hint: "Saved securely on this device only — never uploaded.",
+      hint: "Saved securely on this device only, never uploaded.",
     },
     {
       envKey: "DISCORD_GUILD_ID",
@@ -756,11 +834,11 @@ const DISCORD: CatalogEntry = {
     },
     {
       title: "Enable Message Content Intent",
-      body: "Under Bot → Privileged Gateway Intents, enable Message Content Intent so the bot can read message text. Leave Server Members off — Cabinet's server never lists members.",
+      body: "Under Bot → Privileged Gateway Intents, enable Message Content Intent so the bot can read message text. Leave Server Members off; Cabinet's server never lists members.",
     },
     {
       title: "Invite the bot to your server",
-      body: "Open OAuth2 → URL Generator. Tick the `bot` scope, then under Bot Permissions tick what it needs (View Channels, Read Message History, Send Messages, Create Public Threads, Add Reactions). Copy the URL it builds at the bottom, open it in a browser, choose your server, and click Authorize. (This step is easy to miss — the panel will warn you if the bot isn't in the server yet.)",
+      body: "Open OAuth2 → URL Generator. Tick the `bot` scope, then under Bot Permissions tick what it needs (View Channels, Read Message History, Send Messages, Create Public Threads, Add Reactions). Copy the URL it builds at the bottom, open it in a browser, choose your server, and click Authorize. (This step is easy to miss; the panel will warn you if the bot isn't in the server yet.)",
       href: "https://discord.com/developers/applications",
     },
     {
@@ -787,6 +865,8 @@ const LINKEDIN: CatalogEntry = {
   // `uv` must be installed (flagged in the setup steps, like Salesforce's CLI).
   sourceUrl: "https://github.com/stickerdaniel/linkedin-mcp-server",
   trustTier: "community",
+  // Auth is a `uvx …--login` browser profile created in a local terminal — no cloud path.
+  cloudUnsupported: true,
   authBackend: "token",
   transport: "stdio",
   mcpServerName: "cabinet-linkedin",
@@ -808,12 +888,219 @@ const LINKEDIN: CatalogEntry = {
     },
     {
       title: "Log in to LinkedIn once",
-      body: "Run the login command in a terminal. A browser window opens — sign in (handle any 2FA / captcha) and it saves a private session profile under ~/.linkedin-mcp on this device. Nothing to paste here.",
+      body: "Run the login command in a terminal. A browser window opens. Sign in (handle any 2FA / captcha) and it saves a private session profile under ~/.linkedin-mcp on this device. Nothing to paste here.",
       copy: "uvx linkedin-scraper-mcp --login",
     },
     {
       title: "Connect",
-      body: "Click Connect — Cabinet registers the server with your agent's CLI. It drives your own logged-in session locally; your credentials never leave this device. It's an unofficial scraper for personal use — mind LinkedIn's terms and go easy on volume.",
+      body: "Click Connect, and Cabinet registers the server with your agent's CLI. It drives your own logged-in session locally; your credentials never leave this device. It's an unofficial scraper for personal use, so mind LinkedIn's terms and go easy on volume.",
+    },
+  ],
+};
+
+/**
+ * Meta's official hosted ads connector (beta, launched 2026-04-29).
+ *
+ * Public-client PKCE — `token_endpoint_auth_method: "none"`, so there is no
+ * secret anywhere and nothing for the user to paste. Meta's DCR is allowlisted
+ * by `client_name`: the Claude Code CLI registers fine under its own true name,
+ * which is why this works. Gemini/Codex are refused by Meta — the entry ships
+ * ungated anyway (see the spec), so connect succeeds via Claude Code but the
+ * server won't work for those agents at runtime.
+ *
+ * No `registryId`: Meta never listed this in the Official MCP Registry, and a
+ * generic id would substring-match a third party's listing and mint a false
+ * Official badge. Hence `trustTier: "vendor"`.
+ */
+const META_ADS: CatalogEntry = {
+  id: "meta-ads",
+  label: "Meta Ads",
+  blurb: "Report on, create, and manage Facebook & Instagram ad campaigns.",
+  iconSlug: "meta-ads",
+  bgImage: "/integrations/meta-ads-bg.webp",
+  logo: "/logos/facebook.svg",
+  sourceUrl: "https://www.facebook.com/business/news/meta-ads-ai-connectors",
+  trustTier: "vendor",
+  vendorName: "Meta",
+  authBackend: "cli-pkce",
+  transport: "http",
+  mcpServerName: "cabinet-meta-ads",
+  url: "https://mcp.facebook.com/ads",
+  credentials: [],
+  actions: [
+    "Pull insights, benchmarks & performance trends",
+    "Create campaigns, ad sets, ads & creatives",
+    "Activate campaigns and boost posts (spends budget)",
+    "Manage catalogs, product feeds & pixels",
+    "Build & update custom audiences",
+  ],
+  setupSteps: [
+    {
+      title: "Requires the Claude Code provider",
+      body: "Meta's connector only admits the Claude Code CLI. Agents running on Gemini or Codex can't authenticate with it, so switch the agent's provider to Claude Code before connecting.",
+    },
+    {
+      title: "Sign in with Meta",
+      body: "Click Connect & sign in: your agent's CLI opens Meta in the browser to authorize your ad account. No developer app, no App Review, nothing to paste.",
+    },
+    {
+      title: "This grants write access, including spend",
+      body: "The connector exposes 82 tools, ~30 of which change things. An agent can create AND activate campaigns and boost Instagram posts, which spends real budget. Connect the ad account you actually intend an agent to act on.",
+      href: "https://www.facebook.com/business/news/meta-ads-ai-connectors",
+    },
+  ],
+};
+
+const GOOGLE_ADS: CatalogEntry = {
+  id: "google-ads",
+  label: "Google Ads",
+  blurb: "Read campaigns, ad groups, and reporting data from Google Ads.",
+  iconSlug: "google-ads",
+  bgImage: "/integrations/google-ads-bg.webp",
+  logo: "/logos/google-ads.svg",
+  sourceUrl: "https://github.com/googleads/google-ads-mcp",
+  trustTier: "vendor",
+  vendorName: "Google",
+  authBackend: "token",
+  transport: "stdio",
+  mcpServerName: "cabinet-google-ads",
+  command: "pipx",
+  args: [
+    "run",
+    "--spec",
+    "git+https://github.com/googleads/google-ads-mcp.git",
+    "google-ads-mcp",
+  ],
+  serverEnv: {
+    GOOGLE_APPLICATION_CREDENTIALS: "${GOOGLE_ADS_APPLICATION_CREDENTIALS}",
+    GOOGLE_PROJECT_ID: "${GOOGLE_ADS_PROJECT_ID}",
+    GOOGLE_ADS_DEVELOPER_TOKEN: "${GOOGLE_ADS_DEVELOPER_TOKEN}",
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID: "${GOOGLE_ADS_LOGIN_CUSTOMER_ID}",
+  },
+  credentials: [
+    {
+      envKey: "GOOGLE_ADS_APPLICATION_CREDENTIALS",
+      label: "Application credentials JSON path",
+      kind: "filepath",
+      required: true,
+      placeholder: "/path/to/credentials.json",
+      hint: "Path to the Google Cloud Application Default Credentials JSON file. Run `gcloud auth application-default login` with the Google Ads API scope to create it.",
+    },
+    {
+      envKey: "GOOGLE_ADS_PROJECT_ID",
+      label: "Google Cloud Project ID",
+      kind: "plain",
+      required: true,
+      placeholder: "my-gcp-project",
+      hint: "The Google Cloud project with the Google Ads API enabled.",
+    },
+    {
+      envKey: "GOOGLE_ADS_DEVELOPER_TOKEN",
+      label: "Developer token",
+      kind: "secret",
+      required: true,
+      placeholder: "aBcDeFgHiJkLmNoPqR",
+      hint: "From the Google Ads API Center. Needs at least Explorer access. Stored in .cabinet.env (0600).",
+    },
+    {
+      envKey: "GOOGLE_ADS_LOGIN_CUSTOMER_ID",
+      label: "Manager account ID (optional)",
+      kind: "plain",
+      required: false,
+      placeholder: "123-456-7890",
+      hint: "Required only if accessing accounts through a manager (MCC) account.",
+    },
+  ],
+  actions: [
+    "Query campaigns, ad groups & ads",
+    "Pull performance metrics & reporting",
+    "Manage customer lists & audiences",
+    "Run raw GAQL queries",
+  ],
+  setupSteps: [
+    {
+      title: "Install pipx (one-time)",
+      body: "The server runs locally through pipx, a Python tool runner. macOS: `brew install pipx`. Linux: `sudo apt install pipx` or `pip install --user pipx`. Windows: `pip install --user pipx`.",
+      href: "https://pipx.pypa.io/stable/#install-pipx",
+    },
+    {
+      title: "Enable the Google Ads API",
+      body: "In Google Cloud Console, enable the Google Ads API for your project.",
+      href: "https://console.cloud.google.com/apis/library/googleads.googleapis.com",
+    },
+    {
+      title: "Get a developer token",
+      body: "In Google Ads, go to Tools & Settings → API Center. New tokens may automatically receive Explorer access; if not, request it.",
+      href: "https://ads.google.com/aw/apicenter",
+    },
+    {
+      title: "Create Application Default Credentials",
+      body: "Run the gcloud command below in a terminal. It opens a browser to authorize, then saves a credentials JSON file. Paste its path into the field below.",
+      copy: "gcloud auth application-default login --scopes https://www.googleapis.com/auth/adwords,https://www.googleapis.com/auth/cloud-platform",
+    },
+    {
+      title: "Paste your credentials below",
+      body: "Enter the credentials file path, project ID, and developer token. They're stored in .cabinet.env (0600) and injected at runtime.",
+    },
+  ],
+};
+
+const STACKADAPT: CatalogEntry = {
+  id: "stackadapt",
+  label: "StackAdapt",
+  blurb: "Read programmatic campaign delivery and reporting from StackAdapt.",
+  iconSlug: "stackadapt",
+  bgImage: "/integrations/stackadapt-bg.webp",
+  logo: "/logos/stackadapt.svg",
+  sourceUrl: "https://github.com/cabinetai/cabinet/tree/main/mcps/mcp-stackadapt",
+  trustTier: "cabinet",
+  authBackend: "token",
+  transport: "stdio",
+  mcpServerName: "cabinet-stackadapt",
+  command: "npx",
+  args: ["-y", "cabinet-mcp-stackadapt@0.1.0"],
+  localBuild: "mcps/mcp-stackadapt/dist/index.js",
+  serverEnv: {
+    STACKADAPT_API_TOKEN: "${STACKADAPT_API_TOKEN}",
+    STACKADAPT_API_URL: "${STACKADAPT_API_URL}",
+  },
+  credentials: [
+    {
+      envKey: "STACKADAPT_API_TOKEN",
+      label: "API token",
+      kind: "secret",
+      required: true,
+      placeholder: "sa_...",
+      hint: "A StackAdapt Public API token. Stored in .cabinet.env, never written literally into CLI config.",
+    },
+    {
+      envKey: "STACKADAPT_API_URL",
+      label: "GraphQL endpoint",
+      kind: "plain",
+      required: false,
+      placeholder: "https://api.stackadapt.com/graphql",
+      hint: "Optional. Leave blank for StackAdapt's production GraphQL endpoint.",
+    },
+  ],
+  actions: [
+    "Read campaign delivery",
+    "Summarize spend, impressions, clicks and conversions",
+    "Compare ROAS and efficiency metrics",
+    "Run advanced read-only GraphQL reports",
+  ],
+  setupSteps: [
+    {
+      title: "Create a StackAdapt Public API token",
+      body: "Create or copy a StackAdapt Public API token with access to the advertisers and campaigns you want agents to analyze.",
+      href: "https://docs.stackadapt.com/",
+    },
+    {
+      title: "Paste the token",
+      body: "Paste the token below. Cabinet stores it locally and injects it into the MCP server process at runtime.",
+    },
+    {
+      title: "Connect",
+      body: "Cabinet registers a read-only StackAdapt MCP server in your selected agent CLI configs. The server exposes queries only; mutations are rejected before they are sent.",
     },
   ],
 };
@@ -848,7 +1135,7 @@ function officialRemote(o: {
     setupSteps: [
       {
         title: `Sign in with ${o.label}`,
-        body: `Click Connect & sign in — your agent's CLI opens ${o.label} in the browser to authorize access. Nothing to paste.`,
+        body: `Click Connect & sign in. Your agent's CLI opens ${o.label} in the browser to authorize access. Nothing to paste.`,
       },
     ],
   };
@@ -898,7 +1185,7 @@ function byoRemote(o: {
     actions: o.actions,
     setupSteps: [
       { title: `Get your ${o.label} MCP URL`, body: o.where },
-      { title: "Paste the server URL", body: "Paste it below — it's stored only on this device." },
+      { title: "Paste the server URL", body: "Paste it below. It's stored only on this device." },
     ],
   };
 }
@@ -915,18 +1202,20 @@ const EXTENDED: CatalogEntry[] = [
 
   // Official, special transport
   {
-    id: "shopify", label: "Shopify", blurb: "Build on Shopify — search the dev docs & GraphQL schema.",
+    id: "shopify", label: "Shopify", blurb: "Build on Shopify: search the dev docs & GraphQL schema.",
     iconSlug: "shopify", bgImage: "/integrations/shopify-bg.webp", logo: "/logos/shopify.svg",
     sourceUrl: "https://github.com/Shopify/dev-mcp", registryId: "shopify", trustTier: "official",
     authBackend: "token", transport: "stdio", mcpServerName: "cabinet-shopify",
     command: "npx", args: ["-y", "@shopify/dev-mcp@latest"], credentials: [],
     actions: ["Search Shopify.dev docs", "Explore the Admin GraphQL schema", "Validate queries", "Reference APIs"],
-    setupSteps: [{ title: "Connect", body: "No sign-in needed — runs Shopify's official dev MCP locally via npx (docs + GraphQL schema). For live store data, use a storefront/admin MCP URL via the bring-your-own option." }],
+    setupSteps: [{ title: "Connect", body: "No sign-in needed. Runs Shopify's official dev MCP locally via npx (docs + GraphQL schema). For live store data, use a storefront/admin MCP URL via the bring-your-own option." }],
   },
   {
     id: "figma", label: "Figma", blurb: "Pull design context and generate code from frames.",
     iconSlug: "figma", bgImage: "/integrations/figma-bg.webp", logo: "/logos/figma.svg",
     sourceUrl: "https://developers.figma.com/docs/figma-mcp-server/", registryId: "figma", trustTier: "official",
+    // Needs the Figma desktop app's local Dev Mode MCP server (127.0.0.1:3845) — no cloud path.
+    cloudUnsupported: true,
     authBackend: "token", transport: "http", mcpServerName: "cabinet-figma",
     url: "http://127.0.0.1:3845/mcp", credentials: [],
     actions: ["Read selected frames & layers", "Extract design context", "Generate code from designs", "Fetch comments"],
@@ -936,6 +1225,8 @@ const EXTENDED: CatalogEntry[] = [
     id: "salesforce", label: "Salesforce", blurb: "Query and update CRM data with the official DX MCP.",
     iconSlug: "salesforce", bgImage: "/integrations/salesforce-bg.webp", logo: "/logos/salesforce.webp",
     sourceUrl: "https://github.com/salesforcecli/mcp", registryId: "salesforce", trustTier: "official",
+    // Auth is a local `sf org login web` via the Salesforce CLI on the user's machine — no cloud path.
+    cloudUnsupported: true,
     authBackend: "token", transport: "stdio", mcpServerName: "cabinet-salesforce",
     command: "npx", args: ["-y", "@salesforce/mcp", "--orgs", "DEFAULT_TARGET_ORG", "--toolsets", "all"], credentials: [],
     actions: ["Query records (SOQL)", "Create & update records", "Run Apex & tests", "Inspect org metadata"],
@@ -1071,7 +1362,7 @@ sql_statement_permissions:
         kind: "plain",
         required: false,
         placeholder: "MCP_READONLY",
-        hint: "Role to run as — a least-privilege role is recommended. Leave blank for the user's default.",
+        hint: "Role to run as (a least-privilege role is recommended). Leave blank for the user's default.",
       },
     ],
     actions: [
@@ -1093,13 +1384,13 @@ sql_statement_permissions:
       },
       {
         title: "Attach a network policy (required for PAT auth)",
-        body: "A PAT can't authenticate unless its user has a network policy — otherwise connecting fails with \"Network policy is required\" and the server hangs on \"still connecting\" with no error. In a Snowsight SQL worksheet (role ACCOUNTADMIN), run the SQL below, swapping YOUR_USER for your username and YOUR_IP for the public IP (or CIDR range) you connect from. Skip this only if you're using a raw account password instead of a PAT.",
+        body: "A PAT can't authenticate unless its user has a network policy; otherwise connecting fails with \"Network policy is required\" and the server hangs on \"still connecting\" with no error. In a Snowsight SQL worksheet (role ACCOUNTADMIN), run the SQL below, swapping YOUR_USER for your username and YOUR_IP for the public IP (or CIDR range) you connect from. Skip this only if you're using a raw account password instead of a PAT.",
         copy: "USE ROLE ACCOUNTADMIN;\nCREATE NETWORK POLICY IF NOT EXISTS cabinet_mcp_policy ALLOWED_IP_LIST = ('YOUR_IP/32');\nALTER USER YOUR_USER SET NETWORK_POLICY = cabinet_mcp_policy;",
         href: "https://docs.snowflake.com/en/user-guide/network-policies",
       },
       {
         title: "Paste your account, user & token",
-        body: "Enter your account identifier, username, and the PAT below. They're stored in .cabinet.env (0600) and injected into the server's environment at run time — never written into the CLI config.",
+        body: "Enter your account identifier, username, and the PAT below. They're stored in .cabinet.env (0600) and injected into the server's environment at run time, never written into the CLI config.",
       },
       {
         title: "Read-only by default",
@@ -1132,6 +1423,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
   DISCORD,
   TELEGRAM,
   LINKEDIN,
+  META_ADS,
+  GOOGLE_ADS,
+  STACKADAPT,
   ...EXTENDED,
 ];
 
@@ -1164,14 +1458,14 @@ export const BUILT_IN_TOOLS: BuiltInTool[] = [
   {
     id: "task-dispatch",
     label: "Task & job dispatch",
-    description: "Agents can hand off work — launch tasks, schedule jobs, and queue future runs for other agents.",
+    description: "Agents can hand off work: launch tasks, schedule jobs, and queue future runs for other agents.",
     icon: "ListChecks",
   },
   {
     id: "skills",
     label: "Skills",
     description: "Installed skills extend what agents can do. Browse and manage them on the Skills page.",
-    icon: "Sparkles",
+    icon: "Asterisk",
     href: "#/skills",
   },
   {

@@ -38,6 +38,7 @@ import {
   createConversation,
   editDraftConversation,
 } from "@/lib/agents/conversation-client";
+import { gateAiRun } from "@/lib/cloud/client-tier";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import type { CabinetAgentSummary } from "@/types/cabinets";
 import type { JobConfig } from "@/types/jobs";
@@ -381,6 +382,12 @@ export function StartWorkDialog({
         if (isEditing) {
           await saveEdit(message, mentionedPaths, mentionedSkills);
         } else if (mode === "now") {
+          // Free-tier cloud tenants can't run agents — pop the upgrade modal at the moment of intent
+          // instead of firing a run the server would reject. Inert off free cloud (gateAiRun → false).
+          if (await gateAiRun()) {
+            onOpenChange(false);
+            return;
+          }
           await runNow(message, mentionedPaths, mentionedSkills, attachmentPaths, turnStagingUuid);
         } else if (mode === "inbox") {
           await addToInbox(message, mentionedPaths, mentionedSkills, attachmentPaths, turnStagingUuid);
@@ -612,7 +619,7 @@ export function WhenChip({
         // Audit #002: title now matches the visible label so screen readers
         // hear "Run now, menu" rather than "Run now, menu, When should this
         // run?". The dropdown's content already explains the choice.
-        title={`${label} — change schedule`}
+        title={`${label}: change schedule`}
         aria-label={`Schedule: ${label}. Click to change.`}
       >
         <Icon className="h-3.5 w-3.5" />

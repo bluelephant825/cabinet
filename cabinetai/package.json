@@ -1,15 +1,16 @@
 {
   "name": "cabinetai",
-  "version": "0.5.0",
+  "version": "0.5.3",
   "description": "Cabinet CLI — AI-first self-hosted knowledge base",
   "bin": {
-    "cabinetai": "./dist/index.js"
+    "cabinetai": "dist/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "node esbuild.config.mjs",
+    "prepack": "npm run build",
     "dev": "node esbuild.config.mjs --watch"
   },
   "dependencies": {
@@ -36,7 +37,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hilash/cabinet.git"
+    "url": "https://github.com/cabinetai/cabinet.git"
   },
   "engines": {
     "node": ">=18"

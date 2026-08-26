@@ -142,6 +142,7 @@ function ModelViewerPreview({ src, alt, autoRotate, cameraControls, shadowIntens
 
 /** Render a best-effort preview for known components, generic fallback else. */
 function ComponentPreview({ name, props, childrenString }: MdxComponentAttrs) {
+  const basePath = useEditorStore((s) => s.assetBase || s.currentPath);
   if (name === "Callout") {
     const tone = CALLOUT_TONES[String(props.type ?? "info")] ?? CALLOUT_TONES.info;
     return (
@@ -197,7 +198,6 @@ function ComponentPreview({ name, props, childrenString }: MdxComponentAttrs) {
         </div>
       );
     }
-    const basePath = useEditorStore((s) => s.assetBase || s.currentPath);
     const resolvedSrc = resolveAssetUrl(src, basePath);
 
     const autoRotate = props.autoRotate === true || props.autoRotate === "true";

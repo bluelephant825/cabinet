@@ -10,7 +10,7 @@ if (typeof window !== "undefined") {
   loader.config({ paths: { vs: "/monaco/vs" } });
 }
 
-import { Sparkles, Loader2, FilePlus, Lock } from "lucide-react";
+import { Asterisk, Sparkles, Loader2, FilePlus, Lock } from "lucide-react";
 import { editorExtensions } from "./extensions";
 import { EditorToolbar } from "./editor-toolbar";
 import { SlashCommands } from "./slash-commands";
@@ -164,6 +164,7 @@ export function KBEditor() {
   const { t } = useLocale();
   const { resolvedTheme } = useTheme();
   const settings = useEditorSettings();
+  const focusMode = useAppStore((s) => s.focusMode);
   const { currentPath, assetBase, content, saveStatus, frontmatter, isLoading, loadStatus, createMissingPage } = useEditorStore();
   const nodes = useTreeStore((s) => s.nodes);
   // A page under a read-only Connect Knowledge mount is view-only — edits would
@@ -779,7 +780,7 @@ export function KBEditor() {
                 <p className="text-sm text-muted-foreground/80">
                   This folder doesn&apos;t have a markdown sibling page
                   {hasChildren
-                    ? " yet — its contents are listed below."
+                    ? " yet. Its contents are listed below."
                     : " yet."}
                 </p>
                 <button
@@ -846,7 +847,9 @@ export function KBEditor() {
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
       {/* Chrome row on the desk: folder tabs on the left; on the Page tab the
           formatting toolbar scrolls to the right of them (transparent, faded).
-          Only the tabs connect down into the sheet below. */}
+          Only the tabs connect down into the sheet below. Hidden entirely in
+          focus mode — content only. */}
+      {!focusMode && (
       <div className="flex shrink-0 items-end gap-3 ps-4 pe-2 min-h-[34px]">
         {showFolderTabs && (
           <FolderTabs
@@ -875,6 +878,7 @@ export function KBEditor() {
           </div>
         )}
       </div>
+      )}
       {/* Files tab: elevated sheet holding the folder index. */}
       {onFilesTab && (
         <ContentSheet>
@@ -970,7 +974,7 @@ export function KBEditor() {
             {isReadOnlyMount && (
               <div className="mx-auto mt-3 flex max-w-3xl items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-[12px] text-muted-foreground">
                 <Lock className="h-3.5 w-3.5 shrink-0" />
-                Read-only — this folder is connected for viewing. Edits are disabled.
+                Read-only: this folder is connected for viewing. Edits are disabled.
               </div>
             )}
             <EditorContent editor={editor} />
@@ -994,7 +998,7 @@ export function KBEditor() {
                 onClick={handleOpenAI}
                 className="group flex items-center gap-2 text-[13px] text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer"
               >
-                <Sparkles className="h-3.5 w-3.5 group-hover:text-primary transition-colors" />
+                <Asterisk className="h-3.5 w-3.5 group-hover:text-primary transition-colors" />
                 <span>{t("editorExtras:editWithAi")}</span>
               </button>
               <span className="text-[11px] text-muted-foreground/60 select-none">

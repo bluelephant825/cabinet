@@ -68,6 +68,8 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useLocale } from "@/i18n/use-locale";
+import { SafeHtml } from "@/components/ui/safe-html";
 
 interface JupyterMessage {
   header: { msg_type: string };

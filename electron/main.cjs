@@ -730,18 +730,57 @@ async function checkHealth(url, timeoutMs = 1200) {
   }
 }
 
-function spawnBackend(command, args, env) {
+// Backends are restart-by-exit: the in-app Restart button (and any crash)
+// just ends the child process, and this respawn logic brings it back on the
+// same ports/env. `meta` carries the respawn identity; a child that lived
+// under a minute counts toward a crash-loop, and after 5 consecutive quick
+// deaths we stop trying so a broken backend can't spin forever.
+let backendsQuitting = false;
+
+function spawnBackend(command, args, env, meta) {
   const child = spawn(command, args, {
     env,
     stdio: "inherit",
   });
   backendChildren.push(child);
+  const spawnedAt = Date.now();
+  child.on("exit", () => {
+    backendChildren = backendChildren.filter((c) => c !== child);
+    if (backendsQuitting || !meta) {
+      return;
+    }
+    meta.quickDeaths = Date.now() - spawnedAt > 60_000 ? 0 : (meta.quickDeaths || 0) + 1;
+    if (meta.quickDeaths >= 5) {
+      console.error(`electron: ${meta.name} backend is crash-looping — not respawning`);
+      return;
+    }
+    console.warn(`electron: ${meta.name} backend exited — respawning`);
+    setTimeout(() => {
+      if (backendsQuitting) {
+        return;
+      }
+      spawnBackend(command, args, env, meta);
+      if (meta.healthUrl) {
+        // The app server serves every window; once it's back on the same
+        // port, reload windows so they recover from the connection error.
+        waitForHealth(meta.healthUrl)
+          .then(() => {
+            for (const win of BrowserWindow.getAllWindows()) {
+              if (!win.isDestroyed()) {
+                win.webContents.reload();
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    }, 1000);
+  });
   return child;
 }
 
-function spawnNodeBackend(args, env) {
+function spawnNodeBackend(args, env, meta) {
   if (isDev) {
-    return spawnBackend(process.execPath, args, env);
+    return spawnBackend(process.execPath, args, env, meta);
   }
 
   const bundledNodePath = path.join(
@@ -754,15 +793,20 @@ function spawnNodeBackend(args, env) {
   );
 
   if (fs.existsSync(bundledNodePath)) {
-    return spawnBackend(bundledNodePath, args, env);
+    return spawnBackend(bundledNodePath, args, env, meta);
   }
 
-  return spawnBackend(process.execPath, args, {
-    ...env,
-    // Fallback for older packages that do not yet bundle a standalone Node
-    // runtime alongside the embedded Next.js server.
-    ELECTRON_RUN_AS_NODE: "1",
-  });
+  return spawnBackend(
+    process.execPath,
+    args,
+    {
+      ...env,
+      // Fallback for older packages that do not yet bundle a standalone Node
+      // runtime alongside the embedded Next.js server.
+      ELECTRON_RUN_AS_NODE: "1",
+    },
+    meta
+  );
 }
 
 function packagedStandalonePath(...parts) {
@@ -947,8 +991,12 @@ async function startEmbeddedCabinet() {
     NODE_PATH: [externalModulesDir, env.NODE_PATH].filter(Boolean).join(path.delimiter),
   };
 
-  spawnNodeBackend([serverEntry], env);
-  spawnNodeBackend([daemonEntry], daemonEnv);
+  backendsQuitting = false;
+  spawnNodeBackend([serverEntry], env, {
+    name: "app",
+    healthUrl: `${appOrigin}/api/health`,
+  });
+  spawnNodeBackend([daemonEntry], daemonEnv, { name: "daemon" });
 
   await waitForHealth(`${appOrigin}/api/health`);
   return { appUrl: appOrigin };
@@ -961,7 +1009,7 @@ function configureAutoUpdates() {
 
   try {
     updateElectronApp({
-      repo: "hilash/cabinet",
+      repo: "cabinetai/cabinet",
       updateInterval: "4 hours",
       notifyUser: false,
     });
@@ -1047,6 +1095,7 @@ function configureAutoUpdates() {
 
 function cleanupBackends() {
   destroyAllBrowserViews();
+  backendsQuitting = true;
   for (const child of backendChildren) {
     child.kill("SIGTERM");
   }
@@ -1145,7 +1194,7 @@ function isMainRendererSender(event) {
 
 
 function buildBrowserWindow() {
-  return new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1480,
     height: 940,
     minWidth: 1180,
@@ -1159,7 +1208,23 @@ function buildBrowserWindow() {
       sandbox: false,
     },
   });
-  mainWindow.setWindowButtonVisibility(true);
+  if (typeof win.setWindowButtonVisibility === "function") {
+    try {
+      win.setWindowButtonVisibility(true);
+    } catch {}
+  }
+  // Tell the renderer when macOS hides/shows the traffic lights (native
+  // full-screen) so it can drop/restore the --traffic-clearance reservation —
+  // otherwise the ~80px reserved for the lights is an empty gap in full-screen.
+  const sendFullscreen = () => {
+    if (!win.isDestroyed()) {
+      win.webContents.send("cabinet:fullscreen-changed", win.isFullScreen());
+    }
+  };
+  win.on("enter-full-screen", sendFullscreen);
+  win.on("leave-full-screen", sendFullscreen);
+  win.webContents.on("did-finish-load", sendFullscreen);
+  return win;
 }
 
 // In dev, the Next server may not be ready the instant a window loads. Retry by
@@ -1946,7 +2011,22 @@ app.whenReady().then(async () => {
     isDev,
     openExtensionPanelWindow: (url) => openExtensionPanelWindow(url),
   });
-  await createWindow();
+  try {
+    await createWindow();
+  } catch (error) {
+    // Without this, a failed bootstrap (most commonly: no `npm run dev` server
+    // for the dev build to attach to) rejects unhandled and leaves a silent,
+    // windowless Electron process. Surface the cause instead.
+    const message = error instanceof Error ? error.message : String(error);
+    dialog.showErrorBox(
+      "Cabinet failed to start",
+      isDev
+        ? `${message}\n\nStart the dev server with \`npm run dev\` (or \`npm run dev:all\`) before \`npm run electron:start\`.`
+        : message
+    );
+    app.quit();
+    return;
+  }
 
 
   app.on("activate", async () => {

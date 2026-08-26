@@ -5,6 +5,7 @@ import { ThemeInitializer } from "@/components/layout/theme-initializer";
 import { RoomThemeSync } from "@/components/layout/room-theme-sync";
 import { LocaleInitializer } from "@/components/layout/locale-initializer";
 import { LocaleDirectionProvider } from "@/components/layout/locale-direction-provider";
+import { PostHogProvider } from "@/components/analytics/posthog-provider";
 import "./globals.css";
 
 // Runs before hydration so RTL/LTR + lang are applied to <html> on first paint.
@@ -75,7 +76,9 @@ export default function RootLayout({
           <LocaleInitializer />
           <ThemeInitializer />
           <RoomThemeSync />
-          <LocaleDirectionProvider>{children}</LocaleDirectionProvider>
+          <LocaleDirectionProvider>
+            <PostHogProvider>{children}</PostHogProvider>
+          </LocaleDirectionProvider>
         </ThemeProvider>
       </body>
     </html>

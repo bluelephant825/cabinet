@@ -14,7 +14,7 @@ import { readCabinetEnvFile } from "@/lib/runtime/cabinet-env";
  */
 
 const API = "https://discord.com/api/v10";
-const UA = "Cabinet (https://github.com/hilash/cabinet, discord-check)";
+const UA = "Cabinet (https://github.com/cabinetai/cabinet, discord-check)";
 // View Channels + Read Message History + Send Messages + Create Public Threads
 // + Send Messages in Threads + Add Reactions — matches the guide's invite.
 const INVITE_PERMISSIONS = "292057844800";
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         : u.global_name || u.username;
   } catch {
     return NextResponse.json({
-      token: { ok: false, error: "Couldn't reach Discord — check your connection." },
+      token: { ok: false, error: "Couldn't reach Discord. Check your connection." },
       guild: { unknown: true },
     });
   }

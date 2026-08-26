@@ -85,18 +85,21 @@ export function useComposerAttachments(
       });
 
       try {
-        const { form, headers } = buildSafeFileForm(file);
         const encodedDir = dir
           .split("/")
           .filter(Boolean)
           .map(encodeURIComponent)
           .join("/");
-        const response = await fetch(`/api/upload/${encodedDir}?commit=0`, {
-          method: "POST",
-          headers,
-          body: form,
-          signal: controller.signal,
-        });
+        // PUT streams the raw file body (no server-side multipart buffering),
+        // lifting the small-file cap of the POST path.
+        const response = await fetch(
+          `/api/upload/${encodedDir}?commit=0&name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type)}`,
+          {
+            method: "PUT",
+            body: file,
+            signal: controller.signal,
+          }
+        );
         if (!response.ok) {
           let message = `Upload failed (${response.status})`;
           try {

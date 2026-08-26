@@ -42,7 +42,8 @@ import yaml from "js-yaml";
 import chokidar from "chokidar";
 import matter from "gray-matter";
 import { getDb, closeDb } from "./db";
-import { DATA_DIR, isHiddenEntry } from "../src/lib/storage/path-utils";
+import { DATA_DIR } from "../src/lib/storage/path-utils";
+import { countWatchableDirs } from "../src/lib/storage/watchable-dirs";
 import { discoverCabinetPathsSync } from "../src/lib/cabinets/discovery";
 import { resolveCabinetDir } from "../src/lib/cabinets/server-paths";
 import {
@@ -79,6 +80,7 @@ import {
   normalizeJobId,
 } from "../src/lib/jobs/job-normalization";
 import { stripAnsi } from "./pty/ansi";
+import { claudeStart, claudeCode, claudeStatus, claudeClear } from "./claude-login";
 import {
   completeClaudeSession,
   distillPtyOutput,
@@ -166,28 +168,6 @@ function probeWatcherBackend(): WatcherBackend {
 // we stop counting as soon as we cross the threshold.
 const BIG_TREE_DIR_THRESHOLD = 1500;
 
-async function countWatchableDirs(maxBeforeAbort: number): Promise<number> {
-  let count = 0;
-  const stack: string[] = [DATA_DIR];
-  while (stack.length > 0) {
-    const dir = stack.pop()!;
-    count += 1;
-    if (count > maxBeforeAbort) return count;
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      if (isHiddenEntry(entry.name)) continue;
-      stack.push(path.join(dir, entry.name));
-    }
-  }
-  return count;
-}
-
 function getOpenFileLimit(): number | null {
   // posix_getrlimit isn't in Node's stdlib. We could shell out to `ulimit`,
   // but the simplest check is: try to read it from `process.getrlimit?.()`
@@ -206,7 +186,7 @@ function getOpenFileLimit(): number | null {
 async function guardAgainstBigTree(): Promise<void> {
   const backend = probeWatcherBackend();
   if (!backend.fdPerDir) return; // FSEvents/ReadDirectoryChangesW are O(1) in fds
-  const dirCount = await countWatchableDirs(BIG_TREE_DIR_THRESHOLD);
+  const dirCount = countWatchableDirs(DATA_DIR, BIG_TREE_DIR_THRESHOLD);
   const ulimit = getOpenFileLimit();
   const ulimitTooLow = ulimit !== null && ulimit < 4096;
   if (dirCount <= BIG_TREE_DIR_THRESHOLD && !ulimitTooLow) return;
@@ -1930,6 +1910,17 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Restart-by-exit: the daemon never respawns itself — whoever supervises it
+  // does (Electron main respawns the child; the cloud entrypoint exits and the
+  // container restart policy relaunches everything). Token-gated above.
+  if (url.pathname === "/restart" && req.method === "POST") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, restarting: true }));
+    console.log("[daemon] restart requested — exiting for supervisor respawn");
+    setTimeout(() => process.exit(0), 250);
+    return;
+  }
+
   // Health check
   if (url.pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -1947,6 +1938,39 @@ const server = http.createServer(async (req, res) => {
         lastTriggerError: schedulerStats.lastTriggerError,
       })
     );
+    return;
+  }
+
+  // ── Claude Code login ── one-click `claude setup-token` orchestration. Works on
+  // cloud tenants and desktop/self-host alike (both just drive the local `claude`
+  // CLI over a PTY). Bearer-gated above like the rest of the daemon API.
+  if (url.pathname.startsWith("/auth/claude/")) {
+    const action = url.pathname.slice("/auth/claude/".length);
+    const sendJson = (code: number, body: unknown) => {
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+    const readBody = (): Promise<Record<string, unknown>> =>
+      new Promise((resolve) => {
+        let b = "";
+        req.on("data", (c) => (b += c));
+        req.on("end", () => { try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); } });
+      });
+    (async () => {
+      try {
+        if (action === "status") return sendJson(200, await claudeStatus());
+        if (action === "start" && req.method === "POST") return sendJson(200, await claudeStart());
+        if (action === "code" && req.method === "POST") {
+          const { code } = await readBody();
+          if (typeof code !== "string" || !code.trim()) return sendJson(400, { error: "code required" });
+          return sendJson(200, await claudeCode(code));
+        }
+        if (action === "clear" && req.method === "POST") return sendJson(200, await claudeClear());
+        sendJson(404, { error: "unknown action" });
+      } catch (e) {
+        sendJson(500, { error: (e as Error).message });
+      }
+    })();
     return;
   }
 

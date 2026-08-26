@@ -6,11 +6,10 @@ import { dedupFetch } from "@/lib/api/dedup-fetch";
 import {
   BrainCircuit,
   Check,
+  ChevronDown,
   RefreshCw,
   Search,
-  Sparkles,
   Terminal,
-  X,
 } from "lucide-react";
 import { ProviderGlyph } from "@/components/agents/provider-glyph";
 import { cn } from "@/lib/utils";
@@ -24,15 +23,8 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { getDefaultAdapterTypeForProviderInfo } from "@/lib/agents/adapter-options";
 import type {
   ConversationRuntimeMode,
@@ -75,7 +67,7 @@ const EFFORT_TONES: Record<
 > = {
   [AUTO_EFFORT_ID]: {
     header: "text-slate-600 dark:text-slate-200",
-    bg: "bg-slate-100 border border-slate-200 dark:bg-slate-800/50 dark:border-slate-700",
+    bg: "bg-slate-100 dark:bg-slate-800/50",
     line: "bg-slate-400 dark:bg-slate-500",
     dot: "bg-slate-500 dark:bg-slate-400",
     selected:
@@ -87,7 +79,7 @@ const EFFORT_TONES: Record<
   },
   none: {
     header: "text-slate-600 dark:text-slate-200",
-    bg: "bg-slate-100 border border-slate-200 dark:bg-slate-800/50 dark:border-slate-700",
+    bg: "bg-slate-100 dark:bg-slate-800/50",
     line: "bg-slate-400 dark:bg-slate-500",
     dot: "bg-slate-500 dark:bg-slate-400",
     selected:
@@ -99,7 +91,7 @@ const EFFORT_TONES: Record<
   },
   minimal: {
     header: "text-yellow-700 dark:text-yellow-300",
-    bg: "bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/30 dark:border-yellow-800/60",
+    bg: "bg-yellow-50 dark:bg-yellow-900/30",
     line: "bg-yellow-400 dark:bg-yellow-500",
     dot: "bg-yellow-500 dark:bg-yellow-400",
     selected:
@@ -111,7 +103,7 @@ const EFFORT_TONES: Record<
   },
   low: {
     header: "text-amber-700 dark:text-amber-300",
-    bg: "bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:border-amber-800/60",
+    bg: "bg-amber-50 dark:bg-amber-900/30",
     line: "bg-amber-400 dark:bg-amber-500",
     dot: "bg-amber-500 dark:bg-amber-400",
     selected:
@@ -123,7 +115,7 @@ const EFFORT_TONES: Record<
   },
   medium: {
     header: "text-orange-700 dark:text-orange-300",
-    bg: "bg-orange-50 border border-orange-200 dark:bg-orange-900/30 dark:border-orange-800/60",
+    bg: "bg-orange-50 dark:bg-orange-900/30",
     line: "bg-orange-400 dark:bg-orange-500",
     dot: "bg-orange-500 dark:bg-orange-400",
     selected:
@@ -135,7 +127,7 @@ const EFFORT_TONES: Record<
   },
   high: {
     header: "text-emerald-700 dark:text-emerald-300",
-    bg: "bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800/60",
+    bg: "bg-emerald-50 dark:bg-emerald-900/30",
     line: "bg-emerald-400 dark:bg-emerald-500",
     dot: "bg-emerald-500 dark:bg-emerald-400",
     selected:
@@ -147,7 +139,7 @@ const EFFORT_TONES: Record<
   },
   xhigh: {
     header: "text-rose-700 dark:text-rose-300",
-    bg: "bg-rose-50 border border-rose-200 dark:bg-rose-900/30 dark:border-rose-800/60",
+    bg: "bg-rose-50 dark:bg-rose-900/30",
     line: "bg-rose-400 dark:bg-rose-500",
     dot: "bg-rose-500 dark:bg-rose-400",
     selected:
@@ -159,7 +151,7 @@ const EFFORT_TONES: Record<
   },
   max: {
     header: "text-red-700 dark:text-red-300",
-    bg: "bg-red-50 border border-red-200 dark:bg-red-900/30 dark:border-red-800/60",
+    bg: "bg-red-50 dark:bg-red-900/30",
     line: "bg-red-400 dark:bg-red-500",
     dot: "bg-red-500 dark:bg-red-400",
     selected:
@@ -335,215 +327,6 @@ function sameSelection(
   );
 }
 
-function SelectionRadio({
-  checked,
-  label,
-  onSelect,
-  toneId,
-}: {
-  checked: boolean;
-  label: string;
-  onSelect: () => void;
-  toneId?: string;
-}) {
-  const tone = getEffortTone(toneId);
-
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={checked}
-      aria-label={label}
-      className={cn(
-        "inline-flex size-[22px] items-center justify-center rounded-full border-[2.5px] transition-[border-color,background-color,box-shadow] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-1",
-        tone.focus,
-        checked
-          ? tone.selected
-          : cn("bg-background", tone.idle)
-      )}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onSelect();
-      }}
-    >
-      <span
-        className={cn(
-          "size-[9px] rounded-full transition-transform",
-          checked ? cn("scale-100", tone.selectedDot) : "scale-0 bg-transparent"
-        )}
-      />
-    </button>
-  );
-}
-
-function ProviderRuntimeMatrix({
-  provider,
-  currentProviderId,
-  currentModelId,
-  selectedEffortId,
-  onSelect,
-}: {
-  provider: ProviderInfo;
-  currentProviderId?: string;
-  currentModelId?: string;
-  selectedEffortId?: string;
-  onSelect: (modelId: string, effortId?: string) => void;
-}) {
-  const { t } = useLocale();
-  const matrixEffortColumns = getProviderEffortColumns(provider);
-  const models = provider.models || [];
-
-  if (models.length === 0) {
-    return (
-      <div className="px-3 py-5 text-center text-[10px] text-muted-foreground">
-        No models are available for this provider yet.
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="overflow-x-auto">
-        <div
-          role="radiogroup"
-          aria-label={`Task runtime matrix for ${provider.name}`}
-          className="min-w-max"
-        >
-          <table className="w-full border-collapse text-[9px]">
-            <thead className="bg-muted/25">
-              <tr>
-                <th className="min-w-[9.5rem] px-2.5 py-1.5 text-left font-medium text-foreground">
-                  {t("runtime:modelCol")}
-                </th>
-                {[{ id: AUTO_EFFORT_ID, name: t("runtime:auto") }, ...matrixEffortColumns].map(
-                  (effort) => {
-                    const tone = getEffortTone(effort.id);
-                    const label =
-                      effort.id === AUTO_EFFORT_ID
-                        ? t("runtime:auto")
-                        : formatEffortName(effort.name) || effort.name;
-
-                    return (
-                      <th
-                        key={effort.id}
-                        className="min-w-[3.1rem] px-1 py-1 text-center"
-                      >
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span
-                            className={cn(
-                              "text-[8.5px] font-semibold",
-                              tone.header
-                            )}
-                          >
-                            {label}
-                          </span>
-                          <span className="flex w-full items-center gap-1">
-                            <span
-                              className={cn(
-                                "h-1.5 w-1.5 shrink-0 rounded-full",
-                                tone.dot
-                              )}
-                            />
-                            <span
-                              className={cn(
-                                "h-0.5 flex-1 rounded-full",
-                                tone.line
-                              )}
-                            />
-                          </span>
-                        </div>
-                      </th>
-                    );
-                  }
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {models.map((model) => {
-                const modelEfforts = getModelEffortLevels(provider, model.id);
-                const isCurrentModel =
-                  currentProviderId === provider.id && currentModelId === model.id;
-
-                return (
-                  <tr
-                    key={model.id}
-                    className={cn(
-                      "border-t border-border/60",
-                      isCurrentModel && "bg-muted/20"
-                    )}
-                  >
-                    <td className="px-2.5 py-1.5 align-top">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="flex items-center gap-1 text-[11.5px] font-medium text-foreground">
-                          {model.name}
-                          {model.requires === "api_key" ? (
-                            <span
-                              title={t("runtime:ptyWarningTitle")}
-                              className="inline-flex items-center rounded-sm border border-amber-500/40 bg-amber-500/10 px-1 py-px text-[8.5px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400"
-                            >
-                              API key
-                            </span>
-                          ) : null}
-                        </span>
-                        {model.description ? (
-                          <span className="max-w-[11rem] text-[9px] leading-3.5 text-muted-foreground">
-                            {model.description}
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-
-                    <td className="px-1 py-1 text-center align-middle">
-                      <SelectionRadio
-                        checked={isCurrentModel && !selectedEffortId}
-                        label={`${model.name}, default effort`}
-                        toneId={AUTO_EFFORT_ID}
-                        onSelect={() => onSelect(model.id)}
-                      />
-                    </td>
-
-                    {matrixEffortColumns.map((effort) => {
-                      const available = modelEfforts.some(
-                        (item) => item.id === effort.id
-                      );
-                      const checked =
-                        isCurrentModel && selectedEffortId === effort.id;
-
-                      return (
-                        <td
-                          key={`${model.id}:${effort.id}`}
-                          className="px-1 py-1 text-center align-middle"
-                        >
-                          {available ? (
-                            <SelectionRadio
-                              checked={checked}
-                              label={`${model.name}, ${effort.name}`}
-                              toneId={effort.id}
-                              onSelect={() => onSelect(model.id, effort.id)}
-                            />
-                          ) : (
-                            <span className="text-muted-foreground/35">-</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="border-t border-border/60 bg-muted/15 px-2.5 py-1.5 text-[8px] text-muted-foreground">
-        Auto uses the model default. Radios only appear where that effort is
-        supported.
-      </div>
-    </>
-  );
-}
-
 function groupModelsBySubProvider(
   models: ProviderModel[]
 ): Array<{ group: string; items: ProviderModel[] }> {
@@ -678,7 +461,7 @@ function ProviderModelCombobox({
           type="text"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search models — e.g. minimax, glm, gpt"
+          placeholder="Search models (e.g. minimax, glm, gpt)"
           className="min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground/50"
           autoFocus
         />
@@ -689,7 +472,7 @@ function ProviderModelCombobox({
           type="button"
           onClick={handleRefresh}
           disabled={refreshing}
-          title="Refresh — re-read the CLI's model list (use after adding an API key)"
+          title="Refresh: re-read the CLI's model list (use after adding an API key)"
           className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:text-foreground disabled:opacity-50"
         >
           <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
@@ -698,7 +481,7 @@ function ProviderModelCombobox({
 
       {discovery === "offline" && (
         <div className="border-b border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[9.5px] leading-relaxed text-amber-700 dark:text-amber-400">
-          Showing offline defaults — {provider.name} couldn&apos;t be queried.
+          Showing offline defaults. {provider.name} couldn&apos;t be queried.
           Install &amp; configure it (set a provider API key or run{" "}
           <code className="rounded bg-amber-500/15 px-1 py-px font-mono">
             {provider.id === "pi" ? "pi --list-models" : "opencode auth login"}
@@ -771,7 +554,7 @@ function ProviderModelCombobox({
         )}
         {filtered.length > COMBOBOX_RENDER_CAP && (
           <div className="px-2.5 py-1.5 text-center text-[8.5px] text-muted-foreground/60">
-            +{filtered.length - COMBOBOX_RENDER_CAP} more — keep typing to filter
+            +{filtered.length - COMBOBOX_RENDER_CAP} more, keep typing to filter
           </div>
         )}
       </div>
@@ -831,123 +614,6 @@ export interface RuntimeMatrixValue {
   runtimeMode?: RuntimeMode | null;
 }
 
-interface RuntimeSelectionBannerProps {
-  providers: ProviderInfo[];
-  value: RuntimeMatrixValue;
-  label?: string;
-  trailing?: React.ReactNode;
-  className?: string;
-}
-
-/**
- * Colored summary row showing the currently selected provider/model/effort.
- * Same look used in the task composer dropdown, now reused in settings.
- */
-export function RuntimeSelectionBanner({
-  providers,
-  value,
-  label,
-  trailing,
-  className,
-}: RuntimeSelectionBannerProps) {
-  const { t } = useLocale();
-  const effectiveLabel = label ?? t("runtime:selectedModelLabel");
-  const currentProvider = useMemo(
-    () =>
-      resolveSelectedProvider(providers, value.providerId ?? undefined, undefined),
-    [providers, value.providerId]
-  );
-
-  const currentModel = useMemo(
-    () =>
-      resolveSelectedModel(currentProvider, value.model ?? undefined, undefined),
-    [currentProvider, value.model]
-  );
-
-  const currentEffort = useMemo(
-    () =>
-      resolveProviderEffort(
-        currentProvider,
-        currentModel?.id,
-        value.effort ?? undefined,
-        undefined
-      ),
-    [currentModel?.id, currentProvider, value.effort]
-  );
-
-  const effortTone = getEffortTone(value.effort ?? AUTO_EFFORT_ID);
-  const effortName =
-    currentEffort?.name ||
-    (value.effort ? formatEffortName(value.effort) : t("runtime:auto"));
-  const isTerminal = value.runtimeMode === "terminal";
-
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-lg px-2.5 py-2",
-        isTerminal ? "bg-zinc-900 text-zinc-100" : effortTone.bg,
-        className
-      )}
-    >
-      <span
-        className={cn(
-          "shrink-0 text-[9px] font-semibold uppercase tracking-wide",
-          isTerminal ? "text-zinc-400" : "text-muted-foreground/60"
-        )}
-      >
-        {effectiveLabel}
-      </span>
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        {currentProvider ? (
-          <>
-            <div
-              className={cn(
-                "flex size-5 shrink-0 items-center justify-center rounded border",
-                isTerminal
-                  ? "border-zinc-700 bg-zinc-800 text-zinc-300"
-                  : "border-border/70 bg-background text-muted-foreground"
-              )}
-            >
-              {isTerminal ? (
-                <Terminal className="h-2.5 w-2.5" />
-              ) : (
-                <ProviderGlyph icon={currentProvider.icon} className="h-2.5 w-2.5" />
-              )}
-            </div>
-            {isTerminal ? (
-              <>
-                <span className="truncate text-[11px] font-medium text-zinc-100">
-                  Terminal
-                </span>
-                <span className="shrink-0 text-[9px] text-zinc-500">·</span>
-                <span className="shrink-0 text-[10px] font-medium text-zinc-300">
-                  {currentProvider.name}
-                </span>
-                <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-400">
-                  PTY
-                </span>
-              </>
-            ) : (
-              <>
-                <span className={cn("truncate text-[11px] font-medium", effortTone.header)}>
-                  {currentModel?.name || currentProvider.name}
-                </span>
-                <span className="shrink-0 text-[9px] text-muted-foreground/50">·</span>
-                <span className={cn("shrink-0 text-[9px] font-medium", effortTone.header)}>
-                  {effortName}
-                </span>
-              </>
-            )}
-          </>
-        ) : (
-          <span className="text-[10px] text-muted-foreground">{t("runtime:noProvider")}</span>
-        )}
-      </div>
-      {trailing}
-    </div>
-  );
-}
-
 interface RuntimeMatrixPickerProps {
   providers: ProviderInfo[];
   value: RuntimeMatrixValue;
@@ -972,12 +638,17 @@ interface RuntimeMatrixPickerProps {
   showRuntimeModeToggle?: boolean;
   className?: string;
   emptyText?: string;
+  /** Rendered right-aligned at the end of the sentence row (e.g. the
+   *  composer's "App default" reset pill). */
+  trailing?: React.ReactNode;
 }
 
 /**
- * Inline provider/model/effort matrix — same UI the task composer runtime
- * picker renders inside its dropdown, but usable as an inline component.
- * Reused by Settings → Providers for default selection.
+ * Inline provider/model/effort picker rendered as a sentence —
+ * "Run agents with <provider> using <model> at <effort> effort." Each chip
+ * expands an option panel below the sentence. Same component the task
+ * composer runtime picker renders inside its dropdown; reused by Settings →
+ * Providers for default selection.
  */
 export function RuntimeMatrixPicker({
   providers,
@@ -987,6 +658,7 @@ export function RuntimeMatrixPicker({
   showRuntimeModeToggle = false,
   className,
   emptyText = "No providers available.",
+  trailing,
 }: RuntimeMatrixPickerProps) {
   const { t } = useLocale();
   const runtimeMode: RuntimeMode = value.runtimeMode === "terminal" ? "terminal" : "native";
@@ -1003,8 +675,6 @@ export function RuntimeMatrixPicker({
     return [...ready, ...unready];
   }, [providers, includeUnavailable]);
 
-  const [pickedProviderId, setPickedProviderId] = useState<string | null>(null);
-
   const readyProviderIds = useMemo(
     () =>
       new Set(
@@ -1015,55 +685,10 @@ export function RuntimeMatrixPicker({
     [selectableProviders]
   );
 
-  // The default tab is DERIVED, not synced via an effect
-  // (react-hooks/set-state-in-effect): until the user explicitly picks a
-  // provider tab, follow the confirmed selection when it's ready, else the
-  // first ready provider — which also keeps the tab valid if the provider
-  // list changes underneath.
-  const defaultProviderId = useMemo(() => {
-    const requested = resolveSelectedProvider(
-      selectableProviders,
-      value.providerId ?? undefined,
-      undefined
-    );
-    if (requested && readyProviderIds.has(requested.id)) {
-      return requested.id;
-    }
-    const firstReady = selectableProviders.find((provider) =>
-      readyProviderIds.has(provider.id)
-    );
-    return firstReady?.id ?? requested?.id ?? null;
-  }, [readyProviderIds, selectableProviders, value.providerId]);
-  const activeProviderId = pickedProviderId ?? defaultProviderId;
-
-  // Prop-driven selection: when the confirmed provider changes (e.g. the
-  // parent loads a saved default), drop the manual pick so the tab follows
-  // it — adjust state during render instead of in an effect, the pattern
-  // from react.dev/learn/you-might-not-need-an-effect.
-  const [prevValueProviderId, setPrevValueProviderId] = useState(
-    value.providerId ?? null
-  );
-  if ((value.providerId ?? null) !== prevValueProviderId) {
-    setPrevValueProviderId(value.providerId ?? null);
-    setPickedProviderId(null);
-  }
-
-  const activeProviderIdValue = useMemo(() => {
-    const explicit = resolveSelectedProvider(
-      selectableProviders,
-      activeProviderId || undefined,
-      undefined
-    );
-    if (explicit && readyProviderIds.has(explicit.id)) return explicit.id;
-    const requestedReady = value.providerId && readyProviderIds.has(value.providerId)
-      ? value.providerId
-      : null;
-    if (requestedReady) return requestedReady;
-    const firstReady = selectableProviders.find((provider) =>
-      readyProviderIds.has(provider.id)
-    );
-    return firstReady?.id ?? explicit?.id;
-  }, [activeProviderId, readyProviderIds, selectableProviders, value.providerId]);
+  // Which chip's option panel is expanded below the sentence.
+  const [openPanel, setOpenPanel] = useState<
+    "provider" | "model" | "effort" | null
+  >(null);
 
   const currentProvider = useMemo(
     () =>
@@ -1075,6 +700,11 @@ export function RuntimeMatrixPicker({
     () =>
       resolveSelectedModel(currentProvider, value.model ?? undefined, undefined),
     [currentProvider, value.model]
+  );
+
+  const currentEffortLevels = useMemo(
+    () => getModelEffortLevels(currentProvider, currentModel?.id),
+    [currentProvider, currentModel?.id]
   );
 
   if (selectableProviders.length === 0) {
@@ -1093,7 +723,7 @@ export function RuntimeMatrixPicker({
   const setRuntimeMode = (nextMode: RuntimeMode) => {
     const targetProviderId =
       value.providerId ||
-      activeProviderIdValue ||
+      currentProvider?.id ||
       selectableProviders[0]?.id ||
       "";
     if (!targetProviderId) return;
@@ -1113,6 +743,62 @@ export function RuntimeMatrixPicker({
   };
 
   const isTerminal = runtimeMode === "terminal";
+
+  const togglePanel = (panel: "provider" | "model" | "effort") =>
+    setOpenPanel((prev) => (prev === panel ? null : panel));
+
+  const pickProvider = (provider: ProviderInfo) => {
+    setOpenPanel(null);
+    if (provider.id === currentProvider?.id) return;
+    onChange({
+      providerId: provider.id,
+      model: resolveProviderModel(provider, undefined, undefined)?.id,
+      effort: undefined,
+      runtimeMode: "native",
+    });
+  };
+
+  const pickModel = (modelId: string) => {
+    setOpenPanel(null);
+    if (!currentProvider) return;
+    // Keep the current effort only if the new model supports it.
+    const supported = getModelEffortLevels(currentProvider, modelId);
+    const keepEffort =
+      value.effort && supported.some((level) => level.id === value.effort)
+        ? value.effort
+        : undefined;
+    onChange({
+      providerId: currentProvider.id,
+      model: modelId,
+      effort: keepEffort,
+      runtimeMode: "native",
+    });
+  };
+
+  const pickEffort = (effortId?: string) => {
+    setOpenPanel(null);
+    if (!currentProvider) return;
+    onChange({
+      providerId: currentProvider.id,
+      model: currentModel?.id,
+      effort: effortId,
+      runtimeMode: "native",
+    });
+  };
+
+  const currentEffort = resolveProviderEffort(
+    currentProvider,
+    currentModel?.id,
+    value.effort ?? undefined,
+    undefined
+  );
+  const effortName = value.effort
+    ? currentEffort?.name || formatEffortName(value.effort) || value.effort
+    : t("runtime:auto");
+  const effortTone = getEffortTone(value.effort ?? AUTO_EFFORT_ID);
+
+  const chipClass =
+    "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-semibold text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <div className={cn("flex flex-col", className)}>
@@ -1135,7 +821,6 @@ export function RuntimeMatrixPicker({
             )}
             title={t("runtime:nativeTranscriptTitle")}
           >
-            <Sparkles className="h-4 w-4" />
             <span>{t("runtime:native")}</span>
           </button>
           <button
@@ -1161,104 +846,263 @@ export function RuntimeMatrixPicker({
         <TerminalProviderPanel
           providers={selectableProviders}
           readyProviderIds={readyProviderIds}
-          selectedProviderId={value.providerId ?? activeProviderIdValue ?? null}
+          selectedProviderId={value.providerId ?? currentProvider?.id ?? null}
           onSelect={(providerId) =>
             onChange({ providerId, runtimeMode: "terminal" })
           }
         />
       ) : (
-        <Tabs
-          value={activeProviderIdValue}
-          onValueChange={setPickedProviderId}
-          className="gap-0"
-        >
-          <div className="overflow-hidden rounded-lg border border-border/70 bg-background">
-            <div className="flex px-1.5 pt-1.5 overflow-x-auto scrollbar-none">
-              <TabsList
-                variant="line"
-                aria-label={t("runtime:providers")}
-                className="h-auto w-max min-w-full justify-start gap-1.5 rounded-none bg-transparent p-0 !border-b-0"
-              >
-                {selectableProviders.map((provider) => {
-                  const ready = readyProviderIds.has(provider.id);
-                  const isActive = activeProviderIdValue === provider.id;
-                  const unreadyReason = describeProviderUnreadyReason(provider);
+        <div className="overflow-hidden rounded-xl bg-card">
+          <div className="flex items-center gap-x-1.5 whitespace-nowrap px-3 py-2.5 text-[12.5px] [&>span]:shrink-0">
+            <span className="text-muted-foreground">
+              {t("runtime:sentenceRunWith")}
+            </span>
+            <button
+              type="button"
+              aria-expanded={openPanel === "provider"}
+              onClick={() => togglePanel("provider")}
+              className={cn(
+                chipClass,
+                "shrink-0 bg-muted/70 hover:bg-muted",
+                openPanel === "provider" && "bg-muted"
+              )}
+            >
+              {currentProvider ? (
+                <>
+                  <ProviderGlyph
+                    icon={currentProvider.icon}
+                    className="h-3 w-3"
+                  />
+                  <span>{currentProvider.name}</span>
+                </>
+              ) : (
+                <span>{t("runtime:noProvider")}</span>
+              )}
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 text-muted-foreground transition-transform",
+                  openPanel === "provider" && "rotate-180"
+                )}
+              />
+            </button>
+            <span className="text-muted-foreground">
+              {t("runtime:sentenceUsing")}
+            </span>
+            <button
+              type="button"
+              aria-expanded={openPanel === "model"}
+              onClick={() => togglePanel("model")}
+              className={cn(
+                chipClass,
+                "min-w-0 bg-muted/70 hover:bg-muted",
+                openPanel === "model" && "bg-muted"
+              )}
+            >
+              <span className="min-w-0 max-w-[14rem] truncate">
+                {currentModel?.name || t("runtime:chooseModel")}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 text-muted-foreground transition-transform",
+                  openPanel === "model" && "rotate-180"
+                )}
+              />
+            </button>
+            {currentEffortLevels.length > 0 && (
+              <>
+                <span className="text-muted-foreground">
+                  {t("runtime:sentenceAt")}
+                </span>
+                <button
+                  type="button"
+                  aria-expanded={openPanel === "effort"}
+                  onClick={() => togglePanel("effort")}
+                  className={cn(
+                    chipClass,
+                    "shrink-0",
+                    effortTone.bg,
+                    effortTone.header
+                  )}
+                >
+                  <span
+                    className={cn("size-1.5 rounded-full", effortTone.dot)}
+                  />
+                  <span>{effortName}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-3 w-3 opacity-60 transition-transform",
+                      openPanel === "effort" && "rotate-180"
+                    )}
+                  />
+                </button>
+                <span className="text-muted-foreground">
+                  {t("runtime:sentenceEffort")}
+                </span>
+              </>
+            )}
+            {trailing ? (
+              <span className="ms-auto shrink-0 ps-2">{trailing}</span>
+            ) : null}
+          </div>
+
+          {openPanel === "provider" && (
+            <div className="max-h-[15rem] overflow-y-auto border-t border-border/60">
+              {selectableProviders.map((provider) => {
+                const ready = readyProviderIds.has(provider.id);
+                const selected = currentProvider?.id === provider.id;
+                const unreadyReason = describeProviderUnreadyReason(provider);
+                return (
+                  <button
+                    key={provider.id}
+                    type="button"
+                    disabled={!ready}
+                    onClick={() => pickProvider(provider)}
+                    title={
+                      ready
+                        ? provider.name
+                        : `${provider.name}: ${unreadyReason || t("runtime:notAvailable")}`
+                    }
+                    className={cn(
+                      "flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors",
+                      selected
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-muted/50",
+                      !ready && "cursor-not-allowed opacity-50 grayscale"
+                    )}
+                  >
+                    <ProviderGlyph
+                      icon={provider.icon}
+                      className="h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
+                      {provider.name}
+                    </span>
+                    {!ready && (
+                      <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                        {t("runtime:notAvailable")}
+                      </span>
+                    )}
+                    {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {openPanel === "model" && currentProvider && (
+            <div className="border-t border-border/60">
+              {currentProvider.dynamicModels ? (
+                <ProviderModelCombobox
+                  provider={currentProvider}
+                  currentProviderId={currentProvider.id}
+                  currentModelId={currentModel?.id}
+                  selectedEffortId={value.effort ?? undefined}
+                  onSelect={(modelId, effortId) => {
+                    setOpenPanel(null);
+                    onChange({
+                      providerId: currentProvider.id,
+                      model: modelId,
+                      effort: effortId,
+                      runtimeMode: "native",
+                    });
+                  }}
+                />
+              ) : (currentProvider.models || []).length === 0 ? (
+                <div className="px-3 py-5 text-center text-[10px] text-muted-foreground">
+                  No models are available for this provider yet.
+                </div>
+              ) : (
+                <div className="max-h-[15rem] overflow-y-auto">
+                  {(currentProvider.models || []).map((model) => {
+                    const selected = currentModel?.id === model.id;
+                    return (
+                      <button
+                        key={model.id}
+                        type="button"
+                        onClick={() => pickModel(model.id)}
+                        className={cn(
+                          "flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors",
+                          selected
+                            ? "bg-accent text-accent-foreground"
+                            : "hover:bg-muted/50"
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5 text-[12px] font-medium">
+                            {model.name}
+                            {model.requires === "api_key" ? (
+                              <span
+                                title={t("runtime:ptyWarningTitle")}
+                                className="inline-flex items-center rounded-sm border border-amber-500/40 bg-amber-500/10 px-1 py-px text-[8.5px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                              >
+                                API key
+                              </span>
+                            ) : null}
+                          </span>
+                          {model.description ? (
+                            <span className="block truncate text-[10px] text-muted-foreground">
+                              {model.description}
+                            </span>
+                          ) : null}
+                        </div>
+                        {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {openPanel === "effort" &&
+            currentProvider &&
+            currentEffortLevels.length > 0 && (
+              <div className="max-h-[15rem] overflow-y-auto border-t border-border/60">
+                {[
+                  { id: AUTO_EFFORT_ID, name: t("runtime:auto") },
+                  ...currentEffortLevels,
+                ].map((effort) => {
+                  const isAuto = effort.id === AUTO_EFFORT_ID;
+                  const selected = isAuto
+                    ? !value.effort
+                    : value.effort === effort.id;
+                  const tone = getEffortTone(effort.id);
+                  const label = isAuto
+                    ? t("runtime:auto")
+                    : formatEffortName(effort.name) || effort.name;
                   return (
-                    <TabsTrigger
-                      key={provider.id}
-                      value={provider.id}
-                      disabled={!ready}
-                      aria-disabled={!ready}
+                    <button
+                      key={effort.id}
+                      type="button"
+                      onClick={() => pickEffort(isAuto ? undefined : effort.id)}
                       title={
-                        ready
-                          ? provider.name
-                          : `${provider.name} — ${unreadyReason || t("runtime:notAvailable")}`
+                        "description" in effort ? effort.description : undefined
                       }
                       className={cn(
-                        "relative -mb-px flex h-7 flex-none items-center gap-1.5 rounded-t-md rounded-b-none border-0 !bg-muted/60 py-1 text-[9px] font-medium text-muted-foreground shadow-none after:hidden data-active:z-10 data-active:!bg-background data-active:text-foreground data-active:shadow-none",
-                        // Active tabs widen to show icon + name; inactive
-                        // collapse to icon-only so all 8 providers fit without
-                        // horizontal scroll. Name still available via title.
-                        isActive ? "px-2.5" : "justify-center px-1.5",
-                        ready
-                          ? "hover:text-foreground"
-                          : "cursor-not-allowed opacity-50 grayscale data-[disabled]:pointer-events-none"
+                        "flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors",
+                        selected ? "bg-accent" : "hover:bg-muted/50"
                       )}
                     >
-                      <ProviderGlyph icon={provider.icon} className="h-3 w-3" />
-                      {isActive && <span>{provider.name}</span>}
-                      {isActive && !ready && (
-                        <span className="ml-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-muted-foreground/80">
-                          Not ready
-                        </span>
+                      <span
+                        className={cn("size-2 shrink-0 rounded-full", tone.dot)}
+                      />
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 text-[12px] font-medium",
+                          tone.header
+                        )}
+                      >
+                        {label}
+                      </span>
+                      {selected && (
+                        <Check className="h-3.5 w-3.5 shrink-0 text-foreground" />
                       )}
-                    </TabsTrigger>
+                    </button>
                   );
                 })}
-              </TabsList>
-            </div>
-
-            {selectableProviders.map((provider) => (
-              <TabsContent
-                key={provider.id}
-                value={provider.id}
-                className="mt-0 bg-background"
-              >
-                {provider.dynamicModels ? (
-                  <ProviderModelCombobox
-                    provider={provider}
-                    currentProviderId={currentProvider?.id}
-                    currentModelId={currentModel?.id}
-                    selectedEffortId={value.effort ?? undefined}
-                    onSelect={(modelId, effortId) =>
-                      onChange({
-                        providerId: provider.id,
-                        model: modelId,
-                        effort: effortId,
-                        runtimeMode: "native",
-                      })
-                    }
-                  />
-                ) : (
-                  <ProviderRuntimeMatrix
-                    provider={provider}
-                    currentProviderId={currentProvider?.id}
-                    currentModelId={currentModel?.id}
-                    selectedEffortId={value.effort ?? undefined}
-                    onSelect={(modelId, effortId) =>
-                      onChange({
-                        providerId: provider.id,
-                        model: modelId,
-                        effort: effortId,
-                        runtimeMode: "native",
-                      })
-                    }
-                  />
-                )}
-              </TabsContent>
-            ))}
-          </div>
-        </Tabs>
+              </div>
+            )}
+        </div>
       )}
     </div>
   );
@@ -1310,7 +1154,7 @@ function TerminalProviderPanel({
               title={
                 ready
                   ? t("runtime:clickToLaunch", { name: provider.name })
-                  : `${provider.name} — ${unreadyReason || t("runtime:notAvailable")}`
+                  : `${provider.name}: ${unreadyReason || t("runtime:notAvailable")}`
               }
               className={cn(
                 "group relative flex flex-col items-start gap-1.5 rounded-md border px-2.5 py-2 text-left transition-all",
@@ -1369,11 +1213,11 @@ function TerminalProviderPanel({
             Hacker mode
           </span>
           <span className="text-zinc-300">
-            Cabinet still writes to your KB — the agent uses its own tools.
+            Cabinet still writes to your KB. The agent uses its own tools.
             What you lose is the structured UI layer: no artifact extraction
             from the stream, no live summaries, no &quot;what happened&quot;
             panels. You&apos;re watching the raw CLI. Think of it as running
-            your own tmux inside Cabinet — for hackers who want to drive the
+            your own tmux inside Cabinet, for hackers who want to drive the
             CLI directly.
           </span>
         </p>
@@ -1391,8 +1235,8 @@ function TerminalProviderPanel({
             className="font-medium text-emerald-400 underline-offset-2 hover:underline"
           >
             Join our Discord
-          </a>{" "}
-          — happy to help wire up stream-parsing + session resume for it.
+          </a>
+          {", "}we&apos;re happy to help wire up stream-parsing + session resume for it.
         </p>
       </div>
     </div>
@@ -1637,64 +1481,8 @@ export function TaskRuntimePicker({
 
       <DropdownMenuContent
         align={align}
-        className="w-[min(32rem,calc(100vw-1rem))] min-w-[17rem] max-w-[calc(100vw-1rem)] p-0"
+        className="w-[min(43rem,calc(100vw-1rem))] min-w-[17rem] max-w-[calc(100vw-1rem)] p-0"
       >
-        <DropdownMenuGroup>
-          <RuntimeSelectionBanner
-            providers={providers}
-            value={{
-              providerId: normalizedValue.providerId,
-              model: normalizedValue.model,
-              effort: normalizedValue.effort,
-            }}
-            className="mx-1.5 mt-1.5"
-            trailing={
-              <div className="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  className={cn(
-                    "shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-medium transition-colors",
-                    sameSelection(normalizedValue, appDefaultSelection)
-                      ? "border-foreground/20 bg-accent text-accent-foreground"
-                      : "border-border/70 bg-background text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    resetToDefault();
-                  }}
-                  title={[
-                    appDefaultModelInfo?.name || t("runtime:defaultModel"),
-                    appDefaultSelection.effort
-                      ? formatEffortName(appDefaultSelection.effort)
-                      : t("runtime:auto"),
-                    appDefaultProvider?.name || null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                >
-                  {sameSelection(normalizedValue, appDefaultSelection)
-                    ? t("runtime:appDefault")
-                    : t("runtime:selectAppDefault")}
-                </button>
-                <button
-                  type="button"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setOpen(false);
-                  }}
-                  title={t("startWork:close")}
-                  aria-label={t("startWork:close")}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            }
-          />
-        </DropdownMenuGroup>
-
         <div className="px-0 pb-0">
           <RuntimeMatrixPicker
             providers={providers}
@@ -1707,6 +1495,35 @@ export function TaskRuntimePicker({
             showRuntimeModeToggle
             onChange={({ providerId, model, effort, runtimeMode }) =>
               applySelection(providerId, model, effort, runtimeMode)
+            }
+            trailing={
+              <button
+                type="button"
+                className={cn(
+                  "shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-medium transition-colors",
+                  sameSelection(normalizedValue, appDefaultSelection)
+                    ? "border-foreground/20 bg-accent text-accent-foreground"
+                    : "border-border/70 bg-background text-muted-foreground hover:text-foreground"
+                )}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  resetToDefault();
+                }}
+                title={[
+                  appDefaultModelInfo?.name || t("runtime:defaultModel"),
+                  appDefaultSelection.effort
+                    ? formatEffortName(appDefaultSelection.effort)
+                    : t("runtime:auto"),
+                  appDefaultProvider?.name || null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              >
+                {sameSelection(normalizedValue, appDefaultSelection)
+                  ? t("runtime:appDefault")
+                  : t("runtime:selectAppDefault")}
+              </button>
             }
           />
         </div>

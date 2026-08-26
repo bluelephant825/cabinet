@@ -25,6 +25,7 @@ import { usePageMeta } from "@/hooks/use-page-meta";
 import { cn } from "@/lib/utils";
 import { ConversationApprovalPanel } from "./conversation-approval-panel";
 import { useLocale } from "@/i18n/use-locale";
+import { SafeHtml } from "@/components/ui/safe-html";
 
 function StatusBadge({ status }: { status: string }) {
   const { t } = useLocale();
@@ -123,9 +124,10 @@ export function ConversationLiveView({
             </Button>
           </div>
           {promptText && promptHtml ? (
-            <div
+            <SafeHtml
+              html={promptHtml}
+              profile="rich"
               className="max-h-48 overflow-y-auto overflow-x-hidden prose prose-sm prose-invert max-w-none prose-headings:font-semibold prose-headings:text-foreground prose-h1:text-base prose-h2:text-[13px] prose-h3:text-[12px] prose-p:text-[13px] prose-p:text-foreground/85 prose-li:text-[13px] prose-li:text-foreground/85 prose-a:text-foreground prose-code:text-[11px] prose-code:text-foreground prose-code:bg-background prose-code:px-1 prose-code:rounded prose-pre:bg-background prose-pre:border-0 prose-pre:text-foreground prose-strong:text-foreground"
-              dangerouslySetInnerHTML={{ __html: promptHtml }}
             />
           ) : (
             <p className="max-h-48 overflow-y-auto overflow-x-hidden break-words text-[13px] leading-relaxed text-foreground/85">

@@ -2,8 +2,10 @@ import { create } from "zustand";
 import { dedupFetch } from "@/lib/api/dedup-fetch";
 import { beginStaleRecovery } from "@/lib/api/stale-process-client";
 
+import type { InstallKind } from "@/types/update";
+
 export type ServiceLevel = "unknown" | "ok" | "degraded" | "down";
-export type InstallKind = "source-managed" | "source-custom" | "electron-macos";
+export type { InstallKind };
 
 interface HealthState {
   appMissCount: number; // -1 = no poll completed yet

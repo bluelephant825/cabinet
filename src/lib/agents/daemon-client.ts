@@ -1,5 +1,6 @@
 import type { ConversationErrorKind } from "@/types/conversations";
 import { getDaemonUrl, getOrCreateDaemonToken } from "./daemon-auth";
+import { assertAiAllowed } from "@/lib/cloud/tier";
 
 interface CreateDaemonSessionInput {
   id: string;
@@ -51,6 +52,7 @@ async function daemonFetch(path: string, init?: RequestInit): Promise<Response> 
 export async function createDaemonSession(
   input: CreateDaemonSessionInput
 ): Promise<void> {
+  assertAiAllowed(); // free-tier cloud tenants can't start runs (server backstop; the UI gates first)
   const response = await daemonFetch("/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -205,6 +207,22 @@ export async function isDaemonSessionAlive(id: string): Promise<boolean> {
     if (data.exited === true) return false;
     if (data.status && data.status !== "running") return false;
     return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ask the daemon to exit so its supervisor respawns it. Returns false when
+ * the daemon can't be reached (already dead or wedged past accepting HTTP).
+ */
+export async function restartDaemon(): Promise<boolean> {
+  try {
+    const response = await daemonFetch("/restart", {
+      method: "POST",
+      signal: AbortSignal.timeout(3000),
+    });
+    return response.ok;
   } catch {
     return false;
   }

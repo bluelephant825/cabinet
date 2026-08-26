@@ -41,3 +41,33 @@ test("resolveAgentCwd resolves workdir relative to the room, with a stale-workdi
   // No cabinet → DATA_DIR root.
   assert.equal(resolveAgentCwd(undefined, "/data"), DATA_DIR);
 });
+
+// #103: a Windows backslash arriving at the storage layer used to crash all
+// asset viewers with "Path traversal detected", because `path.resolve` treats
+// `\foo` as drive-root-relative on Windows and escapes DATA_DIR. Both entry
+// points go through normalizeVirtualPath now — pin that behaviour so any
+// regression surfaces as a test failure rather than a 500 in the browser.
+test("resolveContentPath normalizes Windows-style backslash inputs (#103)", () => {
+  const { resolveContentPath, DATA_DIR } = mod;
+  const expected = path.join(DATA_DIR, "Cabinet_AI_Introduction.pptx");
+
+  assert.equal(resolveContentPath("\\Cabinet_AI_Introduction.pptx"), expected);
+  assert.equal(resolveContentPath("Cabinet_AI_Introduction.pptx"), expected);
+  assert.equal(
+    resolveContentPath("\\personal-os_jp\\brain\\dashboard"),
+    path.join(DATA_DIR, "personal-os_jp/brain/dashboard")
+  );
+
+  // A genuine escape attempt must still throw — normalization is not a bypass.
+  assert.throws(() => resolveContentPath("..\\..\\etc\\passwd"), /Path traversal detected/);
+});
+
+test("virtualPathFromFs returns forward-slash paths regardless of separator (#103)", () => {
+  const { virtualPathFromFs, DATA_DIR } = mod;
+  const nested = path.join(DATA_DIR, "personal-os_jp", "brain", "dashboard");
+  assert.equal(virtualPathFromFs(nested), "personal-os_jp/brain/dashboard");
+  assert.equal(virtualPathFromFs(path.join(DATA_DIR, "Cabinet_AI_Introduction.pptx")), "Cabinet_AI_Introduction.pptx");
+  // No leading separator leaks through — the URL layer relies on this.
+  assert.equal(virtualPathFromFs(DATA_DIR).startsWith("/"), false);
+  assert.equal(virtualPathFromFs(DATA_DIR).startsWith("\\"), false);
+});

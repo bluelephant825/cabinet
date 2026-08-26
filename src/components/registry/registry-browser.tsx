@@ -28,6 +28,7 @@ import { useAppStore } from "@/stores/app-store";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import type { RegistryTemplate } from "@/lib/registry/registry-manifest";
 import { useLocale } from "@/i18n/use-locale";
+import { SafeHtml } from "@/components/ui/safe-html";
 
 /* ─── Parchment palette ─── */
 const P = {
@@ -813,7 +814,9 @@ function DetailView({
                       className="rounded-xl border p-6"
                       style={{ borderColor: P.border, backgroundColor: P.bgCard }}
                     >
-                      <div
+                      <SafeHtml
+                        html={detail.readmeHtml}
+                        profile="rich"
                         className="registry-prose"
                         style={
                           {
@@ -824,7 +827,6 @@ function DetailView({
                             "--prose-link": P.accent,
                           } as React.CSSProperties
                         }
-                        dangerouslySetInnerHTML={{ __html: detail.readmeHtml }}
                       />
                     </div>
                   </section>
@@ -992,7 +994,7 @@ export function RegistryBrowser({
 
             {/* GitHub star — filled accent */}
             <a
-              href="https://github.com/hilash/cabinets"
+              href="https://github.com/cabinetai/cabinets"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"

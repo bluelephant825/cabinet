@@ -1,7 +1,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { piProvider } from "../providers/pi";
+import { piProvider, normalizePiModelId } from "../providers/pi";
 import { resolveCliCommand } from "../provider-cli";
 import { providerStatusToEnvironmentTest } from "./environment";
 import {
@@ -70,8 +70,10 @@ function buildPiArgs(
 
   const modelInput = readStringConfig(config, "model");
   if (modelInput) {
+    // Repair a stale persisted table-row model id back to <provider>/<model>.
+    const repaired = normalizePiModelId(modelInput) ?? modelInput;
     const explicitProvider = readStringConfig(config, "provider");
-    const { provider, model } = splitProviderModel(modelInput);
+    const { provider, model } = splitProviderModel(repaired);
     const effectiveProvider = explicitProvider || provider;
     if (effectiveProvider) args.push("--provider", effectiveProvider);
     if (model) args.push("--model", model);

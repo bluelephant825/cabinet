@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { CopyButton } from "./copy-button";
 import { parseTranscript, type Block } from "./transcript-parser";
+import { SafeHtml } from "@/components/ui/safe-html";
 
 /** Render markdown-style links and inline code in text */
 function renderInlineFormatting(text: string): React.ReactNode[] {
@@ -148,10 +149,7 @@ const PROSE_CLASSES = "prose prose-sm prose-invert max-w-none prose-headings:fon
 function MarkdownBlock({ content, html }: { content: string; html?: string }) {
   if (html) {
     return (
-      <div
-        className={`my-1 ${PROSE_CLASSES}`}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      <SafeHtml html={html} profile="rich" className={`my-1 ${PROSE_CLASSES}`} />
     );
   }
 

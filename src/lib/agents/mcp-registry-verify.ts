@@ -125,6 +125,10 @@ export function verifyTier(
   // First-party, Cabinet-maintained servers stand on their own — they don't
   // claim a vendor/registry badge, so there's nothing to corroborate.
   if (declared === "cabinet") return "cabinet";
+  // Vendor-published but not registry-listed (e.g. Meta's ads connector): the
+  // publisher IS the vendor, so the badge is self-evident from the domain +
+  // OAuth. There's no registry entry to corroborate, and there never may be.
+  if (declared === "vendor") return "vendor";
   if (declared === "community" || !registryId) return "community";
   const corroborated = presence[registryId] === true;
   if (corroborated) return declared; // official | registry

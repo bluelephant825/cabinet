@@ -35,10 +35,17 @@ function withThinkingLevels<T extends { id: string; name: string }>(
 
 /**
  * Pure parser for `pi --list-models` stdout. Pi routes to whatever providers
- * the user has keyed, so this list is per-machine. Blank lines and `#`
- * comments/banners are dropped; if nothing survives (empty output, or output
- * that is *only* a banner) we fall back to the offline list so the picker is
- * never blank — the same hardening applied to OpenCode (§11 #22).
+ * the user has keyed, so this list is per-machine.
+ *
+ * The output is a whitespace-columned table (columns separated by runs of 2+
+ * spaces); `modelIdFromLine` turns each row into the `<provider>/<model>` id Pi
+ * expects. Blank lines, `#` banners and the header row are dropped; if nothing
+ * survives we fall back to the offline list so the picker is never blank — the
+ * same hardening applied to OpenCode (§11 #22).
+ *
+ *   provider  model        context  …
+ *   tfm       glm/glm-5.2  128K     …   → tfm/glm/glm-5.2
+ *   openai    gpt-4        8.2K     …   → openai/gpt-4
  */
 export function parsePiModels(stdout: string | null | undefined) {
   const out = (stdout || "").trim();
@@ -47,12 +54,69 @@ export function parsePiModels(stdout: string | null | undefined) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith("#"))
+    .map((line) => modelIdFromLine(line))
+    .filter((id): id is string => Boolean(id))
     .map((id) => ({
       id,
       name: id,
       effortLevels: [...PI_THINKING_LEVELS],
     }));
   return parsed.length > 0 ? parsed : withThinkingLevels(PI_FALLBACK_MODELS);
+}
+
+/**
+ * Turn one `--list-models` line (or one stored model value) into a clean
+ * `<provider>/<model>` id, or `null` if the line yields no usable id.
+ *
+ * Columns split on runs of 2+ spaces. The header (`provider  model  …`) is
+ * dropped. A col0 that already contains a `/` is a full id — return it and
+ * drop trailing stat columns rather than welding them on. Otherwise col0 is a
+ * bare provider and col1 the model (with or without its own `/`). A lone token
+ * is a legacy bare id, kept only when it contains a `/`.
+ */
+function modelIdFromLine(line: string): string | null {
+  const tokens = line.split(/ {2,}/).map((t) => t.trim()).filter(Boolean);
+  if (tokens.length === 0) return null;
+  // Header row, identified by its labels (not by absence of a `/`, since real
+  // provider/model slugs can be plain).
+  if (tokens[0].toLowerCase() === "provider" && tokens[1]?.toLowerCase() === "model") {
+    return null;
+  }
+  // col0 already a full id → keep it, drop trailing stat columns.
+  if (tokens[0].includes("/")) return tokens[0];
+  // Table row: <provider>/<model>, dropping trailing stat columns.
+  if (tokens.length >= 2) return `${tokens[0]}/${tokens[1]}`;
+  // Lone legacy `vendor/model` id.
+  return tokens[0].includes("/") ? tokens[0] : null;
+}
+
+/**
+ * Repair a stored Pi model id using the same line parser as the model list, so
+ * parsing and repair can never drift.
+ *
+ * Pi shipped a parser (v0.5.0) that could persist an entire `pi --list-models`
+ * table row as the model id (e.g. `tfm   glm/glm-5.2   128K  …  no`), breaking
+ * every path that interpolates it into `--model`. Routing such values through
+ * `modelIdFromLine` collapses them back to `<provider>/<model>` on read — no
+ * data migration.
+ *
+ * Contract: a stale table row is repaired to `<provider>/<model>`; an
+ * already-clean id (including a provider-less bare id like `grok-4.3`, used
+ * with a separate `provider`) is returned untouched; empty input and the
+ * header row return `undefined`. A clean id only reaches `modelIdFromLine` as a
+ * lone token, which drops slash-less ids to `null`, so those are restored from
+ * `trimmed` here.
+ */
+export function normalizePiModelId(
+  raw: string | null | undefined
+): string | undefined {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return undefined;
+  const parsed = modelIdFromLine(trimmed);
+  if (parsed) return parsed;
+  // `modelIdFromLine` returns null for a lone slash-less token (a clean bare
+  // id) and for the header row. Keep the former, drop the latter.
+  return / {2,}/.test(trimmed) ? undefined : trimmed;
 }
 
 export const piProvider: AgentProvider = {
@@ -107,7 +171,9 @@ export const piProvider: AgentProvider = {
     const baseArgs = this.buildArgs ? this.buildArgs(prompt, workdir) : [];
     const args = [...baseArgs];
     if (opts?.model) {
-      args.push("--model", opts.model);
+      // Repair a stale persisted table-row value before interpolating into --model.
+      const repaired = normalizePiModelId(opts.model) ?? opts.model;
+      args.push("--model", repaired);
     }
     if (opts?.effort) {
       args.push("--thinking", opts.effort);
@@ -122,7 +188,9 @@ export const piProvider: AgentProvider = {
     // Mirrors the install step (`pi --mode json -p 'Reply with exactly OK'`)
     // but pins the resolved default model so verification exercises the
     // user's actual path, not Pi's internal default.
-    const modelArg = defaultModel ? ` --model '${defaultModel}'` : "";
+    const repaired =
+      defaultModel && (normalizePiModelId(defaultModel) ?? defaultModel);
+    const modelArg = repaired ? ` --model '${repaired}'` : "";
     return `pi --mode json${modelArg} -p 'Reply with exactly OK'`;
   },
 

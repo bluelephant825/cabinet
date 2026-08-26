@@ -9,6 +9,7 @@ import { MentionChips } from "./mention-chips";
 import { AttachmentChips } from "./attachment-chips";
 import { AttachmentPickerButton } from "./attachment-picker-button";
 import type { UseComposerAttachmentsReturn } from "./use-composer-attachments";
+import { filesFromDataTransfer } from "@/lib/storage/datatransfer-files";
 import type { UseComposerReturn, MentionableItem } from "@/hooks/use-composer";
 
 export interface ComposerInputProps {
@@ -162,12 +163,16 @@ export function ComposerInput({
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     if (!attachmentsEnabled) return;
-    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) {
+    if (!e.dataTransfer.types.includes("Files")) {
       setIsDragging(false);
       return;
     }
     e.preventDefault();
-    attachments?.addFiles(e.dataTransfer.files);
+    // Expand dropped folders into their files (flat — attachments have no
+    // hierarchy). Entries must be captured synchronously, inside the event.
+    void filesFromDataTransfer(e.dataTransfer).then((dropped) => {
+      if (dropped.length > 0) attachments?.addFiles(dropped.map((d) => d.file));
+    });
     setIsDragging(false);
   };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, FileText, Files, PackageOpen, Sparkles, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ExternalLink, FileText, Files, PackageOpen, CheckCircle, XCircle, Clock } from "lucide-react";
 import type { ConversationDetail } from "@/types/conversations";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +17,7 @@ import { usePageMeta } from "@/hooks/use-page-meta";
 import { cn } from "@/lib/utils";
 import { ConversationApprovalPanel } from "./conversation-approval-panel";
 import { useLocale } from "@/i18n/use-locale";
+import { SafeHtml } from "@/components/ui/safe-html";
 
 function StatusBadge({ status }: { status: string }) {
   const { t } = useLocale();
@@ -113,9 +114,10 @@ export function ConversationResultView({
             </div>
           </div>
           {promptHtml ? (
-            <div
+            <SafeHtml
+              html={promptHtml}
+              profile="rich"
               className="max-h-48 overflow-y-auto overflow-x-hidden prose prose-sm prose-invert max-w-none prose-headings:font-semibold prose-headings:text-foreground prose-h1:text-base prose-h2:text-[13px] prose-h3:text-[12px] prose-p:text-[13px] prose-p:text-foreground/85 prose-li:text-[13px] prose-li:text-foreground/85 prose-a:text-foreground prose-code:text-[11px] prose-code:text-foreground prose-code:bg-background prose-code:px-1 prose-code:rounded prose-pre:bg-background prose-pre:border-0 prose-pre:text-foreground prose-strong:text-foreground"
-              dangerouslySetInnerHTML={{ __html: promptHtml }}
             />
           ) : (
             <p className="max-h-48 overflow-y-auto overflow-x-hidden break-words text-[13px] leading-relaxed text-foreground/85">
@@ -128,7 +130,6 @@ export function ConversationResultView({
         <section className="rounded-2xl border border-border bg-background p-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
               <h4 className="text-[13px] font-semibold">{t("conversationResult:result")}</h4>
             </div>
             <StatusBadge status={detail.meta.status} />

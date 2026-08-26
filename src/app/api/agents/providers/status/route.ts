@@ -10,10 +10,13 @@ let cachedResult: CachedStatus | null = null;
 let cachedAt = 0;
 const CACHE_TTL = 30_000;
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const now = Date.now();
-    if (cachedResult && now - cachedAt < CACHE_TTL) {
+    // `?refresh=1` bypasses the cache — the setup dialog polls this so a just-
+    // finished install / sign-in is detected promptly instead of up to 30s late.
+    const fresh = new URL(req.url).searchParams.get("refresh") === "1";
+    if (!fresh && cachedResult && now - cachedAt < CACHE_TTL) {
       return NextResponse.json(cachedResult);
     }
 

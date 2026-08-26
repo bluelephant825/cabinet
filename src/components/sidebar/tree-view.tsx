@@ -34,6 +34,7 @@ import { AppleNotesConnectDialog } from "./apple-notes-connect-dialog";
 import type { KnowledgeProviderId } from "@/lib/knowledge-sources/store";
 import { NewFileDialog } from "./new-file-dialog";
 import { MoveToDialog } from "./move-to-dialog";
+import { useFileImport } from "./use-file-import";
 import { RecentTasks } from "./recent-tasks";
 import type { TreeNode as TreeNodeType } from "@/types";
 import {
@@ -176,6 +177,23 @@ export function TreeView() {
   const [moveToOpen, setMoveToOpen] = useState(false);
   const [moveToSource, setMoveToSource] = useState<TreeNodeType | null>(null);
   const [editingAgent, setEditingAgent] = useState<{ slug: string; cabinetPath?: string } | null>(null);
+  // OS-file drop on the drawer's blank space imports into the current room
+  // root (rows handle their own drops and stopPropagation, so this only
+  // fires between/below them).
+  const { importDataTransfer } = useFileImport();
+  const [fileDragOver, setFileDragOver] = useState(false);
+  // Rows stopPropagation on their drops, so a drop on a row would leave the
+  // container highlight stuck — clear it on any drop/drag-end in the window.
+  useEffect(() => {
+    if (!fileDragOver) return;
+    const clear = () => setFileDragOver(false);
+    window.addEventListener("drop", clear, true);
+    window.addEventListener("dragend", clear, true);
+    return () => {
+      window.removeEventListener("drop", clear, true);
+      window.removeEventListener("dragend", clear, true);
+    };
+  }, [fileDragOver]);
 
   const requestMoveTo = useCallback((node: TreeNodeType) => {
     setMoveToSource(node);
@@ -668,7 +686,7 @@ export function TreeView() {
                         role="tab"
                         aria-selected={active}
                         aria-label={`${drawer.label} drawer (${shortcutHint})`}
-                        title={`${drawer.label} — ${shortcutHint}`}
+                        title={`${drawer.label} (${shortcutHint})`}
                         onClick={() => {
                           setActiveDrawer(drawer.id);
                           drawer.onOpen();
@@ -836,7 +854,28 @@ export function TreeView() {
                 <ContextMenuTrigger className="flex flex-1 flex-col">
                   <div
                     key="drawer-data"
-                    className="flex flex-1 flex-col pt-1 animate-in fade-in slide-in-from-top-1 duration-200 ease-out"
+                    className={cn(
+                      "flex flex-1 flex-col pt-1 animate-in fade-in slide-in-from-top-1 duration-200 ease-out",
+                      fileDragOver &&
+                        "rounded-lg ring-2 ring-inset ring-primary/50 bg-primary/5"
+                    )}
+                    onDragOver={(e) => {
+                      if (!e.dataTransfer.types.includes("Files")) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "copy";
+                      if (!fileDragOver) setFileDragOver(true);
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                      setFileDragOver(false);
+                    }}
+                    onDrop={(e) => {
+                      setFileDragOver(false);
+                      if (!e.dataTransfer.types.includes("Files")) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void importDataTransfer(dataRootPath, e.dataTransfer);
+                    }}
                   >
               <SidebarSearch>
                 {visibleTreeNodes.length === 0 ? (
@@ -1073,7 +1112,7 @@ export function TreeView() {
                 Delete Cabinet &ldquo;{activeCabinet?.frontmatter?.title || activeCabinet?.name || cabinetPath}&rdquo;
               </DialogTitle>
               <DialogDescription>
-                This will permanently delete the cabinet and everything inside it — all pages, agents, jobs, and tasks. This cannot be undone.
+                This will permanently delete the cabinet and everything inside it: all pages, agents, jobs, and tasks. This cannot be undone.
               </DialogDescription>
             </div>
           </div>

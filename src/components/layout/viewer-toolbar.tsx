@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef, type ReactNode } from "react";
-import { Archive, Globe, Layout, Maximize, Minimize } from "lucide-react";
+import { Archive, Globe, Layout, Maximize, Maximize2, Minimize } from "lucide-react";
 import { HeaderActions } from "@/components/layout/header-actions";
 import { VersionHistory } from "@/components/editor/version-history";
 import { NavArrows } from "@/components/layout/nav-arrows";
@@ -255,7 +255,7 @@ export function ViewerToolbar({
   return (
     <header
       className={cn(
-        "flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0 bg-[var(--gutter)]",
+        "viewer-toolbar flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0 bg-[var(--gutter)]",
         className
       )}
       style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}

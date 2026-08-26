@@ -4,7 +4,7 @@
 
 `cabinetai` is the runtime CLI for Cabinet. It manages the app installation, creates cabinets, and starts the server — all from a single `npx` command.
 
-**Architecture:** The Cabinet web app installs to `~/.cabinet/app/v{version}/` (auto-downloaded on first use). Cabinets are lightweight data directories anywhere on disk — just a `.cabinet` manifest + `.agents/` + `.jobs/` + content files. No database.
+**Architecture:** The Cabinet web app installs to `~/.cabinet/app/v{version}/` — a prebuilt standalone bundle auto-downloaded on first use (or a source install on platforms with no bundle yet). Cabinets are lightweight data directories anywhere on disk — just a `.cabinet` manifest + `.agents/` + `.jobs/` + content files. No database.
 
 ## Quick Start
 
@@ -64,7 +64,7 @@ cabinetai run --no-open              # don't open browser
 cabinetai run --app-version 0.3.1    # use a specific app version
 ```
 
-On first run, downloads the app to `~/.cabinet/app/` and installs dependencies. If the current directory is not already a cabinet, `run` bootstraps it in place by creating the `.cabinet`, `.agents/`, `.jobs/`, and `.cabinet-state/` structure before starting the server.
+On first run, downloads a prebuilt app bundle to `~/.cabinet/app/` (on platforms without a bundle it falls back to a source download + `npm install`). If the current directory is not already a cabinet, `run` bootstraps it in place by creating the `.cabinet`, `.agents/`, `.jobs/`, and `.cabinet-state/` structure before starting the server.
 
 | Env Variable | Default | Description |
 |---|---|---|
@@ -73,7 +73,7 @@ On first run, downloads the app to `~/.cabinet/app/` and installs dependencies. 
 
 ### `cabinetai import <template>`
 
-Imports a cabinet template from the [hilash/cabinets](https://github.com/hilash/cabinets) registry.
+Imports a cabinet template from the [cabinetai/cabinets](https://github.com/cabinetai/cabinets) registry.
 
 ```bash
 cabinetai import saas-startup
@@ -289,7 +289,7 @@ One command bumps all versions, commits, tags, and pushes:
 ```bash
 npm view create-cabinet version     # should match
 npm view cabinetai version          # should match
-gh release view vX.Y.Z -R hilash/cabinet
+gh release view vX.Y.Z -R cabinetai/cabinet
 npx cabinetai --version
 ```
 
@@ -298,7 +298,7 @@ npx cabinetai --version
 `cabinet-release.json` is published as a GitHub Release asset. The `cabinetai update` command fetches it to check for newer versions:
 
 ```
-https://github.com/hilash/cabinet/releases/latest/download/cabinet-release.json
+https://github.com/cabinetai/cabinet/releases/latest/download/cabinet-release.json
 ```
 
 ### Required GitHub secrets
@@ -321,13 +321,13 @@ https://github.com/hilash/cabinet/releases/latest/download/cabinet-release.json
 
 ### `ensureApp(version)`
 
-Checks if `~/.cabinet/app/v{version}/` exists and is ready. If not:
+Checks if `~/.cabinet/app/v{version}/` is installed and ready — either a prebuilt bundle (`server.js` + `server/cabinet-daemon.cjs` + `.next/static` + `.native/node-pty`) or a legacy source install (`node_modules/next`). If not installed, it prefers a prebuilt bundle and falls back to a source install:
 
-1. Tries to download the release tarball from GitHub (`/archive/refs/tags/vX.Y.Z.tar.gz`)
-2. Falls back to `git clone --depth 1 --branch vX.Y.Z` if tarball is unavailable
-3. Falls back to `git clone --depth 1` (HEAD) if the tag doesn't exist
-4. Runs `npm install`
-5. Copies `.env.example` to `.env.local`
+1. Fetches the release manifest from GitHub and resolves the app bundle for this platform/arch (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`; `win32-x64` is pending validation, see PR #192).
+2. **Bundle path:** streams `cabinet-app-<key>-vX.Y.Z.tgz`, verifies its SHA-256 when a `.sha256` sidecar is published, extracts to a staging dir, and atomically renames it into place. No `npm install` — it's a ready-to-run standalone build.
+3. **Source fallback** (no bundle for the platform, or the download failed): downloads the release tarball (`/archive/refs/tags/vX.Y.Z.tar.gz`), falls back to `git clone --depth 1 --branch vX.Y.Z` then `git clone --depth 1` (HEAD), runs `npm install`, and copies `.env.example` to `.env.local`.
+
+Correspondingly, `cabinetai run` boots a bundle via `node server.js` + `node server/cabinet-daemon.cjs` (bundled `bin/node` when present), and a source install via `next dev` + the tsx daemon.
 
 ### `findCabinetRoot(startDir)`
 

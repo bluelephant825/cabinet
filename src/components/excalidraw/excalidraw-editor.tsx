@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Excalidraw, exportToSvg, loadFromBlob } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { useTheme } from "@/components/theme-provider";
 import { Save, LogOut, Loader2 } from "lucide-react";
 
-export function ExcalidrawEditor() {
+function ExcalidrawEditorInner() {
   const searchParams = useSearchParams();
   const path = searchParams.get("path");
   const { resolvedTheme } = useTheme();
@@ -202,5 +202,20 @@ export function ExcalidrawEditor() {
         />
       </div>
     </div>
+  );
+}
+
+export function ExcalidrawEditor() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-transparent text-sm text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+          Loading diagram data...
+        </div>
+      }
+    >
+      <ExcalidrawEditorInner />
+    </Suspense>
   );
 }

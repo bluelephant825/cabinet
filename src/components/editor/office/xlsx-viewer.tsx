@@ -5,6 +5,7 @@ import { OfficeChrome } from "./office-chrome";
 import { ViewerLayout } from "@/components/layout/viewer-layout";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SafeHtml } from "@/components/ui/safe-html";
 
 interface Props {
   path: string;
@@ -99,9 +100,10 @@ export function XlsxViewer({ path, title }: Props) {
           </div>
         )}
         {current && (
-          <div
+          <SafeHtml
+            html={current.html}
+            profile="table"
             className="xlsx-sheet p-3 text-[12px]"
-            dangerouslySetInnerHTML={{ __html: current.html }}
           />
         )}
       </div>

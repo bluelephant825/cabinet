@@ -18,7 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
-  Sparkles,
+  Asterisk,
   Star,
   Terminal,
   Zap,
@@ -139,7 +139,7 @@ interface CommunityStepConfig {
 }
 
 const DISCORD_SUPPORT_URL = "https://discord.gg/hJa5TRTbTH";
-const GITHUB_REPO_URL = "https://github.com/hilash/cabinet";
+const GITHUB_REPO_URL = "https://github.com/cabinetai/cabinet";
 const GITHUB_STATS_URL = "/api/github/repo";
 const GITHUB_STARS_FALLBACK = 393;
 const WELCOME_TYPE_START_MS = 4800; // begin typing shortly after heading fades in
@@ -2162,7 +2162,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
           description:
             "Early features, fast answers, behind-the-scenes progress, and the occasional delightful chaos of building in public.",
           cta: "",
-          icon: <Sparkles className="size-4" />,
+          icon: <Asterisk className="size-4" />,
           iconClassName: "",
         },
       ],
@@ -3557,7 +3557,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                       ),
                       oss: (
                         <a
-                          href="https://github.com/hilash/cabinet"
+                          href="https://github.com/cabinetai/cabinet"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="underline underline-offset-2"

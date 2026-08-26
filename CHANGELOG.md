@@ -4,8 +4,6 @@ All notable changes to Cabinet.
 
 **Legend:** 🟢 New · 🔵 Improved · 🟡 Fixed · 🔴 Removed/Breaking · 🟣 AI & Skills
 
----
-
 ## v0.5.0 · 2026-07-04
 
 The largest release since v0.4.0 (238 commits): Connect Knowledge brings your cloud drives into every room, a much bigger Integrations Hub (Slack, Google, Microsoft 365, Snowflake, LinkedIn, Discord, Telegram), agents get their own Channels, a Telegram remote-control gateway, clean-path routing, a borderless "Manila Arc" redesign, and a deep editor + knowledge-import pass.

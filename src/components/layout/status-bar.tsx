@@ -13,6 +13,7 @@ import {
   useHealthStore,
 } from "@/stores/health-store";
 import { useGithubStatsStore } from "@/stores/github-stats-store";
+import { useIsCloud } from "@/lib/cloud/client-tier";
 import { StarExplosion, formatGithubStars } from "@/components/layout/star-explosion";
 import { dedupFetch } from "@/lib/api/dedup-fetch";
 import { useLocale } from "@/i18n/use-locale";
@@ -21,36 +22,8 @@ import { useVisibleInterval } from "@/hooks/use-visible-interval";
 import type { TFunction } from "i18next";
 
 const DISCORD_SUPPORT_URL = "https://discord.gg/hJa5TRTbTH";
-const GITHUB_REPO_URL = "https://github.com/hilash/cabinet";
+const GITHUB_REPO_URL = "https://github.com/cabinetai/cabinet";
 const CABINET_INVITE_URL = "https://runcabinet.com";
-
-// Audit #094: each "Not installed" provider row needs a one-click path to
-// the canonical install instructions. Mapped by the provider id used by
-// /api/agents/providers — falls back to a generic search if the id is new.
-const PROVIDER_INSTALL_URLS: Record<string, string> = {
-  "claude-code": "https://docs.claude.com/en/docs/claude-code/quickstart",
-  "codex-cli": "https://github.com/openai/codex#installation",
-  codex: "https://github.com/openai/codex#installation",
-  "openai-codex": "https://github.com/openai/codex#installation",
-  "cursor-cli": "https://cursor.com/cli",
-  cursor: "https://cursor.com/cli",
-  "gemini-cli": "https://github.com/google-gemini/gemini-cli#installation",
-  gemini: "https://github.com/google-gemini/gemini-cli#installation",
-  opencode: "https://opencode.ai/docs/install",
-  pi: "https://github.com/PiAPI-CLI/pi#install",
-  "grok-cli": "https://docs.x.ai/docs/quickstart",
-  grok: "https://docs.x.ai/docs/quickstart",
-  "copilot-cli": "https://docs.github.com/copilot/github-copilot-in-the-cli/configuring-github-copilot-in-the-cli",
-  copilot: "https://docs.github.com/copilot/github-copilot-in-the-cli/configuring-github-copilot-in-the-cli",
-  "github-copilot": "https://docs.github.com/copilot/github-copilot-in-the-cli/configuring-github-copilot-in-the-cli",
-};
-
-function installUrlForProvider(id: string): string {
-  return (
-    PROVIDER_INSTALL_URLS[id] ||
-    `https://www.google.com/search?q=${encodeURIComponent(`${id} CLI install`)}`
-  );
-}
 
 // Word counter for the open page. The editor stores the page body as
 // markdown, so we strip markdown syntax that shouldn't count as prose
@@ -214,6 +187,7 @@ export function StatusBar() {
   }, [lastSavedAt, savedTick]);
   const loadTree = useTreeStore((s) => s.loadTree);
   const setSection = useAppStore((s) => s.setSection);
+  const openProviderSetup = useAppStore((s) => s.openProviderSetup);
   const terminalOpen = useAppStore((s) => s.terminalOpen);
   const toggleTerminal = useAppStore((s) => s.toggleTerminal);
   const [isGitRepo, setIsGitRepo] = useState(false);
@@ -275,6 +249,37 @@ export function StatusBar() {
   const daemonAlive = daemonLevel !== "down";
 
   const [showServerPopup, setShowServerPopup] = useState(false);
+
+  // Restart affordance for non-technical installs: only where a supervisor
+  // exists to bring the process back (Electron main respawns children; the
+  // cloud container's restart policy relaunches everything). Source installs
+  // keep the textual command tips below.
+  const isCloudEdition = useIsCloud() === true;
+  const isElectronInstall =
+    installKind === "electron-macos" || installKind === "electron-windows";
+  const canRestartBackend = isCloudEdition || isElectronInstall;
+  const [restarting, setRestarting] = useState(false);
+  useEffect(() => {
+    // The 5s health poll is the source of truth — clear the spinner when the
+    // daemon reports healthy again, or after 90s if it never comes back.
+    if (restarting && daemonAlive) setRestarting(false);
+  }, [restarting, daemonAlive]);
+  useEffect(() => {
+    if (!restarting) return;
+    const id = window.setTimeout(() => setRestarting(false), 90_000);
+    return () => window.clearTimeout(id);
+  }, [restarting]);
+  const requestBackendRestart = useCallback(() => {
+    setRestarting(true);
+    // In the cloud the whole container can bounce mid-request, so a network
+    // error here still means the restart is underway — swallow it and let
+    // the health poll flip the row back to green.
+    void fetch("/api/system/restart", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target: "daemon" }),
+    }).catch(() => {});
+  }, []);
 
   // Tick a "now" value while the popover is open so the relative-time
   // strings ("13s ago") stay fresh even when no poll has fired in the
@@ -531,6 +536,19 @@ export function StatusBar() {
                       <span className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${daemonAlive ? "bg-green-500" : "bg-red-500"}`} />
                       <span className="font-medium text-foreground/80">{t("status:server.daemon")}</span>
                       <span className={`ml-auto ${daemonAlive ? "text-green-500" : "text-red-500"}`}>{daemonAlive ? t("status:server.running") : t("status:server.down")}</span>
+                      {/* One-click recovery where a supervisor can respawn the
+                          daemon; restart-by-exit, the health poll confirms. */}
+                      {!daemonAlive && appAlive && canRestartBackend && (
+                        <button
+                          type="button"
+                          onClick={requestBackendRestart}
+                          disabled={restarting}
+                          className="flex items-center gap-1 rounded bg-foreground px-1.5 py-0.5 text-[9px] font-medium text-background hover:bg-foreground/85 disabled:opacity-60"
+                        >
+                          {restarting && <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden="true" />}
+                          {restarting ? t("status:server.restarting") : t("status:server.restart")}
+                        </button>
+                      )}
                     </div>
                     <p className="text-[10px] text-muted-foreground/70 pl-3.5">
                       {daemonAlive
@@ -552,6 +570,15 @@ export function StatusBar() {
                       <span className={`ml-auto ${anyProviderReady ? "text-green-500" : "text-red-500"}`}>
                         {!providersLoaded ? t("status:server.checkingShort") : anyProviderReady ? t("status:server.available") : t("status:server.noneReady")}
                       </span>
+                      {/* Always-available shortcut to Settings › Providers so users
+                          can add/switch/log in without hunting through Settings. */}
+                      <button
+                        type="button"
+                        onClick={() => { setSection({ type: "settings", slug: "providers" }); setShowServerPopup(false); }}
+                        className="rounded border border-border px-1.5 py-0.5 text-[9px] font-medium text-foreground/70 hover:bg-muted hover:text-foreground transition-colors"
+                      >
+                        {t("status:server.configure")}
+                      </button>
                     </div>
                     {providersLoaded && providerStatuses.map((p) => (
                       <div key={p.id} className="flex items-center gap-2 text-[10px] pl-3.5 text-muted-foreground/70">
@@ -567,17 +594,19 @@ export function StatusBar() {
                             : p.available ? t("status:server.providerNotLoggedIn")
                             : t("status:server.providerNotInstalled")}
                           </span>
-                          {/* Audit #094: every "Not installed" row gets a link
-                              to the provider's canonical install docs. */}
-                          {!p.available && (
-                            <a
-                              href={installUrlForProvider(p.id)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                          {/* Not ready → open the in-app setup dialog (install /
+                              log in / verify) instead of external docs. */}
+                          {!(p.available && p.authenticated) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                openProviderSetup(p.id);
+                                setShowServerPopup(false);
+                              }}
                               className="rounded bg-foreground px-1.5 py-0.5 text-[9px] font-medium text-background hover:bg-foreground/85"
                             >
-                              {t("status:server.install")}
-                            </a>
+                              {p.available ? t("status:server.logIn") : t("status:server.install")}
+                            </button>
                           )}
                         </span>
                       </div>
@@ -589,13 +618,17 @@ export function StatusBar() {
                     <div className="pt-1.5 border-t border-border space-y-1">
                       <p className="text-[10px] font-medium text-foreground/70">{t("status:server.howToFix")}</p>
                       {(!appAlive || !daemonAlive) && (
-                        installKind === "electron-macos" ? (
+                        isCloudEdition ? (
                           <p className="text-[10px] text-muted-foreground">
-                            {!appAlive && !daemonAlive
-                              ? "Both servers are down. Try quitting and reopening the Cabinet app."
-                              : !appAlive
-                              ? "The app server is not responding. Try quitting and reopening the Cabinet app."
-                              : "The background daemon is not running. Try quitting and reopening the Cabinet app. If the issue persists, check Activity Monitor for stuck Cabinet processes."}
+                            {!appAlive
+                              ? "Your cabinet is restarting itself. This page should recover within a minute. If it doesn't, refresh your browser."
+                              : "The background service stopped. Click Restart above. Your cabinet will be back in about a minute."}
+                          </p>
+                        ) : isElectronInstall ? (
+                          <p className="text-[10px] text-muted-foreground">
+                            {!appAlive
+                              ? "The app server is not responding. It restarts itself automatically. If this message persists, quit and reopen the Cabinet app."
+                              : "The background daemon is not running. Click Restart above; if the issue persists, quit and reopen the Cabinet app."}
                           </p>
                         ) : installKind === "source-managed" ? (
                           <p className="text-[10px] text-muted-foreground">
@@ -633,7 +666,7 @@ export function StatusBar() {
                         <p className="text-[10px] text-muted-foreground">
                           No agent providers are installed or logged in.{" "}
                           <button
-                            onClick={() => { setSection({ type: "settings" }); setShowServerPopup(false); }}
+                            onClick={() => { setSection({ type: "settings", slug: "providers" }); setShowServerPopup(false); }}
                             className="underline hover:text-foreground transition-colors"
                           >
                             Configure in Settings
@@ -855,7 +888,7 @@ export function StatusBar() {
               </ul>
               {uncommittedTruncated && (
                 <p className="mt-1 border-t border-border/60 pt-1 text-[10px] text-muted-foreground">
-                  Only the first {uncommittedFiles.length} files shown — run{" "}
+                  Only the first {uncommittedFiles.length} files shown. Run{" "}
                   <code className="rounded bg-muted px-1 py-0.5">git status</code>{" "}
                   for the full list.
                 </p>

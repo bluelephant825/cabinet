@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 // Next.js 15 blocks cross-origin dev requests (HMR, /_next/*) from any Host
 // not listed here. Loopback works for local desktop use, but Cabinet is also
@@ -39,6 +40,7 @@ const nextConfig: NextConfig = {
     },
   },
   output: "standalone",
+  outputFileTracingRoot: path.join(__dirname),
   // Audit #219 / #220: the floating Next.js dev indicator sat on top of the
   // sidebar "New Page" button and was visible in the product chrome even in
   // dev. Disable it entirely — actual Next.js compile errors still surface

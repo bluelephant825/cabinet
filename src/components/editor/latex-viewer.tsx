@@ -17,6 +17,7 @@ import { renderLatexToHtml } from "./latex-render";
 import { SplitScreenIcon } from "./editor-toolbar";
 import { useSplitResize } from "@/hooks/use-split-resize";
 import { SplitRuler } from "./split-ruler";
+import { SafeHtml } from "@/components/ui/safe-html";
 
 interface LatexViewerProps {
   path: string;
@@ -341,9 +342,11 @@ export function LatexViewer({ path }: LatexViewerProps) {
                         </div>
                       </div>
                     )}
-                    <article
+                    <SafeHtml
+                      as="article"
                       className="latex-rendered prose prose-zinc max-w-none dark:prose-invert"
-                      dangerouslySetInnerHTML={{ __html: rendered.html }}
+                      html={rendered.html}
+                      profile="rich"
                     />
                   </div>
                 ) : (

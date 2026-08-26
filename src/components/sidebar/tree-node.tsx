@@ -28,7 +28,7 @@ import {
   History,
   Search,
   Download,
-  Sparkles,
+  Asterisk,
   FileCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -89,6 +89,7 @@ import { NewFileDialog } from "./new-file-dialog";
 import { EditSymlinkDialog } from "./edit-symlink-dialog";
 import { FileSettingsDialog } from "./file-settings-dialog";
 import { useFileImport } from "./use-file-import";
+import { useIsCloud } from "@/lib/cloud/client-tier";
 import { getDataDir } from "@/lib/data-dir-cache";
 import { isMacPlatform, isEditableTarget, formatShortcut } from "@/lib/keys";
 import { useLocale } from "@/i18n/use-locale";
@@ -1043,9 +1044,10 @@ function TreeNodeImpl({
     ? node.path
     : node.path.split("/").slice(0, -1).join("/");
 
+  const cloud = useIsCloud();
   const {
     importFiles,
-    importFilesList,
+    importDataTransfer,
     importing,
     importFolder,
     importingFolder,
@@ -1155,8 +1157,8 @@ function TreeNodeImpl({
       const zone = computeZone(e);
       setDragOver(null);
 
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        void importFilesList(importTargetPath, e.dataTransfer.files);
+      if (e.dataTransfer.types.includes("Files")) {
+        void importDataTransfer(importTargetPath, e.dataTransfer);
         return;
       }
 
@@ -1205,7 +1207,7 @@ function TreeNodeImpl({
       setDragOver,
       computeZone,
       siblings,
-      importFilesList,
+      importDataTransfer,
       importTargetPath,
     ]
   );
@@ -1363,7 +1365,7 @@ function TreeNodeImpl({
             {node.knowledgeProvider && isReadOnly && (
               <span
                 className="ms-1 shrink-0 rounded bg-foreground/[0.05] px-1 py-px font-mono text-[9px] font-medium text-muted-foreground/60"
-                title="Read-only — connected for viewing"
+                title="Read-only, connected for viewing"
               >
                 view
               </span>
@@ -1430,17 +1432,21 @@ function TreeNodeImpl({
               )}
               {t("treeNode:importFile")}
             </ContextMenuItem>
-            <ContextMenuItem
-              disabled={importingFolder || isReadOnly}
-              onClick={() => importFolder(importTargetPath)}
-            >
-              {importingFolder ? (
-                <Loader2 className="h-4 w-4 me-2 animate-spin" />
-              ) : (
-                <FolderInput className="h-4 w-4 me-2" />
-              )}
-              {t("treeNode:importFolder")}
-            </ContextMenuItem>
+            {/* Import folder uses the native directory picker — desktop only.
+                Cloud users upload files with Import file (browser upload) above. */}
+            {!cloud && (
+              <ContextMenuItem
+                disabled={importingFolder || isReadOnly}
+                onClick={() => importFolder(importTargetPath)}
+              >
+                {importingFolder ? (
+                  <Loader2 className="h-4 w-4 me-2 animate-spin" />
+                ) : (
+                  <FolderInput className="h-4 w-4 me-2" />
+                )}
+                {t("treeNode:importFolder")}
+              </ContextMenuItem>
+            )}
             <ContextMenuItem disabled={isReadOnly} onClick={() => setConnectKnowledgeOpen(true)}>
               <GitBranch className="h-4 w-4 me-2" />
               {t("treeNode:connectKnowledge")}
@@ -1538,7 +1544,7 @@ function TreeNodeImpl({
                         })
                       }
                     >
-                      <Sparkles className="h-4 w-4 me-2" />
+                      <Asterisk className="h-4 w-4 me-2" />
                       Copy for LLMs
                     </ContextMenuItem>
                     <ContextMenuItem onClick={() => void runExport((c) => copyAsHtml(c, node.path))}>
@@ -1800,7 +1806,7 @@ function TreeNodeImpl({
                   {node.isLinked
                     ? `This will remove the link from your knowledge base. The original folder on disk will not be affected.`
                     : node.type === "cabinet"
-                      ? `This will permanently delete the cabinet and everything inside it — all pages, agents, jobs, and tasks. This cannot be undone.`
+                      ? `This will permanently delete the cabinet and everything inside it: all pages, agents, jobs, and tasks. This cannot be undone.`
                       : `This will permanently delete this ${node.type === "directory" ? "page and all its sub-pages" : "file"}. This cannot be undone.`
                   }
                 </DialogDescription>

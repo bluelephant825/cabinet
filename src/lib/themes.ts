@@ -408,7 +408,7 @@ export const THEMES: ThemeDefinition[] = [
     label: "Meadow",
     type: "light",
     font: "'Rubik', var(--font-sans)",
-    headingFont: "'Bitter', Georgia, serif",
+    headingFont: "'Rubik', var(--font-sans)",
     accent: "#16a34a",
     vars: {
       "--background": "oklch(0.97 0.01 140)",

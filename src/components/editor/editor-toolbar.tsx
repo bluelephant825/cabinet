@@ -32,7 +32,7 @@ import {
   Link as LinkIcon,
   ImageIcon,
   Video as VideoIcon,
-  SquareCode,
+  Asterisk,
   ChevronLeft,
   ChevronRight,
   FoldHorizontal,
@@ -592,7 +592,7 @@ export function EditorToolbar({
       label: t("editor:toolbar.insertVideo"),
     },
     {
-      icon: SquareCode,
+      icon: Asterisk,
       action: (e) => openPopoverFromButton(e, (anchor) => ({ type: "embed", anchor })),
       isActive: false,
       label: t("editor:toolbar.embed"),

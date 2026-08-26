@@ -35,6 +35,14 @@ export async function register(): Promise<void> {
   } catch (err) {
     console.error("instrumentation: ensureAuthSalt failed", err);
   }
+  // A present-but-empty KB_PASSWORD (e.g. a dangling `KB_PASSWORD=` line in
+  // .env.local) silently disables password protection — warn so an operator
+  // who thinks they enabled auth finds out at boot, not from an open KB.
+  if (process.env.KB_PASSWORD === "") {
+    console.warn(
+      "[auth] KB_PASSWORD is set but EMPTY — password protection is OFF. Set a value or remove the line."
+    );
+  }
   // Ensure the active cabinet (root cabinet) exists before anything reads or
   // writes content: on first run this moves loose top-level content into a
   // default cabinet directory and records it as active. Must run before the

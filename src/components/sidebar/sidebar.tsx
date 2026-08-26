@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  Blocks,
   Plug,
   PanelLeftClose,
   PanelLeft,
@@ -31,6 +32,7 @@ import { NewItemMenu } from "./new-item-menu";
 import { useAppStore } from "@/stores/app-store";
 import { useRoomsStore } from "@/stores/rooms-store";
 import { useTreeStore } from "@/stores/tree-store";
+import { useConnectedIntegrations } from "@/hooks/use-connected-integrations";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import type { TreeNode } from "@/types";
 import { useLocale } from "@/i18n/use-locale";
@@ -73,6 +75,7 @@ export function Sidebar() {
   const section = useAppStore((s) => s.section);
   const setSection = useAppStore((s) => s.setSection);
   const sidebarDrawer = useAppStore((s) => s.sidebarDrawer);
+  const connectedIntegrations = useConnectedIntegrations();
   const defaultRoom = useRoomsStore((s) => s.defaultRoom);
   // The cabinet new pages/cabinets should be created *inside* (a child of the
   // cabinet you're currently in). The data-dir root (".") is the neutral home
@@ -122,8 +125,20 @@ export function Sidebar() {
     };
   }, []);
 
+  // Mobile forces the sidebar into a closed drawer. Restore whatever the
+  // user had before crossing the breakpoint instead of leaving `true`
+  // persisted forever (e.g. a briefly-narrowed desktop window shouldn't
+  // permanently collapse the sidebar).
+  const wasMobile = useRef(isMobile);
+  const preMobileCollapsed = useRef(collapsed);
   useEffect(() => {
-    if (isMobile) setCollapsed(true);
+    if (isMobile && !wasMobile.current) {
+      preMobileCollapsed.current = useAppStore.getState().sidebarCollapsed;
+      setCollapsed(true);
+    } else if (!isMobile && wasMobile.current) {
+      setCollapsed(preMobileCollapsed.current);
+    }
+    wasMobile.current = isMobile;
   }, [isMobile, setCollapsed]);
 
   function startResize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -256,6 +271,40 @@ export function Sidebar() {
         </header>
         <TreeView />
 
+        {/* Integrations gets a labeled rail entry instead of hiding as a
+            footer icon — the hub is the front door for connecting tools, so
+            it reads like a nav destination. The badge counts live connectors. */}
+        <div className="px-2 pt-2">
+          <button
+            type="button"
+            title={
+              connectedIntegrations.size > 0
+                ? t("sidebar:integrationsConnected", {
+                    count: connectedIntegrations.size,
+                    defaultValue: "Integrations — {{count}} connected",
+                  })
+                : t("sidebar:integrations", { defaultValue: "Integrations" })
+            }
+            onClick={() => setSection({ type: "integrations" })}
+            className={cn(
+              "flex w-full min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors cursor-pointer",
+              section.type === "integrations"
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            )}
+          >
+            <Blocks className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 truncate">
+              {t("sidebar:integrations", { defaultValue: "Integrations" })}
+            </span>
+            {connectedIntegrations.size > 0 && (
+              <span className="ms-auto shrink-0 rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-medium leading-4 text-primary">
+                {connectedIntegrations.size}
+              </span>
+            )}
+          </button>
+        </div>
+
         <div className="p-2 flex items-center gap-1">
           {sidebarDrawer === "data" && (
             // The "+" menu creates a page, folder, or nested cabinet, placing
@@ -303,23 +352,10 @@ export function Sidebar() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Integrations"
-            title="Integrations"
-            className={cn(
-              "h-7 w-7 shrink-0 ms-auto text-muted-foreground/60 hover:text-muted-foreground",
-              section.type === "integrations" && "bg-accent text-foreground hover:text-foreground"
-            )}
-            onClick={() => setSection({ type: "integrations" })}
-          >
-            <Plug className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
             aria-label={t("sidebar:settings")}
             title={t("sidebar:settings")}
             className={cn(
-              "h-7 w-7 shrink-0 text-muted-foreground/60 hover:text-muted-foreground",
+              "h-7 w-7 shrink-0 ms-auto text-muted-foreground/60 hover:text-muted-foreground",
               section.type === "settings" && "bg-accent text-foreground hover:text-foreground"
             )}
             onClick={() => setSection({ type: "settings" })}
@@ -365,9 +401,23 @@ export function Sidebar() {
         // toolbar button rather than a floating orphan. ViewerToolbar reserves
         // the matching inline-start gap via --sidebar-toggle-offset.
         <div
-          className="absolute top-[10px] z-20 flex h-10 items-center animate-in fade-in zoom-in-95 duration-200"
-          style={{ insetInlineStart: "calc(0.5rem + var(--traffic-clearance, 0px))" }}
+          className="absolute top-[10px] z-20 flex h-10 items-center gap-1 animate-in fade-in zoom-in-95 duration-200"
+          style={{ insetInlineStart: "calc(1rem + var(--traffic-clearance, 0px))" }}
         >
+          {/* Brand persists when the sidebar is collapsed — it otherwise
+              vanishes with the 0-width rail (and full-screen leaves the corner
+              empty). Click = home, mirroring the expanded logo. ViewerToolbar
+              reserves the matching width via --sidebar-toggle-offset.
+              ponytail: Latin wordmark only so that reserved offset stays a
+              fixed width; measure if a locale's mark needs more room. */}
+          <button
+            onClick={() => setSection({ type: "home" })}
+            title={t("sidebar:goHome")}
+            aria-label={t("sidebar:goHome")}
+            className="font-logo text-[19px] italic tracking-[-0.01em] text-foreground/85 hover:text-foreground transition-colors cursor-pointer px-0.5"
+          >
+            <span className="brand-en">cabinet</span>
+          </button>
           <Button
             variant="ghost"
             size="icon"
@@ -376,7 +426,10 @@ export function Sidebar() {
             className="h-7 w-7 text-muted-foreground/60 hover:text-muted-foreground"
             onClick={() => setCollapsed(false)}
           >
-            <PanelLeft className="h-4 w-4 rtl:rotate-180" />
+            {/* translate-y: optical nudge — the icon centers on the wordmark's
+                full ascender box, but the italic lowercase reads along its
+                x-height band, so a geometric center looks ~2px high. */}
+            <PanelLeft className="h-4 w-4 translate-y-px rtl:rotate-180" />
           </Button>
         </div>
       )}

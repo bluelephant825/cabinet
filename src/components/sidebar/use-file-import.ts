@@ -2,20 +2,23 @@
 
 import { useCallback, useState } from "react";
 import { useTreeStore } from "@/stores/tree-store";
-import { buildSafeFileForm } from "@/lib/upload/safe-file-form";
+import {
+  filesFromDataTransfer,
+  type DroppedFile,
+} from "@/lib/storage/datatransfer-files";
 
 async function uploadOne(targetVirtualPath: string, file: File): Promise<void> {
-  const { form, headers } = buildSafeFileForm(file);
   const encoded = targetVirtualPath
     .split("/")
     .filter(Boolean)
     .map(encodeURIComponent)
     .join("/");
-  const res = await fetch(`/api/upload/${encoded}`, {
-    method: "POST",
-    headers,
-    body: form,
-  });
+  // PUT streams the raw file body to disk server-side (no multipart
+  // buffering), so imports aren't limited to small files.
+  const res = await fetch(
+    `/api/upload/${encoded}?name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type)}`,
+    { method: "PUT", body: file }
+  );
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.error || `Upload failed (${res.status})`);
@@ -36,31 +39,89 @@ export function useFileImport() {
   const [importing, setImporting] = useState(false);
   const [importingFolder, setImportingFolder] = useState(false);
 
-  const importFilesList = useCallback(
-    async (targetVirtualPath: string, files: FileList | File[]) => {
-      const list = Array.from(files);
-      if (list.length === 0) return;
+  const importDroppedList = useCallback(
+    async (targetVirtualPath: string, dropped: DroppedFile[]) => {
+      if (dropped.length === 0) return;
       setImporting(true);
-      let error: unknown = null;
-      try {
-        for (const file of list) {
-          await uploadOne(targetVirtualPath, file);
+      const total = dropped.length;
+      let done = 0;
+      const skipped: string[] = [];
+      const progress = () =>
+        window.dispatchEvent(
+          new CustomEvent("cabinet:import-progress", {
+            detail: { done, total },
+          })
+        );
+      progress();
+      // Skip-and-continue per file (a single oversized file must not abort
+      // the rest of a folder import).
+      // ponytail: fixed 4-way concurrency; make adaptive if cloud latency demands.
+      const queue = [...dropped];
+      const worker = async () => {
+        for (let item = queue.shift(); item; item = queue.shift()) {
+          const dir = item.relativeDir
+            ? [targetVirtualPath, item.relativeDir].filter(Boolean).join("/")
+            : targetVirtualPath;
+          try {
+            await uploadOne(dir, item.file);
+          } catch (err) {
+            skipped.push(
+              `${item.file.name}: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+          done++;
+          progress();
         }
-      } catch (err) {
-        error = err;
-      }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, total) }, worker));
+      window.dispatchEvent(
+        new CustomEvent("cabinet:import-progress", {
+          detail: { done: 0, total: 0 },
+        })
+      );
       try {
         if (targetVirtualPath) expandPath(targetVirtualPath);
         await loadTree();
       } finally {
         setImporting(false);
       }
-      if (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        alert(`Import failed: ${msg}`);
+      if (skipped.length === 0) {
+        emitToast(
+          "success",
+          total === 1 ? "Imported 1 file" : `Imported ${total} files`
+        );
+      } else {
+        const shown = skipped.slice(0, 3).join("; ");
+        const more =
+          skipped.length > 3 ? ` (+${skipped.length - 3} more)` : "";
+        emitToast(
+          "error",
+          `Imported ${total - skipped.length} of ${total} files. Skipped: ${shown}${more}`
+        );
       }
     },
     [loadTree, expandPath]
+  );
+
+  const importFilesList = useCallback(
+    (targetVirtualPath: string, files: FileList | File[]) =>
+      importDroppedList(
+        targetVirtualPath,
+        Array.from(files).map((file) => ({ file, relativeDir: "" }))
+      ),
+    [importDroppedList]
+  );
+
+  // Handles an OS drop, expanding dropped folders into their files (with
+  // structure preserved). Must be called synchronously from the drop handler.
+  const importDataTransfer = useCallback(
+    (targetVirtualPath: string, dt: DataTransfer) => {
+      const pending = filesFromDataTransfer(dt);
+      return pending.then((dropped) =>
+        importDroppedList(targetVirtualPath, dropped)
+      );
+    },
+    [importDroppedList]
   );
 
   const importFiles = useCallback(
@@ -132,6 +193,7 @@ export function useFileImport() {
   return {
     importFiles,
     importFilesList,
+    importDataTransfer,
     importing,
     importFolder,
     importingFolder,

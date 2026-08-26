@@ -15,6 +15,7 @@ import {
   conversationMetaToTaskMeta,
   conversationToTaskView,
 } from "./conversation-to-task-view";
+import { gateAiRun } from "@/lib/cloud/client-tier";
 
 /**
  * Browser helpers. Post-v2 these route to /api/agents/conversations/*;
@@ -72,6 +73,11 @@ export async function postTurn(
   if (input.role !== "user") {
     throw new Error(`postTurn only supports role=user, got ${input.role}`);
   }
+  // Free cloud tier: pop the upgrade modal instead of letting the server 402 surface as a raw
+  // error in the task composer. Mirrors the createConversation gate; inert off-cloud.
+  if (await gateAiRun()) {
+    throw new Error("Upgrade to Pro to run agents on the free plan.");
+  }
   const runtime = input.runtime ?? {};
   let res: Response;
   try {
@@ -101,7 +107,7 @@ export async function postTurn(
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {
       throw new Error(
-        "The server didn't accept the message within 30 seconds — it may be restarting. Your draft was kept; try again."
+        "The server didn't accept the message within 30 seconds. It may be restarting. Your draft was kept; try again."
       );
     }
     throw err;

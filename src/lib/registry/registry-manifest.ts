@@ -1,7 +1,7 @@
 /**
  * Registry manifest client.
  *
- * The cabinets registry (https://github.com/hilash/cabinets) auto-generates
+ * The cabinets registry (https://github.com/cabinetai/cabinets) auto-generates
  * a `manifest.json` at its repo root on every push (via the
  * `build-manifest.yml` GitHub Action). This module fetches that manifest,
  * caches it in-process, and exposes a typed `RegistryTemplate[]` to the
@@ -12,7 +12,7 @@
  * UI stays usable.
  */
 
-const REPO_OWNER = "hilash";
+const REPO_OWNER = "cabinetai";
 const REPO_NAME = "cabinets";
 const MANIFEST_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/HEAD/manifest.json`;
 const RAW_BASE = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/HEAD`;
@@ -175,7 +175,7 @@ export const FALLBACK_TEMPLATES: RegistryTemplate[] = [
     slug: "text-your-mom",
     name: "Text Your Mom",
     description:
-      "Relatable B2C app company cabinet used to test nested cabinet behavior.",
+      "A relatable B2C app company fully staffed with product, marketing, design, and app development teams working as one.",
     domain: "Software",
     version: "0.1.0",
     cover: null,

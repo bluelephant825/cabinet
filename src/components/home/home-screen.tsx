@@ -6,7 +6,7 @@ import { useTreeStore } from "@/stores/tree-store";
 import { selectDaemonLevel, useHealthStore } from "@/stores/health-store";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import { fetchCabinetOverviewClient } from "@/lib/cabinets/overview-client";
-import { Download, Loader2, RefreshCw } from "lucide-react";
+import { ArrowRight, Download, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/i18n/use-locale";
 import { flattenTree } from "@/lib/tree-utils";
@@ -43,6 +43,13 @@ import { ViewerFocusButton, ViewerModeButtons } from "@/components/layout/viewer
 import { HeaderActions } from "@/components/layout/header-actions";
 import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
 import { ContentSheet } from "@/components/layout/content-sheet";
+import { useCloudTier } from "@/lib/cloud/use-cloud-tier";
+import { gateAiRun } from "@/lib/cloud/client-tier";
+import { NewFileDialog } from "@/components/sidebar/new-file-dialog";
+import { useFileImport } from "@/components/sidebar/use-file-import";
+import { ProvidersEmptyBanner } from "@/components/home/providers-empty-banner";
+import { PREVIEW_INTEGRATIONS } from "@/lib/integrations/preview-catalog";
+import { useConnectedIntegrations } from "@/hooks/use-connected-integrations";
 
 type QuickAction = {
   /** Key under `home:quickActions.*` for the visible button label. */
@@ -75,14 +82,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     label: "Daily review at 9am",
     preferredAgents: LEAD_FALLBACKS,
     prompt:
-      "Schedule a SCHEDULE_JOB on the editor with cron `0 9 * * *` — every day at 9am, write a short daily review of yesterday and what's on today, and append it to @Daily Review.",
+      "Schedule a SCHEDULE_JOB on the editor with cron `0 9 * * *`: every day at 9am, write a short daily review of yesterday and what's on today, and append it to @Daily Review.",
   },
   {
     labelKey: "weeklyReview",
     label: "Weekly review next Monday",
     preferredAgents: LEAD_FALLBACKS,
     prompt:
-      "Schedule a SCHEDULE_TASK on the assistant for next Monday 09:00 — review what I worked on this past week by inspecting recently-modified files in this cabinet, then write @Weekly Review and a @Tasks for Next Week list.",
+      "Schedule a SCHEDULE_TASK on the assistant for next Monday 09:00: review what I worked on this past week by inspecting recently-modified files in this cabinet, then write @Weekly Review and a @Tasks for Next Week list.",
   },
   {
     labelKey: "thailandTrip",
@@ -127,14 +134,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     labelKey: "shortStory",
     label: "Outline a short story",
     prompt:
-      "Outline a 5-chapter short story with a clear arc, a protagonist, and a twist in chapter 4. Save it as @Story Outline. Don't write the prose yet — just chapter titles and 3–4 beats each.",
+      "Outline a 5-chapter short story with a clear arc, a protagonist, and a twist in chapter 4. Save it as @Story Outline. Don't write the prose yet, just chapter titles and 3–4 beats each.",
   },
   {
     labelKey: "hourlyStandup",
     label: "Hourly stand-up nudge",
     preferredAgents: LEAD_FALLBACKS,
     prompt:
-      "Schedule a SCHEDULE_JOB on the assistant with cron `0 9-18 * * 1-5` — every weekday hour from 9am–6pm, ask me what I'm working on right now and append the answer to @Hourly Log.",
+      "Schedule a SCHEDULE_JOB on the assistant with cron `0 9-18 * * 1-5`: every weekday hour from 9am–6pm, ask me what I'm working on right now and append the answer to @Hourly Log.",
   },
   {
     labelKey: "researchPhone",
@@ -154,7 +161,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     labelKey: "refactorNotes",
     label: "Refactor my note-taking system",
     prompt:
-      "Audit the structure of this cabinet — folders, naming, orphans, duplicates. Propose a cleaner structure as @Note System Audit with concrete moves (don't apply them yet).",
+      "Audit the structure of this cabinet: folders, naming, orphans, duplicates. Propose a cleaner structure as @Note System Audit with concrete moves (don't apply them yet).",
   },
   {
     labelKey: "birthdayParty",
@@ -173,7 +180,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     label: "Simulate 5 customer interviews",
     preferredAgents: LEAD_FALLBACKS,
     prompt:
-      "Dispatch 5 LAUNCH_TASKs to the editor — each writes a transcript of a customer interview from a different persona (busy parent, freelancer, student, retiree, founder). Use my product as the subject. Save under @Interviews.",
+      "Dispatch 5 LAUNCH_TASKs to the editor: each writes a transcript of a customer interview from a different persona (busy parent, freelancer, student, retiree, founder). Use my product as the subject. Save under @Interviews.",
   },
 ];
 
@@ -311,7 +318,10 @@ function RegistryCarousel({
   return (
     <div
       ref={containerRef}
-      className="tilt-carousel relative w-full py-6"
+      // min-h reserves the settled row height (~192px card row + py-6) so the templates'
+      // late fetch fills space instead of shoving the vertically-centered composer up —
+      // this was the single biggest layout shift (0.15 CLS) on home load.
+      className="tilt-carousel relative w-full py-6 min-h-[12rem]"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
@@ -470,6 +480,131 @@ function ImportDialog({
   );
 }
 
+// Free cloud tier only (aiPaused): the workspace-first hero. A row of three
+// brand-illustrated tiles for the things a free cabinet can do right now —
+// create a page, import files, browse templates. Replaces the AI composer,
+// which the free plan can't run.
+function WorkspaceTile({
+  img,
+  title,
+  subtitle,
+  onClick,
+}: {
+  img: string;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <TiltCard className="flex-1 basis-0 min-w-0">
+      <button
+        type="button"
+        onClick={onClick}
+        className="fancy-card flex h-full w-full flex-col items-center gap-2 border border-border bg-card px-4 py-5 text-center"
+      >
+        {/* Brand object art. Decorative — the title carries the label. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={img} alt="" className="h-14 w-14 object-contain" />
+        <span className="text-sm font-medium text-foreground">{title}</span>
+        <span className="text-[11px] leading-snug text-muted-foreground">
+          {subtitle}
+        </span>
+      </button>
+    </TiltCard>
+  );
+}
+
+// One-click path from home into the Integrations Hub. Connected connectors
+// lead the logo row so the strip doubles as a status glance; the rest are the
+// implemented catalog in gallery order. Suites cover their sub-products
+// (coveredBy), so those are skipped to avoid duplicate marks.
+function IntegrationsStrip() {
+  const { t } = useLocale();
+  const setSection = useAppStore((s) => s.setSection);
+  const connectedIds = useConnectedIntegrations();
+
+  const items = useMemo(() => {
+    const implemented = PREVIEW_INTEGRATIONS.filter(
+      (i) => i.implemented && !i.coveredBy && i.platform !== "macos"
+    );
+    const connected = implemented.filter((i) => connectedIds.has(i.id));
+    const rest = implemented.filter((i) => !connectedIds.has(i.id));
+    return [...connected, ...rest].slice(0, 7);
+  }, [connectedIds]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="flex justify-center">
+      <button
+        type="button"
+        onClick={() => setSection({ type: "integrations" })}
+        className={cn(
+          "group flex items-center gap-3 rounded-full border border-border/70 bg-card/60 ps-2 pe-3.5 py-1.5",
+          "hover:bg-secondary hover:border-border transition-colors cursor-pointer"
+        )}
+      >
+        <span className="flex items-center -space-x-1.5">
+          {items.map((item) => (
+            <span
+              key={item.id}
+              className="flex size-6 items-center justify-center overflow-hidden rounded-full border border-border bg-background"
+            >
+              {/* Brand marks are decorative — the CTA text carries the label. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.logo} alt="" className="size-3.5 object-contain" />
+            </span>
+          ))}
+        </span>
+        <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+          {connectedIds.size > 0
+            ? t("home:integrations.connectedCta", {
+                count: connectedIds.size,
+                defaultValue: "{{count}} connected — add more tools",
+              })
+            : t("home:integrations.connectCta", {
+                defaultValue: "Connect your tools",
+              })}
+        </span>
+        <ArrowRight className="size-3.5 text-muted-foreground/60 group-hover:text-foreground transition-colors rtl:rotate-180" />
+      </button>
+    </div>
+  );
+}
+
+// Free-tier upsell footer: AI is paused, not removed. Dispatches the same
+// UPGRADE_GATE_EVENT the run-time gate uses (via gateAiRun, so the panel URL is
+// populated from cache), reusing the one upgrade modal mounted in the app shell.
+function LockedAiTeaser() {
+  return (
+    <div className="relative w-full overflow-hidden rounded-2xl border border-primary/20 bg-primary/[0.04] px-6 py-6 text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/cloud/sparkles.png"
+        alt=""
+        className="mx-auto mb-3 h-12 w-12 object-contain"
+      />
+      <h2
+        className="text-2xl text-foreground"
+        style={{ fontFamily: "var(--font-logo), Georgia, serif", fontStyle: "italic" }}
+      >
+        Your AI team is waiting.
+      </h2>
+      <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
+        Upgrade to Pro to let agents run for you 24/7, connect your own Claude,
+        and lift the storage cap.
+      </p>
+      <button
+        type="button"
+        onClick={() => void gateAiRun()}
+        className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        See Pro
+      </button>
+    </div>
+  );
+}
+
 export function HomeScreen() {
   const { t } = useLocale();
   const setSection = useAppStore((s) => s.setSection);
@@ -497,6 +632,12 @@ export function HomeScreen() {
   const [selectedAgentSlug, setSelectedAgentSlug] = useState<string | null>(
     null
   );
+  // Cloud free tier pauses AI: swap the composer hero for a workspace-action
+  // hero. Defaults to not-paused until /api/cloud/status resolves, so pro and
+  // self-host never flash the gated layout (and never gate at all).
+  const { aiPaused } = useCloudTier();
+  const fileImport = useFileImport();
+  const [newFileOpen, setNewFileOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/user/profile")
@@ -709,6 +850,7 @@ export function HomeScreen() {
       <ContentSheet>
         <div className="flex-1 flex flex-col items-center justify-center w-full px-4 overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center w-full max-w-xl space-y-8">
+        <ProvidersEmptyBanner />
         {/*
          * Audit #005 (review feedback 2026-05-02): the prior text-xl/2xl
          * fix was too aggressive — the greeting felt undersized on a
@@ -720,6 +862,45 @@ export function HomeScreen() {
           {headline}
         </h1>
 
+        {aiPaused ? (
+          <div className="w-full space-y-6">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <WorkspaceTile
+                img="/brand/cloud/document.png"
+                title={t("home:free.newPage", { defaultValue: "New page" })}
+                subtitle={t("home:free.newPageDesc", {
+                  defaultValue: "Start a doc, sheet, or code file",
+                })}
+                onClick={() => setNewFileOpen(true)}
+              />
+              <WorkspaceTile
+                img="/brand/cloud/folder.png"
+                title={t("home:free.importFiles", { defaultValue: "Import files" })}
+                subtitle={t("home:free.importFilesDesc", {
+                  defaultValue: "Bring in files from your computer",
+                })}
+                // The upload route is a required catch-all ([...path]), so the
+                // data root itself isn't addressable — a "." segment normalizes
+                // away and 404s. Land imports in a top-level "Imports" folder
+                // instead (the route creates it on demand); it shows up in the
+                // tree immediately.
+                onClick={() => fileImport.importFiles("Imports")}
+              />
+              <WorkspaceTile
+                img="/brand/cloud/open-drawers.png"
+                title={t("home:free.browseTemplates", {
+                  defaultValue: "Browse templates",
+                })}
+                subtitle={t("home:free.browseTemplatesDesc", {
+                  defaultValue: "Start from a ready-made cabinet",
+                })}
+                onClick={() => setSection({ type: "registry" })}
+              />
+            </div>
+            <LockedAiTeaser />
+          </div>
+        ) : (
+          <>
         <ComposerInput
           composer={composer}
           placeholder={composerPlaceholder}
@@ -818,9 +999,12 @@ export function HomeScreen() {
             </button>
           )}
         </div>
+          </>
+        )}
       </div>
 
       <div className="w-screen pb-8 pt-4 space-y-3">
+        <IntegrationsStrip />
         <div className="flex items-center justify-center gap-3">
           <h2 className="text-sm font-medium text-muted-foreground">
             {t("home:templates.header")}
@@ -840,6 +1024,13 @@ export function HomeScreen() {
           }}
         />
       </div>
+
+      {/* Free-tier "New page" tile target — same dialog the sidebar uses. */}
+      <NewFileDialog
+        open={newFileOpen}
+        onOpenChange={setNewFileOpen}
+        parentPath=""
+      />
 
       <ImportDialog
         template={importTemplate}

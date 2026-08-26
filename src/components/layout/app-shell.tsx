@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Minimize2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { Header } from "@/components/layout/header";
 import { KBEditor } from "@/components/editor/editor";
@@ -55,6 +55,9 @@ import { subscribeConversationEvents } from "@/lib/agents/conversation-events-cl
 import { StatusBar } from "@/components/layout/status-bar";
 import { ContentSheet } from "@/components/layout/content-sheet";
 import { DaemonHealthBanner } from "@/components/layout/daemon-health-banner";
+import { CloudConnectClaudeBanner } from "@/components/layout/cloud-connect-claude-banner";
+import { CloudTierBanner } from "@/components/layout/cloud-tier-banner";
+import { CloudUpgradeModal } from "@/components/layout/cloud-upgrade-modal";
 import { TourModal } from "@/components/onboarding/tour/tour-modal";
 import { useTour } from "@/components/onboarding/tour/use-tour";
 import {
@@ -70,6 +73,7 @@ import type { CabinetAgentSummary } from "@/types/cabinets";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { UpdateDialog } from "@/components/layout/update-dialog";
 import { NotificationToasts } from "@/components/layout/notification-toasts";
+import { ProviderSetupDialog } from "@/components/settings/provider-setup-dialog";
 import { SystemToasts } from "@/components/layout/system-toasts";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -137,6 +141,7 @@ import { useRoute } from "@/hooks/use-hash-route";
 import { useTaskFileSync } from "@/hooks/use-task-file-sync";
 import { useTreeStore } from "@/stores/tree-store";
 import { useAppStore } from "@/stores/app-store";
+import { useLocale } from "@/i18n/use-locale";
 import { useEditorStore } from "@/stores/editor-store";
 import { useRoomsStore } from "@/stores/rooms-store";
 
@@ -165,6 +170,7 @@ const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : use
 export function AppShell() {
   useGlobalHotkeys();
   const isMobile = useIsMobile();
+  const { t } = useLocale();
   const loadTree = useTreeStore((s) => s.loadTree);
   const nodes = useTreeStore((s) => s.nodes);
   const selectedPath = useTreeStore((s) => s.selectedPath);
@@ -178,6 +184,17 @@ export function AppShell() {
   const taskRailOpen = useAppStore((s) => s.taskRailOpen);
   const setTerminalCwd = useAppStore((s) => s.setTerminalCwd);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const focusMode = useAppStore((s) => s.focusMode);
+  const setFocusMode = useAppStore((s) => s.setFocusMode);
+  // Escape exits focus mode — registered only while active.
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFocusMode(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusMode, setFocusMode]);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setAiPanelCollapsed = useAppStore((s) => s.setAiPanelCollapsed);
   const setTaskPanelConversation = useAppStore((s) => s.setTaskPanelConversation);
@@ -413,13 +430,13 @@ export function AppShell() {
         title = base;
         break;
       case "page":
-        title = pageDisplayTitle ? `${pageDisplayTitle} — ${base}` : base;
+        title = pageDisplayTitle ? `${pageDisplayTitle} – ${base}` : base;
         break;
       case "cabinet":
-        title = pageDisplayTitle ? `${pageDisplayTitle} — ${base}` : base;
+        title = pageDisplayTitle ? `${pageDisplayTitle} – ${base}` : base;
         break;
       case "agents":
-        title = `Agents — ${base}`;
+        title = `Agents – ${base}`;
         break;
       case "agent":
         // Audit #025: title-case the slug so the tab title matches the
@@ -429,30 +446,30 @@ export function AppShell() {
           ? `${section.slug
               .split("-")
               .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
-              .join(" ")} — ${base}`
-          : `Agents — ${base}`;
+              .join(" ")} – ${base}`
+          : `Agents – ${base}`;
         break;
       case "tasks":
-        title = `Tasks — ${base}`;
+        title = `Tasks – ${base}`;
         break;
       case "task":
-        title = `Task — ${base}`;
+        title = `Task – ${base}`;
         break;
       case "settings":
         // Audit #062: include the active settings tab in the title so window
         // history shows "Appearance — Settings — Cabinet" not just "Settings".
         title = section.slug
-          ? `${section.slug.charAt(0).toUpperCase() + section.slug.slice(1)} — Settings — ${base}`
-          : `Settings — ${base}`;
+          ? `${section.slug.charAt(0).toUpperCase() + section.slug.slice(1)} – Settings – ${base}`
+          : `Settings – ${base}`;
         break;
       case "help":
-        title = `Help — ${base}`;
+        title = `Help – ${base}`;
         break;
       case "registry":
-        title = `Registry — ${base}`;
+        title = `Registry – ${base}`;
         break;
       case "integrations":
-        title = `Integrations — ${base}`;
+        title = `Integrations – ${base}`;
         break;
       default:
         title = base;
@@ -668,7 +685,7 @@ export function AppShell() {
         | undefined;
       const fileName = detail?.fileName || "this file";
       const greeting = userFirstName
-        ? `Hi ${userFirstName} — what would you like to do in ${fileName}?`
+        ? `Hi ${userFirstName}, what would you like to do in ${fileName}?`
         : `What would you like to do in ${fileName}?`;
       useAppStore.getState().openTaskPanelCompose({
         source: "editor",
@@ -798,10 +815,21 @@ export function AppShell() {
   const effectiveUpdateDialogOpen =
     updateDialogOpen || hasPersistentUpdateState || shouldPromptForUpdate;
 
+  // Auto-collapse sidebar + AI panel when entering app mode, and restore
+  // whatever they were before on the way out — whether that's via the
+  // explicit exit-fullscreen button or by just navigating to a non-app node.
+  // Previously only the button restored state, so leaving any other way left
+  // the sidebar collapsed (and persisted collapsed) indefinitely.
+  const preAppSidebarCollapsed = useRef(sidebarCollapsed);
+  const preAppAiPanelCollapsed = useRef(false);
   useEffect(() => {
     if (isApp && !prevIsApp.current) {
+      preAppSidebarCollapsed.current = useAppStore.getState().sidebarCollapsed;
       setSidebarCollapsed(true);
       setAiPanelCollapsed(true);
+    } else if (!isApp && prevIsApp.current) {
+      setSidebarCollapsed(preAppSidebarCollapsed.current);
+      setAiPanelCollapsed(preAppAiPanelCollapsed.current);
     }
     prevIsApp.current = !!isApp;
   }, [isApp, setSidebarCollapsed, setAiPanelCollapsed]);
@@ -871,8 +899,8 @@ export function AppShell() {
   }, [setAppMode, loadTree]);
 
   const handleExitApp = () => {
-    setSidebarCollapsed(false);
-    setAiPanelCollapsed(false);
+    setSidebarCollapsed(preAppSidebarCollapsed.current);
+    setAiPanelCollapsed(preAppAiPanelCollapsed.current);
   };
 
   // Determine what to render in the main area
@@ -1182,15 +1210,16 @@ export function AppShell() {
 
   return (
     <TaskRailProvider>
-    {/* When the rail is open we reserve a 30px gutter on the inline-end
+    {/* When the rail is open we reserve a 52px gutter on the inline-end
         edge: the whole app shrinks into the remaining width (the "iframe")
-        and the fixed, full-height rail lives in that gutter. */}
+        and the fixed, full-height rail — a floating capsule of avatars —
+        lives in that gutter. */}
     <div
       className="flex h-screen bg-(--gutter) text-foreground transition-[padding] duration-200 ease-out"
       style={
-        isMobile
+        isMobile || focusMode
           ? undefined
-          : { paddingTop: 10, paddingInlineEnd: taskRailOpen ? 30 : 10, paddingBottom: 0, paddingInlineStart: 0 }
+          : { paddingTop: 10, paddingInlineEnd: taskRailOpen ? 52 : 10, paddingBottom: 0, paddingInlineStart: 0 }
       }
     >
       {/* Audit #031: SR-only live region announcing the active page title
@@ -1205,16 +1234,43 @@ export function AppShell() {
         aria-atomic="true"
         className="sr-only"
       />
-      <Sidebar />
+      <div
+        className={
+          focusMode
+            ? "hidden"
+            : "flex h-full min-h-0 shrink-0 animate-in fade-in slide-in-from-left-4 duration-300 ease-out"
+        }
+      >
+        <Sidebar />
+      </div>
       {/* The main column is transparent (shows the desk gutter). The content
           "sheet" floats inside it (rounded + shadow); the status bar sits
           BELOW the sheet, on the desk — outside the floating page. */}
       <div
         className="flex-1 flex flex-col min-w-0 overflow-hidden max-md:pb-[calc(56px+env(safe-area-inset-bottom))]"
-        style={{ '--sidebar-toggle-offset': sidebarCollapsed ? 'calc(2.25rem + var(--traffic-clearance, 0px))' : '0px' } as React.CSSProperties}
+        style={{ '--sidebar-toggle-offset': sidebarCollapsed ? 'calc(8rem + var(--traffic-clearance, 0px))' : '0px' } as React.CSSProperties}
       >
         <DaemonHealthBanner />
-        {!isMobile && <NarrowViewportHint />}
+        <CloudConnectClaudeBanner />
+        <CloudTierBanner />
+        <CloudUpgradeModal />
+        {!isMobile && !focusMode && <NarrowViewportHint />}
+        {focusMode && (
+          <div className="viewer-toolbar flex h-10 shrink-0 items-center justify-between px-4 animate-in fade-in slide-in-from-top-2 duration-300 ease-out">
+            <span className="font-logo text-[20px] italic tracking-[-0.01em] text-foreground select-none">
+              <span className="brand-en">cabinet</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setFocusMode(false)}
+              title={`${t("editor:header.exitFocusMode")} (Esc)`}
+              aria-label={t("editor:header.exitFocusMode")}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         {/* The main column IS the desk (transparent). Content floats on an
             elevated ContentSheet; the editor manages its own layout — its
             toolbars sit on the desk — so it opts out of the default sheet. */}
@@ -1226,11 +1282,19 @@ export function AppShell() {
           )}
         </main>
         {terminalOpen && terminalPosition === "bottom" && <TerminalTabs />}
-        {!isMobile && <StatusBar />}
+        {!isMobile && (
+          <div className={focusMode ? "hidden" : "animate-in fade-in duration-300 ease-out"}>
+            <StatusBar />
+          </div>
+        )}
       </div>
-      <MobileBottomNav />
+      {!focusMode && <MobileBottomNav />}
       {terminalOpen && terminalPosition === "right" && <TerminalTabs />}
-      {!isMobile && <TaskRail />}
+      {!isMobile && (
+        <div className={focusMode ? "hidden" : "contents"}>
+          <TaskRail />
+        </div>
+      )}
       <TaskDetailPanel />
       <SearchPalette />
       <FileHistoryPanel />
@@ -1264,6 +1328,7 @@ export function AppShell() {
       />
       <NotificationToasts />
       <SystemToasts />
+      <ProviderSetupDialog />
       <FeedbackPopup />
       <DiagnosticsBoot />
       <TourModal

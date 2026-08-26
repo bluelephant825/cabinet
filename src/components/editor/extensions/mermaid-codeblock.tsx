@@ -20,6 +20,7 @@ import {
 } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Code, Eye, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { SafeHtml } from "@/components/ui/safe-html";
 
 // Kept identical to the previous CodeBlockLowlight config so non-mermaid
 // blocks look exactly as before.
@@ -230,12 +231,13 @@ function MermaidCodeBlockView({ node, selected }: NodeViewProps) {
                 </span>
               </div>
             ) : svg ? (
-              <div
+              <SafeHtml
+                html={svg}
+                profile="svg"
                 className="flex h-full w-full items-center justify-center p-4 [&_svg]:!h-full [&_svg]:!max-h-none [&_svg]:!max-w-none [&_svg]:!w-full"
                 style={{
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                 }}
-                dangerouslySetInnerHTML={{ __html: svg }}
               />
             ) : (
               <div className="flex h-full items-center justify-center">

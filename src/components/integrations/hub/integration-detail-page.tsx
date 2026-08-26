@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ArrowLeft, Check, Lock, Sparkles, ShieldCheck, Bell, ChevronDown } from "lucide-react";
+import { ArrowLeft, Check, Lock, Asterisk, ShieldCheck, Bell, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { showSuccess } from "@/lib/ui/toast";
 import { ConnectPanel } from "@/components/integrations/hub/connect-panel";
+import { useIsCloud } from "@/lib/cloud/client-tier";
 import { AppleNotesSection } from "@/components/settings/apple-notes-section";
 import { GoogleDriveSection } from "@/components/settings/google-drive-section";
 import { GmailSection } from "@/components/settings/gmail-section";
@@ -57,6 +58,7 @@ export function IntegrationDetailPage({
   via?: string | null;
   onBack: () => void;
 }) {
+  const cloud = useIsCloud();
   const category = CATEGORY_META[item.category].label;
   const entry = getCatalogEntry(item.id);
   // Microsoft 365 has a personal/work toggle in the ConnectPanel; we lift it
@@ -110,7 +112,7 @@ export function IntegrationDetailPage({
                     Coming soon
                   </span>
                 )}
-                {entry && <TierBadge tier={entry.trustTier} />}
+                {entry && <TierBadge tier={entry.trustTier} vendorName={entry.vendorName} />}
               </div>
               <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">
                 {item.blurb}
@@ -221,7 +223,6 @@ export function IntegrationDetailPage({
                 authBackend: entry?.authBackend ?? "",
                 transport: entry?.transport ?? "",
                 hasUrlCredential: !!entry?.urlCredentialKey,
-                scopes: entry?.oauthClient?.scopes,
               })}
             />
           ) : null}
@@ -239,7 +240,18 @@ export function IntegrationDetailPage({
         <aside>
           {item.id === "apple-notes" ? (
             <div className="rounded-2xl border border-border bg-card/40 p-5">
-              <AppleNotesSection />
+              {cloud ? (
+                // Apple Notes import runs a local macOS scripting bridge on the
+                // user's own Mac — no cloud path. Honest note instead of the
+                // desktop import button.
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  Apple Notes import uses the desktop app on your Mac. On Cabinet
+                  Cloud, upload files directly or use the Notion, GitHub and Drive
+                  connectors.
+                </p>
+              ) : (
+                <AppleNotesSection />
+              )}
             </div>
           ) : item.id === "google-drive" ? (
             // Drive connects via Google Drive for Desktop (folder mounts), not
@@ -267,7 +279,7 @@ export function IntegrationDetailPage({
                 className="mx-auto flex h-10 w-10 items-center justify-center rounded-full"
                 style={{ background: `${item.brand}1f` }}
               >
-                <Sparkles className="h-5 w-5" style={{ color: item.brand }} />
+                <Asterisk className="h-5 w-5" style={{ color: item.brand }} />
               </div>
               <h3 className="mt-3 text-[14px] font-semibold text-foreground">
                 Not available yet
@@ -292,7 +304,7 @@ export function IntegrationDetailPage({
 }
 
 /** Trust-tier pill shown in the hero next to the availability badge. */
-function TierBadge({ tier }: { tier: string }) {
+function TierBadge({ tier, vendorName }: { tier: string; vendorName?: string }) {
   if (tier === "official") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -303,7 +315,7 @@ function TierBadge({ tier }: { tier: string }) {
   if (tier === "cabinet") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.05] px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-        <Sparkles className="h-3 w-3" /> Maintained by Cabinet
+        <Asterisk className="h-3 w-3" /> Maintained by Cabinet
       </span>
     );
   }
@@ -311,6 +323,14 @@ function TierBadge({ tier }: { tier: string }) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-medium text-sky-600 dark:text-sky-400">
         <ShieldCheck className="h-3 w-3" /> Registry-listed
+      </span>
+    );
+  }
+  if (tier === "vendor") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-[11px] font-medium text-indigo-600 dark:text-indigo-400">
+        <ShieldCheck className="h-3 w-3" />
+        {vendorName ? `Published by ${vendorName}` : "Vendor-published"}
       </span>
     );
   }

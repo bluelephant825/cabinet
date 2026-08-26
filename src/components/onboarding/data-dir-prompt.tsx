@@ -9,6 +9,8 @@ const FLAG_KEY = "cabinet.dataDirConfirmed";
 
 export function isDataDirConfirmed(): boolean {
   if (typeof window === "undefined") return true;
+  // Cloud tenants run on a fixed /data volume — there is no folder to pick, so never prompt.
+  if (process.env.NEXT_PUBLIC_CABINET_EDITION === "cloud") return true;
   try {
     return window.localStorage.getItem(FLAG_KEY) !== null;
   } catch {
@@ -86,7 +88,7 @@ export function DataDirPrompt({ onConfirmed }: { onConfirmed: () => void }) {
 
         <p className="mb-4 text-[12.5px] text-muted-foreground leading-relaxed">
           Cabinet stores all your cabinets, conversations, and agent files in one
-          folder on your computer. Pick where it should live — you can always
+          folder on your computer. Pick where it should live. You can always
           change this later in Settings.
         </p>
 

@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
  * displayed or written into any CLI config.
  */
 
-type Tier = "official" | "registry" | "cabinet" | "community";
+type Tier = "official" | "registry" | "vendor" | "cabinet" | "community";
 
 interface Credential {
   envKey: string;
@@ -72,6 +72,7 @@ interface CatalogItem {
   credentials: Credential[];
   transport: "http" | "stdio";
   verifiedTier: Tier;
+  vendorName?: string;
   authBackend: "cli-pkce" | "user-app" | "token" | "cabinet-broker";
   supportedProviderIds: string[];
   connectedProviderIds: string[];
@@ -119,6 +120,10 @@ const TIER_BADGE: Record<Tier, { label: string; cls: string }> = {
   registry: {
     label: "Registry-listed",
     cls: "bg-sky-500/20 text-sky-700 dark:text-sky-300 ring-1 ring-sky-500/30",
+  },
+  vendor: {
+    label: "Vendor-published",
+    cls: "bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30",
   },
   cabinet: {
     label: "Maintained by Cabinet",
@@ -590,7 +595,9 @@ function IntegrationModal({
                   )}
                 >
                   {item.verifiedTier === "official" && <ShieldCheck className="h-2.5 w-2.5" />}
-                  {badge.label}
+                  {item.verifiedTier === "vendor" && item.vendorName
+                    ? `Published by ${item.vendorName}`
+                    : badge.label}
                 </span>
                 <span
                   className={cn(

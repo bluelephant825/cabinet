@@ -50,7 +50,7 @@ npm run start
 
 By default, Cabinet runs the web app on port `3000` and the daemon on port `3001`. Those can be overridden with `CABINET_APP_PORT` and `CABINET_DAEMON_PORT`.
 
-`create-cabinet` now installs the exact GitHub release tarball that matches its npm version. It also writes install metadata so Cabinet can recognize the install as managed later.
+`create-cabinet` installs the app version that matches its npm version. On macOS/Linux this is a **prebuilt standalone bundle** (`cabinet-app-<platform>-vX.Y.Z.tgz`) downloaded from the GitHub Release — no `npm install`. On platforms with no bundle (currently Windows, pending PR #192) it falls back to the source release tarball + `npm install`. Either way it writes install metadata so Cabinet can recognize the install as managed later.
 
 ## 2. Source-custom install
 
@@ -59,7 +59,7 @@ This is any install made from a manual git clone, a fork, or a working tree that
 Typical flow:
 
 ```bash
-git clone https://github.com/hilash/cabinet.git
+git clone https://github.com/cabinetai/cabinet.git
 cd cabinet
 npm install
 npm run dev:all
@@ -67,7 +67,7 @@ npm run dev:all
 
 Custom source installs still get update checks, but Cabinet will not overwrite app code automatically. They receive manual upgrade guidance instead.
 
-## 3. Electron macOS app
+## 3. Electron desktop apps
 
 Electron is the desktop packaging track for Cabinet.
 
@@ -82,7 +82,41 @@ That uses Electron Forge and produces packaged desktop artifacts under `out/`.
 
 ### Release packaging
 
-On release tags, GitHub Actions builds the macOS desktop artifacts and publishes them to the GitHub Release. The release manifest also records the expected macOS asset names.
+For tagged releases, the manually dispatched GitHub Actions desktop workflow builds native macOS and Windows artifacts and publishes them to the GitHub Release. The release manifest records the expected DMG, installer, and ZIP asset names.
+
+The manually dispatched `electron-release.yml` also supports a validation mode:
+leave its `tag` input empty and select a branch. The macOS job builds the DMG
+and ZIP without publishing, mounts the generated DMG, launches the packaged
+`Cabinet.app`, and verifies both `/api/health` and `/api/health/daemon`. Build
+artifacts and runtime logs are retained for inspection even when the smoke test
+fails. Tagged runs perform the same runtime smoke test after signing and
+notarization, before the release job is considered successful.
+
+The Windows job performs the equivalent installed-package check: it runs the
+generated Squirrel `Setup.exe`, launches the installed `Cabinet.exe`, verifies
+the app and daemon health routes, and uninstalls the test copy. This gate runs
+for unsigned and signed packages alike.
+
+Windows signing is deliberately optional. If neither signing secret is present,
+a tagged release is built, smoke-tested, and uploaded unsigned. Users can still
+install and run that build, but Windows may display “Unknown publisher” and
+Microsoft Defender SmartScreen warnings. Do not create a self-signed certificate
+to suppress those warnings.
+
+The current optional `.pfx` path is enabled automatically only when these
+GitHub Actions secrets are configured:
+
+- `WINDOWS_CERTIFICATE_BASE64` — base64-encoded Authenticode `.pfx`
+- `WINDOWS_CERTIFICATE_PASSWORD` — password for that certificate
+
+Branch validation remains unsigned so certificates are never exposed to branch
+builds. When signing is configured, tagged builds also require both the
+installer and installed executable to report a valid Authenticode signature
+before release artifacts are uploaded. For a future production signing project,
+prefer Microsoft Artifact Signing or another hardware-backed cloud-signing
+provider with short-lived GitHub OIDC authentication.
+
+A separate `publish-app-bundles` job (in `release.yml`) builds the zero-install standalone bundles per platform (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`; Windows `win32-x64` pending PR #192) with `npm run build && npm run electron:prep`, then uploads each `cabinet-app-<key>-vX.Y.Z.tgz` + `.sha256` to the Release. The release manifest records these under `appBundles`, and `cabinetai run` consumes them (see docs/CABINETAI.md → `ensureApp`).
 
 ### Desktop data location
 
@@ -99,7 +133,7 @@ On first launch, the Electron app can either:
 
 ### Electron updates
 
-For macOS, Cabinet uses Electron's native update path with `update-electron-app` and `autoUpdater` (`electron/main.cjs` `configureAutoUpdates()`, darwin-only, 4-hour interval, `repo: hilash/cabinet`, served via `update.electronjs.org`). The app checks automatically, downloads supported updates in the background, and asks the user to restart when the update is ready. The Electron updater also writes lifecycle state (`checking` / `available` / `downloading` / `restart-required` / `failed`) into the shared `update-status.json`.
+For macOS, Cabinet uses Electron's native update path with `update-electron-app` and `autoUpdater` (`electron/main.cjs` `configureAutoUpdates()`, darwin-only, 4-hour interval, `repo: cabinetai/cabinet`, served via `update.electronjs.org`). The app checks automatically, downloads supported updates in the background, and asks the user to restart when the update is ready. The Electron updater also writes lifecycle state (`checking` / `available` / `downloading` / `restart-required` / `failed`) into the shared `update-status.json`.
 
 Linux auto-update is not part of v1.
 
@@ -119,7 +153,7 @@ Those versions should match for a real release.
 `cabinet-release.json` is generated from the tagged release and published as a GitHub Release asset. Clients poll the latest manifest here:
 
 ```text
-https://github.com/hilash/cabinet/releases/latest/download/cabinet-release.json
+https://github.com/cabinetai/cabinet/releases/latest/download/cabinet-release.json
 ```
 
 That manifest tells Cabinet:
@@ -130,8 +164,9 @@ That manifest tells Cabinet:
 - the source tarball URL
 - the matching `create-cabinet` version
 - the Electron asset names for macOS
+- the prebuilt app-bundle asset names + URLs per platform (`appBundles`)
 
-`create-cabinet` mirrors the same version and installs the matching release tarball, not the default branch `HEAD`.
+`create-cabinet` mirrors the same version and installs the matching release build — the prebuilt bundle where one exists, else the source tarball — not the default branch `HEAD`.
 
 Only the `stable` channel is used in v1. Draft and prerelease builds should not be treated as client updates.
 
@@ -188,10 +223,12 @@ This is the release flow to use right now.
 
 ### Release prerequisites
 
-npm publishing uses **npm trusted publishing (OIDC)**, not an `NPM_TOKEN` secret. Both `cabinetai` and `create-cabinet` must have this repo + the `Release` workflow registered as a trusted publisher on npmjs.com; CI upgrades to `npm@latest` in the publish jobs because OIDC auth needs npm >= 11.5.1 (Node 22 ships npm 10.x, which only does OIDC provenance, not auth). There is no npm token to rotate.
+npm publishing uses the `NPM_TOKEN` GitHub Actions secret. It must contain a granular npm access token with write access to both `cabinetai` and `create-cabinet`. The publish jobs expose it only as `NODE_AUTH_TOKEN`; GitHub OIDC remains enabled to generate npm provenance attestations.
 
 macOS notarization/signing still needs GitHub Actions secrets (consumed by the separate `electron-release.yml`):
 
+- `APPLE_CERTIFICATE` - base64-encoded Apple Developer ID Application certificate
+- `APPLE_CERTIFICATE_PASSWORD` - password for the certificate bundle
 - `APPLE_ID` - required for macOS notarization
 - `APPLE_APP_PASSWORD` - required for macOS notarization
 - `APPLE_TEAM_ID` - required for macOS notarization
@@ -224,9 +261,9 @@ npm run build
 npm run electron:make
 ```
 
-7. Commit the release changes.
-8. Push the commit to GitHub.
-9. Create and push the release tag.
+7. Commit the release changes on a release branch and open a reviewed PR.
+8. Merge the release PR, then update your local `main` to that exact commit.
+9. Create and push the release tag from the verified merged `main` commit.
 
 ```bash
 git tag v0.2.1
@@ -235,15 +272,16 @@ git push origin v0.2.1
 
 10. Let GitHub Actions publish the release artifacts.
 
-The tag-triggered `Release` workflow (`.github/workflows/release.yml`) runs three chained jobs (verified 2026-07-04, shipping v0.5.0):
+The tag-triggered `Release` workflow (`.github/workflows/release.yml`) runs these chained jobs (three verified 2026-07-04 shipping v0.5.0; `publish-app-bundles` added with PR #65):
 
 1. `release-assets` - verify the tag matches `package.json`, regenerate `cabinet-release.json`, build the web app, and create a **draft** GitHub Release with the manifest attached.
+1b. `publish-app-bundles` - matrix build (darwin/linux; Windows pending PR #192) that packages the standalone bundle and uploads `cabinet-app-<key>-vX.Y.Z.tgz` + `.sha256` to the Release. `publish-cabinetai` now `needs:` this job.
 2. `publish-cabinetai` - `npm publish` from `cabinetai/`, publishing `cabinetai@X.Y.Z`.
 3. `publish-cli` - `npm publish` from `cli/`, publishing `create-cabinet@X.Y.Z`.
 
 The jobs are chained with `needs:`, so a failed draft-release job blocks both npm publishes, and a failed `cabinetai` publish blocks `create-cabinet`.
 
-The Electron macOS DMG/ZIP is **not** built by this workflow. It is the separate, manually-dispatched `electron-release.yml`. So a tag gives you the draft release plus both npm packages; you trigger the desktop build yourself and then publish the draft (see Known Gaps below). Because `create-cabinet` installs the matching GitHub release tarball, `npx create-cabinet@latest` stays broken until the draft release is published (the tarball URL 404s while it is a draft).
+The Electron macOS DMG/ZIP is **not** built by this workflow. It is the separate, manually-dispatched `electron-release.yml`. So a tag gives you the draft release plus both npm packages; you trigger the desktop build yourself and then publish the draft (see Known Gaps below). Because `create-cabinet` installs the matching GitHub release build (prebuilt bundle or, as fallback, the source tarball), `npx create-cabinet@latest` stays broken until the draft release is published (both the bundle and tarball URLs 404 while it is a draft).
 
 ### What to verify after the tag ships
 
@@ -252,7 +290,9 @@ After GitHub Actions finishes, verify:
 - the GitHub Release exists for `vX.Y.Z`
 - `cabinet-release.json` is attached to that release
 - `create-cabinet@X.Y.Z` is visible on npm
-- the Electron macOS artifacts are attached to the GitHub Release
+- the signed/notarized macOS DMG and ZIP are attached and their packaged-app smoke test passed
+- the Windows installer and ZIP are attached and the installed-app smoke test passed
+- Windows signatures are valid when signing credentials were configured; an unsigned build is expected otherwise
 - the latest manifest URL resolves to the new version
 - a fresh `npx create-cabinet@latest` install pulls the expected release
 
@@ -269,7 +309,10 @@ npm run build
 npm run electron:make
 git add package.json cli/package.json package-lock.json cabinet-release.json
 git commit -m "Release v0.2.1"
-git push origin main
+git push -u origin release/v0.2.1
+# open and merge the release PR, then update local main
+git switch main
+git pull --ff-only origin main
 git tag v0.2.1
 git push origin v0.2.1
 ```
@@ -330,9 +373,9 @@ electron-packager crashes during *Copying files* stat-ing a dangling symlink. Ne
 
 The Squirrel maker outputs `Cabinet-<version> Setup.exe`, but GitHub replaces the space with a dot when storing the release asset (`Cabinet-<version>.Setup.exe`). `generate-release-manifest.mjs` now advertises the as-uploaded (dot) name.
 
-### Getting a build-config fix into an already-tagged release
+### Fixing a release after it has been tagged
 
-`electron-release.yml` checks out `ref: <tag>`, so a fix on `main` is not built until the tag includes it. To rebuild desktop artifacts for the same version, force-move the tag (`git tag -f vX.Y.Z <fix-sha>; git push -f origin vX.Y.Z`) and re-dispatch. Re-pushing the tag re-fires `release.yml`; its two npm-publish jobs fail harmlessly because the version is already on npm (cosmetic), while `release-assets` refreshes the draft release + manifest.
+Release tags are immutable. If a source or workflow change is required after tagging, prepare the next patch version from current `main`, run the full release gates again, and leave the failed release draft unpublished. Do not force-move a tag or overwrite an npm version.
 
 ## Recommended Operating Model Today
 

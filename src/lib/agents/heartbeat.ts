@@ -270,7 +270,7 @@ async function processHeartbeatOutput(
         channel: persona.channels?.[0] || "general",
         agent: slug, emoji: persona.emoji, displayName: persona.name,
         type: "task",
-        content: `📋 Task created for **@${toAgent}**: ${title}${description ? ` — ${description}` : ""}`,
+        content: `📋 Task created for **@${toAgent}**: ${title}${description ? `. ${description}` : ""}`,
         mentions: [toAgent], kbRefs: [],
       }, cabinetPath);
     }

@@ -96,6 +96,18 @@ function classify(
     };
   }
 
+  // 403 permission-denied (e.g. Grok's "Access to the chat endpoint is denied"):
+  // signed in, but the account/key lacks chat access. Cabinet can't fix that —
+  // point the user at the provider's console to grant it.
+  if (
+    /permission[- ]denied|access.{0,20}denied|update the permissions|correct credentials|forbidden/i.test(text)
+  ) {
+    return {
+      status: "auth_required",
+      hint: "You're signed in, but this account or key doesn't have chat access. Grant it in the provider's console (for Grok: console.x.ai), or sign in with an account that has it.",
+    };
+  }
+
   if (exitCode === 0) {
     return { status: "pass" };
   }

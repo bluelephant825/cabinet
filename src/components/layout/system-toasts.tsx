@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { CheckCircle2, Info, Loader2, X, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ToastKind = "info" | "success" | "error";
@@ -26,6 +26,27 @@ const ACTION_DISMISS_MS = 10000;
 export function SystemToasts() {
   const [toasts, setToasts] = useState<SystemToast[]>([]);
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Multi-file drag-drop import progress (single-file imports finish fast
+  // enough that the summary toast alone suffices).
+  const [importProgress, setImportProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+
+  useEffect(() => {
+    function handler(event: Event) {
+      const detail = (event as CustomEvent).detail as
+        | { done?: number; total?: number }
+        | undefined;
+      const total = detail?.total ?? 0;
+      setImportProgress(
+        total > 1 ? { done: detail?.done ?? 0, total } : null
+      );
+    }
+    window.addEventListener("cabinet:import-progress", handler);
+    return () =>
+      window.removeEventListener("cabinet:import-progress", handler);
+  }, []);
 
   const dismiss = useCallback((key: string) => {
     const t = timers.current.get(key);
@@ -68,10 +89,28 @@ export function SystemToasts() {
     return () => window.removeEventListener("cabinet:toast", handler);
   }, [dismiss]);
 
-  if (toasts.length === 0) return null;
+  if (toasts.length === 0 && !importProgress) return null;
 
   return (
     <div className="fixed inset-x-0 bottom-4 z-[100] mx-auto flex w-fit flex-col gap-2">
+      {importProgress && (
+        <div className="flex w-56 flex-col gap-1.5 rounded-lg border border-border bg-popover px-3 py-2 text-[12px] shadow-lg backdrop-blur-sm animate-in slide-in-from-bottom-2 fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+            <span className="flex-1 leading-snug">
+              Importing {importProgress.done} / {importProgress.total}…
+            </span>
+          </div>
+          <div className="h-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-200"
+              style={{
+                width: `${Math.round((importProgress.done / importProgress.total) * 100)}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
       {toasts.map((toast) => {
         const Icon =
           toast.kind === "error"

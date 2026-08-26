@@ -50,6 +50,20 @@ ipcRenderer.on("cabinet:browser-view-closed", (_event, payload) => {
   }
 });
 
+// Native full-screen state, pushed from main on enter/leave-full-screen and
+// once on did-finish-load. `lastFullscreen` lets a late subscriber read the
+// current value immediately (see onFullscreenChanged).
+const fullscreenListeners = new Set();
+let lastFullscreen = false;
+ipcRenderer.on("cabinet:fullscreen-changed", (_event, isFull) => {
+  lastFullscreen = !!isFull;
+  for (const listener of fullscreenListeners) {
+    try {
+      listener(lastFullscreen);
+    } catch {}
+  }
+});
+
 function normalizeBridgeUrl(value) {
   if (typeof value !== "string") return "";
   return value.trim();
@@ -178,6 +192,19 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
     extensionInstalledListeners.add(listener);
     return () => {
       extensionInstalledListeners.delete(listener);
+    };
+  },
+  /**
+   * Subscribe to native full-screen changes (macOS hides the traffic lights in
+   * full-screen). Fires immediately with the current state, then on every
+   * change. Returns an unsubscribe function.
+   */
+  onFullscreenChanged: (listener) => {
+    if (typeof listener !== "function") return () => {};
+    fullscreenListeners.add(listener);
+    listener(lastFullscreen);
+    return () => {
+      fullscreenListeners.delete(listener);
     };
   },
 });

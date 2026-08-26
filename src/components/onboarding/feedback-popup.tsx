@@ -16,7 +16,7 @@ const PROMPTED_AT_2_KEY = "cabinet.feedback.promptedAt2";
 const PROMPTED_AT_6_KEY = "cabinet.feedback.promptedAt6";
 const SESSION_COUNTED_KEY = "cabinet.session.launchCounted";
 const DISCORD_URL = "https://discord.gg/hJa5TRTbTH";
-const GITHUB_REPO_URL = "https://github.com/hilash/cabinet";
+const GITHUB_REPO_URL = "https://github.com/cabinetai/cabinet";
 const POPUP_DEFER_MS = 5000;
 // Cabinet-backend ingestion endpoint. Best-effort forward; the local JSONL
 // row is the durable copy. See cabinet-backend/FEEDBACK.md.
@@ -72,7 +72,7 @@ interface FloatingEmoji {
 }
 
 const FLOATING_EMOJIS: FloatingEmoji[] = [
-  { glyph: "✨", x: 6, y: 12, size: 64, rotate: -8, variant: "a", delay: 0 },
+  { glyph: "💬", x: 6, y: 12, size: 64, rotate: -8, variant: "a", delay: 0 },
   { glyph: "📝", x: 18, y: 78, size: 72, rotate: 6, variant: "b", delay: 200 },
   { glyph: "💌", x: 88, y: 18, size: 68, rotate: 12, variant: "c", delay: 400 },
   { glyph: "💡", x: 10, y: 50, size: 58, rotate: -4, variant: "b", delay: 600 },
