@@ -346,7 +346,7 @@ export function LatexViewer({ path }: LatexViewerProps) {
                       as="article"
                       className="latex-rendered prose prose-zinc max-w-none dark:prose-invert"
                       html={rendered.html}
-                      profile="rich"
+                      profile="latex"
                     />
                   </div>
                 ) : (

@@ -113,7 +113,7 @@ function extractMath(
         throwOnError: false,
         macros: { ...macros },
         strict: false,
-        trust: true,
+        trust: false,
       });
       // Only plain (un-numbered) display math may scroll horizontally. KaTeX
       // centers numbered equations with 50%-wide glue columns; making such a
