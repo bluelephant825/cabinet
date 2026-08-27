@@ -1755,7 +1755,7 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
                     <div className="space-y-1">
                       {notebook.cells?.map((cell) => {
                         const cellId = cell.id!;
-                        const showDragHandle = viewMode === "editor";
+                        const showDragHandle = viewMode === "editor" || viewMode === "split";
                         
                         return (
                           <SortableCellWrapper key={cellId} id={cellId}>
