@@ -1557,3 +1557,5 @@
 [2026-08-27] Fixed notebook cell reordering in the default split view by showing the existing drag handles anywhere the editor pane is available, rather than only in the full-width editor view. This restores reordering for newly inserted and existing cells without changing notebook serialization; the notebook pipeline tests and TypeScript check pass, and targeted ESLint reports no errors (two pre-existing unused-import warnings remain).
 
 [2026-08-29] Removed the regex-based MyST directive and role emulation from Markdown previews, leaving full MyST processing confined to the real `myst build` export path. Cabinet-native callouts now round-trip as HTML instead of unsupported MyST admonitions; boundary tests confirm directives and roles remain literal until a proper parser is integrated. Verified with the focused tests, full 450-test suite, ESLint, TypeScript, and `git diff --check`.
+
+[2026-08-29] Replaced arbitrary Tailwind size utilities in `src/app/agents-demo/list-shell.tsx` with named spacing classes to clear IDE warnings: `min-w-[200px]` → `min-w-50` (line 51) and `min-h-[160px]` → `min-h-40` (line 102). No behavioral change.
