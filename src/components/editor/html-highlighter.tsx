@@ -422,15 +422,17 @@ export function HtmlHighlighter({ htmlPath, children }: HtmlHighlighterProps) {
     let mouseIsDown = false;
 
     const setupHighlights = async () => {
-      clearMarks();
-      if (cleanupSelectionListener) {
-        cleanupSelectionListener();
-        cleanupSelectionListener = null;
-      }
+      try {
+        clearMarks();
+        if (cleanupSelectionListener) {
+          cleanupSelectionListener();
+          cleanupSelectionListener = null;
+        }
+        docRef.current = null;
 
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!doc) return;
-      docRef.current = doc;
+        const doc = iframe.contentDocument;
+        if (!doc) return;
+        docRef.current = doc;
 
       // 1. Load saved highlights from sidecar
       const highlightsUrl = `/api/assets/${getHighlightsPath(htmlPath)}`;
@@ -506,15 +508,43 @@ export function HtmlHighlighter({ htmlPath, children }: HtmlHighlighterProps) {
         }
       };
 
+      const handleLinkClick = (event: MouseEvent) => {
+        const target = event.target;
+        if (!(target instanceof doc.defaultView!.Element)) return;
+        const anchor = target.closest("a");
+        if (!anchor || anchor.hasAttribute("download")) return;
+        const href = anchor.getAttribute("href");
+        if (!href || href.startsWith("#") || href.toLowerCase().startsWith("javascript:")) return;
+        try {
+          const linkUrl = new URL(href, anchor.baseURI);
+          if (
+            linkUrl.origin !== window.location.origin &&
+            (linkUrl.protocol === "http:" || linkUrl.protocol === "https:")
+          ) {
+            event.preventDefault();
+            setAppMode("browse", linkUrl.toString());
+          }
+        } catch {}
+      };
+
       doc.addEventListener("mousedown", handleMouseDown);
       doc.addEventListener("mouseup", handleMouseUp);
       doc.addEventListener("selectionchange", handleSelection);
-      
+      doc.addEventListener("click", handleLinkClick);
+
       cleanupSelectionListener = () => {
         doc.removeEventListener("mousedown", handleMouseDown);
         doc.removeEventListener("mouseup", handleMouseUp);
         doc.removeEventListener("selectionchange", handleSelection);
+        doc.removeEventListener("click", handleLinkClick);
       };
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "SecurityError") {
+        docRef.current = null;
+        return;
+      }
+      console.error("Failed to set up HTML highlighter:", e);
+    }
     };
 
     const onIframeLoad = () => {
@@ -538,7 +568,7 @@ export function HtmlHighlighter({ htmlPath, children }: HtmlHighlighterProps) {
       docRef.current = null;
       iframeRef.current = null;
     };
-  }, [htmlPath]);
+  }, [htmlPath, setAppMode]);
 
   const applyHighlight = async (
     colorHex: string,
