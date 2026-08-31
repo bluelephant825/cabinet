@@ -54,8 +54,6 @@ import {
   Copy,
   Trash2,
   TriangleAlert,
-  RefreshCw,
-  Settings,
 } from "lucide-react";
 import { GoogleDriveTreeSection } from "./google-drive-tree";
 import { cn } from "@/lib/utils";
@@ -99,7 +97,7 @@ interface AgentSummary {
 const itemClass = (active: boolean) =>
   cn(
     "flex items-center gap-2 w-full text-left py-0.5 px-2 text-[12px] text-foreground/75 rounded-md transition-colors cursor-pointer",
-    "hover:bg-foreground/[0.03] hover:text-foreground",
+    "hover:bg-foreground/3 hover:text-foreground",
     active && "bg-accent text-accent-foreground font-medium"
   );
 
@@ -125,7 +123,7 @@ export function TreeView() {
   const setActiveDrawer = useAppStore((s) => s.setSidebarDrawer);
   const isMac = useMemo(isMacPlatform, []);
 
-  const [cabinetExpanded, setCabinetExpanded] = useState(true);
+  const [cabinetExpanded] = useState(true);
 
   // Cabinet-drawer UI: the sidebar exposes three "drawers" — Agents, Tasks, and
   // Data — as a horizontal tab row. Only one is open at a time. The previous
@@ -432,7 +430,7 @@ export function TreeView() {
       <button
         onClick={opts.onClick}
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-foreground/[0.03]",
+          "flex w-full items-center gap-2.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-foreground/3",
           opts.selected && "bg-accent text-accent-foreground"
         )}
         style={pad(1)}
@@ -493,7 +491,7 @@ export function TreeView() {
 
   return (
     <>
-    <ScrollArea className="flex-1 min-h-0 [&_[data-slot=scroll-area-scrollbar]]:w-1.5 [&_[data-slot=scroll-area-scrollbar]]:py-0 [&_[data-slot=scroll-area-scrollbar]]:pe-0 [&_[data-slot=scroll-area-scrollbar]]:ps-0.5 [&_[data-slot=scroll-area-scrollbar]]:border-s-0 [&_[data-slot=scroll-area-scrollbar]]:opacity-0 [&_[data-slot=scroll-area-scrollbar]]:transition-opacity [&_[data-slot=scroll-area-scrollbar]]:duration-300 [&_[data-slot=scroll-area-scrollbar][data-hovering]]:opacity-100 [&_[data-slot=scroll-area-scrollbar][data-scrolling]]:opacity-100">
+    <ScrollArea className="flex-1 min-h-0 **:data-[slot=scroll-area-scrollbar]:w-1.5 **:data-[slot=scroll-area-scrollbar]:py-0 **:data-[slot=scroll-area-scrollbar]:pe-0 **:data-[slot=scroll-area-scrollbar]:ps-0.5 **:data-[slot=scroll-area-scrollbar]:border-s-0 **:data-[slot=scroll-area-scrollbar]:opacity-0 **:data-[slot=scroll-area-scrollbar]:transition-opacity **:data-[slot=scroll-area-scrollbar]:duration-300 [&_[data-slot=scroll-area-scrollbar][data-hovering]]:opacity-100 [&_[data-slot=scroll-area-scrollbar][data-scrolling]]:opacity-100">
       <div className="flex min-h-full flex-col py-1">
         {/* ── Back to parent cabinet (never up into the home container) ── */}
         {activeCabinet && parentCabinet && !parentIsHome ? (
@@ -591,7 +589,7 @@ export function TreeView() {
           <div
             role="tablist"
             aria-label={t("treeView:drawersAriaLabel")}
-            className="mx-[5px] mt-1 grid grid-cols-3 gap-1 rounded-lg bg-muted/40 p-0.5 pt-1.5 border border-border/60"
+            className="mx-1.25 mt-1 grid grid-cols-3 gap-1 rounded-lg bg-muted/40 p-0.5 pt-1.5 border border-border/60"
           >
                 {([
                   {
@@ -726,7 +724,7 @@ export function TreeView() {
                           }}
                           title={drawer.addLabel}
                           aria-label={drawer.addLabel}
-                          className="absolute end-0.5 top-0.5 inline-flex size-6 items-center justify-center rounded text-muted-foreground/60 transition-colors duration-150 hover:bg-muted hover:text-foreground"
+                          className="absolute inset-e-0.5 top-0.5 inline-flex size-6 items-center justify-center rounded text-muted-foreground/60 transition-colors duration-150 hover:bg-muted hover:text-foreground"
                         >
                           <AddIcon className="h-3 w-3" />
                         </button>

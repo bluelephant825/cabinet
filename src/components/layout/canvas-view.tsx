@@ -1801,7 +1801,7 @@ export function CanvasView() {
                           type="button"
                           aria-label={isPublic ? "Lock" : "Unlock"}
                           title={isPublic ? "Make private" : "Make public"}
-                          className="absolute right-[44px] top-3 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-background/80 text-muted-foreground hover:bg-background"
+                          className="absolute right-11 top-3 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-background/80 text-muted-foreground hover:bg-background"
                           onPointerDown={(event) => {
                             event.stopPropagation();
                           }}
@@ -1824,7 +1824,7 @@ export function CanvasView() {
                             type="button"
                             aria-label="Change markdown card color"
                             title="Change markdown card color"
-                            className="absolute right-[76px] top-3 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-background/80 text-muted-foreground hover:bg-background"
+                            className="absolute right-19 top-3 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-background/80 text-muted-foreground hover:bg-background"
                             data-card-color-trigger="true"
                             onPointerDown={(event) => {
                               event.stopPropagation();
@@ -1839,7 +1839,7 @@ export function CanvasView() {
                           </button>
                           {openColorPickerForPath === scopedPath ? (
                             <div
-                              className="absolute right-[76px] top-11 z-20 flex max-w-55 flex-wrap gap-1 rounded-md border border-border/70 bg-background p-2 shadow-lg"
+                              className="absolute right-19 top-11 z-20 flex max-w-55 flex-wrap gap-1 rounded-md border border-border/70 bg-background p-2 shadow-lg"
                               data-card-color-picker="true"
                               onPointerDown={(event) => {
                                 event.stopPropagation();

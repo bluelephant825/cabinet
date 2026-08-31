@@ -251,7 +251,7 @@ function DocumentPropertiesView(props: NodeViewProps) {
                   </span>
                 ))}
                 <input
-                  className="flex-1 min-w-[6rem] bg-transparent text-sm text-foreground focus:outline-none"
+                  className="flex-1 min-w-24 bg-transparent text-sm text-foreground focus:outline-none"
                   value={tagInput}
                   placeholder={tags.length ? "" : "Add tag…"}
                   onChange={(e) => setTagInput(e.target.value)}

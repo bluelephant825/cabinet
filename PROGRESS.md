@@ -1575,3 +1575,7 @@
 [2026-08-31] Replaced Tailwind arbitrary-value class utilities with their shorthand equivalents to clear IDE warnings: in `src/components/layout/header.tsx` `[&_[role=menuitem]]:whitespace-nowrap` → `**:[[role=menuitem]]:whitespace-nowrap` (line 218); in `src/components/sidebar/tree-node.tsx` `hover:bg-foreground/[0.03]` → `hover:bg-foreground/3` (line 1280) and `bg-foreground/[0.05]` → `bg-foreground/5` (line 1383). No behavioral change.
 
 [2026-08-31] Removed the unused `AppWindow` icon import from `src/components/sidebar/tree-node.tsx` (line 14) to clear an ESLint warning. No behavioral change.
+
+[2026-08-31] Replaced arbitrary-value and legacy Tailwind class utilities across the UI with their shorthand/modern equivalents to clear IDE warnings: `min-w-[6rem]`, `right-[44px]`, `right-[76px]`, `z-[100]`, `hover:bg-foreground/[0.03]`, `mt-[1px]`, `py-[3px]`, `hover:bg-foreground/[0.04]`, `data-[popup-open]:bg-accent/60`, the `[&_[data-slot=scroll-area-scrollbar]]:` scrollbar variant group, `mx-[5px]`, and `end-0.5`. Touched `document-properties.tsx`, `canvas-view.tsx`, `system-toasts.tsx`, `new-file-dialog.tsx`, `recent-tasks.tsx`, `room-switcher.tsx`, and `tree-view.tsx`. No behavioral change.
+
+[2026-08-31] Cleaned up three ESLint warnings in `src/components/sidebar/tree-view.tsx`: removed unused `RefreshCw` and `Settings` icon imports (lines 57–58) and the unused `setCabinetExpanded` state setter (line 128). No behavioral change.

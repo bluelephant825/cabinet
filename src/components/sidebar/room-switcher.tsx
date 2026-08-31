@@ -194,7 +194,7 @@ export function RoomSwitcher() {
           aria-label={t("rooms:switcherTitle")}
           className={cn(
             "group flex min-w-0 items-center gap-1 rounded-md p-1 cursor-pointer",
-            "transition-colors hover:bg-accent/60 data-[popup-open]:bg-accent/60"
+            "transition-colors hover:bg-accent/60 data-popup-open:bg-accent/60"
           )}
         >
           <RoomAvatar
