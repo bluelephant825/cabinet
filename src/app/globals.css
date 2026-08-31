@@ -1480,3 +1480,118 @@ html[data-custom-theme="cyber"] :where(button:not([data-no-bevel])):hover {
   background-color: color-mix(in srgb, var(--primary) 52%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 68%, transparent);
 }
+
+#cabinet-pdf-print-root {
+  display: none;
+}
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body[data-cabinet-pdf-export="true"] > :not(#cabinet-pdf-print-root) {
+    display: none !important;
+  }
+
+  body[data-cabinet-pdf-export="true"] #cabinet-pdf-print-root {
+    display: block !important;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    color: #111;
+    background: #fff;
+    font-family: var(--font-sans), sans-serif;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  #cabinet-pdf-print-root .tiptap {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    color: #111;
+    background: #fff;
+    font-size: 11pt;
+    letter-spacing: normal;
+  }
+
+  #cabinet-pdf-print-root p {
+    orphans: 2;
+    widows: 2;
+  }
+
+  #cabinet-pdf-print-root h1,
+  #cabinet-pdf-print-root h2,
+  #cabinet-pdf-print-root h3,
+  #cabinet-pdf-print-root h4,
+  #cabinet-pdf-print-root h5,
+  #cabinet-pdf-print-root h6 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+
+  #cabinet-pdf-print-root img,
+  #cabinet-pdf-print-root figure,
+  #cabinet-pdf-print-root svg,
+  #cabinet-pdf-print-root canvas,
+  #cabinet-pdf-print-root .resizable-image,
+  #cabinet-pdf-print-root .callout,
+  #cabinet-pdf-print-root blockquote,
+  #cabinet-pdf-print-root li {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  #cabinet-pdf-print-root .resizable-image,
+  #cabinet-pdf-print-root figure {
+    max-width: 100% !important;
+  }
+
+  #cabinet-pdf-print-root img,
+  #cabinet-pdf-print-root svg,
+  #cabinet-pdf-print-root canvas {
+    max-width: 100% !important;
+    max-height: var(--cabinet-printable-height) !important;
+    height: auto !important;
+    object-fit: contain;
+  }
+
+  #cabinet-pdf-print-root table {
+    width: 100%;
+    break-inside: auto;
+  }
+
+  #cabinet-pdf-print-root thead {
+    display: table-header-group;
+  }
+
+  #cabinet-pdf-print-root tr,
+  #cabinet-pdf-print-root th,
+  #cabinet-pdf-print-root td {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  #cabinet-pdf-print-root pre {
+    overflow: visible;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  #cabinet-pdf-print-root a {
+    color: #0645ad;
+  }
+
+  #cabinet-pdf-print-root .selectedCell::after,
+  #cabinet-pdf-print-root .find-match,
+  #cabinet-pdf-print-root .find-match--current,
+  #cabinet-pdf-print-root [data-placeholder]::before {
+    display: none !important;
+  }
+}

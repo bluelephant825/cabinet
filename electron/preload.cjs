@@ -187,6 +187,7 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
   showNativeToast: (payload) => ipcRenderer.invoke("cabinet:show-native-toast", payload),
   readFile: (filePath) => ipcRenderer.invoke("cabinet:read-file", { path: filePath }),
   writeFile: (filePath, content) => ipcRenderer.invoke("cabinet:write-file", { path: filePath, content }),
+  savePdf: (payload) => ipcRenderer.invoke("cabinet:save-pdf", payload),
   onExtensionInstalled: (listener) => {
     if (typeof listener !== "function") return () => {};
     extensionInstalledListeners.add(listener);

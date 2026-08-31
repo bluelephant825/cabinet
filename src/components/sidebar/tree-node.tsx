@@ -11,7 +11,6 @@ import {
   Pencil,
   Eye,
   Code2,
-  AppWindow,
   GitBranch,
   Copy,
   ClipboardCopy,
@@ -39,6 +38,7 @@ import {
   copyForLlm,
   copyAsHtml,
   downloadMarkdown,
+  downloadMarkdownBundle,
   downloadRawFile,
   formatBytes,
 } from "@/lib/markdown/page-export";
@@ -778,9 +778,24 @@ function TreeNodeImpl({
     node.type === "directory" ||
     node.type === "cabinet" ||
     node.path.toLowerCase().endsWith(".md");
+  const markdownAssetBase = node.type === "file" || node.path.toLowerCase().endsWith(".md")
+    ? node.path.split("/").slice(0, -1).join("/")
+    : node.path;
+
+  const notifyMissingExportImages = useCallback((count: number) => {
+    if (count === 0) return;
+    window.dispatchEvent(
+      new CustomEvent("cabinet:toast", {
+        detail: {
+          kind: "info",
+          message: t("editor:header.markdownImagesMissing", { count }),
+        },
+      })
+    );
+  }, [t]);
 
   const runExport = useCallback(
-    async (action: (content: string) => void | Promise<void>) => {
+    async (action: (content: string) => void | Promise<unknown>) => {
       try {
         const res = await fetch(contentUrlFor(node.path, node.type));
         if (!res.ok) throw new Error(`status ${res.status}`);
@@ -1261,7 +1276,7 @@ function TreeNodeImpl({
               // Audit #048: link-like pointer at rest; grab only while the row is
               // actively pressed/dragged. A resting grab cursor mislabels a
               // click-to-open row as a drag handle.
-              "hover:bg-foreground/[0.03] hover:text-foreground cursor-pointer active:cursor-grabbing",
+              "hover:bg-foreground/3 hover:text-foreground cursor-pointer active:cursor-grabbing",
               // Override the ContextMenuTrigger wrapper's user-select:none so HTML5 dragstart fires on first mousedown (Chromium quirk: draggable rows inheriting user-select:none need a focus pass before drag initiates).
               "select-text",
               // Audit #015: active row needs two cues, not just background.
@@ -1364,7 +1379,7 @@ function TreeNodeImpl({
             </span>
             {node.knowledgeProvider && isReadOnly && (
               <span
-                className="ms-1 shrink-0 rounded bg-foreground/[0.05] px-1 py-px font-mono text-[9px] font-medium text-muted-foreground/60"
+                className="ms-1 shrink-0 rounded bg-foreground/5 px-1 py-px font-mono text-[9px] font-medium text-muted-foreground/60"
                 title="Read-only, connected for viewing"
               >
                 view
@@ -1551,9 +1566,27 @@ function TreeNodeImpl({
                       <FileCode className="h-4 w-4 me-2" />
                       Copy as HTML
                     </ContextMenuItem>
-                    <ContextMenuItem onClick={() => void runExport((c) => downloadMarkdown(c, title))}>
+                    <ContextMenuItem
+                      onClick={() =>
+                        void runExport(async (c) => {
+                          const result = await downloadMarkdown(c, title, markdownAssetBase);
+                          notifyMissingExportImages(result.failedImages);
+                        })
+                      }
+                    >
                       <Download className="h-4 w-4 me-2" />
-                      Download Markdown
+                      {t("editor:header.downloadMarkdown")}
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onClick={() =>
+                        void runExport(async (c) => {
+                          const result = await downloadMarkdownBundle(c, title, markdownAssetBase);
+                          notifyMissingExportImages(result.failedImages);
+                        })
+                      }
+                    >
+                      <Download className="h-4 w-4 me-2" />
+                      {t("editor:header.downloadMarkdownBundle")}
                     </ContextMenuItem>
                   </>
                 ) : (

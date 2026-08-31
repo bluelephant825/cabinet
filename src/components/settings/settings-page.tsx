@@ -122,6 +122,11 @@ import {
   type Locale,
 } from "@/i18n";
 import { submitLanguageRequest } from "@/lib/telemetry/language-request-client";
+import {
+  getExportSettings,
+  storeExportSettings,
+  type ExportSettings,
+} from "@/lib/ui/export-settings";
 
 type ColorPalettesMap = Record<string, string[]>;
 
@@ -472,6 +477,10 @@ export function SettingsPage() {
     light: "paper",
     dark: "claude",
   });
+  const [exportSettings, setExportSettings] = useState<ExportSettings>({
+    paperSize: "a4",
+    orientation: "auto",
+  });
   const [telemetryEnabled, setTelemetryEnabled] = useState<boolean | null>(null);
   const [telemetryEnvDisabled, setTelemetryEnvDisabled] = useState(false);
   const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -506,7 +515,13 @@ export function SettingsPage() {
     // Audit #045: hydrate match-system state.
     setThemeModeState(getStoredThemeMode());
     setThemePairState(getStoredThemePair());
+    setExportSettings(getExportSettings());
   }, []);
+
+  const updateExportSettings = (next: ExportSettings) => {
+    setExportSettings(next);
+    storeExportSettings(next);
+  };
 
   // Audit #045: applying a theme via the manual grid disables match-system,
   // since the user has explicitly picked one. The pair stays stored so
@@ -1297,6 +1312,64 @@ export function SettingsPage() {
                       </Button>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-6">
+                <h3 className="text-[13px] font-semibold mb-1">
+                  {t("settings:appearance.downloadExport")}
+                </h3>
+                <p className="text-[12px] text-muted-foreground mb-4">
+                  {t("settings:appearance.downloadExportDescription")}
+                </p>
+                <div className="space-y-3">
+                  <label className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                    <div>
+                      <span className="text-[13px] font-medium">
+                        {t("settings:appearance.paperSize")}
+                      </span>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {t("settings:appearance.paperSizeDescription")}
+                      </p>
+                    </div>
+                    <select
+                      value={exportSettings.paperSize}
+                      onChange={(event) =>
+                        updateExportSettings({
+                          ...exportSettings,
+                          paperSize: event.target.value as ExportSettings["paperSize"],
+                        })
+                      }
+                      className="min-w-28 rounded-md border border-border bg-background px-2 py-1.5 text-[12px]"
+                    >
+                      <option value="a4">{t("settings:appearance.paperA4")}</option>
+                      <option value="letter">{t("settings:appearance.paperLetter")}</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                    <div>
+                      <span className="text-[13px] font-medium">
+                        {t("settings:appearance.orientation")}
+                      </span>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {t("settings:appearance.orientationDescription")}
+                      </p>
+                    </div>
+                    <select
+                      value={exportSettings.orientation}
+                      onChange={(event) =>
+                        updateExportSettings({
+                          ...exportSettings,
+                          orientation: event.target.value as ExportSettings["orientation"],
+                        })
+                      }
+                      className="min-w-28 rounded-md border border-border bg-background px-2 py-1.5 text-[12px]"
+                    >
+                      <option value="auto">{t("settings:appearance.orientationAuto")}</option>
+                      <option value="portrait">{t("settings:appearance.orientationPortrait")}</option>
+                      <option value="landscape">{t("settings:appearance.orientationLandscape")}</option>
+                    </select>
+                  </label>
                 </div>
               </div>
 

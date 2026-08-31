@@ -1281,6 +1281,62 @@ async function openRoomWindow(suffix) {
 
 ipcMain.handle("cabinet:open-window", (_event, suffix) => openRoomWindow(suffix));
 
+ipcMain.handle("cabinet:save-pdf", async (event, payload) => {
+  const owner = BrowserWindow.fromWebContents(event.sender);
+  let authorized = false;
+  try {
+    authorized = !!baseAppUrl && new URL(event.sender.getURL()).origin === new URL(baseAppUrl).origin;
+  } catch {}
+  if (!owner || owner.isDestroyed() || !authorized) {
+    return { ok: false, error: "unauthorized" };
+  }
+
+  const paperSize = payload?.paperSize === "a4"
+    ? "A4"
+    : payload?.paperSize === "letter"
+      ? "Letter"
+      : null;
+  const orientation = payload?.orientation;
+  if (!paperSize || (orientation !== "portrait" && orientation !== "landscape")) {
+    return { ok: false, error: "invalid-options" };
+  }
+
+  const rawFilename = typeof payload?.filename === "string" ? payload.filename : "page.pdf";
+  const baseFilename = path.basename(rawFilename)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .replace(/\.+$/, "")
+    .trim() || "page";
+  const filename = baseFilename.toLowerCase().endsWith(".pdf")
+    ? baseFilename
+    : `${baseFilename}.pdf`;
+
+  try {
+    const result = await dialog.showSaveDialog(owner, {
+      title: "Save PDF",
+      defaultPath: path.join(app.getPath("documents"), filename),
+      filters: [{ name: "PDF document", extensions: ["pdf"] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+
+    const data = await event.sender.printToPDF({
+      pageSize: paperSize,
+      landscape: orientation === "landscape",
+      printBackground: true,
+      preferCSSPageSize: true,
+      generateTaggedPDF: true,
+      generateDocumentOutline: true,
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
+    });
+    await fs.promises.writeFile(result.filePath, data);
+    return { ok: true, path: result.filePath };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "pdf-save-failed",
+    };
+  }
+});
+
 async function installExtensionFromWebStore(extensionId) {
   const prodversion = process.versions.chrome || "126.0.0.0";
   const url = `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=${prodversion}&acceptformat=crx2,crx3&x=id%3D${extensionId}%26uc`;
