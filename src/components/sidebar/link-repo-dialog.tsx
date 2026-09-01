@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, FolderOpen, Loader2, TriangleAlert } from "lucide-react";
+import { ChevronRight, FolderOpen, GitBranch, Loader2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +29,12 @@ function basenameForPath(value: string): string {
   return parts[parts.length - 1] || "";
 }
 
+function nameForRemote(value: string): string {
+  const normalized = value.trim().replace(/[\\/]+$/, "");
+  const last = normalized.split(/[/:]/).pop() || "";
+  return last.replace(/\.git$/i, "");
+}
+
 function findNode(nodes: TreeNode[], targetPath: string): TreeNode | null {
   for (const node of nodes) {
     if (node.path === targetPath) return node;
@@ -47,16 +53,17 @@ export function LinkRepoDialog({ open, onOpenChange, parentPath }: LinkRepoDialo
   const nodes = useTreeStore((s) => s.nodes);
   const loadPage = useEditorStore((s) => s.loadPage);
 
+  const [mode, setMode] = useState<"local" | "clone">("local");
   const [localPath, setLocalPath] = useState("");
   const [name, setName] = useState("");
   const [remote, setRemote] = useState("");
+  const [branch, setBranch] = useState("");
   const [description, setDescription] = useState("");
   const [browsing, setBrowsing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [devExpanded, setDevExpanded] = useState(false);
 
-  // Warn if the parent directory already has children beyond index.md
   const parentHasContent = useMemo(() => {
     if (!parentPath) return false;
     const parentNode = findNode(nodes, parentPath);
@@ -65,9 +72,11 @@ export function LinkRepoDialog({ open, onOpenChange, parentPath }: LinkRepoDialo
 
   useEffect(() => {
     if (!open) {
+      setMode("local");
       setLocalPath("");
       setName("");
       setRemote("");
+      setBranch("");
       setDescription("");
       setBrowsing(false);
       setCreating(false);
@@ -81,68 +90,65 @@ export function LinkRepoDialog({ open, onOpenChange, parentPath }: LinkRepoDialo
     setError("");
 
     try {
-      const res = await fetch("/api/system/pick-directory", {
-        method: "POST",
-      });
+      const res = await fetch("/api/system/pick-directory", { method: "POST" });
       const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || "Failed to open folder picker.");
-      }
-
-      if (data?.cancelled || !data?.path) {
-        return;
-      }
+      if (!res.ok) throw new Error(data?.error || t("linkRepo:folderPickerError"));
+      if (data?.cancelled || !data?.path) return;
 
       setLocalPath(data.path);
-      setName((current) => current || basenameForPath(data.path));
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Failed to open folder picker."
-      );
+      if (mode === "local") setName((current) => current || basenameForPath(data.path));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : t("linkRepo:folderPickerError"));
     } finally {
       setBrowsing(false);
     }
   }
 
   async function handleCreate() {
-    if (!localPath.trim()) return;
-
+    if (!localPath.trim() || (mode === "clone" && !remote.trim())) return;
     setCreating(true);
     setError("");
 
     try {
-      const res = await fetch("/api/system/link-repo", {
+      const cloning = mode === "clone";
+      const res = await fetch(cloning ? "/api/system/clone-repo" : "/api/system/link-repo", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          localPath: localPath.trim(),
-          name: name.trim() || basenameForPath(localPath),
-          remote: remote.trim() || undefined,
-          description: description.trim() || undefined,
-          parentPath: parentPath || undefined,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          cloning
+            ? {
+                remote: remote.trim(),
+                branch: branch.trim() || undefined,
+                name: name.trim() || nameForRemote(remote),
+                description: description.trim() || undefined,
+                destinationParent: localPath.trim(),
+                parentPath: parentPath || undefined,
+              }
+            : {
+                localPath: localPath.trim(),
+                name: name.trim() || basenameForPath(localPath),
+                remote: remote.trim() || undefined,
+                description: description.trim() || undefined,
+                parentPath: parentPath || undefined,
+              },
+        ),
       });
 
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || "Failed to load knowledge.");
-      }
+      if (!res.ok) throw new Error(data?.error || t("linkRepo:connectError"));
 
       await loadTree();
       selectPage(data.path);
       await loadPage(data.path);
       onOpenChange(false);
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Failed to load knowledge."
-      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : t("linkRepo:connectError"));
     } finally {
       setCreating(false);
     }
   }
+
+  const canSubmit = !!localPath.trim() && (mode === "local" || !!remote.trim()) && !creating;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,28 +163,71 @@ export function LinkRepoDialog({ open, onOpenChange, parentPath }: LinkRepoDialo
           }}
           className="flex flex-col gap-3"
         >
-          <p className="text-xs text-muted-foreground">{t("linkRepo:intro")}</p>
+          <div className="grid grid-cols-2 rounded-md bg-muted p-1">
+            <button
+              type="button"
+              className={cn(
+                "rounded px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "local"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => setMode("local")}
+            >
+              <FolderOpen className="mr-1.5 inline h-3.5 w-3.5" />
+              {t("linkRepo:localTab")}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "clone"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => setMode("clone")}
+            >
+              <GitBranch className="mr-1.5 inline h-3.5 w-3.5" />
+              {t("linkRepo:cloneTab")}
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {mode === "clone" ? t("linkRepo:cloneIntro") : t("linkRepo:intro")}
+          </p>
 
           {parentHasContent && (
             <div className="flex items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2">
-              <TriangleAlert className="h-4 w-4 shrink-0 text-yellow-500 mt-0.5" />
-              <p className="text-xs text-yellow-500">
-                This page already has sub-pages. The loaded folder will be
-                added as a new child alongside the existing content.
-              </p>
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+              <p className="text-xs text-yellow-500">{t("linkRepo:parentHasContent")}</p>
+            </div>
+          )}
+
+          {mode === "clone" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("linkRepo:repositoryUrl")}
+              </label>
+              <Input
+                placeholder="https://github.com/owner/repository.git"
+                value={remote}
+                onChange={(event) => setRemote(event.target.value)}
+                autoFocus
+              />
             </div>
           )}
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">
-              Folder
+              {mode === "clone" ? t("linkRepo:cloneDestination") : t("linkRepo:folder")}
             </label>
             <div className="flex gap-2">
               <Input
-                placeholder="/Users/me/Documents/my-folder"
+                placeholder={
+                  mode === "clone" ? "/Users/me/Developer" : "/Users/me/Documents/my-folder"
+                }
                 value={localPath}
                 onChange={(event) => setLocalPath(event.target.value)}
-                autoFocus
+                autoFocus={mode === "local"}
               />
               <Button
                 type="button"
@@ -191,69 +240,91 @@ export function LinkRepoDialog({ open, onOpenChange, parentPath }: LinkRepoDialo
                 ) : (
                   <FolderOpen data-icon="inline-start" />
                 )}
-                Browse
+                {t("linkRepo:browse")}
               </Button>
             </div>
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground">
-              Name
+              {t("linkRepo:name")}
             </label>
             <Input
-              placeholder={basenameForPath(localPath) || "My Folder"}
+              placeholder={
+                mode === "clone"
+                  ? nameForRemote(remote) || t("linkRepo:repositoryNamePlaceholder")
+                  : basenameForPath(localPath) || t("linkRepo:folderNamePlaceholder")
+              }
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
           </div>
 
-          {/* ── For Developers ─────────────────────────────── */}
-          <div className="border border-border rounded-md">
-            <button
-              type="button"
-              onClick={() => setDevExpanded(!devExpanded)}
-              className="flex items-center gap-1.5 w-full px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChevronRight
-                className={cn(
-                  "h-3 w-3 shrink-0 transition-transform duration-150",
-                  devExpanded && "rotate-90"
-                )}
-              />
-              For Developers
-            </button>
-            {devExpanded && (
-              <div className="flex flex-col gap-3 px-3 pb-3">
-                <p className="text-xs text-muted-foreground">
-                  If the folder is a git repo, Cabinet auto-detects the branch
-                  and remote. A <code>.repo.yaml</code> is written into the
-                  folder so agents can read the source code in context.
-                </p>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Remote URL
-                  </label>
-                  <Input
-                    placeholder={t("linkRepo:autoDetectPlaceholder")}
-                    value={remote}
-                    onChange={(event) => setRemote(event.target.value)}
-                  />
+          {mode === "local" ? (
+            <div className="rounded-md border border-border">
+              <button
+                type="button"
+                onClick={() => setDevExpanded(!devExpanded)}
+                className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ChevronRight
+                  className={cn(
+                    "h-3 w-3 shrink-0 transition-transform duration-150",
+                    devExpanded && "rotate-90",
+                  )}
+                />
+                {t("linkRepo:forDevelopers")}
+              </button>
+              {devExpanded && (
+                <div className="flex flex-col gap-3 px-3 pb-3">
+                  <p className="text-xs text-muted-foreground">{t("linkRepo:developerIntro")}</p>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("linkRepo:remoteUrl")}
+                    </label>
+                    <Input
+                      placeholder={t("linkRepo:autoDetectPlaceholder")}
+                      value={remote}
+                      onChange={(event) => setRemote(event.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("linkRepo:description")}
+                    </label>
+                    <Input
+                      placeholder={t("linkRepo:shortSummaryPlaceholder")}
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
+                  </div>
                 </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Description
-                  </label>
-                  <Input
-                    placeholder={t("linkRepo:shortSummaryPlaceholder")}
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                  />
-                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("linkRepo:branch")}
+                </label>
+                <Input
+                  placeholder={t("linkRepo:defaultBranchPlaceholder")}
+                  value={branch}
+                  onChange={(event) => setBranch(event.target.value)}
+                />
               </div>
-            )}
-          </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("linkRepo:description")}
+                </label>
+                <Input
+                  placeholder={t("linkRepo:shortSummaryPlaceholder")}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
@@ -264,10 +335,16 @@ export function LinkRepoDialog({ open, onOpenChange, parentPath }: LinkRepoDialo
               onClick={() => onOpenChange(false)}
               disabled={creating}
             >
-              Cancel
+              {t("linkRepo:cancel")}
             </Button>
-            <Button type="submit" disabled={!localPath.trim() || creating}>
-              {creating ? "Connecting…" : "Connect"}
+            <Button type="submit" disabled={!canSubmit}>
+              {creating
+                ? mode === "clone"
+                  ? t("linkRepo:cloning")
+                  : t("linkRepo:connecting")
+                : mode === "clone"
+                  ? t("linkRepo:clone")
+                  : t("linkRepo:connect")}
             </Button>
           </div>
         </form>
