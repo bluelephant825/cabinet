@@ -9,12 +9,16 @@ import { assertWritablePath, ReadOnlySourceError } from "@/lib/knowledge-sources
 import fs from "fs/promises";
 import { storageOverCap } from "@/lib/cloud/tier";
 import { requireApiAuth } from "@/lib/auth/request-gate";
+import { assetUrlFor } from "@/lib/cabinets/asset-url";
+import {
+  MultipartUploadError,
+  parseBoundedMultipartFile,
+} from "./multipart";
 
 type RouteParams = { params: Promise<{ path: string[] }> };
 
-// POST buffers the whole multipart body in memory, so it stays small-only
-// (editor paste). Large files go through PUT, which streams to disk.
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB
+// POST buffers multipart uploads for editor paste. The parser bounds the
+// entire envelope before decoding it; large files use streaming PUT instead.
 const MAX_STREAM_BYTES = 1024 * 1024 * 1024; // 1GB
 const EXECUTABLE_EXTENSIONS = new Set([
   ".exe",
@@ -40,7 +44,11 @@ function hasExecutableExtension(filename: string): boolean {
 }
 
 async function uniqueFilename(dir: string, rawName: string) {
-  let filename = rawName.replace(/[^a-zA-Z0-9._-]/g, "-");
+  let filename = rawName
+    .replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, "-")
+    .replace(/\.\.+/g, "-")
+    .trim();
+  if (!filename || filename === ".") filename = "upload";
   const ext = path.extname(filename);
   const base = path.basename(filename, ext);
   let filePath = path.join(dir, filename);
@@ -71,7 +79,7 @@ function uploadResponse(
     ok: true,
     filename,
     markdown,
-    url: `/api/assets/${virtualPath}/${filename}`,
+    url: assetUrlFor([virtualPath, filename].filter(Boolean).join("/")),
   });
 }
 
@@ -109,20 +117,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     await ensureDirectory(resolved);
 
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
-    }
-
-    if (file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json(
-        {
-          error: `File exceeds ${MAX_UPLOAD_BYTES / 1024 / 1024}MB size limit`,
-        },
-        { status: 413 }
-      );
-    }
+    const file = await parseBoundedMultipartFile(req);
 
     if (hasExecutableExtension(file.name)) {
       return NextResponse.json(
@@ -140,6 +135,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof ReadOnlySourceError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+    if (error instanceof MultipartUploadError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -181,8 +179,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       { error: `File exceeds ${MAX_STREAM_BYTES / 1024 / 1024 / 1024}GB size limit` },
       { status: 413 }
     );
-    const declared = Number(req.headers.get("content-length") || 0);
-    if (declared > MAX_STREAM_BYTES) return sizeError;
+    const contentLength = req.headers.get("content-length");
+    if (contentLength !== null) {
+      const declared = Number(contentLength);
+      if (!Number.isSafeInteger(declared) || declared < 0) {
+        return NextResponse.json({ error: "Invalid Content-Length" }, { status: 400 });
+      }
+      if (declared > MAX_STREAM_BYTES) return sizeError;
+    }
     if (!req.body) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }

@@ -18,10 +18,19 @@ async function uploadFile(
   pagePath: string,
   file: File
 ): Promise<{ url: string; filename: string } | null> {
-  const formData = new FormData();
-  formData.append("file", file);
+  const encodedPath = pagePath
+    .split("/")
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join("/");
+  const params = new URLSearchParams({ name: file.name, type: file.type });
   try {
-    const res = await fetch(`/api/upload/${pagePath}`, { method: "POST", body: formData });
+    // Raw PUT keeps large video/audio uploads streaming on the server. Editor
+    // paste keeps using the bounded multipart POST path for small files.
+    const res = await fetch(`/api/upload/${encodedPath}?${params}`, {
+      method: "PUT",
+      body: file,
+    });
     if (!res.ok) return null;
     const data = await res.json();
     return { url: data.url, filename: data.filename };
