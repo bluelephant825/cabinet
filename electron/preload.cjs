@@ -6,6 +6,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 // onBrowserView* methods, which return an unsubscribe function.
 const browserViewNavigateListeners = new Set();
 const browserViewLoadFailedListeners = new Set();
+const extensionInstalledListeners = new Set();
 
 ipcRenderer.on("cabinet:browser-view-navigated", (_event, payload) => {
   for (const listener of browserViewNavigateListeners) {
@@ -17,6 +18,14 @@ ipcRenderer.on("cabinet:browser-view-navigated", (_event, payload) => {
 
 ipcRenderer.on("cabinet:browser-view-load-failed", (_event, payload) => {
   for (const listener of browserViewLoadFailedListeners) {
+    try {
+      listener(payload);
+    } catch {}
+  }
+});
+
+ipcRenderer.on("cabinet:extension-installed", (_event, payload) => {
+  for (const listener of extensionInstalledListeners) {
     try {
       listener(payload);
     } catch {}
@@ -76,6 +85,10 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
     ipcRenderer.invoke("cabinet:browser-view-reload", { viewId }),
   showBrowserBookmarksMenu: (payload) =>
     ipcRenderer.invoke("cabinet:show-browser-bookmarks-menu", payload),
+  showExtensionsMenu: (payload) =>
+    ipcRenderer.invoke("cabinet:show-extensions-menu", payload),
+  showNativeToast: (payload) =>
+    ipcRenderer.invoke("cabinet:show-native-toast", payload),
   destroyBrowserView: (viewId) =>
     ipcRenderer.invoke("cabinet:destroy-browser-view", { viewId }),
   onBrowserViewNavigated: (listener) => {
@@ -125,6 +138,22 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
    * hash route, so two windows can sit in different rooms at once.
    */
   openWindow: (hash) => ipcRenderer.invoke("cabinet:open-window", hash),
+  installExtension: (urlOrId) =>
+    ipcRenderer.invoke("cabinet:install-extension", { urlOrId }),
+  uninstallExtension: (id) =>
+    ipcRenderer.invoke("cabinet:uninstall-extension", { id }),
+  toggleExtension: (id, enabled) =>
+    ipcRenderer.invoke("cabinet:toggle-extension", { id, enabled }),
+  getExtensions: () => ipcRenderer.invoke("cabinet:get-extensions"),
+  updateExtension: (id, updates) =>
+    ipcRenderer.invoke("cabinet:update-extension", { id, updates }),
+  showExtensionPopup: (payload) =>
+    ipcRenderer.invoke("cabinet:show-extension-popup", payload),
+  onExtensionInstalled: (listener) => {
+    if (typeof listener !== "function") return () => {};
+    extensionInstalledListeners.add(listener);
+    return () => extensionInstalledListeners.delete(listener);
+  },
   /**
    * Subscribe to native full-screen changes (macOS hides the traffic lights in
    * full-screen). Fires immediately with the current state, then on every

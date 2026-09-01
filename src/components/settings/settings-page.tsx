@@ -42,6 +42,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SkillLibrary } from "@/components/skills/skill-library";
 import { DataLocationsSection } from "@/components/settings/data-locations-section";
 import { UninstallSection } from "@/components/settings/uninstall-section";
+import { ExtensionsSection } from "@/components/settings/extensions-section";
 import { UpdateSummary } from "@/components/system/update-summary";
 import { useCabinetUpdate } from "@/hooks/use-cabinet-update";
 import { useTheme } from "@/components/theme-provider";
@@ -128,7 +129,7 @@ interface IntegrationConfig {
   };
 }
 
-type Tab = "profile" | "providers" | "skills" | "storage" | "notifications" | "appearance" | "updates" | "about";
+type Tab = "profile" | "providers" | "skills" | "storage" | "notifications" | "appearance" | "extensions" | "updates" | "about";
 
 type SetupStep = { title: string; detail: string; command?: string; openTerminal?: boolean; link?: { label: string; url: string } };
 
@@ -391,7 +392,7 @@ export function SettingsPage() {
   const [dataDirBrowsing, setDataDirBrowsing] = useState(false);
   const [dataDirSaving, setDataDirSaving] = useState(false);
   const [dataDirRestartNeeded, setDataDirRestartNeeded] = useState(false);
-  const VALID_TABS: Tab[] = ["profile", "providers", "skills", "storage", "notifications", "appearance", "updates", "about"];
+  const VALID_TABS: Tab[] = ["profile", "providers", "skills", "storage", "notifications", "appearance", "extensions", "updates", "about"];
   const initialTab = (() => {
     const slug = useAppStore.getState().section.slug as Tab | undefined;
     return slug && VALID_TABS.includes(slug) ? slug : "profile";
@@ -779,6 +780,7 @@ export function SettingsPage() {
     {
       label: t("settings:page.groupApp"),
       items: [
+        { id: "extensions", label: "Extensions", icon: <Blocks className="h-3.5 w-3.5" /> },
         { id: "updates", label: t("settings:tabs.updates"), icon: <CloudDownload className="h-3.5 w-3.5" /> },
         { id: "about", label: t("settings:tabs.about"), icon: <Info className="h-3.5 w-3.5" /> },
       ],
@@ -1312,6 +1314,20 @@ export function SettingsPage() {
               </div>
 
               <DiagnosticsSection />
+            </div>
+          )}
+
+          {tab === "extensions" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="mb-1 text-[15px] font-semibold tracking-[-0.02em]">
+                  Extensions
+                </h2>
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  Manage Chrome Web Store extensions for Cabinet&apos;s built-in browser.
+                </p>
+              </div>
+              <ExtensionsSection />
             </div>
           )}
 

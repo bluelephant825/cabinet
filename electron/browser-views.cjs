@@ -22,12 +22,18 @@ const {
   BrowserWindow,
   WebContentsView,
   Menu,
+  Notification,
+  nativeImage,
   session,
   shell,
   ipcMain,
 } = require("electron");
+const { ElectronChromeExtensions } = require("electron-chrome-extensions");
 
 const BROWSER_VIEW_PARTITION = "persist:cabinet-browser";
+
+let extensionsManager = null;
+let activeWebContents = null;
 
 // Injected by initBrowserViews() so this module stays decoupled from main.cjs.
 let getMainWindow = () => null;
@@ -121,6 +127,38 @@ function userAgentPlatformToken() {
 // desktop Chrome rather than Electron, so they don't downgrade or block.
 function setupBrowserSession() {
   const browserSession = getBrowserSession();
+
+  try {
+    extensionsManager = new ElectronChromeExtensions({
+      session: browserSession,
+      license: "GPL-3.0",
+      createTab(details) {
+        const url = typeof details?.url === "string" ? details.url : "";
+        if (url && activeWebContents && !activeWebContents.isDestroyed()) {
+          void activeWebContents.loadURL(url);
+        }
+      },
+      selectTab(tab) {
+        for (const entry of browserViews.values()) {
+          if (entry.view.webContents !== tab) continue;
+          entry.view.setVisible(true);
+          activeWebContents = tab;
+          break;
+        }
+      },
+      removeTab(tab) {
+        for (const [viewId, entry] of browserViews.entries()) {
+          if (entry.view.webContents === tab) {
+            destroyBrowserView(viewId);
+            break;
+          }
+        }
+      },
+    });
+  } catch (error) {
+    console.error("[cabinet] failed to initialize Chrome extension APIs:", error);
+  }
+
   const filter = { urls: ["*://*.google.com/*"] };
   browserSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
     details.requestHeaders["Sec-CH-UA"] =
@@ -232,6 +270,9 @@ function destroyBrowserView(viewId) {
   if (!entry || !win) {
     browserViews.delete(viewId);
     return;
+  }
+  if (activeWebContents === entry.view.webContents) {
+    activeWebContents = null;
   }
   try {
     win.contentView.removeChildView(entry.view);
@@ -373,6 +414,15 @@ function registerHandlers() {
 
     win.contentView.addChildView(view);
     browserViews.set(viewId, { view, ownerWebContentsId: event.sender.id });
+    activeWebContents = view.webContents;
+    if (extensionsManager) {
+      try {
+        extensionsManager.addTab(view.webContents, win);
+        extensionsManager.selectTab(view.webContents);
+      } catch (error) {
+        console.warn("[cabinet] failed to register browser tab for extensions:", error);
+      }
+    }
 
     view.webContents.on("did-navigate", (_navEvent, nextUrl) => {
       sendBrowserViewNavigateEvent(event.sender.id, viewId, String(nextUrl || "about:blank"));
@@ -496,6 +546,12 @@ function registerHandlers() {
     }
     try {
       entry.view.setVisible(visible);
+      if (visible) {
+        activeWebContents = entry.view.webContents;
+        extensionsManager?.selectTab(entry.view.webContents);
+      } else if (activeWebContents === entry.view.webContents) {
+        activeWebContents = null;
+      }
     } catch {}
     return { ok: true };
   });
@@ -545,6 +601,66 @@ function registerHandlers() {
       return { ok: false, error: "not-found" };
     }
     destroyBrowserView(viewId);
+    return { ok: true };
+  });
+
+  ipcMain.handle("cabinet:show-extensions-menu", async (event, payload) => {
+    if (!isMainRendererSender(event)) return { ok: false, error: "unauthorized" };
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return { ok: false, error: "window-unavailable" };
+
+    const x = Number.isFinite(payload?.x) ? Math.max(0, Math.round(payload.x)) : 0;
+    const y = Number.isFinite(payload?.y) ? Math.max(0, Math.round(payload.y)) : 0;
+    const items = Array.isArray(payload?.items) ? payload.items.slice(0, 100) : [];
+    if (items.length === 0) return { ok: true, cancelled: true };
+
+    return await new Promise((resolve) => {
+      let resolved = false;
+      const resolveOnce = (value) => {
+        if (resolved) return;
+        resolved = true;
+        resolve(value);
+      };
+      const template = items.map((item) => {
+        const id = typeof item?.id === "string" ? item.id : "";
+        const label = typeof item?.name === "string" && item.name.trim() ? item.name.trim() : id;
+        let icon = null;
+        if (typeof item?.iconDataUrl === "string") {
+          try {
+            const image = nativeImage.createFromDataURL(item.iconDataUrl);
+            if (!image.isEmpty()) icon = image.resize({ width: 16, height: 16 });
+          } catch {}
+        }
+        return {
+          label: label || "Extension",
+          ...(icon ? { icon } : {}),
+          submenu: [
+            { label: "Open", click: () => resolveOnce({ ok: true, extensionId: id }) },
+            { type: "separator" },
+            {
+              label: item?.pinned ? "Unpin from toolbar" : "Pin to toolbar",
+              click: () => resolveOnce({ ok: true, togglePinId: id }),
+            },
+          ],
+        };
+      });
+      Menu.buildFromTemplate(template).popup({
+        window: win,
+        x,
+        y,
+        callback: () => resolveOnce({ ok: true, cancelled: true }),
+      });
+    });
+  });
+
+  ipcMain.handle("cabinet:show-native-toast", (event, payload) => {
+    if (!isMainRendererSender(event)) return { ok: false, error: "unauthorized" };
+    const message = typeof payload?.message === "string" ? payload.message.trim() : "";
+    if (!message) return { ok: false, error: "invalid-message" };
+    if (Notification.isSupported()) {
+      const kind = payload?.kind === "error" ? "Error" : payload?.kind === "success" ? "Success" : "Cabinet";
+      new Notification({ title: kind, body: message.slice(0, 1000) }).show();
+    }
     return { ok: true };
   });
 
@@ -614,4 +730,9 @@ function initBrowserViews(opts) {
   registerHandlers();
 }
 
-module.exports = { initBrowserViews, destroyAllBrowserViews };
+module.exports = {
+  initBrowserViews,
+  destroyAllBrowserViews,
+  getBrowserSession,
+  getExtensionsManager: () => extensionsManager,
+};

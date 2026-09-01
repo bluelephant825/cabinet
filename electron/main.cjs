@@ -4,11 +4,21 @@ const fs = require("fs");
 const path = require("path");
 const net = require("net");
 const { spawn } = require("child_process");
-const { app, BrowserWindow, dialog, autoUpdater, ipcMain } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  WebContentsView,
+  dialog,
+  autoUpdater,
+  ipcMain,
+  shell,
+} = require("electron");
 const { updateElectronApp } = require("update-electron-app");
+const JSZip = require("jszip");
 const {
   initBrowserViews,
   destroyAllBrowserViews,
+  getBrowserSession,
 } = require("./browser-views.cjs");
 
 if (require("electron-squirrel-startup")) {
@@ -64,6 +74,29 @@ function writePersistedDataDir(dir) {
     fs.writeFileSync(cabinetConfigPath, JSON.stringify(existing, null, 2), "utf8");
   } catch {
     // best-effort
+  }
+}
+
+function readPersistedExtensions() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(cabinetConfigPath, "utf8"));
+    return Array.isArray(parsed?.extensions) ? parsed.extensions : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePersistedExtensions(extensions) {
+  try {
+    fs.mkdirSync(userDataDir, { recursive: true });
+    let existing = {};
+    try {
+      existing = JSON.parse(fs.readFileSync(cabinetConfigPath, "utf8")) || {};
+    } catch {}
+    existing.extensions = extensions;
+    fs.writeFileSync(cabinetConfigPath, JSON.stringify(existing, null, 2), "utf8");
+  } catch (error) {
+    console.error("[cabinet] failed to persist extensions:", error);
   }
 }
 
@@ -770,6 +803,341 @@ async function openRoomWindow(suffix) {
 
 ipcMain.handle("cabinet:open-window", (_event, suffix) => openRoomWindow(suffix));
 
+const runtimeExtensionIds = new Map();
+let currentExtensionPopup = null;
+
+function isTrustedRendererSender(event) {
+  return BrowserWindow.getAllWindows().some(
+    (win) => !win.isDestroyed() && win.webContents.id === event.sender.id
+  );
+}
+
+function extensionError(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function extensionDirectory(id) {
+  return path.join(userDataDir, "extensions", id);
+}
+
+function resolveExtensionMessage(value, manifest, extensionPath) {
+  if (typeof value !== "string" || !value.startsWith("__MSG_") || !value.endsWith("__")) {
+    return typeof value === "string" ? value : "";
+  }
+  const key = value.slice(6, -2);
+  const locale = manifest.default_locale || "en";
+  try {
+    const messages = JSON.parse(
+      fs.readFileSync(path.join(extensionPath, "_locales", locale, "messages.json"), "utf8")
+    );
+    const exact = messages[key];
+    if (typeof exact?.message === "string") return exact.message;
+    const matchingKey = Object.keys(messages).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    return matchingKey && typeof messages[matchingKey]?.message === "string"
+      ? messages[matchingKey].message
+      : value;
+  } catch {
+    return value;
+  }
+}
+
+function readExtensionIcon(extensionPath, manifest) {
+  const iconSetting =
+    manifest.icons?.["128"] ||
+    manifest.icons?.["48"] ||
+    manifest.icons?.["16"] ||
+    manifest.action?.default_icon ||
+    manifest.browser_action?.default_icon;
+  const iconPath =
+    typeof iconSetting === "string"
+      ? iconSetting
+      : iconSetting && typeof iconSetting === "object"
+        ? Object.values(iconSetting).find((value) => typeof value === "string")
+        : null;
+  if (!iconPath) return null;
+  try {
+    const filePath = path.resolve(extensionPath, iconPath);
+    const relative = path.relative(extensionPath, filePath);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+    const mime = path.extname(filePath).slice(1).toLowerCase() || "png";
+    return `data:image/${mime};base64,${fs.readFileSync(filePath).toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+function extensionMetadata(id, extensionPath, manifest, previous = {}) {
+  const contentScriptMatches = [];
+  for (const script of Array.isArray(manifest.content_scripts) ? manifest.content_scripts : []) {
+    for (const match of Array.isArray(script?.matches) ? script.matches : []) {
+      if (typeof match === "string" && !contentScriptMatches.includes(match)) {
+        contentScriptMatches.push(match);
+      }
+    }
+  }
+  return {
+    id,
+    name: resolveExtensionMessage(manifest.name, manifest, extensionPath) || id,
+    version: typeof manifest.version === "string" ? manifest.version : "unknown",
+    path: extensionPath,
+    description: resolveExtensionMessage(manifest.description, manifest, extensionPath),
+    popupHtml: manifest.action?.default_popup || manifest.browser_action?.default_popup || null,
+    optionsPage: manifest.options_page || manifest.options_ui?.page || null,
+    iconDataUrl: readExtensionIcon(extensionPath, manifest),
+    contentScriptMatches,
+    enabled: previous.enabled !== false,
+    pinned: previous.pinned === true,
+  };
+}
+
+async function loadSessionExtension(extensionPath) {
+  const browserSession = getBrowserSession();
+  const loaded = browserSession.extensions?.loadExtension
+    ? await browserSession.extensions.loadExtension(extensionPath, { allowFileAccess: true })
+    : await browserSession.loadExtension(extensionPath, { allowFileAccess: true });
+  runtimeExtensionIds.set(extensionPath, loaded.id);
+  return loaded;
+}
+
+function unloadSessionExtension(extensionPath) {
+  const runtimeId = runtimeExtensionIds.get(extensionPath);
+  if (!runtimeId) return;
+  const browserSession = getBrowserSession();
+  if (browserSession.extensions?.removeExtension) {
+    browserSession.extensions.removeExtension(runtimeId);
+  } else {
+    browserSession.removeExtension(runtimeId);
+  }
+  runtimeExtensionIds.delete(extensionPath);
+}
+
+async function loadBrowserExtensions() {
+  const persisted = readPersistedExtensions();
+  const configured = String(process.env.CABINET_CHROME_EXTENSIONS || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const extensionPaths = new Set([
+    ...configured,
+    ...persisted.filter((entry) => entry?.enabled !== false).map((entry) => entry.path).filter(Boolean),
+  ]);
+  for (const extensionPath of extensionPaths) {
+    try {
+      await loadSessionExtension(extensionPath);
+    } catch (error) {
+      console.error(`[cabinet] failed to load browser extension ${extensionPath}:`, error);
+    }
+  }
+}
+
+function extensionIdFromInput(value) {
+  const match = String(value || "").trim().match(/[a-p]{32}/);
+  return match ? match[0] : null;
+}
+
+async function installExtensionFromWebStore(extensionId) {
+  const url = `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=${process.versions.chrome}&acceptformat=crx2,crx3&x=id%3D${extensionId}%26uc`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Chrome Web Store download failed (${response.status})`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length < 4) throw new Error("Chrome Web Store returned an invalid package");
+
+  let zipOffset = 0;
+  if (buffer.subarray(0, 4).toString("ascii") === "Cr24") {
+    if (buffer.length < 12) throw new Error("Invalid CRX header");
+    const version = buffer.readUInt32LE(4);
+    if (version === 3) {
+      zipOffset = 12 + buffer.readUInt32LE(8);
+    } else if (version === 2) {
+      if (buffer.length < 16) throw new Error("Invalid CRX2 header");
+      zipOffset = 16 + buffer.readUInt32LE(8) + buffer.readUInt32LE(12);
+    } else {
+      throw new Error(`Unsupported CRX version ${version}`);
+    }
+  }
+  if (zipOffset < 0 || zipOffset >= buffer.length) throw new Error("Invalid CRX payload offset");
+
+  const zip = await JSZip.loadAsync(buffer.subarray(zipOffset));
+  const outDir = extensionDirectory(extensionId);
+  const stagingDir = `${outDir}.installing`;
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+  fs.mkdirSync(stagingDir, { recursive: true });
+  try {
+    for (const [relativePath, file] of Object.entries(zip.files)) {
+      const destination = path.resolve(stagingDir, relativePath);
+      const relative = path.relative(stagingDir, destination);
+      if (relative.startsWith("..") || path.isAbsolute(relative)) {
+        throw new Error("Extension package contains an unsafe path");
+      }
+      if (file.dir) {
+        fs.mkdirSync(destination, { recursive: true });
+      } else {
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.writeFileSync(destination, await file.async("nodebuffer"));
+      }
+    }
+    const manifestPath = path.join(stagingDir, "manifest.json");
+    if (!fs.existsSync(manifestPath)) throw new Error("Extension package has no manifest.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    if (![2, 3].includes(manifest.manifest_version)) {
+      throw new Error("Only Manifest V2 and V3 extensions are supported");
+    }
+
+    const persisted = readPersistedExtensions();
+    const previous = persisted.find((entry) => entry.id === extensionId) || {};
+    unloadSessionExtension(outDir);
+    fs.rmSync(outDir, { recursive: true, force: true });
+    fs.renameSync(stagingDir, outDir);
+    await loadSessionExtension(outDir);
+    const metadata = extensionMetadata(extensionId, outDir, manifest, previous);
+    const next = persisted.filter((entry) => entry.id !== extensionId);
+    next.push(metadata);
+    writePersistedExtensions(next);
+    return { ...metadata, runtimeId: runtimeExtensionIds.get(outDir) || extensionId };
+  } catch (error) {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function enrichExtension(extension) {
+  return {
+    ...extension,
+    runtimeId: runtimeExtensionIds.get(extension.path) || extension.id,
+  };
+}
+
+ipcMain.handle("cabinet:install-extension", async (event, payload) => {
+  if (!isTrustedRendererSender(event)) return { ok: false, error: "unauthorized" };
+  const extensionId = extensionIdFromInput(payload?.urlOrId);
+  if (!extensionId) return { ok: false, error: "Enter a Chrome Web Store URL or 32-character extension ID" };
+  try {
+    const extension = await installExtensionFromWebStore(extensionId);
+    event.sender.send("cabinet:extension-installed", extension);
+    return { ok: true, extension };
+  } catch (error) {
+    return { ok: false, error: extensionError(error) };
+  }
+});
+
+ipcMain.handle("cabinet:get-extensions", (event) => {
+  if (!isTrustedRendererSender(event)) return [];
+  return readPersistedExtensions().map(enrichExtension);
+});
+
+ipcMain.handle("cabinet:update-extension", (event, payload) => {
+  if (!isTrustedRendererSender(event)) return { ok: false, error: "unauthorized" };
+  const id = extensionIdFromInput(payload?.id);
+  const updates = payload?.updates && typeof payload.updates === "object" ? payload.updates : {};
+  if (!id) return { ok: false, error: "invalid-extension-id" };
+  const persisted = readPersistedExtensions();
+  const index = persisted.findIndex((entry) => entry.id === id);
+  if (index < 0) return { ok: false, error: "not-found" };
+  persisted[index] = { ...persisted[index], pinned: updates.pinned === true };
+  writePersistedExtensions(persisted);
+  return { ok: true, extension: enrichExtension(persisted[index]) };
+});
+
+ipcMain.handle("cabinet:toggle-extension", async (event, payload) => {
+  if (!isTrustedRendererSender(event)) return { ok: false, error: "unauthorized" };
+  const id = extensionIdFromInput(payload?.id);
+  if (!id) return { ok: false, error: "invalid-extension-id" };
+  const persisted = readPersistedExtensions();
+  const index = persisted.findIndex((entry) => entry.id === id);
+  if (index < 0) return { ok: false, error: "not-found" };
+  const enabled = payload?.enabled === true;
+  try {
+    if (enabled) await loadSessionExtension(persisted[index].path);
+    else unloadSessionExtension(persisted[index].path);
+    persisted[index] = { ...persisted[index], enabled };
+    writePersistedExtensions(persisted);
+    return { ok: true, extension: enrichExtension(persisted[index]) };
+  } catch (error) {
+    return { ok: false, error: extensionError(error) };
+  }
+});
+
+ipcMain.handle("cabinet:uninstall-extension", (event, payload) => {
+  if (!isTrustedRendererSender(event)) return { ok: false, error: "unauthorized" };
+  const id = extensionIdFromInput(payload?.id);
+  if (!id) return { ok: false, error: "invalid-extension-id" };
+  const persisted = readPersistedExtensions();
+  const extension = persisted.find((entry) => entry.id === id);
+  if (!extension) return { ok: false, error: "not-found" };
+  try {
+    unloadSessionExtension(extension.path);
+    fs.rmSync(extension.path, { recursive: true, force: true });
+    writePersistedExtensions(persisted.filter((entry) => entry.id !== id));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: extensionError(error) };
+  }
+});
+
+ipcMain.handle("cabinet:show-extension-popup", async (event, payload) => {
+  if (!isTrustedRendererSender(event)) return { ok: false, error: "unauthorized" };
+  const id = extensionIdFromInput(payload?.extensionId);
+  const extension = readPersistedExtensions().find((entry) => entry.id === id);
+  if (!extension) return { ok: false, error: "not-found" };
+  if (!extension.popupHtml) return { ok: false, error: "No popup defined" };
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return { ok: false, error: "window-unavailable" };
+
+  try {
+    if (currentExtensionPopup) {
+      try {
+        win.contentView.removeChildView(currentExtensionPopup);
+        currentExtensionPopup.webContents.close();
+      } catch {}
+    }
+    const view = new WebContentsView({
+      webPreferences: {
+        partition: "persist:cabinet-browser",
+        contextIsolation: false,
+        sandbox: true,
+        nodeIntegration: false,
+        enablePreferredSizeMode: true,
+      },
+    });
+    currentExtensionPopup = view;
+    const anchorX = Number.isFinite(payload?.x) ? Math.round(payload.x) : 0;
+    const anchorY = Number.isFinite(payload?.y) ? Math.round(payload.y) : 0;
+    const updateBounds = (size = {}) => {
+      const width = Math.min(800, Math.max(100, Math.round(size.width || 360)));
+      const height = Math.min(600, Math.max(100, Math.round(size.height || 480)));
+      const windowBounds = win.getContentBounds();
+      view.setBounds({
+        x: Math.max(0, Math.min(anchorX, windowBounds.width - width - 8)),
+        y: Math.max(0, Math.min(anchorY, windowBounds.height - height - 8)),
+        width,
+        height,
+      });
+    };
+    view.webContents.on("preferred-size-changed", (_preferredEvent, size) => updateBounds(size));
+    view.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//.test(url)) void shell.openExternal(url);
+      return { action: "deny" };
+    });
+    const closePopup = () => {
+      if (currentExtensionPopup !== view) return;
+      try {
+        win.contentView.removeChildView(view);
+        view.webContents.close();
+      } catch {}
+      currentExtensionPopup = null;
+    };
+    view.webContents.on("blur", closePopup);
+    updateBounds();
+    win.contentView.addChildView(view);
+    const runtimeId = runtimeExtensionIds.get(extension.path) || id;
+    await view.webContents.loadURL(`chrome-extension://${runtimeId}/${extension.popupHtml}`);
+    view.webContents.focus();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: extensionError(error) };
+  }
+});
+
 // Note: the "cabinet:open-local-file" IPC handler lives in browser-views.cjs
 // (registerHandlers); it's shared by editor file:// links and browse mode, and
 // adds a same-renderer auth check. Don't register a second handler here —
@@ -814,6 +1182,7 @@ app.whenReady().then(async () => {
     isDev,
   });
   try {
+    await loadBrowserExtensions();
     await createWindow();
   } catch (error) {
     // Without this, a failed bootstrap (most commonly: no `npm run dev` server

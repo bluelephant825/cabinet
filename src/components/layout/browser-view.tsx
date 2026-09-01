@@ -16,8 +16,6 @@ import {
   Tags,
   Trash2,
   Blocks,
-  Pin,
-  PinOff,
 } from "lucide-react";
 import type { IconNode } from "lucide-react";
 import {
@@ -28,12 +26,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Header } from "@/components/layout/header";
 import { useAppStore } from "@/stores/app-store";
 import { useLocale } from "@/i18n/use-locale";
@@ -90,7 +82,13 @@ type BrowserBridge = {
   destroyBrowserView: (viewId: string) => Promise<{ ok: boolean }>;
   getExtensions?: () => Promise<BrowserExtension[]>;
   updateExtension?: (id: string, updates: Partial<BrowserExtension>) => Promise<{ ok: boolean }>;
-  showExtensionPopup?: (payload: { extensionId: string; x: number; y: number }) => Promise<{ ok: boolean }>;
+  showExtensionPopup?: (payload: { extensionId: string; x: number; y: number }) => Promise<{ ok: boolean; error?: string }>;
+  showExtensionsMenu?: (payload: {
+    x: number;
+    y: number;
+    items: { id: string; name: string; iconDataUrl?: string | null; pinned?: boolean }[];
+  }) => Promise<{ ok: boolean; cancelled?: boolean; extensionId?: string; togglePinId?: string }>;
+  showNativeToast?: (payload: { kind?: string; message: string; durationMs?: number }) => Promise<{ ok: boolean }>;
 };
 
 type BrowserExtension = {
@@ -103,6 +101,9 @@ type BrowserExtension = {
   pinned?: boolean;
   iconDataUrl?: string | null;
   popupHtml?: string | null;
+  optionsPage?: string | null;
+  runtimeId?: string;
+  contentScriptMatches?: string[];
 };
 
 type BrowserSessionState = {
@@ -685,6 +686,7 @@ export function BrowserView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bookmarksMenuRef = useRef<HTMLDivElement | null>(null);
   const bookmarksTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const extensionsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const iframeLoadTokenRef = useRef(0);
   const iframeLoadedTokenRef = useRef(0);
@@ -758,9 +760,29 @@ export function BrowserView() {
   useEffect(() => {
     const bridge = getBridge();
     if (bridge.getExtensions) {
-      bridge.getExtensions().then(setExtensions);
+      void bridge.getExtensions().then(setExtensions);
     }
   }, []);
+
+  useEffect(() => {
+    if (browserMode !== "electron") return;
+    const bridge = getBridge();
+    if (!bridge.showNativeToast) return;
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        | { kind?: string; message?: string; durationMs?: number }
+        | undefined;
+      if (!detail?.message) return;
+      event.preventDefault();
+      void bridge.showNativeToast?.({
+        kind: detail.kind,
+        message: detail.message,
+        durationMs: detail.durationMs,
+      });
+    };
+    window.addEventListener("cabinet:toast", handler);
+    return () => window.removeEventListener("cabinet:toast", handler);
+  }, [browserMode]);
 
   const fetchBookmarks = async () => {
     setBookmarksLoading(true);
@@ -956,24 +978,59 @@ export function BrowserView() {
     setAddressValue("");
   };
 
-  const handleToggleExtensionPin = async (ext: BrowserExtension) => {
+  const handleRunExtension = async (
+    ext: BrowserExtension,
+    rect: { left: number; bottom: number }
+  ) => {
     const bridge = getBridge();
-    const newPinned = !ext.pinned;
-    if (bridge.updateExtension) {
-      await bridge.updateExtension(ext.id, { pinned: newPinned });
-      setExtensions(prev => prev.map(e => e.id === ext.id ? { ...e, pinned: newPinned } : e));
+    if (!bridge.showExtensionPopup) return;
+    const result = await bridge.showExtensionPopup({
+      extensionId: ext.id,
+      x: Math.round(rect.left),
+      y: Math.round(rect.bottom + 8),
+    });
+    if (!result?.ok && result?.error) {
+      window.dispatchEvent(
+        new CustomEvent("cabinet:toast", {
+          detail: { kind: "error", message: result.error },
+        })
+      );
     }
   };
 
-  const handleRunExtension = async (ext: BrowserExtension, event: React.MouseEvent) => {
+  const openExtensionsNativeMenu = async () => {
+    const trigger = extensionsTriggerRef.current;
     const bridge = getBridge();
-    if (bridge.showExtensionPopup) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      await bridge.showExtensionPopup({
-        extensionId: ext.id,
-        x: Math.round(rect.left),
-        y: Math.round(rect.bottom + 8),
-      });
+    if (!trigger || !bridge.showExtensionsMenu) return;
+    const enabled = extensions.filter((extension) => extension.enabled !== false);
+    if (enabled.length === 0) return;
+    const rect = trigger.getBoundingClientRect();
+    const result = await bridge.showExtensionsMenu({
+      x: Math.max(0, Math.round(rect.left)),
+      y: Math.max(0, Math.round(rect.bottom + 6)),
+      items: enabled.map(({ id, name, iconDataUrl, pinned }) => ({
+        id,
+        name,
+        iconDataUrl,
+        pinned,
+      })),
+    });
+    if (!result?.ok || result.cancelled) return;
+    if (result.togglePinId && bridge.updateExtension) {
+      const extension = extensions.find((item) => item.id === result.togglePinId);
+      if (!extension) return;
+      const pinned = !extension.pinned;
+      const update = await bridge.updateExtension(extension.id, { pinned });
+      if (update?.ok) {
+        setExtensions((previous) =>
+          previous.map((item) => (item.id === extension.id ? { ...item, pinned } : item))
+        );
+      }
+      return;
+    }
+    if (result.extensionId) {
+      const extension = extensions.find((item) => item.id === result.extensionId);
+      if (extension) await handleRunExtension(extension, rect);
     }
   };
 
@@ -1785,66 +1842,42 @@ export function BrowserView() {
             </button>
             
             {/* Pinned Extensions */}
-            {extensions.filter(ext => ext.enabled !== false && ext.pinned).map(ext => (
-              <button
-                key={ext.id}
-                type="button"
-                onClick={(e) => handleRunExtension(ext, e)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
-                title={ext.name}
-                aria-label={ext.name}
-              >
-                {ext.iconDataUrl ? (
-                  <img src={ext.iconDataUrl} alt="" className="w-4 h-4 object-contain" />
-                ) : (
-                  <Blocks className="h-4 w-4" />
-                )}
-              </button>
-            ))}
+            {extensions
+              .filter((extension) => extension.enabled !== false && extension.pinned)
+              .map((extension) => (
+                <button
+                  key={extension.id}
+                  type="button"
+                  onClick={(event) =>
+                    void handleRunExtension(
+                      extension,
+                      event.currentTarget.getBoundingClientRect()
+                    )
+                  }
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
+                  title={extension.name}
+                  aria-label={extension.name}
+                >
+                  {extension.iconDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- extension icons are data URLs
+                    <img src={extension.iconDataUrl} alt="" className="h-4 w-4 object-contain" />
+                  ) : (
+                    <Blocks className="h-4 w-4" />
+                  )}
+                </button>
+              ))}
 
-            {/* Extensions Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted cursor-pointer"
-                title="Extensions"
-                aria-label="Extensions"
-              >
-                <Blocks className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                {extensions.filter(ext => ext.enabled !== false).length === 0 ? (
-                  <div className="p-3 text-xs text-muted-foreground text-center">No extensions enabled</div>
-                ) : (
-                  extensions.filter(ext => ext.enabled !== false).map(ext => (
-                    <div key={ext.id} className="flex items-center justify-between px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm group">
-                      <button
-                        type="button"
-                        onClick={(e) => handleRunExtension(ext, e)}
-                        className="flex items-center gap-2 flex-1 overflow-hidden text-left cursor-pointer focus:outline-none"
-                      >
-                        {ext.iconDataUrl ? (
-                          <img src={ext.iconDataUrl} alt="" className="w-4 h-4 object-contain shrink-0" />
-                        ) : (
-                          <Blocks className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="truncate">{ext.name}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleExtensionPin(ext);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 p-1 hover:bg-muted rounded text-muted-foreground"
-                        title={ext.pinned ? "Unpin extension" : "Pin extension"}
-                      >
-                        {ext.pinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              ref={extensionsTriggerRef}
+              type="button"
+              onClick={() => void openExtensionsNativeMenu()}
+              disabled={extensions.every((extension) => extension.enabled === false)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted disabled:opacity-40"
+              title="Extensions"
+              aria-label="Extensions"
+            >
+              <Blocks className="h-4 w-4" />
+            </button>
           </div>
           <div className="flex justify-end gap-2">
             {url ? (
