@@ -11,8 +11,11 @@ import {
   Eye,
   Loader2,
   Pencil,
+  Play,
   Plus,
+  RefreshCw,
   Save,
+  Square,
   Trash2,
 } from "lucide-react";
 import { common, createLowlight } from "lowlight";
@@ -24,6 +27,7 @@ import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { ViewerLayout } from "@/components/layout/viewer-layout";
 import { NotebookOutputView } from "@/components/editor/notebook-output";
 import { markdownToHtml } from "@/lib/markdown/to-html";
+import { applyJupyterMessage, createExecuteRequest, type JupyterMessage } from "@/lib/notebook/kernel";
 import {
   createNotebookCell,
   joinNotebookSource,
@@ -44,7 +48,12 @@ interface NotebookViewerProps {
 }
 
 type ViewMode = "preview" | "edit" | "split";
+type KernelStatus = "disconnected" | "connecting" | "idle" | "busy";
 const lowlight = createLowlight(common);
+
+function messageId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function highlightCode(code: string, language: string): string {
   try {
@@ -125,6 +134,8 @@ function NotebookCellView({
   onSourceChange,
   onMove,
   onDelete,
+  onRun,
+  running,
 }: {
   cell: NotebookCell;
   index: number;
@@ -134,6 +145,8 @@ function NotebookCellView({
   onSourceChange: (source: string) => void;
   onMove: (to: number) => void;
   onDelete: () => void;
+  onRun?: () => void;
+  running?: boolean;
 }) {
   const editable = mode !== "preview";
   return (
@@ -142,6 +155,11 @@ function NotebookCellView({
         <div className="mb-2 flex items-center justify-between">
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{cell.cell_type}</span>
           <div className="flex items-center gap-0.5">
+            {cell.cell_type === "code" && onRun && (
+              <Button variant="ghost" size="icon-xs" onClick={onRun} disabled={running} aria-label="Run cell">
+                {running ? <Loader2 className="animate-spin" /> : <Play />}
+              </Button>
+            )}
             <Button variant="ghost" size="icon-xs" onClick={() => onMove(index - 1)} disabled={index === 0} aria-label="Move cell up"><ArrowUp /></Button>
             <Button variant="ghost" size="icon-xs" onClick={() => onMove(index + 1)} disabled={index === count - 1} aria-label="Move cell down"><ArrowDown /></Button>
             <Button variant="ghost" size="icon-xs" className="text-destructive" onClick={onDelete} aria-label="Delete cell"><Trash2 /></Button>
@@ -174,6 +192,14 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
   const [saved, setSaved] = useState(false);
   const revisionRef = useRef(new NotebookRevisionTracker());
   const saveInFlightRef = useRef(false);
+  const [jupyterAvailable, setJupyterAvailable] = useState(false);
+  const [kernelStatus, setKernelStatus] = useState<KernelStatus>("disconnected");
+  const [runningCell, setRunningCell] = useState<number | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const kernelIdRef = useRef<string | null>(null);
+  const pendingRef = useRef(new Map<string, { cellIndex: number; resolve: () => void; timeout: number }>());
+  const sessionIdRef = useRef(messageId());
+  const ownedSessionRef = useRef<string | null>(null);
 
   const assetUrl = `/api/assets/${path}`;
   const filename = path.split("/").pop() || path;
@@ -197,6 +223,110 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
   }, [assetUrl]);
 
   useEffect(() => { void fetchNotebook(); }, [fetchNotebook]);
+
+  const kernelName = notebook?.metadata.kernelspec?.name || "python3";
+  const setupJupyter = useCallback(async () => {
+    setKernelStatus("connecting");
+    try {
+      const statusResponse = await fetch("/api/jupyter/status", { cache: "no-store" });
+      const status = await statusResponse.json() as { available?: boolean };
+      if (!statusResponse.ok || !status.available) {
+        setJupyterAvailable(false);
+        setKernelStatus("disconnected");
+        return;
+      }
+      setJupyterAvailable(true);
+      const sessionsResponse = await fetch("/api/jupyter/proxy/api/sessions", { cache: "no-store" });
+      if (!sessionsResponse.ok) throw new Error("Could not list Jupyter sessions");
+      const sessions = await sessionsResponse.json() as { id?: string; path?: string; kernel?: { id?: string } }[];
+      let session = sessions.find((candidate) => candidate.path === path);
+      if (!session) {
+        const createResponse = await fetch("/api/jupyter/proxy/api/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: { path, type: "notebook", name: filename },
+            kernel: { name: kernelName },
+          }),
+        });
+        if (!createResponse.ok) throw new Error("Could not create Jupyter session");
+        session = await createResponse.json() as { id?: string; kernel?: { id?: string } };
+        ownedSessionRef.current = session.id ?? null;
+      }
+      const kernelId = session.kernel?.id;
+      if (!kernelId || !/^[A-Za-z0-9_-]{1,128}$/.test(kernelId)) throw new Error("Jupyter returned an invalid kernel id");
+      kernelIdRef.current = kernelId;
+
+      const authResponse = await fetch("/api/daemon/auth", { cache: "no-store" });
+      if (!authResponse.ok) throw new Error("Could not authenticate with the daemon");
+      const auth = await authResponse.json() as { token: string; wsOrigin: string };
+      const socketUrl = new URL("/api/daemon/jupyter/ws", auth.wsOrigin);
+      socketUrl.searchParams.set("token", auth.token);
+      socketUrl.searchParams.set("kernelId", kernelId);
+      wsRef.current?.close();
+      const socket = new WebSocket(socketUrl);
+      wsRef.current = socket;
+      socket.onopen = () => setKernelStatus("idle");
+      socket.onmessage = async (event) => {
+        try {
+          const text = typeof event.data === "string" ? event.data : await new Response(event.data).text();
+          const message = JSON.parse(text) as JupyterMessage;
+          if (message.header?.msg_type === "status") {
+            const state = message.content?.execution_state;
+            if (state === "busy" || state === "idle") setKernelStatus(state);
+          }
+          const parentId = message.parent_header?.msg_id;
+          const pending = parentId ? pendingRef.current.get(parentId) : undefined;
+          if (!pending) return;
+          setNotebook((current) => {
+            if (!current || current.cells[pending.cellIndex]?.cell_type !== "code") return current;
+            const cells = [...current.cells];
+            cells[pending.cellIndex] = applyJupyterMessage(cells[pending.cellIndex] as CodeCell, message);
+            return { ...current, cells };
+          });
+          if (message.header?.msg_type === "execute_reply") {
+            pendingRef.current.delete(parentId!);
+            clearTimeout(pending.timeout);
+            setRunningCell(null);
+            pending.resolve();
+          }
+        } catch {
+          // Ignore malformed kernel messages rather than taking down the editor.
+        }
+      };
+      socket.onclose = () => {
+        if (wsRef.current === socket) {
+          setKernelStatus("disconnected");
+          setRunningCell(null);
+          for (const pending of pendingRef.current.values()) {
+            clearTimeout(pending.timeout);
+            pending.resolve();
+          }
+          pendingRef.current.clear();
+        }
+      };
+      socket.onerror = () => setKernelStatus("disconnected");
+    } catch {
+      setJupyterAvailable(false);
+      setKernelStatus("disconnected");
+    }
+  }, [filename, kernelName, path]);
+
+  const hasNotebook = notebook !== null;
+  useEffect(() => {
+    if (hasNotebook) void setupJupyter();
+    return () => {
+      wsRef.current?.close();
+      const ownedSession = ownedSessionRef.current;
+      ownedSessionRef.current = null;
+      if (ownedSession) {
+        void fetch(`/api/jupyter/proxy/api/sessions/${encodeURIComponent(ownedSession)}`, {
+          method: "DELETE",
+          keepalive: true,
+        });
+      }
+    };
+  }, [hasNotebook, setupJupyter]);
 
   const saveNotebook = useCallback(async () => {
     if (!notebook || saveInFlightRef.current) return;
@@ -255,6 +385,51 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
     setSaved(false);
   }, []);
 
+  const runCell = useCallback((cellIndex: number): Promise<void> => {
+    return new Promise((resolve) => {
+      const socket = wsRef.current;
+      const cell = notebook?.cells[cellIndex];
+      if (!socket || socket.readyState !== WebSocket.OPEN || cell?.cell_type !== "code") {
+        resolve();
+        return;
+      }
+      const id = messageId();
+      const timeout = window.setTimeout(() => {
+        if (!pendingRef.current.delete(id)) return;
+        setRunningCell(null);
+        resolve();
+      }, 2 * 60 * 1000);
+      pendingRef.current.set(id, { cellIndex, resolve, timeout });
+      setRunningCell(cellIndex);
+      updateCells((current) => current.map((candidate, index) => index === cellIndex && candidate.cell_type === "code"
+        ? { ...candidate, execution_count: null, outputs: [] }
+        : candidate));
+      socket.send(JSON.stringify(createExecuteRequest(joinNotebookSource(cell.source), id, sessionIdRef.current)));
+    });
+  }, [notebook, updateCells]);
+
+  const runAllCells = useCallback(async () => {
+    for (let index = 0; index < (notebook?.cells.length ?? 0); index += 1) {
+      if (notebook?.cells[index]?.cell_type === "code") await runCell(index);
+    }
+  }, [notebook, runCell]);
+
+  const interruptKernel = useCallback(async () => {
+    if (!kernelIdRef.current) return;
+    await fetch(`/api/jupyter/proxy/api/kernels/${encodeURIComponent(kernelIdRef.current)}/interrupt`, { method: "POST" });
+  }, []);
+
+  const restartKernel = useCallback(async () => {
+    if (!kernelIdRef.current) return;
+    setKernelStatus("connecting");
+    const response = await fetch(`/api/jupyter/proxy/api/kernels/${encodeURIComponent(kernelIdRef.current)}/restart`, { method: "POST" });
+    if (!response.ok) {
+      setKernelStatus("disconnected");
+      return;
+    }
+    await setupJupyter();
+  }, [setupJupyter]);
+
   const language = String(
     notebook?.metadata.language_info?.name || notebook?.metadata.kernelspec?.name || "python"
   );
@@ -276,6 +451,14 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
             <ToolbarButton icon={Columns2} label="Split preview" iconOnly active={mode === "split"} onClick={() => setMode("split")} />
           </div>
           <ToolbarButton icon={Plus} label="Add code" onClick={() => addCell("code")} />
+          {jupyterAvailable && (
+            <>
+              <span className="px-1 font-mono text-[10px] capitalize text-muted-foreground">{kernelStatus}</span>
+              <ToolbarButton icon={kernelStatus === "busy" ? Loader2 : Play} label="Run all" disabled={kernelStatus !== "idle" || runningCell !== null} onClick={() => void runAllCells()} className={kernelStatus === "busy" ? "[&_svg]:animate-spin" : undefined} />
+              <ToolbarButton icon={Square} label="Interrupt" iconOnly disabled={kernelStatus !== "busy"} onClick={() => void interruptKernel()} />
+              <ToolbarButton icon={RefreshCw} label="Restart kernel" iconOnly disabled={kernelStatus === "connecting" || kernelStatus === "disconnected"} onClick={() => void restartKernel()} />
+            </>
+          )}
           <ToolbarButton icon={saving ? Loader2 : saved ? Check : Save} label={saving ? "Saving" : saved ? "Saved" : dirty ? "Save changes" : "Saved"} disabled={!dirty || saving} onClick={() => void saveNotebook()} className={saving ? "[&_svg]:animate-spin" : undefined} />
           <ToolbarButton icon={Download} label="Download" iconOnly href={assetUrl} download={filename} />
         </ViewerToolbar>
@@ -300,6 +483,8 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
                 onSourceChange={(source) => updateCells((current) => current.map((item, itemIndex) => itemIndex === index ? replaceCellSource(item, source) : item))}
                 onMove={(to) => updateCells((current) => moveNotebookCell(current, index, to))}
                 onDelete={() => updateCells((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                onRun={jupyterAvailable && kernelStatus === "idle" ? () => void runCell(index) : undefined}
+                running={runningCell === index}
               />
             ))}
             {mode !== "preview" && (

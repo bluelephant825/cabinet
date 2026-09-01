@@ -106,6 +106,18 @@ import {
   printStartupBannerIfNeeded,
   startTelemetryFlusher,
 } from "../src/lib/telemetry";
+import { resolveAuthorizedMountPaths } from "../src/lib/knowledge-sources/store";
+import {
+  findActiveJupyterServer,
+  fromJupyterPath,
+  isAllowedJupyterProxyRequest,
+  JUPYTER_PROXY_TIMEOUT_MS,
+  JUPYTER_REQUEST_LIMIT,
+  JUPYTER_RESPONSE_LIMIT,
+  JUPYTER_WS_CONNECT_TIMEOUT_MS,
+  JUPYTER_WS_MESSAGE_LIMIT,
+  toJupyterPath,
+} from "../src/lib/notebook/jupyter";
 
 const PORT = getDaemonPort();
 const CABINET_MANIFEST_FILE = ".cabinet";
@@ -1492,6 +1504,117 @@ function queueScheduleReload(): void {
   }, 200);
 }
 
+// ===== Jupyter proxy =====
+
+class JupyterProxyError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
+async function readBoundedBody(req: http.IncomingMessage, limit: number): Promise<Buffer> {
+  const declared = Number(req.headers["content-length"] || 0);
+  if (declared > limit) throw new JupyterProxyError("Jupyter request body is too large", 413);
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > limit) throw new JupyterProxyError("Jupyter request body is too large", 413);
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+function mapJupyterSessionResponse(value: unknown, rootDir: string, mounts: string[]): unknown {
+  const mapSession = (candidate: unknown): unknown => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return candidate;
+    const session = { ...(candidate as Record<string, unknown>) };
+    if (typeof session.path === "string") session.path = fromJupyterPath(session.path, rootDir, mounts);
+    return session;
+  };
+  return Array.isArray(value) ? value.map(mapSession) : mapSession(value);
+}
+
+async function handleJupyterProxy(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  subpath: string
+): Promise<void> {
+  if (!isAllowedJupyterProxyRequest(req.method || "", subpath)) {
+    throw new JupyterProxyError("Jupyter API operation is not allowed", 404);
+  }
+  const serverInfo = await findActiveJupyterServer();
+  if (!serverInfo) throw new JupyterProxyError("Jupyter server is not active", 503);
+
+  const mounts = (await resolveAuthorizedMountPaths(null)).map((mount) => path.resolve(mount));
+  let body: Buffer | string | undefined;
+  if (req.method !== "GET") {
+    const raw = await readBoundedBody(req, JUPYTER_REQUEST_LIMIT);
+    if (subpath === "api/sessions" && req.method === "POST") {
+      let input: Record<string, unknown>;
+      try {
+        input = JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
+      } catch {
+        throw new JupyterProxyError("Jupyter session request must be valid JSON", 400);
+      }
+      if (input.model && typeof input.model === "object" && !Array.isArray(input.model)) {
+        input = { ...(input.model as Record<string, unknown>), ...input };
+        delete input.model;
+      }
+      if (typeof input.path !== "string" || !serverInfo.rootDir) {
+        throw new JupyterProxyError("Jupyter server did not expose a usable root", 503);
+      }
+      try {
+        input.path = toJupyterPath(input.path, serverInfo.rootDir, mounts);
+      } catch (error) {
+        throw new JupyterProxyError(error instanceof Error ? error.message : "Invalid notebook path", 403);
+      }
+      body = JSON.stringify(input);
+    } else {
+      body = raw;
+    }
+  }
+
+  const target = new URL(subpath, serverInfo.url);
+  target.searchParams.set("token", serverInfo.token);
+  const upstream = await fetch(target, {
+    method: req.method,
+    headers: body === undefined ? undefined : { "Content-Type": req.headers["content-type"] || "application/json" },
+    body: typeof body === "string"
+      ? body
+      : body === undefined
+        ? undefined
+        : body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer,
+    signal: AbortSignal.timeout(JUPYTER_PROXY_TIMEOUT_MS),
+  });
+  const declared = Number(upstream.headers.get("content-length") || 0);
+  if (declared > JUPYTER_RESPONSE_LIMIT) throw new JupyterProxyError("Jupyter response body is too large", 502);
+  const rawResponse = Buffer.from(await upstream.arrayBuffer());
+  if (rawResponse.length > JUPYTER_RESPONSE_LIMIT) throw new JupyterProxyError("Jupyter response body is too large", 502);
+
+  let responseBody = rawResponse;
+  if (subpath.startsWith("api/sessions") && serverInfo.rootDir && rawResponse.length) {
+    try {
+      responseBody = Buffer.from(JSON.stringify(mapJupyterSessionResponse(
+        JSON.parse(rawResponse.toString("utf8")), serverInfo.rootDir, mounts
+      )));
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        // Preserve non-JSON upstream errors verbatim.
+      } else {
+        throw new JupyterProxyError(error instanceof Error ? error.message : "Invalid session path", 502);
+      }
+    }
+  }
+  res.writeHead(upstream.status, {
+    "Content-Type": upstream.headers.get("content-type") || "application/json",
+    "Content-Length": String(responseBody.length),
+    "Cache-Control": "no-store",
+  });
+  res.end(responseBody);
+}
+
 // ===== HTTP Server =====
 
 const server = http.createServer(async (req, res) => {
@@ -1506,6 +1629,27 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "", `http://localhost:${PORT}`);
   if (url.pathname !== "/health" && !isDaemonTokenValid(requestToken(req, url))) {
     rejectUnauthorized(res);
+    return;
+  }
+
+  if (url.pathname === "/jupyter/status" && req.method === "GET") {
+    const active = await findActiveJupyterServer().catch(() => null);
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify({ available: active !== null }));
+    return;
+  }
+
+  if (url.pathname.startsWith("/jupyter/proxy/")) {
+    try {
+      await handleJupyterProxy(req, res, url.pathname.slice("/jupyter/proxy/".length));
+    } catch (error) {
+      const status = error instanceof JupyterProxyError
+        ? error.status
+        : error instanceof Error && error.name === "TimeoutError" ? 504 : 502;
+      const message = error instanceof JupyterProxyError ? error.message : "Jupyter proxy failed";
+      if (!res.headersSent) res.writeHead(status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: message }));
+    }
     return;
   }
 
@@ -2056,6 +2200,10 @@ const wssPty = new WebSocketServer({ noServer: true });
 // Event bus WebSocket — /events path
 const wssEvents = new WebSocketServer({ noServer: true });
 
+// Jupyter kernel channels. Authentication is enforced before upgrade and the
+// payload ceiling prevents a local kernel from exhausting the daemon process.
+const wssJupyter = new WebSocketServer({ noServer: true, maxPayload: JUPYTER_WS_MESSAGE_LIMIT });
+
 // Route WebSocket upgrades based on path
 server.on("upgrade", (req, socket, head) => {
   const url = new URL(req.url || "", `http://localhost:${PORT}`);
@@ -2073,6 +2221,16 @@ server.on("upgrade", (req, socket, head) => {
     wssPty.handleUpgrade(req, socket, head, (ws) => {
       wssPty.emit("connection", ws, req);
     });
+  } else if (url.pathname === "/api/daemon/jupyter/ws") {
+    const kernelId = url.searchParams.get("kernelId");
+    if (!kernelId || !/^[A-Za-z0-9_-]{1,128}$/.test(kernelId)) {
+      socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    wssJupyter.handleUpgrade(req, socket, head, (ws) => {
+      wssJupyter.emit("connection", ws, req);
+    });
   } else {
     socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
     socket.destroy();
@@ -2085,6 +2243,87 @@ wssPty.on("connection", (ws, req) => {
 
 wssEvents.on("connection", (ws) => {
   handleEventBusConnection(ws);
+});
+
+wssJupyter.on("connection", async (client, req) => {
+  const requestUrl = new URL(req.url || "", `http://localhost:${PORT}`);
+  const kernelId = requestUrl.searchParams.get("kernelId");
+  if (!kernelId || !/^[A-Za-z0-9_-]{1,128}$/.test(kernelId)) {
+    client.close(1008, "Invalid kernel id");
+    return;
+  }
+
+  let upstream: WebSocket | null = null;
+  let settled = false;
+  let queuedBytes = 0;
+  const queued: { data: Buffer; binary: boolean }[] = [];
+  const connectTimer = setTimeout(() => {
+    client.close(1013, "Jupyter connection timed out");
+    upstream?.terminate();
+  }, JUPYTER_WS_CONNECT_TIMEOUT_MS);
+  const cleanup = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(connectTimer);
+    if (client.readyState === WebSocket.OPEN) client.close();
+    if (upstream?.readyState === WebSocket.OPEN) upstream.close();
+    else upstream?.terminate();
+  };
+
+  client.on("message", (data, binary) => {
+    const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+    if (upstream?.readyState === WebSocket.OPEN) {
+      upstream.send(buffer, { binary });
+      return;
+    }
+    queuedBytes += buffer.length;
+    if (queuedBytes > JUPYTER_WS_MESSAGE_LIMIT) {
+      client.close(1009, "Queued messages are too large");
+      cleanup();
+      return;
+    }
+    queued.push({ data: buffer, binary });
+  });
+  client.on("close", cleanup);
+  client.on("error", cleanup);
+
+  try {
+    const serverInfo = await findActiveJupyterServer();
+    if (!serverInfo || settled) {
+      client.close(1013, "Jupyter server is not active");
+      cleanup();
+      return;
+    }
+    const target = new URL(`api/kernels/${encodeURIComponent(kernelId)}/channels`, serverInfo.url);
+    target.protocol = target.protocol === "https:" ? "wss:" : "ws:";
+    target.searchParams.set("token", serverInfo.token);
+    const protocol = client.protocol || undefined;
+    upstream = new WebSocket(target, protocol, {
+      maxPayload: JUPYTER_WS_MESSAGE_LIMIT,
+      handshakeTimeout: JUPYTER_WS_CONNECT_TIMEOUT_MS,
+    });
+    upstream.on("open", () => {
+      clearTimeout(connectTimer);
+      for (const message of queued) upstream?.send(message.data, { binary: message.binary });
+      queued.length = 0;
+      queuedBytes = 0;
+    });
+    upstream.on("message", (data, binary) => {
+      if (client.readyState === WebSocket.OPEN) client.send(data, { binary });
+    });
+    upstream.on("close", (code, reason) => {
+      clearTimeout(connectTimer);
+      if (client.readyState === WebSocket.OPEN) client.close(code, reason.toString().slice(0, 123));
+      cleanup();
+    });
+    upstream.on("error", () => {
+      if (client.readyState === WebSocket.OPEN) client.close(1011, "Jupyter connection failed");
+      cleanup();
+    });
+  } catch {
+    if (client.readyState === WebSocket.OPEN) client.close(1011, "Jupyter connection failed");
+    cleanup();
+  }
 });
 
 // ===== Startup =====
