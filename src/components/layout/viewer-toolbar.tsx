@@ -5,6 +5,7 @@ import { Archive, Globe, Maximize2 } from "lucide-react";
 import { HeaderActions } from "@/components/layout/header-actions";
 import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { ReturnToChip } from "@/components/layout/return-to-chip";
+import { PageLinksButton } from "@/components/editor/page-links-button";
 import { ViewerBreadcrumb } from "@/components/layout/viewer-breadcrumb";
 import { NewTaskButton } from "@/components/composer/new-task-button";
 import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
@@ -137,6 +138,12 @@ export function ViewerToolbar({
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {children}
+        {sourcePath &&
+        (sourceNode?.type === "file" ||
+          sourceNode?.type === "directory" ||
+          sourceNode?.type === "cabinet") ? (
+          <PageLinksButton key={sourcePath} path={sourcePath} />
+        ) : null}
         {/* File history moved to the sidebar right-click menu — the toolbar
             stays minimal so the content leads. */}
         <ToolbarButton
