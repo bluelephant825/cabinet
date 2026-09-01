@@ -43,6 +43,8 @@ const MERMAID_EXTENSIONS = new Set([".mermaid", ".mmd"]);
 
 const LATEX_EXTENSIONS = new Set([".tex", ".latex"]);
 
+const TYPST_EXTENSIONS = new Set([".typ"]);
+
 // Office types that Cabinet can render inline.
 const DOCX_EXTENSIONS = new Set([".docx"]);
 const XLSX_EXTENSIONS = new Set([".xlsx", ".xlsm"]);
@@ -68,7 +70,7 @@ const UNKNOWN_EXTENSIONS = new Set([
   ".epub", ".mobi", ".rtf",
 ]);
 
-function classifyFile(ext: string): TreeNode["type"] | null {
+export function classifyFile(ext: string): TreeNode["type"] | null {
   if (NOTEBOOK_EXTENSIONS.has(ext)) return "notebook";
   if (CODE_EXTENSIONS.has(ext)) return "code";
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
@@ -76,6 +78,7 @@ function classifyFile(ext: string): TreeNode["type"] | null {
   if (AUDIO_EXTENSIONS.has(ext)) return "audio";
   if (MERMAID_EXTENSIONS.has(ext)) return "mermaid";
   if (LATEX_EXTENSIONS.has(ext)) return "latex";
+  if (TYPST_EXTENSIONS.has(ext)) return "typst";
   if (DOCX_EXTENSIONS.has(ext)) return "docx";
   if (XLSX_EXTENSIONS.has(ext)) return "xlsx";
   if (PPTX_EXTENSIONS.has(ext)) return "pptx";

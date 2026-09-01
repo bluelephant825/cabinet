@@ -15,6 +15,7 @@ import { ImageViewer } from "@/components/editor/image-viewer";
 import { MediaViewer } from "@/components/editor/media-viewer";
 import { MermaidViewer } from "@/components/editor/mermaid-viewer";
 import { LatexViewer } from "@/components/editor/latex-viewer";
+import { TypstViewer } from "@/components/editor/typst-viewer";
 import { FileFallbackViewer } from "@/components/editor/file-fallback-viewer";
 import dynamic from "next/dynamic";
 import { GoogleDocViewer } from "@/components/editor/google-doc-viewer";
@@ -759,6 +760,7 @@ export function AppShell() {
         if (lower.endsWith(".ipynb")) return "notebook";
         if (lower.endsWith(".mmd") || lower.endsWith(".mermaid")) return "mermaid";
         if (lower.endsWith(".tex") || lower.endsWith(".latex")) return "latex";
+        if (lower.endsWith(".typ")) return "typst";
         if (/\.(png|jpe?g|gif|webp|svg|bmp)$/.test(lower)) return "image";
         if (/\.(mp4|mov|webm|avi|mkv)$/.test(lower)) return "video";
         if (/\.(mp3|wav|ogg|flac|m4a)$/.test(lower)) return "audio";
@@ -780,6 +782,7 @@ export function AppShell() {
   const isAudio = nodeType === "audio";
   const isMermaid = nodeType === "mermaid";
   const isLatex = nodeType === "latex";
+  const isTypst = nodeType === "typst";
   const isDocx = nodeType === "docx";
   const isXlsx = nodeType === "xlsx";
   const isPptx = nodeType === "pptx";
@@ -1007,6 +1010,12 @@ export function AppShell() {
       return <LatexViewer key={texPath} path={texPath} title={texTitle} />;
     }
 
+    if (isTypst && (selectedNode || selectedPath)) {
+      const typstPath = selectedNode?.path || selectedPath!;
+      const typstTitle = selectedNode?.frontmatter?.title || selectedNode?.name || typstPath.split("/").pop() || "Typst";
+      return <TypstViewer key={typstPath} path={typstPath} title={typstTitle} />;
+    }
+
     if (isDocx && (selectedNode || selectedPath)) {
       const p = selectedNode?.path || selectedPath!;
       const t = selectedNode?.frontmatter?.title || selectedNode?.name || p.split("/").pop() || "Document";
@@ -1078,15 +1087,15 @@ export function AppShell() {
     appMode !== "browse" &&
     !driveLoading &&
     !isApp && !isCsv && !isPdf && !isWebsite && !isNotebook && !isCode &&
-    !isImage && !isVideo && !isAudio && !isMermaid && !isLatex && !isDocx &&
-    !isXlsx && !isPptx && !isUnknown && !googleFrontmatter?.url;
+    !isImage && !isVideo && !isAudio && !isMermaid && !isLatex && !isTypst &&
+    !isDocx && !isXlsx && !isPptx && !isUnknown && !googleFrontmatter?.url;
 
   // Viewers migrated to ViewerLayout put their toolbar on the desk and wrap
   // only their body in a ContentSheet — so they, like the editor, opt out of
   // the app-shell sheet (otherwise the toolbar sits back on a double sheet).
   const isSelfSheetedViewer =
     isCsv || isCode || isImage || isMermaid ||
-    isPdf || isVideo || isAudio || isUnknown || isLatex ||
+    isPdf || isVideo || isAudio || isUnknown || isLatex || isTypst ||
     isWebsite || isApp || isDocx || isXlsx || isPptx || isNotebook ||
     !!googleFrontmatter?.url;
 
