@@ -1,235 +1,179 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { ExternalLink, Download, Copy, Check, AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Columns2,
+  Download,
+  Eye,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-react";
+import { common, createLowlight } from "lowlight";
+import { toHtml } from "hast-util-to-html";
+import { Button } from "@/components/ui/button";
+import { SafeHtml } from "@/components/ui/safe-html";
 import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { ViewerLayout } from "@/components/layout/viewer-layout";
-import { common, createLowlight } from "lowlight";
-import { toHtml } from "hast-util-to-html";
+import { NotebookOutputView } from "@/components/editor/notebook-output";
 import { markdownToHtml } from "@/lib/markdown/to-html";
-import { useLocale } from "@/i18n/use-locale";
-import { SafeHtml } from "@/components/ui/safe-html";
+import {
+  createNotebookCell,
+  joinNotebookSource,
+  moveNotebookCell,
+  NotebookRevisionTracker,
+  parseNotebook,
+  replaceCellSource,
+  serializeNotebook,
+  type CodeCell,
+  type MarkdownCell,
+  type NotebookCell,
+  type NotebookDocument,
+} from "@/lib/notebook/model";
 
 interface NotebookViewerProps {
   path: string;
   title: string;
 }
 
-// Minimal nbformat v4 typing — only what we render.
-type StringOrLines = string | string[];
-
-interface NotebookOutputBase {
-  output_type: string;
-}
-interface StreamOutput extends NotebookOutputBase {
-  output_type: "stream";
-  name: "stdout" | "stderr";
-  text: StringOrLines;
-}
-interface DataOutput extends NotebookOutputBase {
-  output_type: "execute_result" | "display_data";
-  execution_count?: number | null;
-  data: Record<string, StringOrLines>;
-}
-interface ErrorOutput extends NotebookOutputBase {
-  output_type: "error";
-  ename: string;
-  evalue: string;
-  traceback: string[];
-}
-type NotebookOutput = StreamOutput | DataOutput | ErrorOutput;
-
-interface NotebookCellBase {
-  cell_type: "code" | "markdown" | "raw";
-  source: StringOrLines;
-  metadata?: Record<string, unknown>;
-}
-interface CodeCell extends NotebookCellBase {
-  cell_type: "code";
-  execution_count?: number | null;
-  outputs?: NotebookOutput[];
-}
-interface MarkdownCell extends NotebookCellBase {
-  cell_type: "markdown";
-}
-interface RawCell extends NotebookCellBase {
-  cell_type: "raw";
-}
-type NotebookCell = CodeCell | MarkdownCell | RawCell;
-
-interface Notebook {
-  cells?: NotebookCell[];
-  metadata?: {
-    kernelspec?: { name?: string; display_name?: string };
-    language_info?: { name?: string };
-  };
-}
-
+type ViewMode = "preview" | "edit" | "split";
 const lowlight = createLowlight(common);
-
-function joinSource(s: StringOrLines): string {
-  return Array.isArray(s) ? s.join("") : s ?? "";
-}
-
-// Strip ANSI escape sequences from stream output / tracebacks.
-// Pure literal regex over control-char range — terse, no eval.
-const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
-function stripAnsi(s: string): string {
-  return s.replace(ANSI_RE, "");
-}
 
 function highlightCode(code: string, language: string): string {
   try {
-    const tree = language
-      ? lowlight.highlight(language, code)
-      : lowlight.highlightAuto(code);
-    return toHtml(tree);
+    return toHtml(language ? lowlight.highlight(language, code) : lowlight.highlightAuto(code));
   } catch {
-    return code
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    return code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 }
 
-function CellOutput({ output }: { output: NotebookOutput }) {
-  const { t } = useLocale();
-  if (output.output_type === "stream") {
-    const text = stripAnsi(joinSource(output.text));
-    const isErr = output.name === "stderr";
-    return (
-      <pre
-        className={`whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed px-4 py-3 rounded-md ${
-          isErr
-            ? "bg-[rgba(139,46,62,0.06)] text-[#8B2E3E]"
-            : "bg-[#F5EEDC] text-[#2A221B]"
-        }`}
-      >
-        {text}
-      </pre>
-    );
-  }
-
-  if (output.output_type === "error") {
-    const tb = output.traceback.map(stripAnsi).join("\n");
-    return (
-      <pre className="whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed px-4 py-3 rounded-md bg-[rgba(139,46,62,0.08)] text-[#8B2E3E] border border-[rgba(139,46,62,0.18)]">
-        <span className="font-semibold">{output.ename}: {output.evalue}</span>
-        {tb ? "\n\n" + tb : ""}
-      </pre>
-    );
-  }
-
-  // execute_result | display_data — pick best MIME
-  const data = output.data || {};
-  if (data["image/png"]) {
-    const src = `data:image/png;base64,${joinSource(data["image/png"]).replace(/\s/g, "")}`;
-    return <img src={src} alt="output" className="max-w-full rounded-md bg-white p-2" />;
-  }
-  if (data["image/jpeg"]) {
-    const src = `data:image/jpeg;base64,${joinSource(data["image/jpeg"]).replace(/\s/g, "")}`;
-    return <img src={src} alt="output" className="max-w-full rounded-md bg-white p-2" />;
-  }
-  if (data["image/svg+xml"]) {
-    const svg = joinSource(data["image/svg+xml"]);
-    return (
-      <SafeHtml
-        html={svg}
-        profile="svg"
-        className="max-w-full rounded-md bg-white p-2 overflow-auto"
-      />
-    );
-  }
-  if (data["text/html"]) {
-    // Sandbox arbitrary HTML (pandas, plotly) so scripts can't escape.
-    const html = joinSource(data["text/html"]);
-    return (
-      <iframe
-        srcDoc={`<!doctype html><html><head><base target="_blank"><style>body{margin:0;padding:8px;font-family:-apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif;background:#FFF9E9;color:#2A221B;font-size:13px}table{border-collapse:collapse}th,td{border:1px solid #D4C4B0;padding:4px 8px;text-align:left}thead{background:#EFE5CC}</style></head><body>${html}</body></html>`}
-        sandbox="allow-scripts"
-        className="w-full bg-[#FFF9E9] rounded-md border border-[#E8DDC5]"
-        style={{ height: 360 }}
-      />
-    );
-  }
-  if (data["text/plain"]) {
-    return (
-      <pre className="whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed px-4 py-3 rounded-md bg-[#F5EEDC] text-[#2A221B]">
-        {stripAnsi(joinSource(data["text/plain"]))}
-      </pre>
-    );
-  }
-  return null;
-}
-
-function CodeCellView({ cell, language }: { cell: CodeCell; language: string }) {
-  const source = joinSource(cell.source);
-  const html = useMemo(() => highlightCode(source, language), [source, language]);
-  const count = cell.execution_count ?? " ";
-  const hasOutputs = (cell.outputs?.length ?? 0) > 0;
-
-  return (
-    <div className="grid grid-cols-[60px_1fr] gap-3 mb-5">
-      <div className="text-right pt-3 select-none font-mono text-[11px] text-[#8B5E3C]">
-        In&nbsp;[{count}]:
-      </div>
-      <div>
-        <pre className="whitespace-pre overflow-x-auto font-mono text-[13px] leading-relaxed px-4 py-3 rounded-md bg-[#FFF9E9] border border-[#E8DDC5] text-[#2A221B]">
-          <SafeHtml as="code" html={html} profile="code" />
-        </pre>
-
-        {hasOutputs && (
-          <div className="mt-2 grid grid-cols-[60px_1fr] gap-3">
-            <div className="text-right pt-3 select-none font-mono text-[11px] text-[#8B2E3E]">
-              Out[{count}]:
-            </div>
-            <div className="space-y-2">
-              {cell.outputs!.map((output, i) => (
-                <CellOutput key={i} output={output} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MarkdownCellView({ cell }: { cell: MarkdownCell }) {
-  const [html, setHtml] = useState<string>("");
+function MarkdownPreview({ cell }: { cell: MarkdownCell }) {
+  const source = joinNotebookSource(cell.source);
+  const [html, setHtml] = useState("");
   useEffect(() => {
-    let cancelled = false;
-    void markdownToHtml(joinSource(cell.source)).then((h) => {
-      if (!cancelled) setHtml(h);
+    let active = true;
+    void markdownToHtml(source).then((result) => {
+      if (active) setHtml(result);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [cell.source]);
+    return () => { active = false; };
+  }, [source]);
   return (
     <SafeHtml
       html={html}
       profile="rich"
-      className="prose prose-sm max-w-none mb-5 px-1 [&_h1]:font-serif [&_h2]:font-serif [&_h3]:font-serif [&_a]:text-[#8B5E3C] [&_a:hover]:underline [&_code]:bg-[#F5EEDC] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[#8B2E3E]"
+      className="prose prose-sm max-w-none px-1 [&_h1]:font-serif [&_h2]:font-serif [&_h3]:font-serif"
     />
   );
 }
 
-function RawCellView({ cell }: { cell: RawCell }) {
+function CodePreview({ cell, language }: { cell: CodeCell; language: string }) {
+  const source = joinNotebookSource(cell.source);
+  const html = useMemo(() => highlightCode(source, language), [source, language]);
+  const count = cell.execution_count ?? " ";
   return (
-    <pre className="whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed px-4 py-3 rounded-md bg-[#F5EEDC] text-[#2A221B] mb-5">
-      {joinSource(cell.source)}
-    </pre>
+    <div>
+      <div className="grid grid-cols-[52px_1fr] gap-3">
+        <div className="select-none pt-3 text-right font-mono text-[11px] text-primary/70">In&nbsp;[{count}]:</div>
+        <pre className="overflow-x-auto whitespace-pre rounded-md border border-border bg-background px-4 py-3 font-mono text-[13px] leading-relaxed">
+          <SafeHtml as="code" html={html} profile="code" />
+        </pre>
+      </div>
+      {!!cell.outputs?.length && (
+        <div className="mt-2 grid grid-cols-[52px_1fr] gap-3">
+          <div className="select-none pt-3 text-right font-mono text-[11px] text-destructive/70">Out[{count}]:</div>
+          <div className="space-y-2">
+            {cell.outputs.map((output, index) => <NotebookOutputView key={index} output={output} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CellPreview({ cell, language }: { cell: NotebookCell; language: string }) {
+  if (cell.cell_type === "markdown") return <MarkdownPreview cell={cell} />;
+  if (cell.cell_type === "code") return <CodePreview cell={cell} language={language} />;
+  return <pre className="whitespace-pre-wrap rounded-md bg-muted px-4 py-3 font-mono text-[12.5px]">{joinNotebookSource(cell.source)}</pre>;
+}
+
+function CellEditor({ cell, onChange }: { cell: NotebookCell; onChange: (source: string) => void }) {
+  return (
+    <textarea
+      value={joinNotebookSource(cell.source)}
+      onChange={(event) => onChange(event.target.value)}
+      rows={Math.max(4, Math.min(18, joinNotebookSource(cell.source).split("\n").length + 1))}
+      spellCheck={cell.cell_type === "markdown"}
+      aria-label={`Edit ${cell.cell_type} cell`}
+      className="min-h-28 w-full resize-y rounded-md border border-border bg-background px-4 py-3 font-mono text-[13px] leading-relaxed outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+    />
+  );
+}
+
+function NotebookCellView({
+  cell,
+  index,
+  count,
+  language,
+  mode,
+  onSourceChange,
+  onMove,
+  onDelete,
+}: {
+  cell: NotebookCell;
+  index: number;
+  count: number;
+  language: string;
+  mode: ViewMode;
+  onSourceChange: (source: string) => void;
+  onMove: (to: number) => void;
+  onDelete: () => void;
+}) {
+  const editable = mode !== "preview";
+  return (
+    <section className="group relative rounded-lg border border-transparent px-2 py-3 hover:border-border/70 hover:bg-background/40" data-cell-index={index}>
+      {editable && (
+        <div className="mb-2 flex items-center justify-between">
+          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{cell.cell_type}</span>
+          <div className="flex items-center gap-0.5">
+            <Button variant="ghost" size="icon-xs" onClick={() => onMove(index - 1)} disabled={index === 0} aria-label="Move cell up"><ArrowUp /></Button>
+            <Button variant="ghost" size="icon-xs" onClick={() => onMove(index + 1)} disabled={index === count - 1} aria-label="Move cell down"><ArrowDown /></Button>
+            <Button variant="ghost" size="icon-xs" className="text-destructive" onClick={onDelete} aria-label="Delete cell"><Trash2 /></Button>
+          </div>
+        </div>
+      )}
+      {mode === "preview" ? (
+        <CellPreview cell={cell} language={language} />
+      ) : mode === "edit" ? (
+        <CellEditor cell={cell} onChange={onSourceChange} />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CellEditor cell={cell} onChange={onSourceChange} />
+          <div className="min-w-0 rounded-md border border-border/60 bg-background/60 p-3">
+            <CellPreview cell={cell} language={language} />
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
 export function NotebookViewer({ path }: NotebookViewerProps) {
-  const { t } = useLocale();
-  const [notebook, setNotebook] = useState<Notebook | null>(null);
+  const [notebook, setNotebook] = useState<NotebookDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<ViewMode>("preview");
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const revisionRef = useRef(new NotebookRevisionTracker());
+  const saveInFlightRef = useRef(false);
 
   const assetUrl = `/api/assets/${path}`;
   const filename = path.split("/").pop() || path;
@@ -238,101 +182,135 @@ export function NotebookViewer({ path }: NotebookViewerProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(assetUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as Notebook;
-      setNotebook(json);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load notebook");
+      const response = await fetch(assetUrl, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Could not load notebook (HTTP ${response.status})`);
+      setNotebook(parseNotebook(await response.json()));
+      // Loading a document also advances the generation so a save response from
+      // the previously viewed path cannot mark this notebook clean.
+      revisionRef.current.changed();
+      setDirty(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to load notebook");
     } finally {
       setLoading(false);
     }
   }, [assetUrl]);
 
+  useEffect(() => { void fetchNotebook(); }, [fetchNotebook]);
+
+  const saveNotebook = useCallback(async () => {
+    if (!notebook || saveInFlightRef.current) return;
+    const savedRevision = revisionRef.current.current();
+    const snapshot = serializeNotebook(notebook);
+    saveInFlightRef.current = true;
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(assetUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: snapshot,
+      });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(detail?.error || `Could not save notebook (HTTP ${response.status})`);
+      }
+      // An edit made while this request was pending belongs to a newer revision.
+      // Never let an older save response clear that edit's dirty indicator.
+      if (revisionRef.current.isCurrent(savedRevision)) {
+        setDirty(false);
+        setSaved(true);
+        window.setTimeout(() => setSaved(false), 1800);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to save notebook");
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
+  }, [assetUrl, notebook]);
+
   useEffect(() => {
-    void fetchNotebook();
-  }, [fetchNotebook]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void saveNotebook();
+      }
+    };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (dirty) event.preventDefault();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [dirty, saveNotebook]);
 
-  const language =
-    notebook?.metadata?.language_info?.name ||
-    notebook?.metadata?.kernelspec?.name ||
-    "python";
+  const updateCells = useCallback((update: (cells: NotebookCell[]) => NotebookCell[]) => {
+    setNotebook((current) => current ? { ...current, cells: update(current.cells) } : current);
+    revisionRef.current.changed();
+    setDirty(true);
+    setSaved(false);
+  }, []);
 
-  const cellCount = notebook?.cells?.length ?? 0;
-  const codeCellCount = notebook?.cells?.filter((c) => c.cell_type === "code").length ?? 0;
-  const hasAnyOutputs =
-    notebook?.cells?.some(
-      (c) => c.cell_type === "code" && (c.outputs?.length ?? 0) > 0
-    ) ?? false;
+  const language = String(
+    notebook?.metadata.language_info?.name || notebook?.metadata.kernelspec?.name || "python"
+  );
+  const cells = notebook?.cells ?? [];
+  const codeCellCount = cells.filter((cell) => cell.cell_type === "code").length;
 
-  const copyJupyterCommand = () => {
-    navigator.clipboard.writeText(`jupyter lab ${path}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const addCell = (cellType: NotebookCell["cell_type"]) => {
+    updateCells((current) => [...current, createNotebookCell(cellType)]);
+    setMode((current) => current === "preview" ? "edit" : current);
   };
 
   return (
     <ViewerLayout
       toolbar={
-        <ViewerToolbar
-        path={path}
-        badge="IPYNB"
-        sublabel={`${cellCount} cells · ${codeCellCount} code · ${language}`}
-      >
-        <ToolbarButton
-          icon={copied ? Check : Copy}
-          label={copied ? "Copied" : "Copy run cmd"}
-          title={t("editorExtras:jupyterLab")}
-          onClick={copyJupyterCommand}
-        />
-        <ToolbarButton
-          icon={Download}
-          label="Download"
-          onClick={() => {
-            const a = document.createElement("a");
-            a.href = assetUrl;
-            a.download = filename;
-            a.click();
-          }}
-        />
-        <ToolbarButton
-          icon={ExternalLink}
-          label="Raw JSON"
-          onClick={() => window.open(assetUrl, "_blank")}
-        />
+        <ViewerToolbar path={path} badge="IPYNB" sublabel={`${cells.length} cells · ${codeCellCount} code · ${language}`}>
+          <div className="mr-1 inline-flex items-center rounded-md border border-border p-0.5">
+            <ToolbarButton icon={Eye} label="Preview" iconOnly active={mode === "preview"} onClick={() => setMode("preview")} />
+            <ToolbarButton icon={Pencil} label="Edit" iconOnly active={mode === "edit"} onClick={() => setMode("edit")} />
+            <ToolbarButton icon={Columns2} label="Split preview" iconOnly active={mode === "split"} onClick={() => setMode("split")} />
+          </div>
+          <ToolbarButton icon={Plus} label="Add code" onClick={() => addCell("code")} />
+          <ToolbarButton icon={saving ? Loader2 : saved ? Check : Save} label={saving ? "Saving" : saved ? "Saved" : dirty ? "Save changes" : "Saved"} disabled={!dirty || saving} onClick={() => void saveNotebook()} className={saving ? "[&_svg]:animate-spin" : undefined} />
+          <ToolbarButton icon={Download} label="Download" iconOnly href={assetUrl} download={filename} />
         </ViewerToolbar>
       }
     >
-      <div className="flex-1 overflow-auto bg-[#F5EEDC]">
+      <div className="flex-1 overflow-auto bg-muted/30">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-[#7A6B5D] text-sm">
-            Loading notebook…
-          </div>
-        ) : error ? (
-          <div className="flex items-center justify-center h-full text-[#8B2E3E] text-sm gap-2">
-            <AlertCircle className="h-4 w-4" /> {error}
-          </div>
-        ) : notebook ? (
-          <div className="max-w-[1100px] mx-auto py-8 px-6">
-            {!hasAnyOutputs && codeCellCount > 0 && (
-              <div className="mb-6 rounded-md border border-[#E8DDC5] bg-[#FFF9E9] px-4 py-3 text-[13px] text-[#7A6B5D]">
-                <span className="font-semibold text-[#2A221B]">
-                  This notebook hasn&apos;t been run yet.
-                </span>{" "}
-                Code and markdown cells display below; outputs appear once the
-                author runs the notebook in Jupyter (or you do, then re-save).
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading notebook...</div>
+        ) : !notebook ? (
+          <div className="flex h-full items-center justify-center gap-2 text-sm text-destructive"><AlertCircle className="h-4 w-4" />{error}</div>
+        ) : (
+          <div className={`mx-auto px-4 py-6 ${mode === "split" ? "max-w-[1500px]" : "max-w-[1100px]"}`}>
+            {error && <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="h-4 w-4" />{error}</div>}
+            {cells.map((cell, index) => (
+              <NotebookCellView
+                key={cell.id ?? index}
+                cell={cell}
+                index={index}
+                count={cells.length}
+                language={language}
+                mode={mode}
+                onSourceChange={(source) => updateCells((current) => current.map((item, itemIndex) => itemIndex === index ? replaceCellSource(item, source) : item))}
+                onMove={(to) => updateCells((current) => moveNotebookCell(current, index, to))}
+                onDelete={() => updateCells((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+              />
+            ))}
+            {mode !== "preview" && (
+              <div className="mt-4 flex items-center justify-center gap-2 border-t border-dashed border-border pt-5">
+                <Button variant="outline" size="sm" onClick={() => addCell("code")}><Plus />Code</Button>
+                <Button variant="outline" size="sm" onClick={() => addCell("markdown")}><Plus />Markdown</Button>
+                <Button variant="outline" size="sm" onClick={() => addCell("raw")}><Plus />Raw</Button>
               </div>
             )}
-
-            {notebook.cells?.map((cell, i) => {
-              if (cell.cell_type === "markdown")
-                return <MarkdownCellView key={i} cell={cell} />;
-              if (cell.cell_type === "raw")
-                return <RawCellView key={i} cell={cell} />;
-              return <CodeCellView key={i} cell={cell} language={language} />;
-            })}
           </div>
-        ) : null}
+        )}
       </div>
     </ViewerLayout>
   );
