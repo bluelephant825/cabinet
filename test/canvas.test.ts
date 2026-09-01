@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { GET, PUT, canvasVirtualPath, parseCanvasCabinetPath } from "@/app/api/canvas/route";
 import { parseCanvasSnapshot } from "@/lib/canvas/snapshot";
+import { markdownToHtml } from "@/lib/markdown/to-html";
 import { useAppStore } from "@/stores/app-store";
+import { canvasPreviewKind } from "@/components/layout/canvas-view";
+import { renderLatexToHtml } from "@/components/editor/latex-render";
+import { sanitizeHtml } from "@/lib/security/sanitize";
+import type { TreeNode } from "@/types";
 
 const validSnapshot = {
   version: 1,
@@ -69,6 +74,25 @@ test("canvas route rejects malformed JSON and snapshots without writing", async 
 test("canvas route stores layout in current per-cabinet config and guards that path", () => {
   assert.equal(canvasVirtualPath("."), ".agents/.config/canvas.json");
   assert.equal(canvasVirtualPath("room/linked"), "room/linked/.agents/.config/canvas.json");
+});
+
+test("canvas routes Markdown and LaTeX nodes to the upstream preview renderers", async () => {
+  const node = (name: string, type: TreeNode["type"]): TreeNode => ({ name, path: `room/${name}`, type });
+  assert.equal(canvasPreviewKind(node("brief.md", "file")), "markdown");
+  assert.equal(canvasPreviewKind(node("room", "directory")), "markdown");
+  assert.equal(canvasPreviewKind(node("proof.tex", "latex")), "latex");
+  assert.equal(canvasPreviewKind(node("paper.latex", "latex")), "latex");
+  assert.equal(canvasPreviewKind(node("script.ts", "code")), "other");
+
+  const markdown = await markdownToHtml('# Brief\n\n<img src="x" onerror="alert(1)">');
+  assert.match(markdown, /<h1 id="brief">Brief<\/h1>/);
+  assert.doesNotMatch(sanitizeHtml(markdown, "rich"), /onerror|alert\(1\)/);
+
+  const rendered = renderLatexToHtml("\\section{Proof}\n\\[x^2 + y^2 = z^2\\]");
+  assert.equal(rendered.ok, true);
+  assert.match(rendered.html, /<h2>Proof<\/h2>/);
+  assert.match(rendered.html, /class="katex-display/);
+  assert.equal(renderLatexToHtml("   \n").ok, false);
 });
 
 test("app store enters and leaves canvas without changing browse state", () => {

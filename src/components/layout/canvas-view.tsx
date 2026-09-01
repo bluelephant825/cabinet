@@ -11,6 +11,8 @@ import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import { findNodeByPath } from "@/lib/cabinets/tree";
 import { fetchPage } from "@/lib/api/client";
 import { markdownToHtml } from "@/lib/markdown/to-html";
+import { renderLatexToHtml } from "@/components/editor/latex-render";
+import { SafeHtml } from "@/components/ui/safe-html";
 import type { TreeNode } from "@/types";
 import {
   CANVAS_MAX_CARD_HEIGHT,
@@ -46,7 +48,7 @@ function isFolder(node: TreeNode): boolean {
 }
 
 function isCanvasCard(node: TreeNode): boolean {
-  return isFolder(node) || ["file", "code", "image", "video", "audio", "pdf", "csv"].includes(node.type);
+  return isFolder(node) || ["file", "code", "image", "video", "audio", "pdf", "csv", "latex"].includes(node.type);
 }
 
 function defaultCard(index: number): CanvasCardState {
@@ -72,17 +74,44 @@ function csvRows(content: string): string[][] {
 }
 
 function MarkdownPreview({ content, pagePath }: { content: string; pagePath: string }) {
-  const [html, setHtml] = useState("");
+  const [rendered, setRendered] = useState<{ content: string; pagePath: string; html: string | null } | null>(null);
   useEffect(() => {
     let active = true;
-    void markdownToHtml(content, pagePath).then((value) => active && setHtml(value));
+    void markdownToHtml(content, pagePath)
+      .then((html) => active && setRendered({ content, pagePath, html }))
+      .catch(() => active && setRendered({ content, pagePath, html: null }));
     return () => { active = false; };
   }, [content, pagePath]);
-  return html ? (
-    <div className="prose prose-sm dark:prose-invert min-h-0 flex-1 max-w-none overflow-auto p-3 text-xs" dangerouslySetInnerHTML={{ __html: html }} />
+  const html = rendered?.content === content && rendered.pagePath === pagePath ? rendered.html : null;
+  return html !== null ? (
+    <SafeHtml
+      html={html}
+      profile="rich"
+      className="prose prose-sm dark:prose-invert min-h-0 flex-1 max-w-none overflow-auto p-3 text-xs"
+    />
   ) : (
     <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-3 text-xs">{content}</pre>
   );
+}
+
+function LatexPreview({ content }: { content: string }) {
+  const rendered = useMemo(() => renderLatexToHtml(content), [content]);
+  return rendered.ok ? (
+    <SafeHtml
+      as="article"
+      html={rendered.html}
+      profile="rich"
+      className="latex-rendered prose prose-sm dark:prose-invert min-h-0 flex-1 max-w-none overflow-auto p-3 text-xs"
+    />
+  ) : (
+    <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-xs">{content}</pre>
+  );
+}
+
+export function canvasPreviewKind(node: TreeNode): "markdown" | "latex" | "other" {
+  if (node.type === "file" || isFolder(node)) return "markdown";
+  if (node.type === "latex") return "latex";
+  return "other";
 }
 
 function CardPreview({ node, content, title }: { node: TreeNode; content: string; title: string }) {
@@ -112,7 +141,9 @@ function CardPreview({ node, content, title }: { node: TreeNode; content: string
   if (isFolder(node) && !content) {
     return <div className="flex flex-1 items-center justify-center text-muted-foreground"><Folder className="h-12 w-12 stroke-1" /></div>;
   }
-  if (node.type === "file" || isFolder(node)) return <MarkdownPreview content={content} pagePath={node.path} />;
+  const previewKind = canvasPreviewKind(node);
+  if (previewKind === "markdown") return <MarkdownPreview content={content} pagePath={node.path} />;
+  if (previewKind === "latex") return <LatexPreview content={content} />;
   return <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-xs">{content}</pre>;
 }
 
@@ -200,7 +231,7 @@ export function CanvasView() {
 
   useEffect(() => {
     setSelection([]);
-    const missing = cards.filter((node) => content[node.path] === undefined && ["file", "code", "csv", "directory", "cabinet"].includes(node.type));
+    const missing = cards.filter((node) => content[node.path] === undefined && ["file", "code", "csv", "latex", "directory", "cabinet"].includes(node.type));
     if (!missing.length) return;
     let active = true;
     void Promise.all(missing.map(async (node) => {
