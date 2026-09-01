@@ -1068,6 +1068,12 @@
       "copyAsHtml": "העתקה כ-HTML",
       "downloadMarkdown": "הורדה כ-md",
       "downloadPdf": "הורדה כ-PDF",
+      "exportMystPdf": "ייצוא PDF עם MyST",
+      "exportMystDocx": "ייצוא Word עם MyST",
+      "exportMystTex": "ייצוא LaTeX עם MyST",
+      "mystExporting": "מייצא באמצעות MyST ({{format}})…",
+      "mystExportComplete": "הייצוא באמצעות MyST הושלם",
+      "mystExportFailed": "הייצוא באמצעות MyST נכשל",
       "copiedForLlmToast": "הועתקו {{size}} של Markdown עבור LLM"
     },
     "toolbar": {

@@ -1078,6 +1078,12 @@
       "copyAsHtml": "Copy as HTML",
       "downloadMarkdown": "Download .md",
       "downloadPdf": "Download PDF",
+      "exportMystPdf": "Export MyST PDF",
+      "exportMystDocx": "Export Word (MyST)",
+      "exportMystTex": "Export LaTeX (MyST)",
+      "mystExporting": "Exporting via MyST ({{format}})…",
+      "mystExportComplete": "MyST export completed",
+      "mystExportFailed": "MyST export failed",
       "copiedForLlmToast": "Copied {{size}} of Markdown for LLM",
       "browseMode": "Open in browser",
       "editMode": "Back to editor"

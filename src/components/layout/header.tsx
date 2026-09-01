@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Download, FileCode, FileDown, Asterisk } from "lucide-react";
+import { Copy, Download, FileCode, FileDown, FileText, Asterisk } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,9 +22,8 @@ export function Header() {
   const { t } = useLocale();
   const { frontmatter, content, currentPath } = useEditorStore();
 
-  // Live editor content (unsaved edits included) drives every export. The
-  // sidebar right-click "Download" submenu shares these same actions, fetching
-  // the saved file instead (see page-export.ts).
+  // Clipboard and direct-download actions use live editor content. MyST export
+  // compiles the saved page through the bounded server-side export route.
   const pageTitle =
     frontmatter?.title ||
     currentPath?.split("/").pop()?.replace(/\.md$/, "") ||
@@ -55,6 +54,45 @@ export function Header() {
     if (content) downloadMarkdown(content, pageTitle);
   };
 
+  const handleExportMyST = async (format: "pdf" | "docx" | "tex") => {
+    if (!currentPath) return;
+
+    window.dispatchEvent(
+      new CustomEvent("cabinet:toast", {
+        detail: {
+          kind: "info",
+          message: t("editor:header.mystExporting", { format: format.toUpperCase() }),
+        },
+      })
+    );
+
+    try {
+      const params = new URLSearchParams({ path: currentPath, format });
+      const response = await fetch(`/api/export/myst?${params.toString()}`);
+      if (!response.ok) throw new Error("export failed");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${pageTitle}.${format}`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+
+      window.dispatchEvent(
+        new CustomEvent("cabinet:toast", {
+          detail: { kind: "success", message: t("editor:header.mystExportComplete") },
+        })
+      );
+    } catch {
+      window.dispatchEvent(
+        new CustomEvent("cabinet:toast", {
+          detail: { kind: "error", message: t("editor:header.mystExportFailed") },
+        })
+      );
+    }
+  };
+
   return (
     <ViewerToolbar path={currentPath || undefined} showBreadcrumb={!!currentPath}>
       {currentPath && (
@@ -78,6 +116,18 @@ export function Header() {
             <DropdownMenuItem onClick={handleDownloadMarkdown}>
               <Download className="h-4 w-4 mr-2" />
               {t("editor:header.downloadMarkdown")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExportMyST("pdf")}>
+              <FileDown className="h-4 w-4 mr-2" />
+              {t("editor:header.exportMystPdf")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExportMyST("docx")}>
+              <FileText className="h-4 w-4 mr-2" />
+              {t("editor:header.exportMystDocx")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExportMyST("tex")}>
+              <FileCode className="h-4 w-4 mr-2" />
+              {t("editor:header.exportMystTex")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={async () => {
               const editorEl = document.querySelector(".tiptap");
