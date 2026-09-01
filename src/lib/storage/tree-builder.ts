@@ -14,7 +14,7 @@ import { ORDER_SIDECAR } from "./order-store";
 
 const CODE_EXTENSIONS = new Set([
   // Notes and plain text
-  ".txt", ".text", ".log", ".mdx", ".rst",
+  ".txt", ".text", ".log", ".rst",
   // Web and app code
   ".js", ".cjs", ".mjs", ".ts", ".tsx", ".jsx", ".css", ".scss", ".html",
   // Mobile and native code
@@ -151,11 +151,16 @@ async function buildTreeRecursive(
   const entries = await listDirectory(dirPath);
   const nodes: TreeNode[] = [];
 
-  // Collect directory names so we can skip standalone .md files that collide.
+  // A directory and .md/.mdx siblings share one virtual page identity.
   const dirNames = new Set(
     entries
       .filter((e) => e.isDirectory && (!isHiddenEntry(e.name) || showHidden))
       .map((e) => e.name)
+  );
+  const mdBases = new Set(
+    entries
+      .filter((e) => !e.isDirectory && e.name.toLowerCase().endsWith(".md"))
+      .map((e) => e.name.replace(/\.md$/i, ""))
   );
 
   // Read order sidecar for non-frontmatter files.
@@ -185,8 +190,14 @@ async function buildTreeRecursive(
 
     if (entry.isDirectory) {
       const indexMd = path.join(fullPath, "index.md");
+      const indexMdx = path.join(fullPath, "index.mdx");
+      const indexPage = (await fileExists(indexMd))
+        ? indexMd
+        : (await fileExists(indexMdx))
+          ? indexMdx
+          : null;
       const indexHtml = path.join(fullPath, "index.html");
-      const hasIndexMd = await fileExists(indexMd);
+      const hasIndexPage = indexPage !== null;
       const hasIndexHtml = await fileExists(indexHtml);
       const hasCabinet = await fileExists(path.join(fullPath, CABINET_MANIFEST_FILE));
 
@@ -198,8 +209,8 @@ async function buildTreeRecursive(
       const inlineMark = inlineMap.get(vPath.replace(/\/+$/, ""));
       const nodePolicy = inlineMark?.policy ?? inheritedPolicy;
 
-      // Website or App: has index.html but no index.md
-      if (hasIndexHtml && !hasIndexMd) {
+      // Website or App: has index.html but no markdown page.
+      if (hasIndexHtml && !hasIndexPage) {
         const appMarker = path.join(fullPath, ".app");
         const isApp = await fileExists(appMarker);
         nodes.push({
@@ -218,10 +229,10 @@ async function buildTreeRecursive(
         continue;
       }
 
-      // Resolve metadata: prefer index.md frontmatter, fall back to linked-folder metadata.
+      // Resolve metadata from either page extension, then linked-folder metadata.
       let fm: Record<string, unknown> = {};
-      if (hasIndexMd) {
-        fm = await readFrontmatter(indexMd);
+      if (indexPage) {
+        fm = await readFrontmatter(indexPage);
       } else if (isLinked) {
         fm = await readCabinetMeta(fullPath);
       }
@@ -305,19 +316,21 @@ async function buildTreeRecursive(
 
     }
 
-    if (entry.name.endsWith(".md") && entry.name !== "index.md") {
-      // Skip standalone .md if a same-named directory exists (avoids duplicate keys).
-      const baseName = entry.name.replace(/\.md$/, "");
+    if (/\.mdx?$/i.test(entry.name) && !/^index\.mdx?$/i.test(entry.name)) {
+      const baseName = entry.name.replace(/\.mdx?$/i, "");
+      // Directories shadow sibling page files. If an externally-created .md and
+      // .mdx pair exists, prefer .md but expose only one virtual node.
       if (dirNames.has(baseName)) continue;
+      if (entry.name.toLowerCase().endsWith(".mdx") && mdBases.has(baseName)) continue;
 
       const fm = await readFrontmatter(fullPath);
       nodes.push({
         name: entry.name,
-        path: vPath.replace(/\.md$/, ""),
+        path: vPath.replace(/\.mdx?$/i, ""),
         type: "file",
         knowledgePolicy: inheritedPolicy,
         frontmatter: {
-          title: (fm.title as string) || entry.name.replace(/\.md$/, ""),
+          title: (fm.title as string) || baseName,
           icon: fm.icon as string | undefined,
           order: fm.order as number | undefined,
           google: (fm.google ?? undefined) as GoogleFrontmatter | undefined,
@@ -385,10 +398,14 @@ async function buildTreeUncached(showHidden: boolean): Promise<TreeNode[]> {
     return children;
   }
 
-  const rootIndexPath = path.join(DATA_DIR, "index.md");
-  const rootFrontmatter = (await fileExists(rootIndexPath))
-    ? await readFrontmatter(rootIndexPath)
-    : {};
+  const rootIndexMd = path.join(DATA_DIR, "index.md");
+  const rootIndexMdx = path.join(DATA_DIR, "index.mdx");
+  const rootIndexPath = (await fileExists(rootIndexMd))
+    ? rootIndexMd
+    : (await fileExists(rootIndexMdx))
+      ? rootIndexMdx
+      : null;
+  const rootFrontmatter = rootIndexPath ? await readFrontmatter(rootIndexPath) : {};
 
   return [
     {

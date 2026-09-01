@@ -193,6 +193,11 @@ function findMdxComponents(markdown: string): MdxMatch[] {
   return matches;
 }
 
+/** True when markdown contains at least one complete, allowlisted JSX component. */
+export function containsApprovedMdx(markdown: string): boolean {
+  return findMdxComponents(markdown).length > 0;
+}
+
 /** Convert allowlisted JSX blocks to inert HTML markers for Tiptap parsing. */
 export function transformMdxToHtml(markdown: string): string {
   const matches = findMdxComponents(markdown);

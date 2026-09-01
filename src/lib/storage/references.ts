@@ -55,6 +55,11 @@ export async function scanCabinet(): Promise<ScanResult> {
     const dirNames = new Set(
       entries.filter((e) => e.isDirectory() && !isHiddenEntry(e.name)).map((e) => e.name)
     );
+    const mdBases = new Set(
+      entries
+        .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".md"))
+        .map((e) => e.name.replace(/\.md$/i, ""))
+    );
     for (const e of entries) {
       if (isHiddenEntry(e.name)) continue;
       const full = path.join(dir, e.name);
@@ -64,14 +69,15 @@ export async function scanCabinet(): Promise<ScanResult> {
         await walk(full);
         continue;
       }
-      if (!e.name.endsWith(".md")) continue;
+      if (!/\.mdx?$/i.test(e.name)) continue;
       if (SKIP_FILES.has(e.name)) continue;
       markdownFiles.push(full);
-      if (e.name === "index.md") continue; // the directory already represents it
-      // Standalone foo.md is its own node unless a foo/ dir shadows it.
-      const base = e.name.replace(/\.md$/, "");
+      if (/^index\.mdx?$/i.test(e.name)) continue; // the directory already represents it
+      // Standalone page files share one extensionless virtual identity.
+      const base = e.name.replace(/\.mdx?$/i, "");
       if (dirNames.has(base)) continue;
-      pages.push({ path: virtualPathFromFs(full).replace(/\.md$/, ""), name: e.name });
+      if (e.name.toLowerCase().endsWith(".mdx") && mdBases.has(base)) continue;
+      pages.push({ path: virtualPathFromFs(full).replace(/\.mdx?$/i, ""), name: e.name });
     }
   }
 
@@ -175,9 +181,9 @@ export async function rewriteReferencesForRename(opts: {
     // The virtual page path this file represents, *as it was before* the
     // rename — that is the context `findPageBySlug` was evaluated from.
     const currentVPath = virtualPathFromFs(fsPath);
-    const currentPagePath = currentVPath.endsWith("/index.md")
-      ? currentVPath.slice(0, -"/index.md".length)
-      : currentVPath.replace(/\.md$/, "");
+    const currentPagePath = /\/index\.mdx?$/i.test(currentVPath)
+      ? currentVPath.replace(/\/index\.mdx?$/i, "")
+      : currentVPath.replace(/\.mdx?$/i, "");
     const inRenamedSubtree =
       currentPagePath === newPagePath ||
       currentPagePath.startsWith(newPagePath + "/");

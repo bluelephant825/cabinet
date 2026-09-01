@@ -4,6 +4,7 @@ import { markdownToHtml } from "@/lib/markdown/to-html";
 import { htmlToMarkdown } from "@/lib/markdown/to-markdown";
 import { markdownToPlaintext } from "@/lib/markdown/to-plaintext";
 import {
+  containsApprovedMdx,
   parseJsxAttributes,
   serializeMdxComponent,
   stripMdxForPlaintext,
@@ -43,6 +44,14 @@ test("transform rewrites allowlisted blocks and escapes marker attributes", () =
   assert.match(output, /data-name="Callout"/);
   assert.match(output, /&amp;quot; onmouseover=&amp;quot;bad/);
   assert.match(output, /data-children="A &amp; B"/);
+});
+
+test("approved MDX detection ignores inert JSX and code examples", () => {
+  assert.equal(containsApprovedMdx("<Callout>Live</Callout>"), true);
+  assert.equal(containsApprovedMdx('<VideoPlayer url="https://example.com/v.mp4" />'), true);
+  assert.equal(containsApprovedMdx("<Unknown>Not approved</Unknown>"), false);
+  assert.equal(containsApprovedMdx("```jsx\n<Callout>Example</Callout>\n```"), false);
+  assert.equal(containsApprovedMdx("<Callout>unbalanced"), false);
 });
 
 test("transform leaves unknown, dynamic, malformed, and fenced JSX inert", () => {
