@@ -69,11 +69,34 @@ turndown.addRule("wikiLink", {
   },
 });
 
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// Annotations are Tiptap marks backed by a data attribute. Preserve only the
+// durable note payload; editor-only tooltip and presentation attributes are
+// rebuilt by the extension when markdown is loaded again.
+turndown.addRule("annotation", {
+  filter: (node) =>
+    node.nodeName === "SPAN" &&
+    (node as HTMLElement).hasAttribute("data-annotation"),
+  replacement: (content, node) => {
+    const annotation = (node as HTMLElement).getAttribute("data-annotation") ?? "";
+    return `<span data-annotation="${escapeHtmlAttribute(annotation)}">${content}</span>`;
+  },
+});
+
 // Preserve inline styled spans (text color, background color, font weight, etc.)
 // so colors and highlights survive markdown roundtrip.
 turndown.addRule("styledSpan", {
   filter: (node) =>
-    node.nodeName === "SPAN" && !!(node as HTMLElement).getAttribute("style"),
+    node.nodeName === "SPAN" &&
+    !(node as HTMLElement).hasAttribute("data-annotation") &&
+    !!(node as HTMLElement).getAttribute("style"),
   replacement: (content, node) => {
     const style = (node as HTMLElement).getAttribute("style") ?? "";
     return `<span style="${style}">${content}</span>`;
@@ -85,6 +108,7 @@ turndown.addRule("styledSpan", {
 turndown.addRule("lucideIcon", {
   filter: (node) =>
     node.nodeName === "SPAN" &&
+    !(node as HTMLElement).hasAttribute("data-annotation") &&
     (node as HTMLElement).hasAttribute("data-lucide"),
   replacement: (_content, node) => {
     const el = node as HTMLElement;
@@ -94,16 +118,24 @@ turndown.addRule("lucideIcon", {
   },
 });
 
-// Preserve <mark> with any attributes (highlight extension writes data-color + style).
+// Highlights only retain the color attributes used by Tiptap. Rebuild the
+// background-color declaration instead of carrying arbitrary classes, event
+// handlers, or unrelated inline styles into the saved markdown.
 turndown.addRule("mark", {
   filter: "mark" as never,
   replacement: (content, node) => {
     const el = node as HTMLElement;
-    const attrs: string[] = [];
-    for (const attr of Array.from(el.attributes)) {
-      attrs.push(`${attr.name}="${attr.value.replace(/"/g, "&quot;")}"`);
-    }
-    return `<mark${attrs.length ? " " + attrs.join(" ") : ""}>${content}</mark>`;
+    const dataColor = el.getAttribute("data-color")?.trim() ?? "";
+    const backgroundColor = el.style.backgroundColor.trim();
+    const attrs = [
+      dataColor ? `data-color="${escapeHtmlAttribute(dataColor)}"` : "",
+      backgroundColor
+        ? `style="background-color: ${escapeHtmlAttribute(backgroundColor)}"`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return `<mark${attrs ? ` ${attrs}` : ""}>${content}</mark>`;
   },
 });
 
@@ -237,7 +269,7 @@ turndown.addRule("resizableImageWrapper", {
 turndown.addRule("inlineMath", {
   filter: (node) => {
     const el = node as HTMLElement;
-    if (el.nodeName !== "SPAN") return false;
+    if (el.nodeName !== "SPAN" || el.hasAttribute("data-annotation")) return false;
     const dataType = el.getAttribute("data-type");
     return dataType === "inline-math" || dataType === "inlineMath";
   },

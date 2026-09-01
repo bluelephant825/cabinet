@@ -1102,6 +1102,8 @@
       "textColor": "Text color",
       "highlight": "Highlight",
       "background": "Background",
+      "annotation": "Annotation",
+      "annotationPrompt": "Add or edit annotation (leave blank to remove)",
       "bulletList": "Bullet list",
       "orderedList": "Ordered list",
       "blockquote": "Blockquote",

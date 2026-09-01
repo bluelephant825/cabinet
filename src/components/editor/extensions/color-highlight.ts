@@ -5,11 +5,53 @@ import Underline from "@tiptap/extension-underline";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import { TextAlign } from "@tiptap/extension-text-align";
+import { Mark, mergeAttributes } from "@tiptap/core";
+
+/**
+ * An inline note attached to a text range. The note is stored in a
+ * data-annotation attribute so it survives the editor's HTML/markdown
+ * round-trip instead of living only in component state.
+ */
+export const Annotation = Mark.create({
+  name: "annotation",
+
+  addAttributes() {
+    return {
+      annotation: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-annotation"),
+        renderHTML: (attributes) =>
+          attributes.annotation
+            ? {
+                "data-annotation": attributes.annotation,
+                title: attributes.annotation,
+              }
+            : {},
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: "span[data-annotation]" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "span",
+      mergeAttributes(HTMLAttributes, {
+        class:
+          "annotation cursor-help border-b-2 border-amber-400 bg-amber-100/70 dark:bg-amber-950/40",
+      }),
+      0,
+    ];
+  },
+});
 
 export const colorAndStyleExtensions = [
   TextStyle,
   Color,
   Highlight.configure({ multicolor: true }),
+  Annotation,
   Underline,
   Subscript,
   Superscript,

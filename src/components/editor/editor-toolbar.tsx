@@ -23,6 +23,7 @@ import {
   Underline as UnderlineIcon,
   Baseline,
   Highlighter,
+  MessageSquareText,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -60,6 +61,19 @@ interface EditorToolbarProps {
   wideMode: boolean;
   /** Toggle between the default reading width and full width. */
   onToggleWide: () => void;
+}
+
+/** Apply an annotation prompt result to the current mark or selection. */
+export function applyAnnotationEdit(editor: Editor, annotation: string): boolean {
+  let chain = editor.chain().focus();
+  if (editor.isActive("annotation")) {
+    chain = chain.extendMarkRange("annotation");
+  }
+
+  const value = annotation.trim();
+  return value
+    ? chain.setMark("annotation", { annotation: value }).run()
+    : chain.unsetMark("annotation").run();
 }
 
 type Anchor = { top: number; left?: number; right?: number };
@@ -279,6 +293,12 @@ export function EditorToolbar({ editor, sourceMode, onToggleSource, wideMode, on
     setPopover(null);
   };
 
+  const editAnnotation = () => {
+    const existing = editor.getAttributes("annotation")?.annotation ?? "";
+    const annotation = window.prompt(t("editor:toolbar.annotationPrompt"), existing);
+    if (annotation !== null) applyAnnotationEdit(editor, annotation);
+  };
+
   const applyLink = (url: string) => {
     if (popover?.type !== "link") return;
     applyToRange(popover.range, () => {
@@ -365,6 +385,12 @@ export function EditorToolbar({ editor, sourceMode, onToggleSource, wideMode, on
       isActive: currentHighlight != null || editor.isActive("highlight"),
       label: t("editor:toolbar.highlight"),
       style: currentHighlight ? { backgroundColor: currentHighlight } : undefined,
+    },
+    {
+      icon: MessageSquareText,
+      action: editAnnotation,
+      isActive: editor.isActive("annotation"),
+      label: t("editor:toolbar.annotation"),
     },
     { separator: true },
     { icon: List, action: () => editor.chain().focus().toggleBulletList().run(), isActive: editor.isActive("bulletList"), label: t("editor:toolbar.bulletList") },

@@ -1083,6 +1083,8 @@
       "textColor": "צבע טקסט",
       "highlight": "סימון",
       "background": "רקע",
+      "annotation": "הערה",
+      "annotationPrompt": "הוספה או עריכה של הערה (יש להשאיר ריק כדי להסיר)",
       "bulletList": "רשימה",
       "orderedList": "רשימה ממוספרת",
       "blockquote": "ציטוט",
