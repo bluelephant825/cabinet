@@ -1,5 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey, NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
+import { Fragment, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
 
 /**
@@ -101,25 +102,122 @@ function getOrCreateAddButton(): HTMLButtonElement {
   return el;
 }
 
-function findBlockAt(view: EditorView, coords: { left: number; top: number }) {
-  const pos = view.posAtCoords(coords);
-  if (!pos) return null;
-  let $pos = view.state.doc.resolve(pos.inside >= 0 ? pos.inside : pos.pos);
-  while ($pos.depth > 0 && !$pos.parent.type.isBlock) {
-    $pos = view.state.doc.resolve($pos.before());
-  }
-  // Walk up until we find a top-level child of the doc
-  let depth = $pos.depth;
-  while (depth > 1) {
-    const parent = view.state.doc.resolve($pos.before(depth)).parent;
-    if (parent.type.name === "doc") break;
-    depth -= 1;
-  }
-  const nodePos = depth === 0 ? 0 : $pos.before(Math.max(depth, 1));
+type DraggableBlock = {
+  pos: number;
+  depth: number;
+  node: ProseMirrorNode;
+  dom: HTMLElement;
+};
+
+type HorizontalBounds = { left: number; right: number };
+
+const GUTTER_PROBE_INSET = 20;
+const GUTTER_PROBE_STEP = 32;
+
+/**
+ * A gutter pointer has no useful document position for an indented list item.
+ * Probe across the line so mixed-direction and deeply nested items can still
+ * contribute a candidate. The pointer's own x-coordinate stays first to keep
+ * the common in-content path cheap and deterministic.
+ */
+export function gutterProbeXs(bounds: HorizontalBounds, pointerX: number): number[] {
+  const midpoint = (bounds.left + bounds.right) / 2;
+  const min = Math.min(bounds.left + GUTTER_PROBE_INSET, midpoint);
+  const max = Math.max(bounds.right - GUTTER_PROBE_INSET, midpoint);
+  const xs = [Math.max(min, Math.min(max, pointerX))];
+
+  for (let x = min; x <= max; x += GUTTER_PROBE_STEP) xs.push(x);
+  xs.push(max);
+  return [...new Set(xs)];
+}
+
+export function markerOffsetForNodeType(nodeType: string): number {
+  // Bullets and numbers render outside a regular list item's box. A task
+  // checkbox is inside the task item's flex box, so it needs no extra slot.
+  return nodeType === "listItem" ? 18 : 0;
+}
+
+function blockAtDepth(
+  view: EditorView,
+  $pos: ReturnType<EditorView["state"]["doc"]["resolve"]>,
+  depth: number
+): DraggableBlock | null {
+  if (depth < 1) return null;
+  const nodePos = $pos.before(depth);
   const node = view.state.doc.nodeAt(nodePos);
-  if (!node) return null;
-  const dom = view.nodeDOM(nodePos) as HTMLElement | null;
-  return { pos: nodePos, node, dom };
+  const dom = view.nodeDOM(nodePos);
+  if (!node || !(dom instanceof HTMLElement)) return null;
+  return { pos: nodePos, depth, node, dom };
+}
+
+function blockAtCoords(view: EditorView, coords: { left: number; top: number }) {
+  const found = view.posAtCoords(coords);
+  if (!found) return null;
+
+  const doc = view.state.doc;
+  const $pos = doc.resolve(Math.max(0, Math.min(found.pos, doc.content.size)));
+
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node.type.name === "listItem" || node.type.name === "taskItem") {
+      const block = blockAtDepth(view, $pos, depth);
+      if (block) return block;
+    }
+  }
+
+  return blockAtDepth(view, $pos, 1);
+}
+
+function findBlockAt(
+  view: EditorView,
+  coords: { left: number; top: number },
+  editorBounds: HorizontalBounds
+) {
+  let deepest: DraggableBlock | null = null;
+
+  for (const left of gutterProbeXs(editorBounds, coords.left)) {
+    const candidate = blockAtCoords(view, { left, top: coords.top });
+    if (candidate && (!deepest || candidate.depth > deepest.depth)) {
+      deepest = candidate;
+    }
+  }
+
+  return deepest;
+}
+
+function validateCurrentBlock(
+  view: EditorView,
+  block: DraggableBlock | null
+): DraggableBlock | null {
+  if (!block || view.isDestroyed || !view.editable) return null;
+
+  const node = view.state.doc.nodeAt(block.pos);
+  const dom = view.nodeDOM(block.pos);
+  if (
+    node !== block.node ||
+    dom !== block.dom ||
+    !(dom instanceof HTMLElement) ||
+    !view.dom.contains(dom)
+  ) {
+    return null;
+  }
+
+  return block;
+}
+
+export function canInsertNodeAt(
+  doc: ProseMirrorNode,
+  pos: number,
+  previousNode: ProseMirrorNode,
+  candidate: ProseMirrorNode
+): boolean {
+  if (pos < 0 || pos > doc.content.size) return false;
+  const $pos = doc.resolve(pos);
+  return (
+    $pos.nodeBefore === previousNode &&
+    candidate.type.validContent(candidate.content) &&
+    $pos.parent.canReplace($pos.index(), $pos.index(), Fragment.from(candidate))
+  );
 }
 
 function getOrCreateHandle(): HTMLDivElement {
@@ -168,7 +266,7 @@ export const DragHandle = Extension.create({
   },
 
   addProseMirrorPlugins() {
-    let currentBlock: { pos: number; node: { nodeSize: number }; dom: HTMLElement } | null = null;
+    let currentBlock: DraggableBlock | null = null;
 
     const handle = typeof document !== "undefined" ? getOrCreateHandle() : null;
     const addBtn = typeof document !== "undefined" ? getOrCreateAddButton() : null;
@@ -186,7 +284,17 @@ export const DragHandle = Extension.create({
           if (!handle) return { destroy: () => {} };
 
           const onMouseMove = (event: MouseEvent) => {
-            if (!view.editable) return;
+            // A global mouse listener can receive one final event while an
+            // editor is being replaced. Never ask a destroyed view for DOM or
+            // document positions.
+            if (view.isDestroyed) {
+              hide();
+              return;
+            }
+            if (!view.editable) {
+              hide();
+              return;
+            }
             const rect = view.dom.getBoundingClientRect();
             if (
               event.clientX < rect.left - 60 ||
@@ -197,18 +305,23 @@ export const DragHandle = Extension.create({
               hide();
               return;
             }
-            // Probe inside the editor with clientX clamped to content
-            const probeX = Math.max(rect.left + 20, Math.min(rect.right - 20, event.clientX));
-            const block = findBlockAt(view, { left: probeX, top: event.clientY });
+            const block = findBlockAt(
+              view,
+              { left: event.clientX, top: event.clientY },
+              rect
+            );
             if (!block || !block.dom || !(block.dom instanceof HTMLElement)) {
               hide();
               return;
             }
-            currentBlock = block as typeof currentBlock;
+            currentBlock = block;
             const domRect = block.dom.getBoundingClientRect();
-            const isRtl =
-              typeof document !== "undefined" &&
-              document.documentElement.dir === "rtl";
+            const markerOffset = markerOffsetForNodeType(block.node.type.name);
+            const handleOffset = 22 + markerOffset;
+            const addButtonOffset = 44 + markerOffset;
+            // AutoDirection permits LTR and RTL blocks in the same document.
+            // Position against this block's resolved direction, not the page.
+            const isRtl = window.getComputedStyle(block.dom).direction === "rtl";
             handle.style.display = "flex";
             handle.style.top = `${window.scrollY + domRect.top + 4}px`;
             if (isRtl) {
@@ -218,11 +331,11 @@ export const DragHandle = Extension.create({
               handle.style.right = `${
                 document.documentElement.clientWidth -
                 (window.scrollX + domRect.right) -
-                22
+                handleOffset
               }px`;
             } else {
               handle.style.right = "auto";
-              handle.style.left = `${window.scrollX + domRect.left - 22}px`;
+              handle.style.left = `${window.scrollX + domRect.left - handleOffset}px`;
             }
             if (addBtn) {
               addBtn.style.display = "flex";
@@ -232,11 +345,11 @@ export const DragHandle = Extension.create({
                 addBtn.style.right = `${
                   document.documentElement.clientWidth -
                   (window.scrollX + domRect.right) -
-                  44
+                  addButtonOffset
                 }px`;
               } else {
                 addBtn.style.right = "auto";
-                addBtn.style.left = `${window.scrollX + domRect.left - 44}px`;
+                addBtn.style.left = `${window.scrollX + domRect.left - addButtonOffset}px`;
               }
             }
           };
@@ -244,21 +357,38 @@ export const DragHandle = Extension.create({
           const onMouseLeave = () => hide();
 
           const onAddClick = () => {
-            if (!currentBlock) return;
-            // Insert a new empty paragraph after the current block, then open slash menu
-            const afterPos = currentBlock.pos + currentBlock.node.nodeSize;
-            const insertable = afterPos <= view.state.doc.content.size;
-            const tr = view.state.tr;
-            if (insertable) {
-              // Place cursor at end of current block content (before node closing mark)
-              const endContent = afterPos - 1;
-              const sel = TextSelection.create(view.state.doc, Math.min(endContent, view.state.doc.content.size));
-              view.dispatch(tr.setSelection(sel));
+            const block = validateCurrentBlock(view, currentBlock);
+            if (!block) {
+              hide();
+              return;
             }
+
+            const { state } = view;
+            const afterPos = block.pos + block.node.nodeSize;
+            const candidates = [
+              state.schema.nodes.paragraph?.createAndFill(),
+              block.node.type.createAndFill(),
+            ];
+            const insertNode = candidates.find(
+              (candidate): candidate is ProseMirrorNode =>
+                Boolean(
+                  candidate &&
+                    canInsertNodeAt(state.doc, afterPos, block.node, candidate)
+                )
+            );
+
+            // Validate the complete candidate fragment, not just its type.
+            // This matters for list items with required child content and also
+            // proves that afterPos is still the boundary after this block.
+            if (!insertNode) {
+              hide();
+              return;
+            }
+
+            const tr = state.tr.insert(afterPos, insertNode);
+            tr.setSelection(TextSelection.near(tr.doc.resolve(afterPos + 1)));
+            view.dispatch(tr.scrollIntoView());
             view.focus();
-            // Split the block to create a new paragraph, then trigger slash menu
-            const splitTr = view.state.tr.split(view.state.selection.from);
-            view.dispatch(splitTr);
             // Dispatch on view.dom so event.target is the ProseMirror element;
             // this lets the global "/" hotkey guard (isEditableTarget) skip it
             // while the slash-commands capture listener on window still fires.
@@ -266,8 +396,13 @@ export const DragHandle = Extension.create({
           };
 
           const onDragStart = (event: DragEvent) => {
-            if (!currentBlock || !event.dataTransfer) return;
-            const { pos, dom } = currentBlock;
+            const block = validateCurrentBlock(view, currentBlock);
+            if (!block || !event.dataTransfer) {
+              event.preventDefault();
+              hide();
+              return;
+            }
+            const { pos, dom } = block;
 
             // Select the block so PM treats it as the drag source
             const tr = view.state.tr.setSelection(
@@ -298,6 +433,9 @@ export const DragHandle = Extension.create({
           if (addBtn) addBtn.addEventListener("click", onAddClick);
 
           return {
+            update(updatedView) {
+              if (!updatedView.editable) hide();
+            },
             destroy() {
               window.removeEventListener("mousemove", onMouseMove);
               view.dom.removeEventListener("mouseleave", onMouseLeave);
