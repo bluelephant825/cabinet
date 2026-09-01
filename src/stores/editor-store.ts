@@ -32,6 +32,7 @@ interface EditorState {
   createMissingPage: (title: string) => Promise<void>;
   updateContent: (content: string) => void;
   updateFrontmatter: (updates: Partial<FrontMatter>) => void;
+  updateDocument: (content: string, frontmatter: FrontMatter) => void;
   save: () => Promise<void>;
   clear: () => void;
 }
@@ -192,7 +193,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateFrontmatter: (updates: Partial<FrontMatter>) => {
     const { frontmatter } = get();
     if (!frontmatter) return;
-    set({ frontmatter: { ...frontmatter, ...updates }, isDirty: true });
+    get().updateDocument(get().content, { ...frontmatter, ...updates });
+  },
+
+  updateDocument: (content: string, frontmatter: FrontMatter) => {
+    // Body and properties come from the same ProseMirror transaction. Commit
+    // them together so autosave can never observe one side of the edit without
+    // the other (for example, a property rename with the previous body).
+    set({ content, frontmatter, isDirty: true });
 
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {

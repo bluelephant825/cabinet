@@ -186,16 +186,12 @@ export async function readPage(virtualPath: string): Promise<PageData> {
       assetBase: isDirectoryPage ? virtualPath : parentDir,
       content: content.trim(),
       frontmatter: {
+        ...data,
         title: data.title || path.basename(virtualPath, ".md"),
         created: data.created || new Date().toISOString(),
         modified: data.modified || new Date().toISOString(),
         tags: data.tags || [],
-        icon: data.icon,
-        order: data.order,
-        dir: data.dir,
-        google: data.google,
-        appleNotes: data.appleNotes,
-      },
+      } as FrontMatter,
     };
   }
 

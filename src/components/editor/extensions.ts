@@ -35,6 +35,7 @@ import { HeadingAnchors } from "./extensions/heading-anchors";
 import { AutoDirection } from "./extensions/auto-direction";
 import { FindExtension } from "./extensions/find";
 import { EditorMentionExtension } from "./mention-extension";
+import { DocumentProperties } from "./extensions/document-properties";
 
 // Curated language set: covers ~95% of real-world snippets. The full `common`
 // import bundles 35+ language parsers (~70 kB gzipped) that Cabinet users
@@ -57,6 +58,7 @@ const lowlight = createLowlight({
 });
 
 export const editorExtensions = [
+  DocumentProperties,
   StarterKit.configure({
     heading: { levels: [1, 2, 3, 4] },
     codeBlock: false, // replaced by CodeBlockLowlight

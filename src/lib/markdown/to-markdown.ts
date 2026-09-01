@@ -16,6 +16,16 @@ const turndown = new TurndownService({
 // Add GFM support (tables, strikethrough, task lists)
 turndown.use(gfm);
 
+// Frontmatter is represented by a dedicated Tiptap node, but remains separate
+// from the markdown body in storage. Never leak the node's rendered metadata
+// into the page body when the editor serializes its document.
+turndown.addRule("documentProperties", {
+  filter: (node) =>
+    node.nodeName === "DIV" &&
+    (node as HTMLElement).getAttribute("data-document-properties") === "true",
+  replacement: () => "",
+});
+
 // Task items, the Tiptap way. Tiptap (and our markdownToHtml) render a task
 // item as `<li data-type="taskItem" data-checked="…"><label><input></label>
 // <div><p>text</p></div></li>`. turndown-plugin-gfm's task rule only fires when

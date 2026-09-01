@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
-import { ensureContainerDir } from "@/lib/storage/page-io";
+import { ensureContainerDir, readPage, writePage } from "@/lib/storage/page-io";
 
 const exists = (p: string) => fs.access(p).then(() => true, () => false);
 
@@ -49,5 +49,50 @@ test("ensureContainerDir is a no-op without a sibling .md", async () => {
     assert.equal(await exists(path.join(page, "index.md")), false);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("read and write preserve arbitrary nested metadata without inventing type", async () => {
+  const virtualPath = `metadata-roundtrip-${Date.now()}-${process.pid}`;
+  const root = process.env.CABINET_DATA_DIR;
+  assert.ok(root, "test requires isolated CABINET_DATA_DIR");
+  const pageDir = path.join(root, virtualPath);
+
+  try {
+    await fs.mkdir(pageDir, { recursive: true });
+    await fs.writeFile(
+      path.join(pageDir, "index.md"),
+      [
+        "---",
+        "title: Metadata roundtrip",
+        "created: '2026-07-15T00:00:00.000Z'",
+        "modified: '2026-07-15T00:00:00.000Z'",
+        "tags: [one]",
+        "workflow:",
+        "  owner:",
+        "    name: Ada",
+        "    active: true",
+        "  stages:",
+        "    - draft",
+        "    - review: 2",
+        "---",
+        "Body",
+        "",
+      ].join("\n")
+    );
+
+    const first = await readPage(virtualPath);
+    assert.deepEqual(first.frontmatter.workflow, {
+      owner: { name: "Ada", active: true },
+      stages: ["draft", { review: 2 }],
+    });
+    assert.equal(Object.hasOwn(first.frontmatter, "type"), false);
+
+    await writePage(virtualPath, first.content, first.frontmatter);
+    const second = await readPage(virtualPath);
+    assert.deepEqual(second.frontmatter.workflow, first.frontmatter.workflow);
+    assert.equal(Object.hasOwn(second.frontmatter, "type"), false);
+  } finally {
+    await fs.rm(pageDir, { recursive: true, force: true });
   }
 });

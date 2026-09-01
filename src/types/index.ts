@@ -1,4 +1,6 @@
 export interface FrontMatter {
+  /** Arbitrary YAML properties are first-class and must survive editor saves. */
+  [key: string]: unknown;
   title: string;
   created: string;
   modified: string;

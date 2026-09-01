@@ -4,6 +4,11 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Asterisk, Loader2, FilePlus, Lock } from "lucide-react";
 import { editorExtensions } from "./extensions";
+import {
+  documentPropertiesHtml,
+  frontmatterFromEditor,
+  serializeDocumentProperties,
+} from "./extensions/document-properties";
 import { EditorToolbar } from "./editor-toolbar";
 import { SlashCommands } from "./slash-commands";
 import { EditorMentionPicker } from "./mention-picker";
@@ -45,6 +50,15 @@ async function uploadFile(pagePath: string, file: File): Promise<string | null> 
 }
 
 const WIDE_MODE_KEY = "kb-editor-wide-mode";
+
+function documentRenderKey(
+  path: string | null,
+  assetBase: string | null,
+  content: string,
+  frontmatter: ReturnType<typeof frontmatterFromEditor> | null
+): string {
+  return `${path}\u0000${assetBase ?? ""}\u0000${content}\u0000${serializeDocumentProperties(frontmatter)}`;
+}
 
 function flattenTree(nodes: TreeNode[]): { path: string; name: string }[] {
   const result: { path: string; name: string }[] = [];
@@ -151,7 +165,6 @@ export function KBEditor() {
   // sidebar width pref.
   const [wideMode, setWideMode] = useState(false);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setWideMode(window.localStorage.getItem(WIDE_MODE_KEY) === "1");
   }, []);
   const toggleWideMode = useCallback(() => {
@@ -180,7 +193,6 @@ export function KBEditor() {
     left: number;
   } | null>(null);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFolderTab("page");
   }, [currentPath]);
 
@@ -191,6 +203,10 @@ export function KBEditor() {
   // loadStatus "ok", so the loadStatus guard below wouldn't catch the spurious
   // empty onUpdate the way it does on a cold app start.
   const hasPopulatedRef = useRef(false);
+  // Tracks the complete document represented by ProseMirror. Unlike the
+  // rendered state below, this is updated on user transactions too, preventing
+  // the post-autosave render from calling setContent and jumping the cursor.
+  const renderedKeyRef = useRef<string | null>(null);
 
   const handleUpdate = useCallback(
     ({ editor }: { editor: ReturnType<typeof useEditor> }) => {
@@ -204,7 +220,15 @@ export function KBEditor() {
       if (!hasPopulatedRef.current) return;
       const html = editor.getHTML();
       const md = htmlToMarkdown(html);
-      useEditorStore.getState().updateContent(md);
+      const nextFrontmatter = frontmatterFromEditor(editor);
+      const state = useEditorStore.getState();
+      renderedKeyRef.current = documentRenderKey(
+        state.currentPath,
+        state.assetBase,
+        md,
+        nextFrontmatter
+      );
+      state.updateDocument(md, nextFrontmatter);
     },
     []
   );
@@ -484,8 +508,8 @@ export function KBEditor() {
     // assetBase is in the key so a cached paint (assetBase null -> path
     // fallback) re-renders once the fetch reveals a standalone page's real
     // asset base.
-    const key = `${currentPath}\u0000${assetBase ?? ""}\u0000${content}`;
-    if (rendered?.key === key) return;
+    const key = documentRenderKey(currentPath, assetBase, content, frontmatter);
+    if (renderedKeyRef.current === key) return;
     prevPathRef.current = currentPath;
 
     const setContent = async () => {
@@ -493,8 +517,12 @@ export function KBEditor() {
       try {
         // assetBase (parent dir for standalone .md pages) resolves relative
         // image refs; currentPath is only correct for directory pages.
-        const html = await markdownToHtml(content, assetBase ?? currentPath);
-        editor.commands.setContent(html);
+        const bodyHtml = await markdownToHtml(content, assetBase ?? currentPath);
+        editor.commands.setContent(
+          documentPropertiesHtml(frontmatter) + bodyHtml,
+          { emitUpdate: false }
+        );
+        renderedKeyRef.current = key;
         // This editor instance now reflects stored content, so user-driven
         // onUpdate transactions are safe to persist (see hasPopulatedRef).
         hasPopulatedRef.current = true;
@@ -524,7 +552,28 @@ export function KBEditor() {
     };
 
     setContent();
-  }, [editor, content, currentPath, assetBase, isLoading, loadStatus, rendered]);
+  }, [editor, content, frontmatter, currentPath, assetBase, isLoading, loadStatus]);
+
+  // Store-side property actions (currently the RTL toolbar toggle) update the
+  // existing node in place. A ProseMirror transaction preserves the selection;
+  // rebuilding the whole document here would jump the cursor after each edit.
+  useEffect(() => {
+    if (!editor || !frontmatter || loadStatus !== "ok") return;
+    const first = editor.state.doc.firstChild;
+    if (first?.type.name !== "documentProperties") return;
+    if (
+      serializeDocumentProperties(first.attrs.properties as typeof frontmatter) ===
+      serializeDocumentProperties(frontmatter)
+    ) {
+      return;
+    }
+    editor.view.dispatch(
+      editor.state.tr.setNodeMarkup(0, undefined, {
+        ...first.attrs,
+        properties: frontmatter,
+      })
+    );
+  }, [editor, frontmatter, loadStatus]);
 
   // Source mode snapshots the markdown when toggled on but doesn't follow
   // store updates — navigating to a new page with source mode open used to
@@ -676,12 +725,33 @@ export function KBEditor() {
       setSourceText(useEditorStore.getState().content);
       setSourceMode(true);
     } else {
-      // Switching FROM source mode — apply changes
-      useEditorStore.getState().updateContent(sourceText);
+      // Switching FROM source mode: restore the complete rich document while
+      // keeping properties separate from the markdown textarea.
+      const state = useEditorStore.getState();
+      const nextFrontmatter = state.frontmatter;
+      if (!nextFrontmatter) {
+        setSourceMode(false);
+        return;
+      }
+      if (sourceText !== state.content) {
+        state.updateDocument(sourceText, nextFrontmatter);
+      }
       if (editor) {
         isLoadingRef.current = true;
-        const html = await markdownToHtml(sourceText, assetBase ?? currentPath ?? undefined);
-        editor.commands.setContent(html);
+        const bodyHtml = await markdownToHtml(
+          sourceText,
+          assetBase ?? currentPath ?? undefined
+        );
+        editor.commands.setContent(
+          documentPropertiesHtml(nextFrontmatter) + bodyHtml,
+          { emitUpdate: false }
+        );
+        renderedKeyRef.current = documentRenderKey(
+          state.currentPath,
+          state.assetBase,
+          sourceText,
+          nextFrontmatter
+        );
         setTimeout(() => { isLoadingRef.current = false; }, 50);
       }
       setSourceMode(false);
