@@ -2,7 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { GET, PUT, canvasVirtualPath, parseCanvasCabinetPath } from "@/app/api/canvas/route";
-import { computeCanvasAutoLayout, parseCanvasSnapshot } from "@/lib/canvas/snapshot";
+import {
+  CANVAS_MAX_CARD_HEIGHT,
+  CANVAS_MAX_CARD_WIDTH,
+  CANVAS_MIN_CARD_HEIGHT,
+  CANVAS_MIN_CARD_WIDTH,
+  computeCanvasAutoLayout,
+  parseCanvasSnapshot,
+} from "@/lib/canvas/snapshot";
 import { useAppStore } from "@/stores/app-store";
 
 const validSnapshot = {
@@ -21,40 +28,83 @@ const validSnapshot = {
 test("canvas snapshot validation accepts v2 and migrates bounded v1 snapshots", () => {
   assert.deepEqual(parseCanvasSnapshot(validSnapshot), validSnapshot);
   assert.deepEqual(
-    parseCanvasSnapshot({ version: 1, boards: { room: { zoom: 1, cards: {} } } }),
-    { version: 2, boards: { room: { zoom: 1, manualLayout: false, cards: {} } } },
+    parseCanvasSnapshot({
+      version: 1,
+      boards: {
+        empty: { zoom: 1, cards: {} },
+        room: {
+          zoom: 1.5,
+          cards: { "room/page.md": { x: 10, y: 20, width: 360, height: 300 } },
+        },
+      },
+    }),
+    {
+      version: 2,
+      boards: {
+        empty: { zoom: 1, manualLayout: false, cards: {} },
+        room: {
+          zoom: 1.5,
+          manualLayout: true,
+          cards: { "room/page.md": { x: 10, y: 20, width: 360, height: 300 } },
+        },
+      },
+    },
   );
   assert.equal(parseCanvasSnapshot({ ...validSnapshot, extra: true }), null);
+  assert.equal(parseCanvasSnapshot({ version: 2, boards: { room: { zoom: 1, cards: {} } } }), null);
+  assert.equal(parseCanvasSnapshot({ version: 2, boards: { room: { zoom: 1, manualLayout: "yes", cards: {} } } }), null);
   assert.equal(parseCanvasSnapshot({ version: 1, boards: { "../room": { zoom: 1, cards: {} } } }), null);
   assert.equal(parseCanvasSnapshot({ version: 1, boards: { room: { zoom: Number.NaN, cards: {} } } }), null);
   assert.equal(parseCanvasSnapshot({ version: 1, boards: { room: { zoom: 1, cards: { page: { x: 0, y: 0, width: 10, height: 300 } } } } }), null);
   assert.equal(parseCanvasSnapshot({ version: 1, boards: { room: { zoom: 1, cards: { page: { x: 0, y: 0, width: 360, height: 300, color: "red" } } } } }), null);
 });
 
-test("canvas auto layout is deterministic, bounded, and non-overlapping", () => {
+test("canvas auto layout is deterministic and clamps measured card sizes", () => {
+  const cards = [
+    { path: "room/min.md", width: 10.4, height: -20 },
+    { path: "room/rounded.md", width: 360.6, height: 240.4 },
+    { path: "room/max.md", width: 10_000, height: 10_000 },
+  ];
+  const layout = computeCanvasAutoLayout(cards);
+
+  assert.deepEqual(computeCanvasAutoLayout([]), {});
+  assert.deepEqual(layout, computeCanvasAutoLayout(cards));
+  assert.deepEqual(Object.keys(layout), cards.map((card) => card.path));
+  assert.deepEqual(
+    cards.map((card) => ({ width: layout[card.path].width, height: layout[card.path].height })),
+    [
+      { width: CANVAS_MIN_CARD_WIDTH, height: CANVAS_MIN_CARD_HEIGHT },
+      { width: 361, height: 240 },
+      { width: CANVAS_MAX_CARD_WIDTH, height: CANVAS_MAX_CARD_HEIGHT },
+    ],
+  );
+});
+
+test("canvas auto layout centers finite cards without overlap", () => {
   const cards = [
     { path: "room/a.md", width: 360, height: 300 },
     { path: "room/b.md", width: 420, height: 240 },
     { path: "room/c.md", width: 300, height: 500 },
     { path: "room/d.md", width: 380, height: 320 },
+    { path: "room/e.md", width: 280, height: 180 },
   ];
-  const layout = computeCanvasAutoLayout(cards);
-  assert.deepEqual(layout, computeCanvasAutoLayout(cards));
-  assert.deepEqual(Object.keys(layout), cards.map((card) => card.path));
+  const boxes = Object.values(computeCanvasAutoLayout(cards));
+  const left = Math.min(...boxes.map((box) => box.x));
+  const right = Math.max(...boxes.map((box) => box.x + box.width));
+  const top = Math.min(...boxes.map((box) => box.y));
+  const bottom = Math.max(...boxes.map((box) => box.y + box.height));
 
-  const boxes = Object.values(layout);
-  for (const box of boxes) {
-    assert.ok(Number.isFinite(box.x) && Number.isFinite(box.y));
-    assert.ok(box.width >= 220 && box.height >= 140);
-  }
-  for (let left = 0; left < boxes.length; left += 1) {
-    for (let right = left + 1; right < boxes.length; right += 1) {
-      const a = boxes[left];
-      const b = boxes[right];
+  assert.ok(boxes.every((box) => Object.values(box).every(Number.isFinite)));
+  assert.ok(Math.abs((left + right) / 2 - 4_000) <= 1);
+  assert.ok(Math.abs((top + bottom) / 2 - 4_000) <= 1);
+  for (let first = 0; first < boxes.length; first += 1) {
+    for (let second = first + 1; second < boxes.length; second += 1) {
+      const a = boxes[first];
+      const b = boxes[second];
       const overlaps =
         a.x < b.x + b.width && a.x + a.width > b.x &&
         a.y < b.y + b.height && a.y + a.height > b.y;
-      assert.equal(overlaps, false);
+      assert.equal(overlaps, false, `cards ${first} and ${second} overlap`);
     }
   }
 });
