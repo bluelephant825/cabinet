@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FolderTree,
+  LayoutGrid,
   Loader2,
   Network,
 } from "lucide-react";
@@ -58,6 +59,7 @@ export function CabinetView({ cabinetPath }: { cabinetPath: string }) {
   } | null>(null);
 
   const setSection = useAppStore((state) => state.setSection);
+  const setAppMode = useAppStore((state) => state.setAppMode);
   const cabinetVisibilityModes = useAppStore((state) => state.cabinetVisibilityModes);
   const setCabinetVisibilityMode = useAppStore((state) => state.setCabinetVisibilityMode);
   const cabinetVisibilityMode = cabinetVisibilityModes[cabinetPath] || "own";
@@ -243,6 +245,16 @@ export function CabinetView({ cabinetPath }: { cabinetPath: string }) {
             >
               <Network className="size-3.5" />
               <span className="@max-[780px]:hidden">Org chart</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAppMode("canvas")}
+              title="Canvas mode"
+              aria-label="Canvas mode"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <LayoutGrid className="size-3.5" />
             </button>
 
             <CabinetSchedulerControls

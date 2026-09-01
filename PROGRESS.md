@@ -918,6 +918,8 @@
 
 [2026-04-09] Added "Open in Finder" option to each sidebar tree item's right-click context menu. Reveals the item in Finder (macOS) or Explorer (Windows) instead of only supporting the top-level knowledge base directory.
 
+[2026-09-01] Added the P04 canvas foundation as a third app mode for room and page content. Canvas boards render supported local file previews and folder cards on a pannable, zoomable spatial surface with multi-selection, drag, resize, clickable minimap, and debounced per-room persistence. Layout state now uses a strict versioned schema under each room's current `.agents/.config` storage, with bounded payload/path validation, atomic writes, and read-only inline-mount enforcement; focused route, schema, and app-mode state tests cover rejection and transitions. Browser, palettes, auto-layout, LaTeX canvas rendering, Tldraw, and unrelated composer behavior remain out of scope.
+
 [2026-04-09] Fixed Claude CLI not being found in Electron DMG builds. The packaged app inherits macOS GUI PATH which lacks NVM paths. Added NVM bin detection (scans ~/.nvm/versions/node/) to RUNTIME_PATH in provider-cli.ts, enrichedPath in cabinet-daemon.ts, and commandCandidates in claude-code provider.
 
 [2026-04-10] Added send icon to each agent card in the Team Org Chart. Clicking it opens the agent's workspace with the composer focused, letting users quickly send a task to any agent directly from the org chart. Also added to the CEO card.

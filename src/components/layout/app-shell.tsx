@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/sidebar/sidebar";
 import { Header } from "@/components/layout/header";
 import { KBEditor } from "@/components/editor/editor";
 import { BrowserView } from "@/components/layout/browser-view";
+import { CanvasView } from "@/components/layout/canvas-view";
 import { WebsiteViewer } from "@/components/editor/website-viewer";
 import { PdfViewer } from "@/components/editor/pdf-viewer";
 import { CsvViewer } from "@/components/editor/csv-viewer";
@@ -391,8 +392,8 @@ export function AppShell() {
     return () => window.clearTimeout(id);
   }, [selectedPath, section.cabinetPath]);
 
-  // Browse mode only makes sense over a page/cabinet surface; leaving those
-  // sections (settings, help, etc.) drops back to the editor.
+  // Alternate content modes only make sense over a page/cabinet surface;
+  // leaving those sections drops back to the editor.
   useEffect(() => {
     if (section.type !== "page" && section.type !== "cabinet" && appMode !== "edit") {
       setAppMode("edit");
@@ -835,6 +836,9 @@ export function AppShell() {
     if ((section.type === "cabinet" || section.type === "page") && appMode === "browse") {
       return <BrowserView />;
     }
+    if ((section.type === "cabinet" || section.type === "page") && appMode === "canvas") {
+      return <CanvasView />;
+    }
     if (section.type === "cabinet" && section.cabinetPath) {
       return <CabinetView cabinetPath={section.cabinetPath} />;
     }
@@ -1075,7 +1079,7 @@ export function AppShell() {
   // single elevated sheet.
   const isDefaultEditor =
     section.type === "page" &&
-    appMode !== "browse" &&
+    appMode === "edit" &&
     !driveLoading &&
     !isApp && !isCsv && !isPdf && !isWebsite && !isNotebook && !isCode &&
     !isImage && !isVideo && !isAudio && !isMermaid && !isLatex && !isDocx &&
@@ -1097,6 +1101,7 @@ export function AppShell() {
     isSelfSheetedViewer ||
     section.type === "tasks" ||
     section.type === "agents" ||
+    appMode === "canvas" ||
     // The room/cabinet dashboard puts its header on the desk and wraps its body
     // in a ContentSheet, like agents/tasks — but only in edit mode; browse mode
     // hands off to BrowserView, which still wants the app-shell sheet.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { Archive, Globe, Maximize2 } from "lucide-react";
+import { Archive, Globe, LayoutGrid, Maximize2 } from "lucide-react";
 import { HeaderActions } from "@/components/layout/header-actions";
 import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { ReturnToChip } from "@/components/layout/return-to-chip";
@@ -90,23 +90,33 @@ export function ViewerToolbar({
   // logo/exit bar instead.
   if (focusMode) return null;
 
-  const modeButtons = !showModeButtons ? null : appMode === "browse" ? (
-    // Always offer the exit affordance while browsing, regardless of which node
-    // is selected (you may have entered browse from a link in a markdown page).
+  const modeButtons = !showModeButtons ? null : appMode === "browse" || appMode === "canvas" ? (
     <ToolbarButton
       icon={Archive}
       label={t("editor:header.editMode")}
       iconOnly
       onClick={() => setAppMode("edit")}
     />
-  ) : isBrowsable ? (
-    <ToolbarButton
-      icon={Globe}
-      label={t("editor:header.browseMode")}
-      iconOnly
-      onClick={() => setAppMode("browse", browseModeUrl)}
-    />
-  ) : null;
+  ) : (
+    <>
+      {isBrowsable && (
+        <ToolbarButton
+          icon={Globe}
+          label={t("editor:header.browseMode")}
+          iconOnly
+          onClick={() => setAppMode("browse", browseModeUrl)}
+        />
+      )}
+      {sourcePath && (
+        <ToolbarButton
+          icon={LayoutGrid}
+          label="Canvas mode"
+          iconOnly
+          onClick={() => setAppMode("canvas")}
+        />
+      )}
+    </>
+  );
 
   return (
     <div
