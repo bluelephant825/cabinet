@@ -2,6 +2,10 @@ import fs from "fs";
 import net from "net";
 import path from "path";
 import { spawn } from "child_process";
+import {
+  createDataDirChangeDetector,
+  readConfiguredDataDir,
+} from "./stale-process-watch.mjs";
 
 const PROJECT_ROOT = process.cwd();
 
@@ -33,39 +37,37 @@ function parsePort(value, fallback) {
 }
 
 function getManagedDataDir() {
-  const configured = process.env.CABINET_DATA_DIR?.trim();
-  if (configured) return path.resolve(configured);
-  return path.join(PROJECT_ROOT, "data");
+  return readConfiguredDataDir(PROJECT_ROOT);
 }
 
-function getRuntimePortsPath() {
-  return path.join(getManagedDataDir(), ".cabinet-state", "runtime-ports.json");
+function getRuntimePortsPath(dataDir = getManagedDataDir()) {
+  return path.join(dataDir, ".cabinet-state", "runtime-ports.json");
 }
 
-function readRuntimePorts() {
+function readRuntimePorts(dataDir) {
   try {
-    return JSON.parse(fs.readFileSync(getRuntimePortsPath(), "utf8"));
+    return JSON.parse(fs.readFileSync(getRuntimePortsPath(dataDir), "utf8"));
   } catch {
     return {};
   }
 }
 
-function writeRuntimePorts(nextState) {
-  const filePath = getRuntimePortsPath();
+function writeRuntimePorts(nextState, dataDir) {
+  const filePath = getRuntimePortsPath(dataDir);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(nextState, null, 2)}\n`, "utf8");
 }
 
-function updateRuntimeService(service, payload) {
-  const current = readRuntimePorts();
+function updateRuntimeService(service, payload, dataDir) {
+  const current = readRuntimePorts(dataDir);
   writeRuntimePorts({
     ...current,
     [service]: payload,
-  });
+  }, dataDir);
 }
 
-function clearRuntimeService(service, pid) {
-  const current = readRuntimePorts();
+function clearRuntimeService(service, pid, dataDir) {
+  const current = readRuntimePorts(dataDir);
   const entry = current?.[service];
   if (!entry || (entry.pid && pid && entry.pid !== pid)) {
     return;
@@ -73,7 +75,7 @@ function clearRuntimeService(service, pid) {
   writeRuntimePorts({
     ...current,
     [service]: undefined,
-  });
+  }, dataDir);
 }
 
 function getNextDevLockPath() {
@@ -207,13 +209,6 @@ async function main() {
   const port = await findAvailablePort(preferredPort);
   const origin = `http://127.0.0.1:${port}`;
 
-  updateRuntimeService("app", {
-    port,
-    origin,
-    pid: process.pid,
-    updatedAt: new Date().toISOString(),
-  });
-
   if (port !== preferredPort) {
     console.log(
       `[cabinet] App port ${preferredPort} is busy, using ${port} instead.`
@@ -228,41 +223,85 @@ async function main() {
     "bin",
     "next"
   );
-  const child = spawn(
-    process.execPath,
-    [nextBin, "dev", "-p", String(port), ...process.argv.slice(2)],
-    {
-      cwd: PROJECT_ROOT,
-      stdio: "inherit",
-      env: {
-        // Audit #107: telemetry off by default in dev. Explicit user opt-in
-        // via CABINET_TELEMETRY_DISABLED=0 is honored (process.env spread
-        // happens after the default).
-        CABINET_TELEMETRY_DISABLED: "1",
-        // Default CABINET_APP_ORIGIN to loopback, but let process.env spread
-        // below override when an operator pinned a public hostname so
-        // next.config.ts can auto-allow it through Next 15's dev origin guard.
-        CABINET_APP_ORIGIN: origin,
-        ...process.env,
-        PORT: String(port),
-        CABINET_APP_PORT: String(port),
-      },
+  let ownedChild;
+  let ownedDataDir = getManagedDataDir();
+  let restarting = false;
+  let stopping = false;
+
+  const spawnOwnedChild = () => {
+    updateRuntimeService("app", {
+      port,
+      origin,
+      pid: process.pid,
+      updatedAt: new Date().toISOString(),
+    }, ownedDataDir);
+
+    ownedChild = spawn(
+      process.execPath,
+      [nextBin, "dev", "-p", String(port), ...process.argv.slice(2)],
+      {
+        cwd: PROJECT_ROOT,
+        stdio: "inherit",
+        env: {
+          // Audit #107: telemetry off by default in dev. Explicit user opt-in
+          // via CABINET_TELEMETRY_DISABLED=0 is honored (process.env spread
+          // happens after the default).
+          CABINET_TELEMETRY_DISABLED: "1",
+          // Default CABINET_APP_ORIGIN to loopback, but let process.env spread
+          // below override when an operator pinned a public hostname so
+          // next.config.ts can auto-allow it through Next 15's dev origin guard.
+          CABINET_APP_ORIGIN: origin,
+          ...process.env,
+          PORT: String(port),
+          CABINET_APP_PORT: String(port),
+        },
+      }
+    );
+
+    ownedChild.on("exit", (code, signal) => {
+      if (restarting && !stopping) {
+        restarting = false;
+        spawnOwnedChild();
+        return;
+      }
+      clearRuntimeService("app", process.pid, ownedDataDir);
+      if (!stopping && signal) {
+        process.kill(process.pid, signal);
+        return;
+      }
+      process.exit(code ?? 0);
+    });
+  };
+
+  const detectDataDirChange = createDataDirChangeDetector(
+    ownedDataDir,
+    (nextDataDir, previousDataDir) => {
+      clearRuntimeService("app", process.pid, previousDataDir);
+      ownedDataDir = nextDataDir;
+      if (!ownedChild || ownedChild.exitCode !== null || restarting) return;
+      restarting = true;
+      console.log(`[cabinet] Data directory changed; restarting Next dev server.`);
+      ownedChild.kill("SIGTERM");
     }
   );
+  const watcher = setInterval(() => {
+    detectDataDirChange(getManagedDataDir());
+  }, 500);
 
-  const cleanup = () => clearRuntimeService("app", process.pid);
+  const cleanup = () => {
+    clearInterval(watcher);
+    clearRuntimeService("app", process.pid, ownedDataDir);
+  };
+  const stop = (signal) => {
+    stopping = true;
+    clearInterval(watcher);
+    ownedChild?.kill(signal);
+  };
   process.on("exit", cleanup);
-  process.on("SIGINT", () => child.kill("SIGINT"));
-  process.on("SIGTERM", () => child.kill("SIGTERM"));
+  process.on("SIGINT", () => stop("SIGINT"));
+  process.on("SIGTERM", () => stop("SIGTERM"));
 
-  child.on("exit", (code, signal) => {
-    cleanup();
-    if (signal) {
-      process.kill(process.pid, signal);
-      return;
-    }
-    process.exit(code ?? 0);
-  });
+  spawnOwnedChild();
 }
 
 main().catch((error) => {

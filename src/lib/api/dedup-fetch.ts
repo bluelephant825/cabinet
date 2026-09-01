@@ -16,6 +16,8 @@
  * are always sent through.
  */
 
+import { handleStaleResponse } from "@/lib/api/stale-process-client";
+
 interface InflightEntry {
   promise: Promise<Response>;
   at: number;
@@ -50,7 +52,10 @@ export function dedupFetch(
   options?: DedupFetchOptions
 ): Promise<Response> {
   if (!isReadOnlyMethod(init)) {
-    return fetch(url, init);
+    return fetch(url, init).then((response) => {
+      handleStaleResponse(response);
+      return response;
+    });
   }
 
   const key = keyFor(url, init);
@@ -69,6 +74,7 @@ export function dedupFetch(
   }
 
   const promise = fetch(url, init).then((res) => {
+    handleStaleResponse(res);
     if (ttl > 0 && res.ok) {
       recent.set(key, { response: res.clone(), at: Date.now() });
     }

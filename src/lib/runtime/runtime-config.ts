@@ -88,6 +88,21 @@ export function getManagedDataDir(): string {
   return path.join(PROJECT_ROOT, "data");
 }
 
+/** Data root captured when this server process loaded its storage modules. */
+export const BOOT_DATA_DIR = getManagedDataDir();
+
+export function dataDirChangedSinceBoot(
+  currentDataDir: string,
+  bootDataDir: string = BOOT_DATA_DIR
+): boolean {
+  return path.resolve(currentDataDir) !== path.resolve(bootDataDir);
+}
+
+/** True after the persisted data-dir pointer changes underneath this process. */
+export function isProcessStale(): boolean {
+  return dataDirChangedSinceBoot(getManagedDataDir());
+}
+
 function getRuntimePortsPath(): string {
   return path.join(getManagedDataDir(), ".cabinet-state", "runtime-ports.json");
 }

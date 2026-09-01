@@ -68,3 +68,16 @@ test("virtualPathFromFs returns forward-slash paths regardless of separator (#10
   assert.equal(virtualPathFromFs(DATA_DIR).startsWith("/"), false);
   assert.equal(virtualPathFromFs(DATA_DIR).startsWith("\\"), false);
 });
+
+test("resolveContentPath rejects a data directory changed after boot", () => {
+  const previous = process.env.CABINET_DATA_DIR;
+  process.env.CABINET_DATA_DIR = path.join(tempRoot, "replacement");
+  try {
+    assert.throws(
+      () => mod.resolveContentPath("index.md"),
+      /configured data directory changed on disk/
+    );
+  } finally {
+    process.env.CABINET_DATA_DIR = previous;
+  }
+});

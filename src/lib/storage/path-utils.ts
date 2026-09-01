@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { getManagedDataDir, isElectronRuntime, PROJECT_ROOT } from "@/lib/runtime/runtime-config";
+import { getManagedDataDir, isElectronRuntime, isProcessStale, PROJECT_ROOT } from "@/lib/runtime/runtime-config";
+import { StaleProcessError } from "@/lib/api/stale-process";
 import { normalizeVirtualPath } from "@/lib/virtual-paths";
 
 export const DATA_DIR = getManagedDataDir();
@@ -37,6 +38,9 @@ export function resolveAgentCwd(cabinetPath?: string, workdir?: string): string 
 }
 
 export function resolveContentPath(virtualPath: string): string {
+  if (isProcessStale()) {
+    throw new StaleProcessError();
+  }
   const dataDir = path.resolve(DATA_DIR);
   const resolved = path.resolve(dataDir, normalizeVirtualPath(virtualPath));
   const relative = path.relative(dataDir, resolved);
