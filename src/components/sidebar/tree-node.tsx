@@ -819,6 +819,8 @@ function TreeNodeImpl({
               <Video className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
             ) : node.type === "audio" ? (
               <Music className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+            ) : node.type === "excalidraw" ? (
+              <Workflow className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
             ) : node.type === "mermaid" ? (
               <Workflow className="h-3.5 w-3.5 shrink-0 text-teal-400" />
             ) : node.type === "docx" ? (

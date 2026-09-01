@@ -1,3 +1,4 @@
+import { isExcalidrawFilePath } from "@/lib/excalidraw/files";
 import {
   AppWindow,
   Archive,
@@ -28,6 +29,7 @@ export type PageTypeKind =
   | "video"
   | "audio"
   | "mermaid"
+  | "excalidraw"
   | "cabinet"
   | "markdown"
   | "unknown"
@@ -51,6 +53,7 @@ const ICONS: Record<PageTypeKind, IconConfig> = {
   video: { icon: Video, color: "text-cyan-400" },
   audio: { icon: Music, color: "text-amber-400" },
   mermaid: { icon: Workflow, color: "text-teal-400" },
+  excalidraw: { icon: Workflow, color: "text-indigo-400" },
   cabinet: { icon: Archive, color: "text-amber-400" },
   markdown: { icon: FileText, color: "text-muted-foreground" },
   unknown: { icon: File, color: "text-muted-foreground/50" },
@@ -78,6 +81,7 @@ export function inferPageTypeFromPath(path: string): PageTypeKind {
   if (lower.endsWith(".csv")) return "csv";
   if (lower.endsWith(".pdf")) return "pdf";
   if (lower.endsWith(".mmd") || lower.endsWith(".mermaid")) return "mermaid";
+  if (isExcalidrawFilePath(lower)) return "excalidraw";
   if (/\.(png|jpe?g|gif|webp|svg|bmp)$/.test(lower)) return "image";
   if (/\.(mp4|mov|webm|avi|mkv)$/.test(lower)) return "video";
   if (/\.(mp3|wav|ogg|flac|m4a)$/.test(lower)) return "audio";

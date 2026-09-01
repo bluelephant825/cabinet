@@ -8,6 +8,10 @@ import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import type { TreeNode, GoogleFrontmatter } from "@/types";
 import { getInlineSourceMap, type InlineMark } from "@/lib/knowledge-sources/store";
 import { googleNativeKind, parseGoogleNative } from "@/lib/google-drive/native-docs";
+import {
+  excalidrawFileTitle,
+  isExcalidrawFilePath,
+} from "@/lib/excalidraw/files";
 import { DATA_DIR, virtualPathFromFs, isHiddenEntry } from "./path-utils";
 import { listDirectory, readFileContent, fileExists } from "./fs-operations";
 import { ORDER_SIDECAR } from "./order-store";
@@ -268,6 +272,17 @@ async function buildTreeRecursive(
         knowledgePolicy: inheritedPolicy,
         frontmatter: {
           title: entry.name.replace(/\.csv$/i, ""),
+          order: sidecarOrders[entry.name],
+        },
+      });
+    } else if (isExcalidrawFilePath(entry.name)) {
+      nodes.push({
+        name: entry.name,
+        path: vPath,
+        type: "excalidraw",
+        knowledgePolicy: inheritedPolicy,
+        frontmatter: {
+          title: excalidrawFileTitle(entry.name),
           order: sidecarOrders[entry.name],
         },
       });

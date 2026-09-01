@@ -31,6 +31,13 @@ const PptxViewer = dynamic(
   () => import("@/components/editor/office/pptx-viewer").then((m) => m.PptxViewer),
   { ssr: false }
 );
+const ExcalidrawEditor = dynamic(
+  () =>
+    import("@/components/excalidraw/excalidraw-editor").then(
+      (m) => m.ExcalidrawEditor
+    ),
+  { ssr: false }
+);
 import { HomeScreen } from "@/components/home/home-screen";
 import type { ConversationMeta } from "@/types/conversations";
 import { TerminalTabs } from "@/components/terminal/terminal-tabs";
@@ -63,6 +70,7 @@ import { DiagnosticsBoot } from "@/components/feedback/diagnostics-boot";
 import { StartWorkDialog, type StartWorkMode } from "@/components/composer/start-work-dialog";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import { fetchCabinetOverviewClient } from "@/lib/cabinets/overview-client";
+import { isExcalidrawFilePath } from "@/lib/excalidraw/files";
 import type { CabinetAgentSummary } from "@/types/cabinets";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { UpdateDialog } from "@/components/layout/update-dialog";
@@ -758,6 +766,7 @@ export function AppShell() {
         if (lower.endsWith(".pptx")) return "pptx";
         if (lower.endsWith(".ipynb")) return "notebook";
         if (lower.endsWith(".mmd") || lower.endsWith(".mermaid")) return "mermaid";
+        if (isExcalidrawFilePath(lower)) return "excalidraw";
         if (lower.endsWith(".tex") || lower.endsWith(".latex")) return "latex";
         if (/\.(png|jpe?g|gif|webp|svg|bmp)$/.test(lower)) return "image";
         if (/\.(mp4|mov|webm|avi|mkv)$/.test(lower)) return "video";
@@ -779,6 +788,7 @@ export function AppShell() {
   const isVideo = nodeType === "video";
   const isAudio = nodeType === "audio";
   const isMermaid = nodeType === "mermaid";
+  const isExcalidraw = nodeType === "excalidraw";
   const isLatex = nodeType === "latex";
   const isDocx = nodeType === "docx";
   const isXlsx = nodeType === "xlsx";
@@ -999,6 +1009,30 @@ export function AppShell() {
       const mmdPath = selectedNode?.path || selectedPath!;
       const mmdTitle = selectedNode?.frontmatter?.title || selectedNode?.name || mmdPath.split("/").pop() || "Diagram";
       return <MermaidViewer path={mmdPath} title={mmdTitle} />;
+    }
+
+    if (isExcalidraw && (selectedNode || selectedPath)) {
+      const drawingPath = selectedNode?.path || selectedPath!;
+      return (
+        <ExcalidrawEditor
+          key={drawingPath}
+          path={drawingPath}
+          readOnly={selectedNode?.knowledgePolicy === "read-only"}
+          onSaved={() => void loadTree()}
+          onExit={() => {
+            const slash = drawingPath.lastIndexOf("/");
+            const parentPath = slash >= 0 ? drawingPath.slice(0, slash) : null;
+            useTreeStore.getState().selectPage(parentPath);
+            if (parentPath) {
+              void useEditorStore.getState().loadPage(parentPath);
+            } else if (section.cabinetPath) {
+              setSection({ type: "cabinet", cabinetPath: section.cabinetPath });
+            } else {
+              setSection({ type: "home" });
+            }
+          }}
+        />
+      );
     }
 
     if (isLatex && (selectedNode || selectedPath)) {

@@ -43,6 +43,7 @@ const MIME_TYPES: Record<string, string> = {
   ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
   ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ".ipynb": "application/json",
+  ".excalidraw": "application/json",
 };
 
 // Editable text sources (LaTeX, CSV, markdown, notebooks, …) are viewed in-app
@@ -51,7 +52,7 @@ const MIME_TYPES: Record<string, string> = {
 // keep a long cache. Shared by both the local and mounted-Drive branches.
 const NO_CACHE_EXTS = new Set([
   ".html", ".tex", ".csv", ".md", ".markdown", ".txt",
-  ".json", ".xml", ".yaml", ".yml", ".ipynb",
+  ".json", ".xml", ".yaml", ".yml", ".ipynb", ".excalidraw",
 ]);
 
 type RouteParams = { params: Promise<{ path: string[] }> };
