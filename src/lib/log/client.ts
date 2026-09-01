@@ -20,6 +20,21 @@ const FLUSH_INTERVAL_MS = 10_000;
 const MAX_BATCH = 20;
 const DEDUPE_WINDOW_MS = 60_000;
 
+// ReactNodeViewRenderer can trigger this known dev-only Tiptap warning while
+// flushing its portal. It is benign and should not reach server error logs.
+const IGNORED_ERROR_PATTERNS = [
+  "flushSync was called from inside a lifecycle method",
+];
+
+function isIgnoredError(args: unknown[]): boolean {
+  const message = args
+    .map((value) =>
+      typeof value === "string" ? value : value instanceof Error ? value.message : ""
+    )
+    .join(" ");
+  return IGNORED_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
+}
+
 let installed = false;
 const queue: ClientLogEntry[] = [];
 let flushTimer: number | null = null;
@@ -109,6 +124,10 @@ export function installRendererLogCapture(): void {
 
   const originalError = console.error.bind(console);
   console.error = (...args: unknown[]) => {
+    if (isIgnoredError(args)) {
+      console.debug(...args);
+      return;
+    }
     originalError(...args);
     try {
       let stack: string | undefined;

@@ -1,3 +1,5 @@
+import { stripMdxForPlaintext } from "@/lib/mdx/jsx";
+
 const LIST_MARKER = /^[\s]*(?:[-*+]|\d+\.)\s+/;
 const TASK_MARKER = /^\[[ xX]\]\s+/;
 const ATX_HEADING = /^#{1,6}\s+/;
@@ -16,7 +18,8 @@ export interface PlaintextResult {
 }
 
 export function markdownToPlaintext(markdown: string): PlaintextResult {
-  const normalized = markdown.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const withoutMdx = stripMdxForPlaintext(markdown);
+  const normalized = withoutMdx.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const rawLines = normalized.split("\n");
 
   let inCodeFence = false;

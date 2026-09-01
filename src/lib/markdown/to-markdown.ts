@@ -2,6 +2,8 @@ import TurndownService from "turndown";
 // @ts-expect-error — no types available for this package
 import { gfm } from "turndown-plugin-gfm";
 import { detectEmbed } from "@/lib/embeds/detect";
+import { serializeMdxComponent, type MdxProps } from "@/lib/mdx/jsx";
+import { isAllowedMdxComponent, sanitizeMdxProps } from "@/lib/mdx/registry";
 
 const turndown = new TurndownService({
   headingStyle: "atx",
@@ -146,6 +148,29 @@ turndown.addRule("video", {
       attrs.push(`${attr.name}="${attr.value.replace(/"/g, "&quot;")}"`);
     }
     return `<video${attrs.length ? " " + attrs.join(" ") : ""}></video>`;
+  },
+});
+
+// Serialize only verified structured markers back to JSX. Forged component
+// names and undeclared props are dropped rather than becoming executable MDX.
+turndown.addRule("mdxComponent", {
+  filter: (node) =>
+    node.nodeName === "DIV" &&
+    (node as HTMLElement).hasAttribute("data-mdx-component"),
+  replacement: (_content, node) => {
+    const element = node as HTMLElement;
+    const name = element.getAttribute("data-name");
+    if (!isAllowedMdxComponent(name)) return "";
+
+    let parsedProps: unknown = {};
+    try {
+      parsedProps = JSON.parse(element.getAttribute("data-props") || "{}");
+    } catch {
+      parsedProps = {};
+    }
+    const props: MdxProps = sanitizeMdxProps(name, parsedProps);
+    const children = element.getAttribute("data-children") ?? "";
+    return `\n${serializeMdxComponent(name, props, children)}\n`;
   },
 });
 

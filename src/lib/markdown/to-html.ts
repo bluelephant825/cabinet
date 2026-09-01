@@ -6,6 +6,7 @@ import rehypeStringify from "rehype-stringify";
 import { detectEmbed } from "@/lib/embeds/detect";
 import { slugifyPageName } from "@/lib/markdown/wiki-links";
 import { addHeadingIds } from "@/lib/markdown/heading-slug";
+import { transformMdxToHtml } from "@/lib/mdx/jsx";
 
 /**
  * Pre-process markdown to convert ![[file.tex]] embeds into
@@ -107,7 +108,7 @@ function addListAutoDir(html: string): string {
 function upgradeProviderVideos(html: string): string {
   return html.replace(
     /<video\b([^>]*)\bsrc="([^"]+)"([^>]*)><\/video>/gi,
-    (match, before: string, src: string, after: string) => {
+    (match, before: string, src: string) => {
       const detected = detectEmbed(src);
       if (!detected || detected.provider === "video") return match;
 
@@ -184,9 +185,11 @@ const processor = unified()
   .freeze();
 
 export async function markdownToHtml(markdown: string, pagePath?: string): Promise<string> {
+  // Convert allowlisted MDX blocks to inert markers before remark handles HTML.
+  const withMdx = transformMdxToHtml(markdown);
   // Encode spaces in file:// link URLs before remark (which terminates
   // bare URLs at whitespace)
-  const withFileUrls = encodeFileUrls(markdown);
+  const withFileUrls = encodeFileUrls(withMdx);
   // Convert ![[file.tex]] LaTeX embeds to HTML markers before remark
   const withLatex = convertLatexEmbeds(withFileUrls);
   // Pre-process wiki-links before remark (which would treat [[ as text)

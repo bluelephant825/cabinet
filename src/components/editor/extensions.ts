@@ -26,6 +26,7 @@ import { WikiLink } from "./wiki-link-extension";
 import { CalloutExtension } from "./callout-extension";
 import { ResizableImage } from "./extensions/resizable-image";
 import { EmbedExtension } from "./extensions/embed-extension";
+import { MdxComponent } from "./extensions/mdx-component";
 import { LatexEmbedExtension } from "./extensions/latex-extension";
 import { colorAndStyleExtensions } from "./extensions/color-highlight";
 import { DragHandle } from "./extensions/drag-handle";
@@ -146,6 +147,7 @@ export const editorExtensions = [
   IconExtension,
   WikiLink,
   CalloutExtension,
+  MdxComponent,
   HeadingAnchors,
   AutoDirection,
   FindExtension,
