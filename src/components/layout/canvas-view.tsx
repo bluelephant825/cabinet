@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, FileText, Folder, Lock, Minus, Plus } from "lucide-react";
+import { Archive, FileText, Folder, Lock, Minus, Palette, Plus } from "lucide-react";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { useAppStore } from "@/stores/app-store";
@@ -12,6 +12,11 @@ import { findNodeByPath } from "@/lib/cabinets/tree";
 import { fetchPage } from "@/lib/api/client";
 import { markdownToHtml } from "@/lib/markdown/to-html";
 import type { TreeNode } from "@/types";
+import {
+  DEFAULT_CANVAS_PALETTE_CONFIG,
+  parseCanvasPaletteConfig,
+  type CanvasPaletteConfig,
+} from "@/lib/canvas/palettes";
 import {
   CANVAS_MAX_CARD_HEIGHT,
   CANVAS_MAX_CARD_WIDTH,
@@ -148,6 +153,7 @@ export function CanvasView() {
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [content, setContent] = useState<Record<string, string>>({});
+  const [paletteConfig, setPaletteConfig] = useState<CanvasPaletteConfig>(DEFAULT_CANVAS_PALETTE_CONFIG);
   const [selection, setSelection] = useState<string[]>([]);
   const [viewport, setViewport] = useState({ left: 0, top: 0, width: 0, height: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -157,7 +163,22 @@ export function CanvasView() {
 
   const board = snapshot.boards[boardPath] || { zoom: DEFAULT_ZOOM, cards: {} };
   const zoom = board.zoom;
+  const selectedPalette = paletteConfig.palettes.find((palette) => palette.id === board.palette)
+    || paletteConfig.palettes.find((palette) => palette.id === paletteConfig.selectedPalette)
+    || paletteConfig.palettes[0];
   const cardState = useCallback((path: string, index: number) => board.cards[path] || defaultCard(index), [board.cards]);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/canvas/palettes", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unable to load canvas palettes");
+        return parseCanvasPaletteConfig(await response.json());
+      })
+      .then((config) => { if (active && config) setPaletteConfig(config); })
+      .catch(() => { /* Keep the validated built-in palette if mutable config cannot be read. */ });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -285,11 +306,67 @@ export function CanvasView() {
     event.currentTarget.releasePointerCapture?.(event.pointerId);
   };
 
+  const setPalette = (palette: string) => {
+    if (readOnly) return;
+    updateBoard((current) => ({ ...current, palette }));
+  };
+
+  const colorSelection = (color?: string) => {
+    if (readOnly || selection.length === 0) return;
+    updateBoard((current) => {
+      const nextCards = { ...current.cards };
+      for (const path of selection) {
+        const index = cards.findIndex((node) => node.path === path);
+        if (index < 0) continue;
+        const state = { ...(current.cards[path] || defaultCard(index)) };
+        if (color) state.color = color;
+        else delete state.color;
+        nextCards[path] = state;
+      }
+      return { ...current, palette: selectedPalette.id, cards: nextCards };
+    });
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ViewerToolbar path={boardPath} showModeButtons={false} badge="Canvas">
         {readOnly && <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Lock className="h-3.5 w-3.5" /> Read only</span>}
         {saveError && <span className="max-w-48 truncate text-xs text-destructive" title={saveError}>{saveError}</span>}
+        <label className="flex items-center gap-1" title="Canvas color palette">
+          <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="sr-only">Canvas color palette</span>
+          <select
+            aria-label="Canvas color palette"
+            value={selectedPalette.id}
+            disabled={readOnly}
+            onChange={(event) => setPalette(event.target.value)}
+            className="h-7 max-w-28 rounded-md border border-border bg-background px-1.5 text-xs"
+          >
+            {paletteConfig.palettes.map((palette) => <option key={palette.id} value={palette.id}>{palette.name}</option>)}
+          </select>
+        </label>
+        <div className="flex items-center gap-1" role="group" aria-label="Card color">
+          {selectedPalette.colors.map((color) => (
+            <button
+              key={color}
+              type="button"
+              aria-label={`Set selected cards to ${color}`}
+              title={selection.length ? color : "Select a card to apply a color"}
+              disabled={readOnly || selection.length === 0}
+              onClick={() => colorSelection(color)}
+              className="h-4 w-4 rounded-full border border-foreground/20 disabled:opacity-30"
+              style={{ backgroundColor: color }}
+            />
+          ))}
+          <button
+            type="button"
+            aria-label="Clear selected card color"
+            title="Clear card color"
+            disabled={readOnly || selection.length === 0}
+            onClick={() => colorSelection()}
+            className="h-4 w-4 rounded-full border border-border bg-background text-[10px] leading-none text-muted-foreground disabled:opacity-30"
+          >×</button>
+        </div>
         <ToolbarButton icon={Minus} label="Zoom out" iconOnly onClick={() => setZoom(zoom - 0.1)} />
         <span className="w-11 text-center text-xs tabular-nums text-muted-foreground">{Math.round(zoom * 100)}%</span>
         <ToolbarButton icon={Plus} label="Zoom in" iconOnly onClick={() => setZoom(zoom + 0.1)} />
@@ -324,7 +401,16 @@ export function CanvasView() {
                 <article
                   key={node.path}
                   className={`absolute flex select-none flex-col overflow-hidden rounded-xl border bg-background p-2 shadow-sm transition-shadow ${selected ? "border-primary ring-2 ring-primary/25 shadow-md" : "border-border/80 hover:shadow-md"}`}
-                  style={{ left: state.x, top: state.y, width: state.width, height: state.height }}
+                  style={{
+                    left: state.x,
+                    top: state.y,
+                    width: state.width,
+                    height: state.height,
+                    ...(state.color ? {
+                      backgroundColor: `color-mix(in srgb, ${state.color} 14%, var(--background))`,
+                      borderColor: `color-mix(in srgb, ${state.color} 65%, var(--border))`,
+                    } : {}),
+                  }}
                   onClick={(event) => {
                     event.stopPropagation();
                     if (event.metaKey || event.ctrlKey || event.shiftKey) setSelection((current) => current.includes(node.path) ? current.filter((path) => path !== node.path) : [...current, node.path]);

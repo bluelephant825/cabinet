@@ -1,3 +1,5 @@
+import { isCanvasColor, isCanvasPaletteId } from "@/lib/canvas/palettes";
+
 export const CANVAS_SNAPSHOT_VERSION = 1;
 export const CANVAS_MIN_ZOOM = 0.4;
 export const CANVAS_MAX_ZOOM = 2.5;
@@ -11,10 +13,12 @@ export interface CanvasCardState {
   y: number;
   width: number;
   height: number;
+  color?: string;
 }
 
 export interface CanvasBoardState {
   zoom: number;
+  palette?: string;
   cards: Record<string, CanvasCardState>;
 }
 
@@ -62,8 +66,9 @@ export function parseCanvasSnapshot(value: unknown): CanvasSnapshot | null {
 
   for (const [boardPath, rawBoard] of boardEntries) {
     if (!isSafeCanvasPath(boardPath) || !isRecord(rawBoard)) return null;
-    if (!hasOnlyKeys(rawBoard, ["zoom", "cards"])) return null;
+    if (!hasOnlyKeys(rawBoard, ["zoom", "palette", "cards"])) return null;
     if (!isFiniteInRange(rawBoard.zoom, CANVAS_MIN_ZOOM, CANVAS_MAX_ZOOM)) return null;
+    if (rawBoard.palette !== undefined && !isCanvasPaletteId(rawBoard.palette)) return null;
     if (!isRecord(rawBoard.cards)) return null;
 
     const cardEntries = Object.entries(rawBoard.cards);
@@ -71,21 +76,27 @@ export function parseCanvasSnapshot(value: unknown): CanvasSnapshot | null {
     const cards: Record<string, CanvasCardState> = {};
     for (const [cardPath, rawCard] of cardEntries) {
       if (!isSafeCanvasPath(cardPath) || !isRecord(rawCard)) return null;
-      if (!hasOnlyKeys(rawCard, ["x", "y", "width", "height"])) return null;
+      if (!hasOnlyKeys(rawCard, ["x", "y", "width", "height", "color"])) return null;
       if (
         !isFiniteInRange(rawCard.x, -MAX_COORDINATE, MAX_COORDINATE) ||
         !isFiniteInRange(rawCard.y, -MAX_COORDINATE, MAX_COORDINATE) ||
         !isFiniteInRange(rawCard.width, CANVAS_MIN_CARD_WIDTH, CANVAS_MAX_CARD_WIDTH) ||
-        !isFiniteInRange(rawCard.height, CANVAS_MIN_CARD_HEIGHT, CANVAS_MAX_CARD_HEIGHT)
+        !isFiniteInRange(rawCard.height, CANVAS_MIN_CARD_HEIGHT, CANVAS_MAX_CARD_HEIGHT) ||
+        (rawCard.color !== undefined && !isCanvasColor(rawCard.color))
       ) return null;
       cards[cardPath] = {
         x: rawCard.x,
         y: rawCard.y,
         width: rawCard.width,
         height: rawCard.height,
+        ...(rawCard.color === undefined ? {} : { color: rawCard.color }),
       };
     }
-    boards[boardPath] = { zoom: rawBoard.zoom, cards };
+    boards[boardPath] = {
+      zoom: rawBoard.zoom,
+      ...(rawBoard.palette === undefined ? {} : { palette: rawBoard.palette }),
+      cards,
+    };
   }
 
   return { version: CANVAS_SNAPSHOT_VERSION, boards };

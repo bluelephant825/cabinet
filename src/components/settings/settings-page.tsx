@@ -77,6 +77,7 @@ import { ICON_PICKER_KEYS, getIconByKey, friendlyIconName } from "@/lib/agents/i
 import { AGENT_PALETTE } from "@/lib/themes";
 import { StorageBackendSection } from "@/components/settings/storage-backend-section";
 import { DiagnosticsSection } from "@/components/settings/diagnostics-section";
+import { CanvasPalettesSection } from "@/components/settings/canvas-palettes-section";
 import { version as pkgVersion } from "../../../package.json";
 import releaseJson from "../../../cabinet-release.json";
 import {
@@ -1074,6 +1075,8 @@ export function SettingsPage() {
                   </div>
                 </div>
               </div>
+
+              <CanvasPalettesSection />
 
               <div className="border-t border-border pt-6">
                 <h3 className="text-[13px] font-semibold mb-1">{t("settings:appearance.sidebar")}</h3>
