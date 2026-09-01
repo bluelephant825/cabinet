@@ -103,6 +103,12 @@ import {
   type Locale,
 } from "@/i18n";
 import { submitLanguageRequest } from "@/lib/telemetry/language-request-client";
+import { useEditorSettings } from "@/hooks/use-editor-settings";
+import {
+  DEFAULT_EDITOR_SETTINGS,
+  saveEditorSettings,
+  type MonacoEditorSettings,
+} from "@/lib/ui/editor-settings";
 
 interface McpServer {
   name: string;
@@ -439,6 +445,10 @@ export function SettingsPage() {
   const [telemetryEnabled, setTelemetryEnabled] = useState<boolean | null>(null);
   const [telemetryEnvDisabled, setTelemetryEnvDisabled] = useState(false);
   const [telemetrySaving, setTelemetrySaving] = useState(false);
+  const editorSettings = useEditorSettings();
+  const updateEditorSettings = useCallback((update: Partial<MonacoEditorSettings>) => {
+    saveEditorSettings(update);
+  }, []);
   const { setTheme: setNextTheme } = useTheme();
   const {
     update,
@@ -1072,6 +1082,113 @@ export function SettingsPage() {
                       ))}
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-6">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-[13px] font-semibold mb-1">{t("settings:appearance.sourceEditor")}</h3>
+                    <p className="text-[12px] text-muted-foreground">
+                      {t("settings:appearance.sourceEditorDescription")}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => updateEditorSettings(DEFAULT_EDITOR_SETTINGS)}
+                  >
+                    {t("settings:appearance.resetEditor")}
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1.5 text-[12px] font-medium">
+                    {t("settings:appearance.editorTheme")}
+                    <select
+                      value={editorSettings.theme}
+                      onChange={(event) => updateEditorSettings({ theme: event.target.value as MonacoEditorSettings["theme"] })}
+                      className="h-9 rounded-md border border-border bg-background px-2 text-[12px] font-normal"
+                    >
+                      <option value="app">{t("settings:appearance.editorThemeApp")}</option>
+                      <option value="vs-dark">{t("settings:appearance.editorThemeDark")}</option>
+                      <option value="light">{t("settings:appearance.editorThemeLight")}</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-[12px] font-medium">
+                    {t("settings:appearance.editorFontFamily")}
+                    <Input
+                      value={editorSettings.fontFamily}
+                      onChange={(event) => updateEditorSettings({ fontFamily: event.target.value })}
+                      className="h-9 text-[12px] font-normal"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-[12px] font-medium">
+                    {t("settings:appearance.editorFontSize")}
+                    <Input
+                      type="number"
+                      min={8}
+                      max={36}
+                      value={editorSettings.fontSize}
+                      onChange={(event) => updateEditorSettings({ fontSize: Number(event.target.value) })}
+                      className="h-9 text-[12px] font-normal"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-[12px] font-medium">
+                    {t("settings:appearance.editorLineHeight")}
+                    <Input
+                      type="number"
+                      min={10}
+                      max={60}
+                      value={editorSettings.lineHeight}
+                      onChange={(event) => updateEditorSettings({ lineHeight: Number(event.target.value) })}
+                      className="h-9 text-[12px] font-normal"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-[12px] font-medium">
+                    {t("settings:appearance.editorFontWeight")}
+                    <select
+                      value={editorSettings.fontWeight}
+                      onChange={(event) => updateEditorSettings({ fontWeight: event.target.value })}
+                      className="h-9 rounded-md border border-border bg-background px-2 text-[12px] font-normal"
+                    >
+                      <option value="normal">{t("settings:appearance.editorFontWeightNormal")}</option>
+                      <option value="500">500</option>
+                      <option value="600">600</option>
+                      <option value="bold">{t("settings:appearance.editorFontWeightBold")}</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-[12px] font-medium">
+                    {t("settings:appearance.editorTabSize")}
+                    <Input
+                      type="number"
+                      min={1}
+                      max={8}
+                      value={editorSettings.tabSize}
+                      onChange={(event) => updateEditorSettings({ tabSize: Number(event.target.value) })}
+                      className="h-9 text-[12px] font-normal"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border p-3 text-[12px] font-medium hover:border-primary/30">
+                    <input
+                      type="checkbox"
+                      checked={editorSettings.fontLigatures}
+                      onChange={(event) => updateEditorSettings({ fontLigatures: event.target.checked })}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    {t("settings:appearance.editorFontLigatures")}
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border p-3 text-[12px] font-medium hover:border-primary/30">
+                    <input
+                      type="checkbox"
+                      checked={editorSettings.minimap}
+                      onChange={(event) => updateEditorSettings({ minimap: event.target.checked })}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    {t("settings:appearance.editorMinimap")}
+                  </label>
                 </div>
               </div>
 

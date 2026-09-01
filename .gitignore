@@ -75,8 +75,9 @@ skills-lock.json
 .agents/skills/
 .agents/skills-stats.json
 
-# latex.js static assets copied from node_modules by postinstall
+# Static assets copied from node_modules by postinstall
 /public/latex-js/
+/public/monaco/
 
 # UI-audit screenshots — local artifacts, not repo content (untracked 2026-07-09; 39MB)
 .audit-shots/

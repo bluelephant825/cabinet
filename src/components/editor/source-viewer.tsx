@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { ExternalLink, Download, WrapText, Copy, Check, Code2, Eye } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Editor, { loader, type OnMount } from "@monaco-editor/react";
+import { Check, Code2, Copy, Download, ExternalLink, Eye, Save, WrapText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { ViewerLayout } from "@/components/layout/viewer-layout";
 import { ToolbarButton } from "@/components/layout/toolbar-button";
-import { common, createLowlight } from "lowlight";
-import { toHtml } from "hast-util-to-html";
+import { useTheme } from "@/components/theme-provider";
+import { useEditorSettings } from "@/hooks/use-editor-settings";
 import { useLocale } from "@/i18n/use-locale";
 import {
   HTML_VIEW_EVENT,
@@ -16,109 +17,142 @@ import {
   setHtmlViewMode,
   type HtmlViewModeDetail,
 } from "@/lib/ui/html-view-mode";
-import { SafeHtml } from "@/components/ui/safe-html";
+
+if (typeof window !== "undefined") {
+  loader.config({ paths: { vs: "/monaco/vs" } });
+}
 
 interface SourceViewerProps {
   path: string;
   title: string;
 }
 
-const lowlight = createLowlight(common);
-
 const EXT_TO_LANG: Record<string, string> = {
   ".js": "javascript", ".cjs": "javascript", ".mjs": "javascript",
   ".ts": "typescript", ".tsx": "typescript", ".jsx": "javascript",
   ".py": "python", ".rb": "ruby", ".php": "php",
-  ".sh": "bash", ".bash": "bash", ".zsh": "bash", ".ps1": "powershell",
-  ".css": "css", ".scss": "scss", ".html": "xml",
+  ".sh": "shell", ".bash": "shell", ".zsh": "shell", ".ps1": "powershell",
+  ".css": "css", ".scss": "scss", ".html": "html", ".htm": "html",
   ".json": "json", ".jsonc": "json",
   ".yaml": "yaml", ".yml": "yaml", ".toml": "ini", ".ini": "ini",
   ".xml": "xml", ".sql": "sql", ".graphql": "graphql", ".gql": "graphql",
   ".go": "go", ".rs": "rust", ".swift": "swift",
   ".java": "java", ".kt": "kotlin", ".kts": "kotlin",
   ".c": "c", ".cpp": "cpp", ".h": "c",
-  ".env": "bash",
-  ".txt": "", ".text": "", ".log": "", ".rst": "",
+  ".env": "shell",
+  ".txt": "plaintext", ".text": "plaintext", ".log": "plaintext", ".rst": "plaintext",
   ".mdx": "markdown",
 };
 
-function detectLanguage(filename: string): string {
-  const ext = filename.includes(".") ? "." + filename.split(".").pop()!.toLowerCase() : "";
-  return EXT_TO_LANG[ext] ?? "";
+export function detectSourceLanguage(filename: string): string {
+  const ext = filename.includes(".") ? `.${filename.split(".").pop()!.toLowerCase()}` : "";
+  return EXT_TO_LANG[ext] ?? "plaintext";
 }
 
 function formatBadge(filename: string): string {
-  const ext = filename.includes(".") ? filename.split(".").pop()!.toUpperCase() : "TEXT";
-  return ext;
+  return filename.includes(".") ? filename.split(".").pop()!.toUpperCase() : "TEXT";
 }
 
 export function SourceViewer({ path }: SourceViewerProps) {
   const { t } = useLocale();
+  const { resolvedTheme } = useTheme();
+  const settings = useEditorSettings();
   const [content, setContent] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [wrap, setWrap] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const assetUrl = `/api/assets/${path}`;
+  const assetUrl = `/api/assets/${path.split("/").map(encodeURIComponent).join("/")}`;
   const filename = path.split("/").pop() || path;
-  const language = detectLanguage(filename);
-
-  // Lone .html/.htm files can render as a live webpage. The choice persists
-  // per-file and can be flipped here or from the sidebar right-click menu.
+  const language = detectSourceLanguage(filename);
   const isHtml = isHtmlPath(path);
   const [mode, setMode] = useState<"preview" | "source">(() =>
     isHtml ? getHtmlViewMode(path) : "source"
   );
+
   useEffect(() => {
     setMode(isHtml ? getHtmlViewMode(path) : "source");
   }, [path, isHtml]);
+
   useEffect(() => {
     if (!isHtml) return;
-    const onExternalChange = (e: Event) => {
-      const detail = (e as CustomEvent<HtmlViewModeDetail>).detail;
+    const onExternalChange = (event: Event) => {
+      const detail = (event as CustomEvent<HtmlViewModeDetail>).detail;
       if (detail?.path === path) setMode(detail.mode);
     };
     window.addEventListener(HTML_VIEW_EVENT, onExternalChange);
     return () => window.removeEventListener(HTML_VIEW_EVENT, onExternalChange);
   }, [path, isHtml]);
+
   const showPreview = isHtml && mode === "preview";
+  const editorTheme = settings.theme === "app"
+    ? (resolvedTheme === "dark" ? "vs-dark" : "light")
+    : settings.theme;
 
   const fetchContent = useCallback(async () => {
     setLoading(true);
+    setSaveError(null);
     try {
-      const res = await fetch(assetUrl);
-      if (res.ok) {
-        const text = await res.text();
-        setContent(text);
-      }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+      const response = await fetch(assetUrl);
+      if (!response.ok) throw new Error(`Load failed: ${response.status}`);
+      const text = await response.text();
+      setContent(text);
+      setDraft(text);
+      setDirty(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to load file");
+    } finally {
+      setLoading(false);
+    }
   }, [assetUrl]);
 
   useEffect(() => {
     void fetchContent();
   }, [fetchContent]);
 
-  const highlightedLines = useMemo(() => {
-    if (!content) return [];
+  const save = useCallback(async (value = draft) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError(null);
     try {
-      const tree = language
-        ? lowlight.highlight(language, content)
-        : lowlight.highlightAuto(content);
-      const html = toHtml(tree);
-      // Split by newlines while preserving HTML tags that span lines
-      return html.split("\n");
-    } catch {
-      // Fallback: no highlighting
-      return content.split("\n").map((line) =>
-        line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      );
+      const response = await fetch(assetUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+        body: value,
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error || `Save failed: ${response.status}`);
+      }
+      setContent(value);
+      setDraft(value);
+      setDirty(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to save file");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-  }, [content, language]);
+  }, [assetUrl, draft]);
+  const saveRef = useRef(save);
+  useEffect(() => {
+    saveRef.current = save;
+  }, [save]);
+
+  const handleMount: OnMount = useCallback((editor, monaco) => {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      void saveRef.current(editor.getValue());
+    });
+  }, []);
 
   const copyToClipboard = () => {
-    if (!content) return;
-    navigator.clipboard.writeText(content);
+    void navigator.clipboard.writeText(draft);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -126,108 +160,130 @@ export function SourceViewer({ path }: SourceViewerProps) {
   return (
     <ViewerLayout
       toolbar={
-        <ViewerToolbar path={path} badge={showPreview ? "HTML" : formatBadge(filename)} sublabel={showPreview ? "webpage" : language || undefined}>
-        {isHtml && (
-          // Source ⇄ Preview segmented toggle for lone HTML files. Persists the
-          // choice per-file (and honors the sidebar right-click menu).
-          <div className="mr-1 inline-flex items-center rounded-md border border-border p-0.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-6 gap-1 px-2 text-xs ${showPreview ? "bg-muted text-foreground" : "text-muted-foreground"}`}
-              onClick={() => setHtmlViewMode(path, "preview")}
-              title="Render as a webpage"
-              aria-pressed={showPreview}
-            >
-              <Eye className="h-3.5 w-3.5" />
-              Preview
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-6 gap-1 px-2 text-xs ${!showPreview ? "bg-muted text-foreground" : "text-muted-foreground"}`}
-              onClick={() => setHtmlViewMode(path, "source")}
-              title="Show the HTML source"
-              aria-pressed={!showPreview}
-            >
-              <Code2 className="h-3.5 w-3.5" />
-              Source
-            </Button>
-          </div>
-        )}
-        {!showPreview && (
+        <ViewerToolbar
+          path={path}
+          badge={showPreview ? "HTML" : formatBadge(filename)}
+          sublabel={showPreview ? "webpage" : language}
+        >
+          {dirty && !showPreview && (
+            <ToolbarButton
+              icon={Save}
+              label={saving ? "Saving..." : "Save"}
+              disabled={saving}
+              onClick={() => void save()}
+              title={saveError || "Save changes"}
+            />
+          )}
+          {isHtml && (
+            <div className="mr-1 inline-flex items-center rounded-md border border-border p-0.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-6 gap-1 px-2 text-xs ${showPreview ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+                onClick={() => setHtmlViewMode(path, "preview")}
+                title="Render as a webpage"
+                aria-pressed={showPreview}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Preview
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-6 gap-1 px-2 text-xs ${!showPreview ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+                onClick={() => setHtmlViewMode(path, "source")}
+                title="Edit the HTML source"
+                aria-pressed={!showPreview}
+              >
+                <Code2 className="h-3.5 w-3.5" />
+                Source
+              </Button>
+            </div>
+          )}
+          {!showPreview && (
+            <ToolbarButton
+              icon={WrapText}
+              label="Wrap"
+              iconOnly
+              active={wrap}
+              onClick={() => setWrap((value) => !value)}
+              title={wrap ? "Disable line wrap" : "Enable line wrap"}
+            />
+          )}
+          {!showPreview && (
+            <ToolbarButton
+              icon={copied ? Check : Copy}
+              label={copied ? "Copied" : "Copy"}
+              iconOnly
+              onClick={copyToClipboard}
+              title={t("sourceViewer:copyContents")}
+            />
+          )}
           <ToolbarButton
-            icon={WrapText}
-            label="Wrap"
+            icon={Download}
+            label="Download"
             iconOnly
-            active={wrap}
-            onClick={() => setWrap((v) => !v)}
-            title={wrap ? "Disable line wrap" : "Enable line wrap"}
+            title={t("sourceViewer:downloadFile")}
+            href={assetUrl}
+            download={filename}
           />
-        )}
-        {!showPreview && (
           <ToolbarButton
-            icon={copied ? Check : Copy}
-            label={copied ? "Copied" : "Copy"}
+            icon={ExternalLink}
+            label="Raw"
             iconOnly
-            onClick={copyToClipboard}
-            title={t("sourceViewer:copyContents")}
+            href={assetUrl}
+            target="_blank"
           />
-        )}
-        <ToolbarButton
-          icon={Download}
-          label="Download"
-          iconOnly
-          title={t("sourceViewer:downloadFile")}
-          onClick={() => {
-            const a = document.createElement("a");
-            a.href = assetUrl;
-            a.download = filename;
-            a.click();
-          }}
-        />
-        <ToolbarButton
-          icon={ExternalLink}
-          label="Raw"
-          iconOnly
-          onClick={() => window.open(assetUrl, "_blank")}
-        />
         </ViewerToolbar>
       }
     >
       {showPreview ? (
         <iframe
           src={assetUrl}
+          key={content ?? "loading"}
           title={filename}
           className="flex-1 w-full border-0 bg-white"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"
         />
+      ) : loading ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Loading...
+        </div>
       ) : (
-      <div className="flex-1 overflow-auto source-viewer-code bg-[#1e1e1e]">
-        {loading ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-            Loading...
-          </div>
-        ) : (
-          <table className="w-full border-collapse text-[13px] leading-relaxed font-mono">
-            <tbody>
-              {highlightedLines.map((lineHtml, i) => (
-                <tr key={i} className="hover:bg-white/5">
-                  <td className="w-12 pr-4 text-right text-[#858585] select-none align-top sticky left-0 bg-[#1e1e1e]">
-                    {i + 1}
-                  </td>
-                  <SafeHtml
-                    as="td"
-                    html={lineHtml || " "}
-                    profile="code"
-                    className={`text-[#d4d4d4] pl-2 ${wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre"}`}
-                  />
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+        <div className="relative flex-1 min-h-0 overflow-hidden bg-background">
+          <Editor
+            height="100%"
+            path={path}
+            language={language}
+            theme={editorTheme}
+            value={draft}
+            onChange={(value) => {
+              const next = value ?? "";
+              setDraft(next);
+              setDirty(next !== content);
+              setSaveError(null);
+            }}
+            onMount={handleMount}
+            loading={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor...</div>}
+            options={{
+              automaticLayout: true,
+              fontFamily: settings.fontFamily,
+              fontLigatures: settings.fontLigatures,
+              fontSize: settings.fontSize,
+              fontWeight: settings.fontWeight,
+              lineHeight: settings.lineHeight,
+              minimap: { enabled: settings.minimap },
+              wordWrap: wrap ? "on" : "off",
+              scrollBeyondLastLine: false,
+              tabSize: settings.tabSize,
+            }}
+          />
+          {saveError && (
+            <div role="alert" className="absolute bottom-3 right-3 max-w-sm rounded-md border border-destructive/40 bg-background px-3 py-2 text-xs text-destructive shadow-md">
+              {saveError}
+            </div>
+          )}
+        </div>
       )}
     </ViewerLayout>
   );

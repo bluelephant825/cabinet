@@ -4,8 +4,17 @@ import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
 import process from "process";
+import { copyInstalledMonacoAssets } from "./copy-monaco-assets.mjs";
 
 const require = createRequire(import.meta.url);
+
+try {
+  copyInstalledMonacoAssets();
+  console.log("[cabinet] postinstall: Monaco editor assets copied to public/monaco/vs/");
+} catch (err) {
+  console.error("[cabinet] postinstall: failed to copy Monaco editor assets:", err);
+  process.exitCode = 1;
+}
 
 // macOS arm64 node-pty needs two fixes: the prebuilt spawn-helper must be
 // executable, and Gatekeeper's quarantine xattr has to be stripped from the
