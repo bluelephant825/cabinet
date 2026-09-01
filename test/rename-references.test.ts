@@ -24,6 +24,12 @@ async function readPageBody(root: string, rel: string): Promise<string> {
   return fs.readFile(path.join(DATA_DIR, root, rel, "index.md"), "utf8");
 }
 
+async function writeTypedFile(root: string, name: string, content: string) {
+  const dir = path.join(DATA_DIR, root);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, name), content, "utf8");
+}
+
 test("rename rewrites every inbound wiki-link and leaves others alone", async () => {
   const root = uniqueRoot();
   try {
@@ -121,6 +127,85 @@ test("no-op rename (same slug) reports nothing and no undo token", async () => {
     assert.equal(newPath, `${root}/alpha`);
     assert.equal(references.linkCount, 0);
     assert.equal(references.undoToken, null);
+  } finally {
+    await fs.rm(path.join(DATA_DIR, root), { recursive: true, force: true });
+  }
+});
+
+test("typed-file rename honors a newly supplied extension and undo restores it", async () => {
+  const root = uniqueRoot();
+  try {
+    await writeTypedFile(root, "report.pdf", "typed-file-bytes");
+
+    const { newPath, references } = await renamePage(
+      `${root}/report.pdf`,
+      "Annual Report.csv"
+    );
+
+    assert.equal(newPath, `${root}/annual-report.csv`);
+    assert.equal(
+      await fs.readFile(path.join(DATA_DIR, root, "annual-report.csv"), "utf8"),
+      "typed-file-bytes"
+    );
+    await assert.rejects(() =>
+      fs.access(path.join(DATA_DIR, root, "report.pdf"))
+    );
+    assert.equal(references.linkCount, 0);
+    assert.equal(references.pageCount, 0);
+    assert.ok(references.undoToken);
+
+    const outcome = await undoRename(references.undoToken!);
+    assert.equal(outcome.ok, true);
+    assert.equal(
+      await fs.readFile(path.join(DATA_DIR, root, "report.pdf"), "utf8"),
+      "typed-file-bytes"
+    );
+    await assert.rejects(() =>
+      fs.access(path.join(DATA_DIR, root, "annual-report.csv"))
+    );
+  } finally {
+    await fs.rm(path.join(DATA_DIR, root), { recursive: true, force: true });
+  }
+});
+
+test("typed-file rename preserves its extension when the new name omits one", async () => {
+  const root = uniqueRoot();
+  try {
+    await writeTypedFile(root, "report.pdf", "typed-file-bytes");
+
+    const { newPath } = await renamePage(
+      `${root}/report.pdf`,
+      "Annual Report"
+    );
+
+    assert.equal(newPath, `${root}/annual-report.pdf`);
+    assert.equal(
+      await fs.readFile(path.join(DATA_DIR, root, "annual-report.pdf"), "utf8"),
+      "typed-file-bytes"
+    );
+  } finally {
+    await fs.rm(path.join(DATA_DIR, root), { recursive: true, force: true });
+  }
+});
+
+test("typed-file extension changes retain collision protection", async () => {
+  const root = uniqueRoot();
+  try {
+    await writeTypedFile(root, "report.pdf", "source-bytes");
+    await writeTypedFile(root, "annual-report.csv", "destination-bytes");
+
+    await assert.rejects(
+      () => renamePage(`${root}/report.pdf`, "Annual Report.csv"),
+      /An item named "annual-report\.csv" already exists/
+    );
+    assert.equal(
+      await fs.readFile(path.join(DATA_DIR, root, "report.pdf"), "utf8"),
+      "source-bytes"
+    );
+    assert.equal(
+      await fs.readFile(path.join(DATA_DIR, root, "annual-report.csv"), "utf8"),
+      "destination-bytes"
+    );
   } finally {
     await fs.rm(path.join(DATA_DIR, root), { recursive: true, force: true });
   }
