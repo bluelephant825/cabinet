@@ -97,10 +97,10 @@ test("provider runtime resolves launch specs through registered providers", asyn
         args: [prompt],
       };
     },
-    buildSessionInvocation(prompt: string | undefined) {
+    buildSessionInvocation(prompt: string | undefined, _workdir, opts) {
       return {
         command: this.command || "test-session-provider",
-        args: prompt ? ["session-mode"] : [],
+        args: prompt ? ["session-mode", opts?.model || ""] : [],
         initialPrompt: prompt?.trim() || undefined,
         readyStrategy: prompt ? "claude" : undefined,
       };
@@ -144,9 +144,10 @@ test("provider runtime resolves launch specs through registered providers", asyn
     providerId: provider.id,
     prompt: "hello",
     workdir: process.cwd(),
+    model: "test-model",
   });
   assert.equal(session.command, scriptPath);
-  assert.deepEqual(session.args, ["session-mode"]);
+  assert.deepEqual(session.args, ["session-mode", "test-model"]);
   assert.equal(session.initialPrompt, "hello");
   assert.equal(session.readyStrategy, "claude");
   assert.equal(resolveProviderId(), provider.id);

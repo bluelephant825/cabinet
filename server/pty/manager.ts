@@ -97,6 +97,10 @@ export function createPtyManager(deps: PtyManagerDeps): PtyManager {
       typeof input.adapterResumeId === "string" && input.adapterResumeId.trim()
         ? input.adapterResumeId.trim()
         : undefined;
+    const model =
+      typeof input.adapterConfig?.model === "string" && input.adapterConfig.model.trim()
+        ? input.adapterConfig.model.trim()
+        : undefined;
     let launch = isShell
       ? {
           command:
@@ -112,12 +116,14 @@ export function createPtyManager(deps: PtyManagerDeps): PtyManager {
             providerId: executionProviderId,
             prompt: input.prompt,
             workdir: cwd,
+            model,
             resumeId,
           })
         : getSessionLaunchSpec({
             providerId: executionProviderId,
             prompt: input.prompt,
             workdir: cwd,
+            model,
             resumeId,
           });
     const resolvedProviderId = isShell ? "shell" : resolveProviderId(executionProviderId);

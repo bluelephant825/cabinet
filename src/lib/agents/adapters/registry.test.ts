@@ -23,6 +23,7 @@ test("legacy adapter registry exposes the current compatibility adapters", () =>
     "gemini_local",
     "grok_cli_legacy",
     "grok_local",
+    "ollama_legacy",
     "opencode_legacy",
     "opencode_local",
     "pi_legacy",
@@ -42,6 +43,7 @@ test("legacy adapter registry exposes the current compatibility adapters", () =>
     "cursor-cli",
     "gemini-cli",
     "grok-cli",
+    "ollama",
     "opencode",
     "pi",
   ]);
@@ -98,6 +100,7 @@ test("provider-to-adapter defaults map current providers onto structured adapter
   assert.equal(defaultAdapterTypeForProvider("pi"), "pi_local");
   assert.equal(defaultAdapterTypeForProvider("grok-cli"), "grok_local");
   assert.equal(defaultAdapterTypeForProvider("copilot-cli"), "copilot_local");
+  assert.equal(defaultAdapterTypeForProvider("ollama"), "ollama_legacy");
 });
 
 test("execution provider resolution prefers explicit legacy adapter mappings", () => {

@@ -11,6 +11,7 @@ const PROVIDER_IMAGE_BY_ICON: Record<string, string> = {
   pi: "/providers/pi.svg",
   grok: "/providers/grok.svg",
   copilot: "/providers/copilot.svg",
+  ollama: "/providers/ollama.svg",
 };
 
 export function ProviderGlyph({

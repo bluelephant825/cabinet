@@ -31,6 +31,7 @@ export interface OneShotInvocationOptions {
  */
 export interface SessionInvocationOptions {
   resumeId?: string;
+  model?: string;
 }
 
 export type ProviderModelRequires = "any" | "chatgpt_plan" | "api_key";
