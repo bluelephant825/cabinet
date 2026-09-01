@@ -27,6 +27,15 @@ import { openUrlInAppropriateContext } from "@/lib/runtime/open-url";
 import { cellAround, isInTable } from "@tiptap/pm/tables";
 import type { TreeNode } from "@/types";
 import { useLocale } from "@/i18n/use-locale";
+import { assetUrlFor } from "@/lib/cabinets/asset-url";
+import {
+  CSV_DROP_LIMITS,
+  csvDropInsertionPosition,
+  csvPathFromDataTransfer,
+  csvRowsToTableContent,
+  parseCsv,
+  responseTextWithinLimit,
+} from "@/lib/csv";
 
 async function uploadFile(pagePath: string, file: File): Promise<string | null> {
   const formData = new FormData();
@@ -151,7 +160,6 @@ export function KBEditor() {
   // sidebar width pref.
   const [wideMode, setWideMode] = useState(false);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setWideMode(window.localStorage.getItem(WIDE_MODE_KEY) === "1");
   }, []);
   const toggleWideMode = useCallback(() => {
@@ -180,7 +188,6 @@ export function KBEditor() {
     left: number;
   } | null>(null);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFolderTab("page");
   }, [currentPath]);
 
@@ -412,8 +419,48 @@ export function KBEditor() {
 
         return false;
       },
-      handleDrop: (_view, event) => {
-        const files = event.dataTransfer?.files;
+      handleDrop: (view, event) => {
+        const dataTransfer = event.dataTransfer;
+        if (!dataTransfer) return false;
+
+        const csvPath = csvPathFromDataTransfer(dataTransfer);
+        if (csvPath) {
+          const pagePath = useEditorStore.getState().currentPath;
+          if (!pagePath) return false;
+
+          event.preventDefault();
+          const dropPosition =
+            view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ??
+            view.state.selection.from;
+
+          fetch(assetUrlFor(csvPath))
+            .then(async (response) => {
+              if (!response.ok) throw new Error(`CSV request failed (${response.status})`);
+              const text = await responseTextWithinLimit(response, CSV_DROP_LIMITS.maxBytes);
+              const rows = parseCsv(text, CSV_DROP_LIMITS);
+              return csvRowsToTableContent(rows);
+            })
+            .then((table) => {
+              if (
+                !table ||
+                !editor ||
+                editor.isDestroyed ||
+                useEditorStore.getState().currentPath !== pagePath
+              ) {
+                return;
+              }
+              const insertionPosition = csvDropInsertionPosition(
+                dropPosition,
+                editor.state.doc.content.size
+              );
+              if (insertionPosition === null) return;
+              editor.chain().focus().insertContentAt(insertionPosition, table).run();
+            })
+            .catch((error) => console.error("Failed to insert CSV table:", error));
+          return true;
+        }
+
+        const files = dataTransfer.files;
         if (!files || files.length === 0) return false;
 
         const pagePath = useEditorStore.getState().currentPath;

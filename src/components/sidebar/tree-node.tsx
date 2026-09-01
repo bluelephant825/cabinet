@@ -98,6 +98,7 @@ import { ConnectDriveDialog } from "./connect-drive-dialog";
 import { providerLogo } from "@/lib/knowledge-sources/providers";
 import type { KnowledgeProviderId } from "@/lib/knowledge-sources/store";
 import { GoogleNodeIcon } from "./google-node-icon";
+import { CABINET_CSV_DRAG_TYPE } from "@/lib/csv";
 import { NewCabinetDialog } from "./new-cabinet-dialog";
 import { NewFileDialog } from "./new-file-dialog";
 import { EditSymlinkDialog } from "./edit-symlink-dialog";
@@ -561,7 +562,12 @@ function TreeNodeImpl({
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
       e.dataTransfer.setData("text/plain", node.path);
-      e.dataTransfer.effectAllowed = "move";
+      if (node.type === "csv") {
+        e.dataTransfer.setData(CABINET_CSV_DRAG_TYPE, node.path);
+        e.dataTransfer.effectAllowed = "copyMove";
+      } else {
+        e.dataTransfer.effectAllowed = "move";
+      }
 
       const source = rowRef.current;
       if (source) {
@@ -585,7 +591,7 @@ function TreeNodeImpl({
         e.dataTransfer.setDragImage(ghost, 12, 12);
       }
     },
-    [node.path]
+    [node.path, node.type]
   );
 
   const handleDragEnd = useCallback(() => {
