@@ -20,6 +20,7 @@ import {
   CANVAS_MIN_CARD_WIDTH,
   CANVAS_MIN_ZOOM,
   CANVAS_SNAPSHOT_VERSION,
+  computeCanvasAutoLayout,
   emptyCanvasSnapshot,
   parseCanvasSnapshot,
   type CanvasCardState,
@@ -49,18 +50,8 @@ function isCanvasCard(node: TreeNode): boolean {
   return isFolder(node) || ["file", "code", "image", "video", "audio", "pdf", "csv"].includes(node.type);
 }
 
-function defaultCard(index: number): CanvasCardState {
-  const columns = 3;
-  const gap = 28;
-  const column = index % columns;
-  const row = Math.floor(index / columns);
-  const totalWidth = columns * DEFAULT_WIDTH + (columns - 1) * gap;
-  return {
-    x: WORLD_SIZE / 2 - totalWidth / 2 + column * (DEFAULT_WIDTH + gap),
-    y: WORLD_SIZE / 2 - DEFAULT_HEIGHT / 2 + row * (DEFAULT_HEIGHT + gap),
-    width: DEFAULT_WIDTH,
-    height: DEFAULT_HEIGHT,
-  };
+function defaultCardSize(): Pick<CanvasCardState, "width" | "height"> {
+  return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
 }
 
 function assetUrl(nodePath: string): string {
@@ -155,9 +146,20 @@ export function CanvasView() {
   const actionRef = useRef<PointerAction | null>(null);
   const centeredRef = useRef<string | null>(null);
 
-  const board = snapshot.boards[boardPath] || { zoom: DEFAULT_ZOOM, cards: {} };
+  const board = snapshot.boards[boardPath] || { zoom: DEFAULT_ZOOM, manualLayout: false, cards: {} };
   const zoom = board.zoom;
-  const cardState = useCallback((path: string, index: number) => board.cards[path] || defaultCard(index), [board.cards]);
+  const automaticCards = useMemo(() => computeCanvasAutoLayout(cards.map((node) => ({
+    path: node.path,
+    ...(board.cards[node.path] || defaultCardSize()),
+  }))), [board.cards, cards]);
+  const cardState = useCallback((path: string) => {
+    if (!board.manualLayout && automaticCards[path]) return automaticCards[path];
+    return board.cards[path] || automaticCards[path] || {
+      x: WORLD_SIZE / 2 - DEFAULT_WIDTH / 2,
+      y: WORLD_SIZE / 2 - DEFAULT_HEIGHT / 2,
+      ...defaultCardSize(),
+    };
+  }, [automaticCards, board.cards, board.manualLayout]);
 
   useEffect(() => {
     let active = true;
@@ -212,7 +214,7 @@ export function CanvasView() {
 
   const updateBoard = useCallback((change: (current: typeof board) => typeof board) => {
     setSnapshot((current) => {
-      const previous = current.boards[boardPath] || { zoom: DEFAULT_ZOOM, cards: {} };
+      const previous = current.boards[boardPath] || { zoom: DEFAULT_ZOOM, manualLayout: false, cards: {} };
       return { ...current, version: CANVAS_SNAPSHOT_VERSION, boards: { ...current.boards, [boardPath]: change(previous) } };
     });
     revisionRef.current += 1;
@@ -228,7 +230,7 @@ export function CanvasView() {
   useEffect(() => {
     const element = scrollRef.current;
     if (!loaded || !element || centeredRef.current === `${cabinetPath}:${boardPath}`) return;
-    const states = cards.map((node, index) => cardState(node.path, index));
+    const states = cards.map((node) => cardState(node.path));
     const left = states.length ? Math.min(...states.map((item) => item.x)) : WORLD_SIZE / 2;
     const right = states.length ? Math.max(...states.map((item) => item.x + item.width)) : WORLD_SIZE / 2;
     const top = states.length ? Math.min(...states.map((item) => item.y)) : WORLD_SIZE / 2;
@@ -274,7 +276,20 @@ export function CanvasView() {
     const dy = (event.clientY - action.y) / zoom;
     if (action.kind === "drag") {
       action.moved ||= Math.abs(dx) + Math.abs(dy) > 3;
-      updateBoard((current) => ({ ...current, cards: { ...current.cards, [action.path]: { ...action.card, x: action.card.x + dx, y: action.card.y + dy } } }));
+      if (!action.moved) return;
+      updateBoard((current) => {
+        const cardsAtAutomaticPositions = current.manualLayout ? current.cards : Object.fromEntries(
+          cards.map((node) => [node.path, automaticCards[node.path] || cardState(node.path)]),
+        );
+        return {
+          ...current,
+          manualLayout: true,
+          cards: {
+            ...cardsAtAutomaticPositions,
+            [action.path]: { ...action.card, x: action.card.x + dx, y: action.card.y + dy },
+          },
+        };
+      });
     } else {
       updateBoard((current) => ({ ...current, cards: { ...current.cards, [action.path]: { ...action.card, width: clamp(action.card.width + dx, CANVAS_MIN_CARD_WIDTH, CANVAS_MAX_CARD_WIDTH), height: clamp(action.card.height + dy, CANVAS_MIN_CARD_HEIGHT, CANVAS_MAX_CARD_HEIGHT) } } }));
     }
@@ -316,8 +331,8 @@ export function CanvasView() {
       >
         <div data-canvas-world="true" className="relative origin-top-left" style={{ width: WORLD_SIZE * zoom, height: WORLD_SIZE * zoom }}>
           <div data-canvas-world="true" className="absolute inset-0 origin-top-left" style={{ width: WORLD_SIZE, height: WORLD_SIZE, transform: `scale(${zoom})`, backgroundImage: "radial-gradient(circle, color-mix(in srgb, currentColor 14%, transparent) 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
-            {cards.map((node, index) => {
-              const state = cardState(node.path, index);
+            {cards.map((node) => {
+              const state = cardState(node.path);
               const selected = selection.includes(node.path);
               const title = node.frontmatter?.title || node.name;
               return (
@@ -377,8 +392,8 @@ export function CanvasView() {
             updateViewport();
           }}
         >
-          {cards.map((node, index) => {
-            const state = cardState(node.path, index);
+          {cards.map((node) => {
+            const state = cardState(node.path);
             return <span key={node.path} className="absolute rounded-sm bg-foreground/45" style={{ left: `${state.x / WORLD_SIZE * 100}%`, top: `${state.y / WORLD_SIZE * 100}%`, width: `${Math.max(1, state.width / WORLD_SIZE * 100)}%`, height: `${Math.max(1, state.height / WORLD_SIZE * 100)}%` }} />;
           })}
           <span className="absolute border border-primary bg-primary/10" style={{ left: `${viewport.left / WORLD_SIZE * 100}%`, top: `${viewport.top / WORLD_SIZE * 100}%`, width: `${viewport.width / WORLD_SIZE * 100}%`, height: `${viewport.height / WORLD_SIZE * 100}%` }} />

@@ -2,14 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { GET, PUT, canvasVirtualPath, parseCanvasCabinetPath } from "@/app/api/canvas/route";
-import { parseCanvasSnapshot } from "@/lib/canvas/snapshot";
+import { computeCanvasAutoLayout, parseCanvasSnapshot } from "@/lib/canvas/snapshot";
 import { useAppStore } from "@/stores/app-store";
 
 const validSnapshot = {
-  version: 1,
+  version: 2,
   boards: {
     "room/notes": {
       zoom: 1.25,
+      manualLayout: false,
       cards: {
         "room/notes/brief.md": { x: 10, y: -20, width: 360, height: 300 },
       },
@@ -17,13 +18,45 @@ const validSnapshot = {
   },
 };
 
-test("canvas snapshot validation accepts only the bounded v1 shape", () => {
+test("canvas snapshot validation accepts v2 and migrates bounded v1 snapshots", () => {
   assert.deepEqual(parseCanvasSnapshot(validSnapshot), validSnapshot);
+  assert.deepEqual(
+    parseCanvasSnapshot({ version: 1, boards: { room: { zoom: 1, cards: {} } } }),
+    { version: 2, boards: { room: { zoom: 1, manualLayout: false, cards: {} } } },
+  );
   assert.equal(parseCanvasSnapshot({ ...validSnapshot, extra: true }), null);
   assert.equal(parseCanvasSnapshot({ version: 1, boards: { "../room": { zoom: 1, cards: {} } } }), null);
   assert.equal(parseCanvasSnapshot({ version: 1, boards: { room: { zoom: Number.NaN, cards: {} } } }), null);
   assert.equal(parseCanvasSnapshot({ version: 1, boards: { room: { zoom: 1, cards: { page: { x: 0, y: 0, width: 10, height: 300 } } } } }), null);
   assert.equal(parseCanvasSnapshot({ version: 1, boards: { room: { zoom: 1, cards: { page: { x: 0, y: 0, width: 360, height: 300, color: "red" } } } } }), null);
+});
+
+test("canvas auto layout is deterministic, bounded, and non-overlapping", () => {
+  const cards = [
+    { path: "room/a.md", width: 360, height: 300 },
+    { path: "room/b.md", width: 420, height: 240 },
+    { path: "room/c.md", width: 300, height: 500 },
+    { path: "room/d.md", width: 380, height: 320 },
+  ];
+  const layout = computeCanvasAutoLayout(cards);
+  assert.deepEqual(layout, computeCanvasAutoLayout(cards));
+  assert.deepEqual(Object.keys(layout), cards.map((card) => card.path));
+
+  const boxes = Object.values(layout);
+  for (const box of boxes) {
+    assert.ok(Number.isFinite(box.x) && Number.isFinite(box.y));
+    assert.ok(box.width >= 220 && box.height >= 140);
+  }
+  for (let left = 0; left < boxes.length; left += 1) {
+    for (let right = left + 1; right < boxes.length; right += 1) {
+      const a = boxes[left];
+      const b = boxes[right];
+      const overlaps =
+        a.x < b.x + b.width && a.x + a.width > b.x &&
+        a.y < b.y + b.height && a.y + a.height > b.y;
+      assert.equal(overlaps, false);
+    }
+  }
 });
 
 test("canvas route requires a strict cabinetPath before touching storage", async () => {
