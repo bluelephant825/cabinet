@@ -9,6 +9,7 @@ import {
 import { useState } from "react";
 import { Check, Pencil, Puzzle, Video } from "lucide-react";
 import { detectEmbed } from "@/lib/embeds/detect";
+import { ModelCanvas } from "@/components/editor/model-viewer";
 import {
   getMdxComponentSpec,
   isAllowedMdxComponent,
@@ -52,6 +53,17 @@ function ComponentPreview({ name, props, childrenString }: MdxComponentAttrs) {
           {childrenString || "Empty callout"}
         </div>
       </div>
+    );
+  }
+
+  if (name === "ModelViewer") {
+    const src = String(props.src ?? "");
+    return (
+      <ModelCanvas
+        src={src}
+        title={String(props.title ?? "3D model")}
+        className="aspect-video w-full rounded-md border border-border"
+      />
     );
   }
 

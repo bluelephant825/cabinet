@@ -3,6 +3,7 @@
  * Components and props not declared here stay as inert source text.
  */
 
+import { sanitizeModelAssetUrl } from "@/lib/models/asset-url";
 import type { MdxProps } from "./jsx";
 
 export interface MdxPropSpec {
@@ -10,6 +11,8 @@ export interface MdxPropSpec {
   description?: string;
   required?: boolean;
   enum?: readonly string[];
+  /** Restrict this string to a same-origin .glb/.gltf Cabinet asset URL. */
+  modelAssetUrl?: boolean;
 }
 
 export interface MdxComponentSpec {
@@ -20,7 +23,7 @@ export interface MdxComponentSpec {
 }
 
 export const MDX_COMPONENT_REGISTRY: Record<
-  "Callout" | "VideoPlayer",
+  "Callout" | "VideoPlayer" | "ModelViewer",
   MdxComponentSpec
 > = {
   Callout: {
@@ -40,6 +43,20 @@ export const MDX_COMPONENT_REGISTRY: Record<
     description: "An embedded video player.",
     selfClosing: true,
     props: [{ name: "url", description: "URL of the video to play.", required: true }],
+  },
+  ModelViewer: {
+    name: "ModelViewer",
+    description: "An interactive viewer for a Cabinet .glb or .gltf asset.",
+    selfClosing: true,
+    props: [
+      {
+        name: "src",
+        description: "Same-origin /api/assets URL of the model.",
+        required: true,
+        modelAssetUrl: true,
+      },
+      { name: "title", description: "Accessible label for the model." },
+    ],
   },
 };
 
@@ -74,6 +91,12 @@ export function sanitizeMdxProps(name: string, value: unknown): MdxProps {
       continue;
     }
     if (prop.enum && (typeof candidate !== "string" || !prop.enum.includes(candidate))) {
+      continue;
+    }
+    if (prop.modelAssetUrl) {
+      const safeUrl = sanitizeModelAssetUrl(candidate);
+      if (!safeUrl) continue;
+      props[prop.name] = safeUrl;
       continue;
     }
     props[prop.name] = candidate;

@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Globe,
   AppWindow,
+  Box,
   LayoutGrid,
   List as ListIcon,
 } from "lucide-react";
@@ -65,6 +66,7 @@ function isImageHeavy(children: TreeNode[]): boolean {
 // already says it) instead of leaking raw enums like "Directory"/"Code"/"Csv".
 const KIND_LABEL: Partial<Record<TreeNode["type"], string>> = {
   image: "Image",
+  model: "3D model",
   video: "Video",
   audio: "Audio",
   code: "Code",
@@ -81,6 +83,8 @@ function iconFor(node: TreeNode) {
       return Folder;
     case "image":
       return FileImage;
+    case "model":
+      return Box;
     case "video":
       return FileVideo;
     case "audio":

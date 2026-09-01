@@ -223,10 +223,11 @@ export function stripMdxForPlaintext(markdown: string): string {
   for (const { start, end, parsed } of matches) {
     output += markdown.slice(last, start);
     const variant = typeof parsed.props.type === "string" ? ` (${parsed.props.type})` : "";
+    const resource = parsed.props.url ?? parsed.props.src;
     const body = parsed.children
       ? `: ${stripMdxForPlaintext(parsed.children)}`
-      : typeof parsed.props.url === "string"
-        ? `: ${parsed.props.url}`
+      : typeof resource === "string"
+        ? `: ${resource}`
         : "";
     output += `[${parsed.name}${variant}${body}]`;
     last = end;

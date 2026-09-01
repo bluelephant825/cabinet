@@ -45,6 +45,7 @@ import {
   Download,
   Asterisk,
   FileCode,
+  Box,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { openFileHistory } from "@/components/editor/version-history";
@@ -815,6 +816,8 @@ function TreeNodeImpl({
               <Code className="h-3.5 w-3.5 shrink-0 text-violet-400" />
             ) : node.type === "image" ? (
               <Image className="h-3.5 w-3.5 shrink-0 text-pink-400" />
+            ) : node.type === "model" ? (
+              <Box className="h-3.5 w-3.5 shrink-0 text-sky-400" />
             ) : node.type === "video" ? (
               <Video className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
             ) : node.type === "audio" ? (

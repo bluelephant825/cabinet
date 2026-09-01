@@ -12,6 +12,7 @@ import { CsvViewer } from "@/components/editor/csv-viewer";
 import { SourceViewer } from "@/components/editor/source-viewer";
 import { NotebookViewer } from "@/components/editor/notebook-viewer";
 import { ImageViewer } from "@/components/editor/image-viewer";
+import { ModelViewer } from "@/components/editor/model-viewer";
 import { MediaViewer } from "@/components/editor/media-viewer";
 import { MermaidViewer } from "@/components/editor/mermaid-viewer";
 import { LatexViewer } from "@/components/editor/latex-viewer";
@@ -760,6 +761,7 @@ export function AppShell() {
         if (lower.endsWith(".mmd") || lower.endsWith(".mermaid")) return "mermaid";
         if (lower.endsWith(".tex") || lower.endsWith(".latex")) return "latex";
         if (/\.(png|jpe?g|gif|webp|svg|bmp)$/.test(lower)) return "image";
+        if (/\.(glb|gltf)$/.test(lower)) return "model";
         if (/\.(mp4|mov|webm|avi|mkv)$/.test(lower)) return "video";
         if (/\.(mp3|wav|ogg|flac|m4a)$/.test(lower)) return "audio";
         if (/\.(ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|kt|swift|c|cpp|cs|php|sh|bash|zsh|html|css|scss|less|json|yaml|yml|toml|xml|sql|lua|r|dart)$/.test(lower)) {
@@ -776,6 +778,7 @@ export function AppShell() {
   const isCode = nodeType === "code";
   const isNotebook = nodeType === "notebook";
   const isImage = nodeType === "image";
+  const isModel = nodeType === "model";
   const isVideo = nodeType === "video";
   const isAudio = nodeType === "audio";
   const isMermaid = nodeType === "mermaid";
@@ -988,6 +991,11 @@ export function AppShell() {
       const imgPath = selectedNode?.path || selectedPath!;
       const imgTitle = selectedNode?.frontmatter?.title || selectedNode?.name || imgPath.split("/").pop() || "Image";
       return <ImageViewer path={imgPath} title={imgTitle} />;
+    }
+    if (isModel && (selectedNode || selectedPath)) {
+      const modelPath = selectedNode?.path || selectedPath!;
+      const modelTitle = selectedNode?.frontmatter?.title || selectedNode?.name || modelPath.split("/").pop() || "3D model";
+      return <ModelViewer path={modelPath} title={modelTitle} />;
     }
     if ((isVideo || isAudio) && (selectedNode || selectedPath)) {
       const mediaPath = selectedNode?.path || selectedPath!;

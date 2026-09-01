@@ -107,3 +107,33 @@ test("Callout and VideoPlayer survive markdown, HTML, and plaintext paths", asyn
   assert.match(markdownToPlaintext(markdown).text, /\[Callout \(success\): Saved safely\.\]/);
   assert.match(markdownToPlaintext(markdown).text, /\[VideoPlayer: https:\/\/example\.com\/demo\.mp4\]/);
 });
+
+test("ModelViewer keeps safe asset URLs through MDX and plaintext paths", async () => {
+  const markdown = '<ModelViewer src="/api/assets/designs/chair.glb?version=2" title="Chair" />';
+  const html = await markdownToHtml(markdown);
+  const roundTrip = htmlToMarkdown(html);
+
+  assert.match(roundTrip, /<ModelViewer src="\/api\/assets\/designs\/chair\.glb\?version=2" title="Chair" \/>/);
+  assert.equal(
+    stripMdxForPlaintext(markdown),
+    "[ModelViewer: /api/assets/designs/chair.glb?version=2]"
+  );
+  assert.match(
+    markdownToPlaintext(markdown).text,
+    /\[ModelViewer: \/api\/assets\/designs\/chair\.glb\?version=2\]/
+  );
+});
+
+test("ModelViewer strips unsafe and non-model sources", () => {
+  for (const src of [
+    "https://example.com/model.glb",
+    "//example.com/model.glb",
+    "javascript:alert(1)",
+    "/api/assets/model.obj",
+    "/api/assets/model.glb#fragment",
+  ]) {
+    assert.deepEqual(sanitizeMdxProps("ModelViewer", { src, title: "Unsafe" }), {
+      title: "Unsafe",
+    });
+  }
+});

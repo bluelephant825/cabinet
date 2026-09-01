@@ -40,6 +40,7 @@ export interface TreeNode {
     | "csv"
     | "code"
     | "image"
+    | "model"
     | "video"
     | "audio"
     | "mermaid"

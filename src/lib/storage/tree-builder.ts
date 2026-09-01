@@ -31,6 +31,8 @@ const IMAGE_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".ico",
 ]);
 
+const MODEL_EXTENSIONS = new Set([".glb", ".gltf"]);
+
 const VIDEO_EXTENSIONS = new Set([
   ".mp4", ".webm", ".mov", ".m4v",
 ]);
@@ -68,18 +70,20 @@ const UNKNOWN_EXTENSIONS = new Set([
   ".epub", ".mobi", ".rtf",
 ]);
 
-function classifyFile(ext: string): TreeNode["type"] | null {
-  if (NOTEBOOK_EXTENSIONS.has(ext)) return "notebook";
-  if (CODE_EXTENSIONS.has(ext)) return "code";
-  if (IMAGE_EXTENSIONS.has(ext)) return "image";
-  if (VIDEO_EXTENSIONS.has(ext)) return "video";
-  if (AUDIO_EXTENSIONS.has(ext)) return "audio";
-  if (MERMAID_EXTENSIONS.has(ext)) return "mermaid";
-  if (LATEX_EXTENSIONS.has(ext)) return "latex";
-  if (DOCX_EXTENSIONS.has(ext)) return "docx";
-  if (XLSX_EXTENSIONS.has(ext)) return "xlsx";
-  if (PPTX_EXTENSIONS.has(ext)) return "pptx";
-  if (UNKNOWN_EXTENSIONS.has(ext)) return "unknown";
+export function classifyFileExtension(ext: string): TreeNode["type"] | null {
+  const normalized = ext.toLowerCase();
+  if (NOTEBOOK_EXTENSIONS.has(normalized)) return "notebook";
+  if (CODE_EXTENSIONS.has(normalized)) return "code";
+  if (IMAGE_EXTENSIONS.has(normalized)) return "image";
+  if (MODEL_EXTENSIONS.has(normalized)) return "model";
+  if (VIDEO_EXTENSIONS.has(normalized)) return "video";
+  if (AUDIO_EXTENSIONS.has(normalized)) return "audio";
+  if (MERMAID_EXTENSIONS.has(normalized)) return "mermaid";
+  if (LATEX_EXTENSIONS.has(normalized)) return "latex";
+  if (DOCX_EXTENSIONS.has(normalized)) return "docx";
+  if (XLSX_EXTENSIONS.has(normalized)) return "xlsx";
+  if (PPTX_EXTENSIONS.has(normalized)) return "pptx";
+  if (UNKNOWN_EXTENSIONS.has(normalized)) return "unknown";
   return null;
 }
 
@@ -288,7 +292,7 @@ async function buildTreeRecursive(
       });
     } else {
       const ext = path.extname(entry.name).toLowerCase();
-      const fileType = classifyFile(ext);
+      const fileType = classifyFileExtension(ext);
       if (fileType) {
         nodes.push({
           name: entry.name,
