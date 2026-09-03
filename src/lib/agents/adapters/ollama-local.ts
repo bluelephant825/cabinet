@@ -16,10 +16,11 @@ import type {
 import {
   ollamaApiUrl,
   ollamaProvider,
+  ollamaRuntimeEnv,
   resolveOllamaHost,
 } from "../providers/ollama";
 
-const DEFAULT_MODEL = "llama3";
+const MAX_MODEL_CHARS = 256;
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_HISTORY_CONTENT_CHARS = 32 * 1024;
@@ -32,13 +33,30 @@ interface OllamaChatMessage {
   content: string;
 }
 
+function hasExactKeys(value: Record<string, unknown>, expected: string[]): boolean {
+  const keys = Object.keys(value).sort();
+  return keys.length === expected.length && keys.every((key, index) => key === expected[index]);
+}
+
+function parseModel(raw: unknown): string | null {
+  return typeof raw === "string" &&
+    raw.length <= MAX_MODEL_CHARS &&
+    raw === raw.trim() &&
+    raw.length > 0 &&
+    !/[\u0000-\u001f\u007f]/.test(raw)
+    ? raw
+    : null;
+}
+
 function parseHistory(raw: unknown): OllamaChatMessage[] | null {
   if (!Array.isArray(raw) || raw.length > MAX_HISTORY_MESSAGES) return null;
   let total = 0;
   const messages: OllamaChatMessage[] = [];
   for (const item of raw) {
-    if (!item || typeof item !== "object") return null;
-    const { role, content } = item as Record<string, unknown>;
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const record = item as Record<string, unknown>;
+    if (!hasExactKeys(record, ["content", "role"])) return null;
+    const { role, content } = record;
     if (
       (role !== "user" && role !== "assistant") ||
       typeof content !== "string" ||
@@ -70,24 +88,32 @@ function boundedHistory(messages: OllamaChatMessage[]): OllamaChatMessage[] {
   return bounded;
 }
 
+function parseSessionParams(raw: unknown): { model: string; messages: OllamaChatMessage[] } | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  if (!hasExactKeys(record, ["messages", "model"])) return null;
+  const model = parseModel(record.model);
+  const messages = parseHistory(record.messages);
+  return model && messages ? { model, messages } : null;
+}
+
 export const ollamaSessionCodec: AdapterSessionCodec = {
-  deserialize(raw) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-    const messages = parseHistory((raw as Record<string, unknown>).messages);
-    return messages ? { messages } : null;
-  },
-  serialize(params) {
-    const messages = parseHistory(params?.messages);
-    return messages ? { messages } : null;
-  },
+  deserialize: parseSessionParams,
+  serialize: parseSessionParams,
   getDisplayId(params) {
-    const messages = parseHistory(params?.messages);
-    return messages ? `Ollama · ${messages.length} messages` : null;
+    const parsed = parseSessionParams(params);
+    return parsed
+      ? `Ollama · ${parsed.model} · ${parsed.messages.length} messages`
+      : null;
   },
 };
 
-function historyFromParams(params: Record<string, unknown> | null | undefined) {
-  return parseHistory(params?.messages) || [];
+function historyFromParams(
+  params: Record<string, unknown> | null | undefined,
+  selectedModel: string
+): OllamaChatMessage[] {
+  const parsed = parseSessionParams(params);
+  return parsed?.model === selectedModel ? parsed.messages : [];
 }
 
 async function readBoundedErrorBody(response: Response): Promise<string> {
@@ -95,14 +121,27 @@ async function readBoundedErrorBody(response: Response): Promise<string> {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let text = "";
+  let bytes = 0;
+  let completed = false;
   try {
-    while (text.length <= MAX_ERROR_BODY_CHARS) {
+    while (bytes <= MAX_ERROR_BODY_CHARS) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        completed = true;
+        text += decoder.decode();
+        break;
+      }
+      const remaining = MAX_ERROR_BODY_CHARS - bytes;
+      if (value.byteLength > remaining) {
+        text += decoder.decode(value.subarray(0, remaining));
+        break;
+      }
+      bytes += value.byteLength;
       text += decoder.decode(value, { stream: true });
     }
   } finally {
-    if (text.length > MAX_ERROR_BODY_CHARS) await reader.cancel().catch(() => {});
+    if (!completed) await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
   return text.slice(0, MAX_ERROR_BODY_CHARS).trim();
 }
@@ -133,7 +172,7 @@ function httpErrorMessage(status: number, body: string): string {
 
 function failedResult(input: {
   message: string;
-  model: string;
+  model: string | null;
   timedOut?: boolean;
   errorCode?: string;
 }): AdapterExecutionResult {
@@ -180,7 +219,7 @@ export const ollamaLocalAdapter: AgentExecutionAdapter = {
     ]);
   },
   async testEnvironment(ctx) {
-    const env = { ...process.env, ...(ctx?.env || {}) };
+    const env = ollamaRuntimeEnv(ctx?.env);
     let host: string;
     try {
       host = resolveOllamaHost(env);
@@ -228,7 +267,15 @@ export const ollamaLocalAdapter: AgentExecutionAdapter = {
     }
   },
   async execute(ctx) {
-    const model = readStringConfig(ctx.config, "model") || DEFAULT_MODEL;
+    const configuredModel = readStringConfig(ctx.config, "model");
+    const model = parseModel(configuredModel);
+    if (!model) {
+      return failedResult({
+        message: "Ollama model is unavailable because no valid model is selected. Install one with `ollama pull <model>`, then select that installed model in Cabinet.",
+        model: null,
+        errorCode: "model_unavailable",
+      });
+    }
     let endpoint: string;
     try {
       endpoint = ollamaApiUrl("/api/chat");
@@ -240,7 +287,7 @@ export const ollamaLocalAdapter: AgentExecutionAdapter = {
       });
     }
 
-    const priorMessages = historyFromParams(ctx.sessionParams);
+    const priorMessages = historyFromParams(ctx.sessionParams, model);
     const requestMessages = [
       ...priorMessages,
       { role: "user" as const, content: ctx.prompt },
@@ -259,15 +306,15 @@ export const ollamaLocalAdapter: AgentExecutionAdapter = {
     if (ctx.signal?.aborted) cancel();
     else ctx.signal?.addEventListener("abort", cancel, { once: true });
 
-    await ctx.onMeta?.({
-      adapterType: ctx.adapterType,
-      command: "POST /api/chat",
-      commandArgs: [model],
-      cwd: ctx.cwd,
-      env: { OLLAMA_HOST: new URL(endpoint).origin },
-    });
-
     try {
+      await ctx.onMeta?.({
+        adapterType: ctx.adapterType,
+        command: "POST /api/chat",
+        commandArgs: [model],
+        cwd: ctx.cwd,
+        env: { OLLAMA_HOST: new URL(endpoint).origin },
+      });
+
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -286,22 +333,31 @@ export const ollamaLocalAdapter: AgentExecutionAdapter = {
       const accumulator = createOllamaStreamAccumulator();
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const display = consumeOllamaNdjsonStream(
-          accumulator,
-          decoder.decode(value, { stream: true })
-        );
-        if (display) await ctx.onLog("stdout", display);
+      let streamCompleted = false;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            streamCompleted = true;
+            break;
+          }
+          const display = consumeOllamaNdjsonStream(
+            accumulator,
+            decoder.decode(value, { stream: true })
+          );
+          if (display) await ctx.onLog("stdout", display);
+        }
+        const decodedTail = decoder.decode();
+        if (decodedTail) {
+          const display = consumeOllamaNdjsonStream(accumulator, decodedTail);
+          if (display) await ctx.onLog("stdout", display);
+        }
+        const trailing = finishOllamaNdjsonStream(accumulator);
+        if (trailing) await ctx.onLog("stdout", trailing);
+      } finally {
+        if (!streamCompleted) await reader.cancel().catch(() => {});
+        reader.releaseLock();
       }
-      const decodedTail = decoder.decode();
-      if (decodedTail) {
-        const display = consumeOllamaNdjsonStream(accumulator, decodedTail);
-        if (display) await ctx.onLog("stdout", display);
-      }
-      const trailing = finishOllamaNdjsonStream(accumulator);
-      if (trailing) await ctx.onLog("stdout", trailing);
 
       const output = accumulator.output.trim() || null;
       if (!output) {
@@ -317,9 +373,9 @@ export const ollamaLocalAdapter: AgentExecutionAdapter = {
         timedOut: false,
         errorMessage: null,
         usage: accumulator.usage,
-        sessionId: "ollama-history",
-        sessionParams: { messages },
-        sessionDisplayId: `Ollama · ${messages.length} messages`,
+        sessionId: null,
+        sessionParams: { model, messages },
+        sessionDisplayId: `Ollama · ${model} · ${messages.length} messages`,
         provider: ollamaProvider.id,
         model,
         billingType: "unknown",

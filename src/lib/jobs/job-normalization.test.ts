@@ -25,6 +25,17 @@ test("normalizeJobConfig uses the structured codex adapter by default", () => {
   assert.equal(normalized.adapterType, "codex_local");
 });
 
+test("normalizeJobConfig defaults Ollama jobs to the native local adapter", () => {
+  const normalized = normalizeJobConfig({
+    name: "Local Digest",
+    provider: "ollama",
+    prompt: "Summarize locally.",
+  });
+
+  assert.equal(normalized.provider, "ollama");
+  assert.equal(normalized.adapterType, "ollama_local");
+});
+
 test("normalizeJobConfig preserves explicit adapter settings", () => {
   const normalized = normalizeJobConfig({
     name: "Review Queue",

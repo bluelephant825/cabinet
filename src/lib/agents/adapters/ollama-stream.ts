@@ -9,6 +9,7 @@ interface OllamaStreamPayload {
   done?: unknown;
   error?: unknown;
   prompt_eval_count?: unknown;
+  prompt_eval_cached_count?: unknown;
   eval_count?: unknown;
 }
 
@@ -90,18 +91,28 @@ function consumeOllamaEvent(
   if (payload.done) {
     accumulator.done = true;
     const hasPromptUsage = payload.prompt_eval_count !== undefined;
+    const hasCachedUsage = payload.prompt_eval_cached_count !== undefined;
     const hasOutputUsage = payload.eval_count !== undefined;
-    if (hasPromptUsage !== hasOutputUsage) {
+    if (hasPromptUsage !== hasOutputUsage || (hasCachedUsage && !hasPromptUsage)) {
       throw new Error("Ollama final event contains incomplete token usage.");
     }
     if (hasPromptUsage) {
       accumulator.usage = {
         inputTokens: parseTokenCount(payload.prompt_eval_count, "prompt_eval_count"),
         outputTokens: parseTokenCount(payload.eval_count, "eval_count"),
+        ...(hasCachedUsage
+          ? {
+              cachedInputTokens: parseTokenCount(
+                payload.prompt_eval_cached_count,
+                "prompt_eval_cached_count"
+              ),
+            }
+          : {}),
       };
     }
   } else if (
     payload.prompt_eval_count !== undefined ||
+    payload.prompt_eval_cached_count !== undefined ||
     payload.eval_count !== undefined
   ) {
     throw new Error("Ollama token usage appeared before the final event.");

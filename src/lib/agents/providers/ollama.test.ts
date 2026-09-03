@@ -1,16 +1,31 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_OLLAMA_HOST,
   ollamaProvider,
+  ollamaRuntimeEnv,
   parseOllamaModels,
   resolveOllamaHost,
 } from "./ollama";
+
+const inheritedOllamaHost = process.env.OLLAMA_HOST;
+process.env.OLLAMA_HOST = "";
+after(() => {
+  if (inheritedOllamaHost === undefined) delete process.env.OLLAMA_HOST;
+  else process.env.OLLAMA_HOST = inheritedOllamaHost;
+});
 
 test("resolveOllamaHost applies the default, accepts bare hosts, and normalizes origins", () => {
   assert.equal(resolveOllamaHost({}), DEFAULT_OLLAMA_HOST);
   assert.equal(resolveOllamaHost({ OLLAMA_HOST: "localhost:11435" }), "http://localhost:11435");
   assert.equal(resolveOllamaHost({ OLLAMA_HOST: "https://ollama.internal/" }), "https://ollama.internal");
+});
+
+test("ollamaRuntimeEnv applies explicit runtime overrides without accepting request config", () => {
+  assert.equal(
+    ollamaRuntimeEnv({ OLLAMA_HOST: "runtime.test:11434" }).OLLAMA_HOST,
+    "runtime.test:11434"
+  );
 });
 
 test("resolveOllamaHost rejects unsafe or ambiguous URLs", () => {
@@ -89,8 +104,13 @@ test("Ollama model discovery rejects an unavailable local service", async (t) =>
 test("Ollama availability and health are API-first and do not require the CLI", async (t) => {
   const calls: string[] = [];
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
-    calls.push(String(input));
-    return new Response(JSON.stringify({ version: "0.11.4" }), { status: 200 });
+    const url = String(input);
+    calls.push(url);
+    return new Response(JSON.stringify(
+      url.endsWith("/api/tags")
+        ? { models: [{ name: "llama3" }] }
+        : { version: "0.11.4" }
+    ), { status: 200 });
   });
 
   assert.equal(await ollamaProvider.isAvailable(), true);
@@ -102,7 +122,45 @@ test("Ollama availability and health are API-first and do not require the CLI", 
   assert.deepEqual(calls, [
     `${DEFAULT_OLLAMA_HOST}/api/version`,
     `${DEFAULT_OLLAMA_HOST}/api/version`,
+    `${DEFAULT_OLLAMA_HOST}/api/tags`,
   ]);
+});
+
+test("Ollama health reports a reachable service with no models as not ready", async (t) => {
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) =>
+    new Response(JSON.stringify(
+      String(input).endsWith("/api/tags") ? { models: [] } : { version: "0.11.4" }
+    ))
+  );
+  assert.deepEqual(await ollamaProvider.healthCheck(), {
+    available: false,
+    authenticated: true,
+    version: "Ollama 0.11.4",
+    error: "Ollama is reachable but has no installed models. Run `ollama pull <model>` and select it in Cabinet.",
+  });
+});
+
+test("Ollama metadata readers reject malformed and oversized responses and cancel readers", async (t) => {
+  let cancelled = 0;
+  const encoder = new TextEncoder();
+  const fetchMock = t.mock.method(globalThis, "fetch", async () =>
+    new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode("x".repeat(1024 * 1024 + 1)));
+      },
+      cancel() {
+        cancelled += 1;
+      },
+    }))
+  );
+  await assert.rejects(ollamaProvider.listModels!(), /1 MiB limit/);
+  assert.equal(cancelled, 1);
+
+  fetchMock.mock.mockImplementation(async () => new Response("not-json"));
+  await assert.rejects(ollamaProvider.listModels!(), /malformed JSON/);
+
+  fetchMock.mock.mockImplementation(async () => new Response(JSON.stringify({ models: "bad" })));
+  await assert.rejects(ollamaProvider.listModels!(), /malformed response/);
 });
 
 test("Ollama health reports invalid configuration and unreachable service", async (t) => {
@@ -121,7 +179,7 @@ test("Ollama health reports invalid configuration and unreachable service", asyn
   assert.deepEqual(await ollamaProvider.healthCheck(), {
     available: false,
     authenticated: false,
-    error: `Ollama service is not reachable at ${DEFAULT_OLLAMA_HOST}. Start Ollama and retry.`,
+    error: `Ollama service is not ready at ${DEFAULT_OLLAMA_HOST}. Start Ollama, verify its model list, and retry.`,
   });
 });
 
