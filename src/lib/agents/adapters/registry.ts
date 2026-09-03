@@ -5,13 +5,11 @@ import { copilotCliProvider } from "../providers/copilot-cli";
 import { cursorCliProvider } from "../providers/cursor-cli";
 import { geminiCliProvider } from "../providers/gemini-cli";
 import { grokCliProvider } from "../providers/grok-cli";
-import { ollamaProvider } from "../providers/ollama";
+import { ollamaProvider, resolveOllamaHost } from "../providers/ollama";
+import { checkCliProviderAvailable } from "../provider-cli";
 import { openCodeProvider } from "../providers/opencode";
 import { piProvider } from "../providers/pi";
-import type {
-  AdapterEnvironmentTestContext,
-  AgentExecutionAdapter,
-} from "./types";
+import type { AgentExecutionAdapter } from "./types";
 import { claudeLocalAdapter } from "./claude-local";
 import { codexLocalAdapter } from "./codex-local";
 import { copilotLocalAdapter } from "./copilot-local";
@@ -19,6 +17,7 @@ import { cursorLocalAdapter } from "./cursor-local";
 import { providerStatusToEnvironmentTest } from "./environment";
 import { geminiLocalAdapter } from "./gemini-local";
 import { grokLocalAdapter } from "./grok-local";
+import { ollamaLocalAdapter } from "./ollama-local";
 import { openCodeLocalAdapter } from "./opencode-local";
 import { piLocalAdapter } from "./pi-local";
 
@@ -43,7 +42,7 @@ export const DEFAULT_ADAPTER_BY_PROVIDER_ID: Record<string, string> = {
   "pi": piLocalAdapter.type,
   "grok-cli": grokLocalAdapter.type,
   "copilot-cli": copilotLocalAdapter.type,
-  ollama: "ollama_legacy",
+  ollama: ollamaLocalAdapter.type,
 };
 
 export const LEGACY_PROVIDER_ID_BY_ADAPTER: Record<string, string> = Object.fromEntries(
@@ -75,7 +74,7 @@ function buildLegacyCliAdapter(input: {
     supportsDetachedRuns: true,
     models: provider.models,
     effortLevels: provider.effortLevels,
-    async testEnvironment(_ctx?: AdapterEnvironmentTestContext) {
+    async testEnvironment() {
       return providerStatusToEnvironmentTest(
         input.type,
         await provider.healthCheck(),
@@ -150,6 +149,48 @@ export const legacyOllamaAdapter = buildLegacyCliAdapter({
   providerId: ollamaProvider.id,
 });
 
+// Unlike the API adapter, terminal mode requires both the CLI executable and
+// its backing HTTP service. Check each independently so remediation is clear.
+legacyOllamaAdapter.testEnvironment = async (ctx) => {
+  const env = { ...process.env, ...(ctx?.env || {}) };
+  const cliAvailable = await checkCliProviderAvailable(ollamaProvider, env);
+  let host: string | null = null;
+  let serviceAvailable = false;
+  let hostError: string | null = null;
+  try {
+    host = resolveOllamaHost(env);
+    const response = await fetch(`${host}/api/version`, {
+      signal: AbortSignal.timeout(2_000),
+      cache: "no-store",
+    });
+    serviceAvailable = response.ok;
+  } catch (error) {
+    hostError = error instanceof Error ? error.message : "Ollama service is unavailable.";
+  }
+  return {
+    adapterType: legacyOllamaAdapter.type,
+    status: cliAvailable && serviceAvailable ? "pass" : "fail",
+    checks: [
+      {
+        code: "ollama_cli",
+        level: cliAvailable ? "info" : "error",
+        message: cliAvailable
+          ? "Ollama CLI is available."
+          : ollamaProvider.installMessage || "Ollama CLI is not available.",
+      },
+      {
+        code: "ollama_service",
+        level: serviceAvailable ? "info" : "error",
+        message: serviceAvailable
+          ? "Ollama HTTP service is reachable."
+          : hostError || `Ollama service is not reachable at ${host}.`,
+        ...(serviceAvailable ? { detail: host } : { hint: "Start Ollama and verify OLLAMA_HOST." }),
+      },
+    ],
+    testedAt: new Date().toISOString(),
+  };
+};
+
 class AgentAdapterRegistry {
   adapters = new Map<string, AgentExecutionAdapter>();
   private builtinFallbacks = new Map<string, AgentExecutionAdapter>();
@@ -200,6 +241,7 @@ agentAdapterRegistry.register(openCodeLocalAdapter);
 agentAdapterRegistry.register(piLocalAdapter);
 agentAdapterRegistry.register(grokLocalAdapter);
 agentAdapterRegistry.register(copilotLocalAdapter);
+agentAdapterRegistry.register(ollamaLocalAdapter);
 agentAdapterRegistry.register(legacyClaudeCodeAdapter);
 agentAdapterRegistry.register(legacyCodexCliAdapter);
 agentAdapterRegistry.register(legacyGeminiCliAdapter);

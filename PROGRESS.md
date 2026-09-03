@@ -1643,3 +1643,5 @@
 [2026-09-01] Reordered PROGRESS.md entries into ascending chronological order and verified that all dated starts are non-decreasing.
 
 [2026-09-01] Corrected PROGRESS.md ordering to treat every dated line as an entry boundary, including historical entries without blank separators, and verified that all dated starts are non-decreasing.
+
+[2026-09-03] Replaced Ollama's default terminal execution with a native `ollama_local` HTTP adapter using validated runtime `OLLAMA_HOST`, API-first health/model discovery, bounded resumable chat history, streaming `/api/chat` logs, token usage, curated failures, timeout and cancellation support. Added a strict bounded NDJSON parser, retained `ollama_legacy` with separate CLI/service checks, propagated daemon stops through `AbortSignal`, and added mocked provider, parser, adapter, registry/default-job, history, timeout, and cancellation coverage.

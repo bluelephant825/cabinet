@@ -5,7 +5,7 @@ import type {
 } from "../provider-interface";
 import { checkCliProviderAvailable } from "../provider-cli";
 
-const OLLAMA_API_URL = "http://127.0.0.1:11434";
+export const DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434";
 
 interface OllamaTagsResponse {
   models?: Array<{
@@ -14,18 +14,87 @@ interface OllamaTagsResponse {
   }>;
 }
 
+/** Resolve Ollama's HTTP origin at call time so daemon/runtime env changes apply. */
+export function resolveOllamaHost(
+  env: Readonly<Record<string, string | undefined>> = process.env
+): string {
+  const configured = env.OLLAMA_HOST?.trim();
+  const candidate = configured || DEFAULT_OLLAMA_HOST;
+  const withProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(candidate)
+    ? candidate
+    : `http://${candidate}`;
+
+  let url: URL;
+  try {
+    url = new URL(withProtocol);
+  } catch {
+    throw new Error("OLLAMA_HOST must be a valid HTTP(S) origin.");
+  }
+
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    !url.hostname ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    (url.pathname && url.pathname !== "/")
+  ) {
+    throw new Error(
+      "OLLAMA_HOST must be an HTTP(S) origin without credentials, a path, query, or fragment."
+    );
+  }
+
+  return url.origin;
+}
+
+export function ollamaApiUrl(
+  path: "/api/version" | "/api/tags" | "/api/chat",
+  env: Readonly<Record<string, string | undefined>> = process.env
+): string {
+  return `${resolveOllamaHost(env)}${path}`;
+}
+
 export function parseOllamaModels(data: OllamaTagsResponse): ProviderModel[] {
-  return (data.models || [])
+  if (!data || !Array.isArray(data.models)) return [];
+  return data.models
     .filter((model): model is { name: string; details?: { parameter_size?: string } } =>
-      Boolean(model.name?.trim())
+      Boolean(model && typeof model.name === "string" && model.name.trim())
     )
     .map((model) => ({
-      id: model.name,
-      name: model.name,
-      description: model.details?.parameter_size
-        ? `Local model (${model.details.parameter_size})`
-        : "Local model",
+      id: model.name.trim(),
+      name: model.name.trim(),
+      description:
+        typeof model.details?.parameter_size === "string" &&
+        model.details.parameter_size.trim()
+          ? `Local model (${model.details.parameter_size.trim()})`
+          : "Local model",
     }));
+}
+
+async function fetchOllamaVersion(): Promise<string | undefined> {
+  const response = await fetch(ollamaApiUrl("/api/version"), {
+    signal: AbortSignal.timeout(2_000),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`status ${response.status}`);
+  const data = (await response.json()) as { version?: unknown };
+  return typeof data.version === "string" && data.version.trim()
+    ? data.version.trim()
+    : undefined;
+}
+
+export async function checkOllamaServiceAvailable(): Promise<boolean> {
+  try {
+    await fetchOllamaVersion();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function checkOllamaCliAvailable(): Promise<boolean> {
+  return checkCliProviderAvailable(ollamaProvider);
 }
 
 export const ollamaProvider: AgentProvider = {
@@ -76,54 +145,45 @@ export const ollamaProvider: AgentProvider = {
   },
 
   async listModels(): Promise<ProviderModel[]> {
-    const response = await fetch(`${OLLAMA_API_URL}/api/tags`, {
+    const response = await fetch(ollamaApiUrl("/api/tags"), {
       signal: AbortSignal.timeout(3_000),
       cache: "no-store",
     });
     if (!response.ok) {
-      throw new Error(`Ollama model discovery failed with status ${response.status}`);
+      throw new Error(`Ollama model discovery failed with status ${response.status}.`);
     }
     return parseOllamaModels((await response.json()) as OllamaTagsResponse);
   },
 
+  // API-first: Cabinet can use Ollama without the optional CLI binary on PATH.
   async isAvailable(): Promise<boolean> {
-    return checkCliProviderAvailable(this);
+    return checkOllamaServiceAvailable();
   },
 
   async healthCheck(): Promise<ProviderStatus> {
+    let host: string;
     try {
-      if (!(await this.isAvailable())) {
-        return {
-          available: false,
-          authenticated: false,
-          error: this.installMessage,
-        };
-      }
-
-      try {
-        const response = await fetch(`${OLLAMA_API_URL}/api/version`, {
-          signal: AbortSignal.timeout(2_000),
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error(`status ${response.status}`);
-        const data = (await response.json()) as { version?: string };
-        return {
-          available: true,
-          authenticated: true,
-          version: data.version ? `Ollama ${data.version}` : "Ollama running",
-        };
-      } catch {
-        return {
-          available: true,
-          authenticated: false,
-          error: "Ollama is installed but its local service is not running.",
-        };
-      }
+      host = resolveOllamaHost();
     } catch (error) {
       return {
         available: false,
         authenticated: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : "Invalid OLLAMA_HOST.",
+      };
+    }
+
+    try {
+      const version = await fetchOllamaVersion();
+      return {
+        available: true,
+        authenticated: true,
+        version: version ? `Ollama ${version}` : "Ollama running",
+      };
+    } catch {
+      return {
+        available: false,
+        authenticated: false,
+        error: `Ollama service is not reachable at ${host}. Start Ollama and retry.`,
       };
     }
   },

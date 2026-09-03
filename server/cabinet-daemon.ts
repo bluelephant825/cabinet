@@ -325,6 +325,7 @@ const enrichedPath = getRuntimePath();
 
 interface StructuredSession extends BaseSession {
   kind: "structured";
+  abortController: AbortController;
   timeoutHandle?: NodeJS.Timeout;
   pid?: number;
   processGroupId?: number | null;
@@ -835,9 +836,11 @@ function createStructuredSession(input: {
   const execute = adapter.execute;
 
   const cwd = resolveSessionCwd(input.cwd);
+  const abortController = new AbortController();
   const session: StructuredSession = {
     id: input.sessionId,
     kind: "structured",
+    abortController,
     providerId: adapter.providerId || input.providerId || "unknown",
     adapterType: input.adapterType,
     ws: null,
@@ -846,6 +849,9 @@ function createStructuredSession(input: {
     exited: false,
     exitCode: null,
     stop: (signal = "SIGTERM") => {
+      if (!abortController.signal.aborted) {
+        abortController.abort(new Error(`Structured session stopped with ${signal}.`));
+      }
       try {
         signalStructuredProcess(session.pid, session.processGroupId, signal);
       } catch {}
@@ -865,6 +871,7 @@ function createStructuredSession(input: {
           typeof input.timeoutSeconds === "number" && input.timeoutSeconds > 0
             ? input.timeoutSeconds * 1000
             : undefined,
+        signal: abortController.signal,
         sessionId: input.adapterSessionId ?? null,
         sessionParams: input.adapterSessionParams ?? null,
         onLog: async (stream, chunk) => {

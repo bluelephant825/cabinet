@@ -262,17 +262,23 @@ export function resolveCliCommand(provider: AgentProvider, options?: ResolveCliC
   return provider.command;
 }
 
-export async function checkCliProviderAvailable(provider: AgentProvider): Promise<boolean> {
+export async function checkCliProviderAvailable(
+  provider: AgentProvider,
+  runtimeEnv: NodeJS.ProcessEnv = process.env
+): Promise<boolean> {
   return new Promise((resolve) => {
     let command: string;
     try {
-      command = resolveCliCommand(provider);
+      command = resolveCliCommand(provider, { env: runtimeEnv });
     } catch {
       resolve(false);
       return;
     }
 
-    const env = withAdapterRuntimeEnv({ ...process.env, PATH: getRuntimePath() });
+    const env = withAdapterRuntimeEnv({
+      ...runtimeEnv,
+      PATH: buildRuntimePath({ env: runtimeEnv }),
+    });
     const proc =
       process.platform === "win32"
         ? spawn(buildWindowsShellCommand(command, ["--version"]), {

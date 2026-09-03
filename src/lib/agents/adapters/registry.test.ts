@@ -24,6 +24,7 @@ test("legacy adapter registry exposes the current compatibility adapters", () =>
     "grok_cli_legacy",
     "grok_local",
     "ollama_legacy",
+    "ollama_local",
     "opencode_legacy",
     "opencode_local",
     "pi_legacy",
@@ -89,6 +90,13 @@ test("legacy adapter registry exposes the current compatibility adapters", () =>
   assert.equal(piLocal.providerId, "pi");
   assert.equal(piLocal.supportsSessionResume, true);
   assert.ok(piLocal.sessionCodec);
+
+  const ollamaLocal = agentAdapterRegistry.get("ollama_local");
+  assert.ok(ollamaLocal);
+  assert.equal(ollamaLocal.executionEngine, "http");
+  assert.equal(ollamaLocal.providerId, "ollama");
+  assert.equal(ollamaLocal.supportsSessionResume, true);
+  assert.ok(ollamaLocal.sessionCodec);
 });
 
 test("provider-to-adapter defaults map current providers onto structured adapters when available", () => {
@@ -100,7 +108,9 @@ test("provider-to-adapter defaults map current providers onto structured adapter
   assert.equal(defaultAdapterTypeForProvider("pi"), "pi_local");
   assert.equal(defaultAdapterTypeForProvider("grok-cli"), "grok_local");
   assert.equal(defaultAdapterTypeForProvider("copilot-cli"), "copilot_local");
-  assert.equal(defaultAdapterTypeForProvider("ollama"), "ollama_legacy");
+  // Scheduled jobs and new conversations now use the native HTTP adapter.
+  assert.equal(defaultAdapterTypeForProvider("ollama"), "ollama_local");
+  assert.equal(resolveLegacyProviderIdForAdapterType("ollama_legacy"), "ollama");
 });
 
 test("execution provider resolution prefers explicit legacy adapter mappings", () => {
