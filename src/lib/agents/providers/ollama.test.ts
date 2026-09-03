@@ -126,6 +126,35 @@ test("Ollama availability and health are API-first and do not require the CLI", 
   ]);
 });
 
+test("Ollama health uses one merged runtime env for its displayed host and requests", async (t) => {
+  const original = process.env.OLLAMA_HOST;
+  process.env.OLLAMA_HOST = "health.test:11434";
+  t.after(() => {
+    if (original === undefined) delete process.env.OLLAMA_HOST;
+    else process.env.OLLAMA_HOST = original;
+  });
+  const calls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.endsWith("/api/version")) {
+      process.env.OLLAMA_HOST = "changed.test:11434";
+      return new Response(JSON.stringify({ version: "0.11.4" }));
+    }
+    throw new TypeError("fetch failed");
+  });
+
+  assert.deepEqual(await ollamaProvider.healthCheck(), {
+    available: false,
+    authenticated: false,
+    error: "Ollama service is not ready at http://health.test:11434. Start Ollama, verify its model list, and retry.",
+  });
+  assert.deepEqual(calls, [
+    "http://health.test:11434/api/version",
+    "http://health.test:11434/api/tags",
+  ]);
+});
+
 test("Ollama health reports a reachable service with no models as not ready", async (t) => {
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request) =>
     new Response(JSON.stringify(

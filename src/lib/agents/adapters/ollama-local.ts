@@ -14,6 +14,8 @@ import type {
   AgentExecutionAdapter,
 } from "./types";
 import {
+  checkOllamaServiceAvailable,
+  listOllamaModels,
   ollamaApiUrl,
   ollamaProvider,
   ollamaRuntimeEnv,
@@ -235,24 +237,7 @@ export const ollamaLocalAdapter: AgentExecutionAdapter = {
         testedAt: new Date().toISOString(),
       };
     }
-    try {
-      const response = await fetch(`${host}/api/version`, {
-        signal: AbortSignal.timeout(2_000),
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error(`status ${response.status}`);
-      return {
-        adapterType: "ollama_local",
-        status: "pass",
-        checks: [{
-          code: "ollama_service",
-          level: "info",
-          message: "Ollama HTTP service is reachable.",
-          detail: host,
-        }],
-        testedAt: new Date().toISOString(),
-      };
-    } catch {
+    if (!(await checkOllamaServiceAvailable(env))) {
       return {
         adapterType: "ollama_local",
         status: "fail",
@@ -261,6 +246,51 @@ export const ollamaLocalAdapter: AgentExecutionAdapter = {
           level: "error",
           message: `Ollama service is not reachable at ${host}.`,
           hint: "Start Ollama and verify OLLAMA_HOST, then retry.",
+        }],
+        testedAt: new Date().toISOString(),
+      };
+    }
+
+    const serviceCheck = {
+      code: "ollama_service",
+      level: "info" as const,
+      message: "Ollama HTTP service is reachable.",
+      detail: host,
+    };
+    try {
+      const models = await listOllamaModels(env);
+      if (models.length === 0) {
+        return {
+          adapterType: "ollama_local",
+          status: "warn",
+          checks: [serviceCheck, {
+            code: "ollama_models",
+            level: "warn",
+            message: "Ollama has no installed models.",
+            hint: "Run `ollama pull <model>`, then select the installed model in Cabinet.",
+          }],
+          testedAt: new Date().toISOString(),
+        };
+      }
+      return {
+        adapterType: "ollama_local",
+        status: "pass",
+        checks: [serviceCheck, {
+          code: "ollama_models",
+          level: "info",
+          message: `${models.length} Ollama model${models.length === 1 ? " is" : "s are"} installed.`,
+        }],
+        testedAt: new Date().toISOString(),
+      };
+    } catch {
+      return {
+        adapterType: "ollama_local",
+        status: "fail",
+        checks: [serviceCheck, {
+          code: "ollama_models",
+          level: "error",
+          message: "Ollama's installed model list could not be read.",
+          hint: "Verify Ollama, run `ollama pull <model>` if needed, then retry.",
         }],
         testedAt: new Date().toISOString(),
       };

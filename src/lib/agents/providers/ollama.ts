@@ -117,8 +117,10 @@ async function readBoundedJson(response: Response, label: string): Promise<unkno
   }
 }
 
-async function fetchOllamaVersion(): Promise<string | undefined> {
-  const response = await fetch(ollamaApiUrl("/api/version"), {
+async function fetchOllamaVersion(
+  env?: Readonly<Record<string, string | undefined>>
+): Promise<string | undefined> {
+  const response = await fetch(ollamaApiUrl("/api/version", env), {
     signal: AbortSignal.timeout(2_000),
     cache: "no-store",
   });
@@ -137,8 +139,10 @@ async function fetchOllamaVersion(): Promise<string | undefined> {
   return typeof version === "string" && version.trim() ? version.trim() : undefined;
 }
 
-async function fetchOllamaModels(): Promise<ProviderModel[]> {
-  const response = await fetch(ollamaApiUrl("/api/tags"), {
+async function fetchOllamaModels(
+  env?: Readonly<Record<string, string | undefined>>
+): Promise<ProviderModel[]> {
+  const response = await fetch(ollamaApiUrl("/api/tags", env), {
     signal: AbortSignal.timeout(3_000),
     cache: "no-store",
   });
@@ -171,13 +175,21 @@ async function fetchOllamaModels(): Promise<ProviderModel[]> {
   return parseOllamaModels(data as OllamaTagsResponse);
 }
 
-export async function checkOllamaServiceAvailable(): Promise<boolean> {
+export async function checkOllamaServiceAvailable(
+  env?: Readonly<Record<string, string | undefined>>
+): Promise<boolean> {
   try {
-    await fetchOllamaVersion();
+    await fetchOllamaVersion(env);
     return true;
   } catch {
     return false;
   }
+}
+
+export async function listOllamaModels(
+  env?: Readonly<Record<string, string | undefined>>
+): Promise<ProviderModel[]> {
+  return fetchOllamaModels(env);
 }
 
 export async function checkOllamaCliAvailable(): Promise<boolean> {
@@ -232,7 +244,7 @@ export const ollamaProvider: AgentProvider = {
   },
 
   async listModels(): Promise<ProviderModel[]> {
-    return fetchOllamaModels();
+    return listOllamaModels();
   },
 
   // API-first: Cabinet can use Ollama without the optional CLI binary on PATH.
@@ -241,9 +253,10 @@ export const ollamaProvider: AgentProvider = {
   },
 
   async healthCheck(): Promise<ProviderStatus> {
+    const env = ollamaRuntimeEnv();
     let host: string;
     try {
-      host = resolveOllamaHost();
+      host = resolveOllamaHost(env);
     } catch (error) {
       return {
         available: false,
@@ -253,8 +266,8 @@ export const ollamaProvider: AgentProvider = {
     }
 
     try {
-      const version = await fetchOllamaVersion();
-      const models = await fetchOllamaModels();
+      const version = await fetchOllamaVersion(env);
+      const models = await fetchOllamaModels(env);
       if (models.length === 0) {
         return {
           available: false,

@@ -235,15 +235,60 @@ test("Ollama session codec strictly accepts only exact model and bounded history
   assert.equal(ollamaSessionCodec.deserialize({ model: "llama3", messages: [{ role: "user", content: "x".repeat(32 * 1024 + 1) }] }), null);
 });
 
-test("Ollama API environment check uses ctx.env and only requires the service", async (t) => {
+test("Ollama API environment check uses ctx.env for the service and bounded model list", async (t) => {
+  const calls: string[] = [];
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
-    assert.equal(String(input), "http://ollama.test:11434/api/version");
-    return new Response(JSON.stringify({ version: "1.0" }));
+    const url = String(input);
+    calls.push(url);
+    return new Response(JSON.stringify(
+      url.endsWith("/api/tags")
+        ? { models: [{ name: "llama3" }] }
+        : { version: "1.0" }
+    ));
   });
   const result = await ollamaLocalAdapter.testEnvironment({
     adapterType: "ollama_local",
     env: { OLLAMA_HOST: "ollama.test:11434" },
   });
   assert.equal(result.status, "pass");
-  assert.deepEqual(result.checks.map((check) => check.code), ["ollama_service"]);
+  assert.deepEqual(result.checks.map((check) => check.code), [
+    "ollama_service",
+    "ollama_models",
+  ]);
+  assert.deepEqual(calls, [
+    "http://ollama.test:11434/api/version",
+    "http://ollama.test:11434/api/tags",
+  ]);
+});
+
+test("Ollama API environment check warns with pull guidance when no models are installed", async (t) => {
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) =>
+    new Response(JSON.stringify(
+      String(input).endsWith("/api/tags") ? { models: [] } : { version: "1.0" }
+    ))
+  );
+  const result = await ollamaLocalAdapter.testEnvironment({
+    adapterType: "ollama_local",
+    env: { OLLAMA_HOST: "ollama.test:11434" },
+  });
+  assert.equal(result.status, "warn");
+  assert.equal(result.checks[1]?.code, "ollama_models");
+  assert.equal(result.checks[1]?.level, "warn");
+  assert.match(result.checks[1]?.hint || "", /ollama pull <model>.*select/i);
+});
+
+test("Ollama API environment check fails when the bounded model list is malformed", async (t) => {
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) =>
+    new Response(JSON.stringify(
+      String(input).endsWith("/api/tags") ? { models: "invalid" } : { version: "1.0" }
+    ))
+  );
+  const result = await ollamaLocalAdapter.testEnvironment({
+    adapterType: "ollama_local",
+    env: { OLLAMA_HOST: "ollama.test:11434" },
+  });
+  assert.equal(result.status, "fail");
+  assert.equal(result.checks[1]?.code, "ollama_models");
+  assert.equal(result.checks[1]?.level, "error");
+  assert.match(result.checks[1]?.hint || "", /ollama pull <model>/i);
 });
