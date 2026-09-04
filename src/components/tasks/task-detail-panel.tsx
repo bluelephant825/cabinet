@@ -297,29 +297,14 @@ export function TaskDetailPanel() {
   const chatContent =
     isCompose || !conversation ? (
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center justify-end px-2 py-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 shrink-0 p-0"
-            onClick={closeTaskPanel}
-            title={t("taskDetail:close")}
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
         <TaskComposeBody context={composeContext} />
       </div>
     ) : (
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* Frame controls (mute · enlarge · close) are handed to the
-            conversation page as `chromeActions` so they share the one header
-            row with Mark done / ⋯ instead of a separate strip above it. */}
         <TaskConversationPage
           taskId={conversation.id}
           cabinetPath={conversation.cabinetPath}
           variant="compact"
-          chromeActions={frameControls}
           returnContext={{
             type: "task",
             taskId: conversation.id,

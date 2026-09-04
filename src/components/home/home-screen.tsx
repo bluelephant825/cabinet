@@ -41,7 +41,7 @@ import type { RegistryTemplate } from "@/lib/registry/registry-manifest";
 import { TiltCard } from "@/components/ui/tilt-card";
 import { ViewerFocusButton, ViewerModeButtons } from "@/components/layout/viewer-toolbar";
 import { HeaderActions } from "@/components/layout/header-actions";
-import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
+import { PanelsDropdown } from "@/components/layout/panels-dropdown";
 import { ContentSheet } from "@/components/layout/content-sheet";
 import { useCloudTier } from "@/lib/cloud/use-cloud-tier";
 import { gateAiRun } from "@/lib/cloud/client-tier";
@@ -844,7 +844,7 @@ export function HomeScreen() {
           <ViewerFocusButton />
           <ViewerModeButtons path={ROOT_CABINET_PATH} />
           <HeaderActions />
-          <TaskRailToggle />
+          <PanelsDropdown />
         </div>
       </header>
       <ContentSheet>

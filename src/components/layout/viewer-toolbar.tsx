@@ -8,12 +8,16 @@ import { NavArrows } from "@/components/layout/nav-arrows";
 import { ReturnToChip } from "@/components/layout/return-to-chip";
 import { ViewerBreadcrumb } from "@/components/layout/viewer-breadcrumb";
 import { NewTaskButton } from "@/components/composer/new-task-button";
-import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
+import { PanelsDropdown } from "@/components/layout/panels-dropdown";
 import { useAppStore } from "@/stores/app-store";
 import { useTreeStore } from "@/stores/tree-store";
 import { useLocale } from "@/i18n/use-locale";
 import { findNodeByPath } from "@/lib/cabinets/tree";
 import { cn } from "@/lib/utils";
+
+function ToolbarSpacer() {
+  return <div className="h-4 w-px bg-border/40 shrink-0 mx-1" aria-hidden="true" />;
+}
 
 /**
  * Unified toolbar used by every file viewer (PDF, CSV, source, office, media,
@@ -276,15 +280,31 @@ export function ViewerToolbar({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {/* Navigation icons group */}
         <NavArrows />
+
+        {/* Spacer between Navigation and Document groups */}
+        <ToolbarSpacer />
+
+        {/* Document icons group (Download, Fullscreen, History) */}
         {children}
         {path && <ViewerFocusButton />}
-        {/* File History on every viewer, not just the markdown editor. */}
         {path ? <VersionHistory path={path} /> : null}
+
+        {/* Spacer between Document and Workspace groups */}
+        <ToolbarSpacer />
+
+        {/* Workspace icons group (Browser, Canvas, Search) */}
         {showModeButtons ? <ViewerModeButtons path={path} /> : null}
         <HeaderActions />
+
+        {/* Spacer between Workspace and Panels/Actions groups */}
+        <ToolbarSpacer />
+
+        {/* Panels / Actions group (+ ▾ Create menu, Sidebars ▾ Panels dropdown) */}
         <NewTaskButton />
-        <TaskRailToggle />
+        <ToolbarSpacer />
+        <PanelsDropdown />
       </div>
     </header>
   );

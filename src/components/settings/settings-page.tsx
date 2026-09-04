@@ -48,7 +48,7 @@ import {
 import { NavArrows } from "@/components/layout/nav-arrows";
 import { ViewerFocusButton, ViewerModeButtons } from "@/components/layout/viewer-toolbar";
 import { HeaderActions } from "@/components/layout/header-actions";
-import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
+import { PanelsDropdown } from "@/components/layout/panels-dropdown";
 import { ContentSheet } from "@/components/layout/content-sheet";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import { SkillLibrary } from "@/components/skills/skill-library";
@@ -990,7 +990,7 @@ export function SettingsPage() {
           <ViewerFocusButton />
           <ViewerModeButtons path={ROOT_CABINET_PATH} />
           <HeaderActions />
-          <TaskRailToggle />
+          <PanelsDropdown />
         </div>
       </header>
 
