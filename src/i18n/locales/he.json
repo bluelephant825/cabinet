@@ -274,8 +274,12 @@
   },
   "newTaskButton": {
     "createNew": "יצירה חדשה…",
+    "newPage": "דף חדש",
+    "newPageDescription": "יצירת דף חדש",
     "newTask": "משימה חדשה",
-    "newRoutine": "שגרה חדשה"
+    "newTaskDescription": "בקשו מסוכן לפעול עכשיו",
+    "newRoutine": "שגרה חדשה",
+    "newRoutineDescription": "בקשו מסוכן לפעול מאוחר יותר"
   },
   "schedulingFields": {
     "jobNamePlaceholder": "סיכום אסטרטגי שבועי",
@@ -1030,6 +1034,10 @@
     "aiPanel": {
       "open": "פתיחת חלונית ה-AI",
       "close": "סגירת חלונית ה-AI"
+    },
+    "panels": {
+      "label": "חלוניות",
+      "menuTitle": "חלוניות צד"
     },
     "states": {
       "loading": "טוען…",

@@ -6,20 +6,10 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowRightLeft,
-  ChevronDown,
   Loader2,
-  Plus,
-  Repeat,
   Trash2,
-  Zap,
 } from "lucide-react";
 import { DirIcon } from "@/components/ui/dir-icon";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   DndContext,
   DragOverlay,
@@ -37,7 +27,8 @@ import { ScheduleView } from "@/components/cabinets/schedule-view";
 import { ViewToggle, type BoardViewMode } from "./view-toggle";
 import { ContentSheet } from "@/components/layout/content-sheet";
 import { DensityToggle, type BoardDensity } from "./density-toggle";
-import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
+import { PanelsDropdown } from "@/components/layout/panels-dropdown";
+import { NewTaskButton } from "@/components/composer/new-task-button";
 import {
   ExplainerCard,
   ExplainerIcon,
@@ -52,7 +43,6 @@ import { UndoToast, type PendingUndo } from "./undo-toast";
 import { ConfirmPopover, type PendingConfirm } from "./confirm-popover";
 import { StartWorkDialog, type StartWorkMode } from "@/components/composer/start-work-dialog";
 import type { TaskRuntimeSelection } from "@/components/composer/task-runtime-picker";
-import { IconHint } from "./icon-hint";
 import { ReassignMenu } from "./reassign-menu";
 import { deleteConversation, reassignConversation } from "./board-actions";
 import {
@@ -626,8 +616,8 @@ export function TasksBoard({
 
           <div className="h-3.5 w-px bg-border/60" />
 
-          <NewWorkButton onCreate={openComposer} />
-          <TaskRailToggle />
+          <NewTaskButton />
+          <PanelsDropdown />
         </div>
       </header>
 
@@ -819,63 +809,6 @@ export function TasksBoard({
         onClose={() => setHeartbeatDialog(null)}
         onRefresh={refresh}
       />
-    </div>
-  );
-}
-function NewWorkButton({
-  onCreate,
-}: {
-  onCreate: (mode: StartWorkMode) => void;
-}) {
-  const { t } = useLocale();
-  return (
-    <div className="inline-flex h-7 items-stretch overflow-hidden rounded-md">
-      <IconHint label={t("tasksBoard:createTask")} side="bottom">
-        <button
-          type="button"
-          onClick={() => onCreate("now")}
-          className="inline-flex items-center gap-1.5 bg-primary px-2.5 text-[11.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          <Plus className="size-3.5" />
-          New Task
-        </button>
-      </IconHint>
-      <div className="w-px bg-primary-foreground/20" aria-hidden />
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className="inline-flex items-center bg-primary pl-1.5 pr-1 text-primary-foreground transition-colors hover:bg-primary/90"
-          title={t("tasksBoard:moreNewTypes")}
-          aria-label={t("tasksBoard:moreNewTypes")}
-        >
-          <ChevronDown className="size-3.5" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[220px]">
-          <DropdownMenuItem
-            onClick={() => onCreate("now")}
-            className="flex items-start gap-2 py-2"
-          >
-            <Zap className="mt-0.5 size-3.5 text-foreground/70" />
-            <div className="flex flex-col">
-              <span className="text-[13px] font-medium">{t("tasksBoard:newTask")}</span>
-              <span className="text-[11px] text-muted-foreground">
-                Run once, right now
-              </span>
-            </div>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => onCreate("recurring")}
-            className="flex items-start gap-2 py-2"
-          >
-            <Repeat className="mt-0.5 size-3.5 text-indigo-500" />
-            <div className="flex flex-col">
-              <span className="text-[13px] font-medium">{t("tasksBoard:newRoutine")}</span>
-              <span className="text-[11px] text-muted-foreground">
-                Run this prompt on a schedule
-              </span>
-            </div>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 }

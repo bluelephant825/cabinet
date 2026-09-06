@@ -3,16 +3,22 @@
 import { useMemo, type ReactNode } from "react";
 import { Archive, Globe, Maximize2 } from "lucide-react";
 import { HeaderActions } from "@/components/layout/header-actions";
+import { NavArrows } from "@/components/layout/nav-arrows";
+import { PanelsDropdown } from "@/components/layout/panels-dropdown";
 import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { ReturnToChip } from "@/components/layout/return-to-chip";
 import { ViewerBreadcrumb } from "@/components/layout/viewer-breadcrumb";
 import { NewTaskButton } from "@/components/composer/new-task-button";
-import { TaskRailToggle } from "@/components/tasks/rail/task-rail-toggle";
+import { VersionHistory } from "@/components/editor/version-history";
 import { useAppStore } from "@/stores/app-store";
 import { useTreeStore } from "@/stores/tree-store";
 import { useLocale } from "@/i18n/use-locale";
 import { findNodeByPath } from "@/lib/cabinets/tree";
 import { cn } from "@/lib/utils";
+
+function ToolbarSpacer() {
+  return <div className="mx-1 h-4 w-px shrink-0 bg-border/40" aria-hidden="true" />;
+}
 
 /**
  * Unified toolbar used by every file viewer (PDF, CSV, source, office, media,
@@ -135,20 +141,24 @@ export function ViewerToolbar({
           </span>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="scrollbar-none flex min-w-0 shrink items-center gap-1 overflow-x-auto">
+        <NavArrows />
+        <ToolbarSpacer />
         {children}
-        {/* File history moved to the sidebar right-click menu — the toolbar
-            stays minimal so the content leads. */}
         <ToolbarButton
           icon={Maximize2}
           label={t("editor:header.focusMode")}
           iconOnly
           onClick={() => setFocusMode(true)}
         />
+        {path ? <VersionHistory path={path} /> : null}
+        <ToolbarSpacer />
         {modeButtons}
         <HeaderActions />
+        <ToolbarSpacer />
         <NewTaskButton />
-        <TaskRailToggle />
+        <ToolbarSpacer />
+        <PanelsDropdown />
       </div>
     </div>
   );

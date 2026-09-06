@@ -279,8 +279,12 @@
   },
   "newTaskButton": {
     "createNew": "Create new…",
+    "newPage": "New page",
+    "newPageDescription": "Create a new page",
     "newTask": "New task",
-    "newRoutine": "New routine"
+    "newTaskDescription": "Ask an agent to act now",
+    "newRoutine": "New routine",
+    "newRoutineDescription": "Ask an agent to act later"
   },
   "schedulingFields": {
     "jobNamePlaceholder": "Weekly strategy digest",
@@ -1038,6 +1042,10 @@
     "aiPanel": {
       "open": "Open AI panel",
       "close": "Close AI panel"
+    },
+    "panels": {
+      "label": "Panels",
+      "menuTitle": "Side panels"
     },
     "states": {
       "loading": "Loading…",
