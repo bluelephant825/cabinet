@@ -163,5 +163,8 @@
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.8.0": true
   }
 }

@@ -111,11 +111,19 @@ function copyDirRecursive(src, dest) {
   }
 }
 
-// better-sqlite3 prebuilds ship for a specific NODE_MODULE_VERSION; if the
-// user's runtime doesn't match, rebuild from source so the daemon boots
-// cleanly regardless of which Node version is active.
+// better-sqlite3 prebuilds/compiled bindings are tied to a specific
+// NODE_MODULE_VERSION; if the active runtime doesn't match, rebuild from
+// source so the daemon boots cleanly regardless of which Node version is
+// active.
+//
+// A bare `require("better-sqlite3")` only loads the JS wrapper — the native
+// `.node` binding is dlopen'd lazily by `bindings()` inside the `Database`
+// constructor (lib/database.js), not at module-load time. So the check below
+// must actually open a database, or a stale/mismatched native binary slips
+// past here undetected and only fails later when the real daemon boots.
 try {
-  require("better-sqlite3");
+  const Database = require("better-sqlite3");
+  new Database(":memory:").close();
 } catch (err) {
   const msg = err instanceof Error ? err.message : String(err);
   const mismatch =
@@ -127,14 +135,43 @@ try {
     console.warn(
       `[cabinet] better-sqlite3 prebuild does not match this runtime — ${runtime}. Rebuilding from source…`,
     );
+    // `--build-from-source` was removed as a recognized flag in npm 12
+    // (EUNKNOWNCONFIG). A plain rebuild already runs better-sqlite3's own
+    // install script (`node-gyp rebuild`), which always compiles from
+    // source, so no flag is needed.
+    let rebuildOutput = "";
     try {
-      execSync("npm rebuild better-sqlite3 --build-from-source", {
-        stdio: "inherit",
+      rebuildOutput = execSync("npm rebuild better-sqlite3 2>&1", {
+        encoding: "utf8",
       });
+    } catch (rebuildErr) {
+      rebuildOutput =
+        (rebuildErr.stdout && rebuildErr.stdout.toString()) ||
+        (rebuildErr instanceof Error ? rebuildErr.message : String(rebuildErr));
+    }
+    console.log(rebuildOutput.trim());
+
+    // Re-verify in a fresh child process rather than retrying in-process:
+    // that mirrors exactly how the real daemon will load the addon, and
+    // doesn't depend on how Node's require cache treats a module that threw
+    // during a native dlopen.
+    try {
+      execSync(
+        `node -e "new (require('better-sqlite3'))(':memory:').close();"`,
+        { stdio: "pipe" },
+      );
       console.warn("[cabinet] better-sqlite3 rebuilt successfully.");
     } catch {
+      // npm 12+ silently skips a dependency's install script unless it's
+      // listed in package.json's `allowScripts` — so `npm rebuild` can exit
+      // 0 without actually recompiling anything. Detect that case and point
+      // at the fix instead of just saying "rebuild failed".
+      const scriptsBlocked = rebuildOutput.includes("allowScripts");
       console.warn(
-        "[cabinet] Auto-rebuild failed. Run `npm rebuild better-sqlite3` manually before starting the daemon.",
+        scriptsBlocked
+          ? "[cabinet] better-sqlite3's install script is blocked by npm's allowScripts policy. " +
+              "Run `npm install-scripts approve better-sqlite3` and then `npm rebuild better-sqlite3` before starting the daemon."
+          : "[cabinet] Auto-rebuild failed. Run `npm rebuild better-sqlite3` manually before starting the daemon.",
       );
     }
   } else {
