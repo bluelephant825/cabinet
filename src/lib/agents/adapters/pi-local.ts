@@ -87,7 +87,10 @@ function buildPiArgs(
     args.push("--thinking", thinking);
   }
 
-  args.push("--tools", "read,bash,edit,write,grep,find,ls");
+  args.push(
+    "--tools",
+    config.inferenceOnly === true ? "" : "read,bash,edit,write,grep,find,ls"
+  );
   args.push("--session", sessionFile);
   args.push(prompt);
   return args;
@@ -128,6 +131,7 @@ export const piLocalAdapter: AgentExecutionAdapter = {
   models: piProvider.models,
   effortLevels: piProvider.effortLevels,
   sessionCodec: piSessionCodec,
+  inference: { hardened: false },
   classifyError(stderr, exitCode) {
     return classifyChain(stderr, exitCode, [
       (s, c) =>
@@ -154,7 +158,10 @@ export const piLocalAdapter: AgentExecutionAdapter = {
           ? ((ctx.sessionParams as Record<string, unknown>).sessionFile as string)
           : null
         : null;
-    const { sessionFile } = ensureSessionFile(ctx.runId, storedSessionFile);
+    const { sessionFile } = ensureSessionFile(
+      ctx.runId,
+      ctx.config.inferenceOnly === true ? null : storedSessionFile
+    );
 
     const args = buildPiArgs(ctx.config, ctx.prompt, sessionFile);
     const accumulator = createPiStreamAccumulator();
@@ -187,7 +194,10 @@ export const piLocalAdapter: AgentExecutionAdapter = {
       await ctx.onLog("stdout", trailing);
     }
 
-    const output = accumulator.display.trim() || null;
+    const output =
+      (ctx.config.inferenceOnly === true
+        ? accumulator.finalMessage
+        : accumulator.display)?.trim() || null;
     const summaryLine =
       firstNonEmptyLine(accumulator.finalMessage || output || "")?.slice(0, 300) || null;
     const parsedError = accumulator.errors.join("\n").trim();

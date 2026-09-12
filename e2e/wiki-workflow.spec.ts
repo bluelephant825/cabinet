@@ -7,12 +7,19 @@ import { claudeStream } from "../test/support/fake-agent-cli";
 let cabinet: CabinetInstance;
 const useCodex = process.env.CABINET_WIKI_TEST_PROVIDER === "codex";
 const useGemini = process.env.CABINET_WIKI_TEST_PROVIDER === "gemini";
-const agentName = useCodex ? "codex" : useGemini ? "gemini" : "claude";
-const agentProvider = useCodex ? "codex-cli" : useGemini ? "gemini-cli" : "claude-code";
+const useAntigravity = process.env.CABINET_WIKI_TEST_PROVIDER === "antigravity";
+const agentName = useCodex ? "codex" : useGemini ? "gemini" : useAntigravity ? "agy" : "claude";
+const agentProvider = useCodex ? "codex-cli" : useGemini ? "gemini-cli" : useAntigravity ? "antigravity-cli" : "claude-code";
+const agentModel = useGemini ? "gemini-2.5-pro" : useAntigravity ? "gemini-3.8-flash-medium" : null;
 const geminiStream = (value: unknown) => [
   JSON.stringify({ type: "init", session_id: randomUUID(), model: "gemini-2.5-pro" }),
   JSON.stringify({ type: "message", role: "assistant", content: JSON.stringify(value), delta: true }),
   JSON.stringify({ type: "result", status: "success" }),
+];
+const antigravityStream = (value: unknown) => [
+  JSON.stringify({ event: "init", conversation_id: randomUUID(), init: { cwd: "/tmp/wiki", tools: ["run_command", "write_to_file"], permission_mode: "request-review", model: "gemini-3.8-flash-medium" } }),
+  JSON.stringify({ event: "step_update", step_update: { step_index: 1, state: "DONE", step_type: "agent_response", text_delta: JSON.stringify(value) } }),
+  JSON.stringify({ event: "result", result: { status: "SUCCESS", response: JSON.stringify(value), usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120 } } }),
 ];
 const quote = "Spaced repetition improves recall.";
 const summary = { summary: [{ text: "The note discusses a study method.", quote }], claims: [], qualifications: [] };
@@ -21,10 +28,10 @@ const files = ["Notes/Apple Notes/Apple study.md", "Notes/Eureka/Eureka study.md
 test.beforeAll(async () => {
   cabinet = await bootCabinet({ files: {
     "Cabinet/.agents/.config/providers.json": JSON.stringify({ defaultProvider: "claude-code", disabledProviderIds: [] }),
-    "Cabinet/.agents/wiki-helper/persona.md": `---\nname: Wiki Helper\nslug: wiki-helper\nrole: Wiki editor\nprovider: ${agentProvider}\n${useGemini ? "model: gemini-2.5-pro\n" : ""}active: false\nheartbeatEnabled: false\n---\n\nYou are the Wiki Helper fixture agent.\n`,
+    "Cabinet/.agents/wiki-helper/persona.md": `---\nname: Wiki Helper\nslug: wiki-helper\nrole: Wiki editor\nprovider: ${agentProvider}\n${agentModel ? `model: ${agentModel}\n` : ""}active: false\nheartbeatEnabled: false\n---\n\nYou are the Wiki Helper fixture agent.\n`,
     "Cabinet/.agents/.runtime/daemon-token": randomUUID(),
     ...Object.fromEntries(files.map((name) => [`Cabinet/${name}`, `# Study\n\n${quote}\n\nA separate personal observation.\n`])),
-  }, fakeAgents: [{ name: agentName, steps: Array.from({ length: 12 }, (_, index) => ({ stdout: useCodex ? [JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: JSON.stringify(index % 2 ? concepts : summary) } })] : useGemini ? geminiStream(index % 2 ? concepts : summary) : claudeStream({ text: JSON.stringify(index % 2 ? concepts : summary), cabinet: null }) })) }] });
+  }, fakeAgents: [{ name: agentName, steps: Array.from({ length: 12 }, (_, index) => ({ stdout: useCodex ? [JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: JSON.stringify(index % 2 ? concepts : summary) } })] : useGemini ? geminiStream(index % 2 ? concepts : summary) : useAntigravity ? antigravityStream(index % 2 ? concepts : summary) : claudeStream({ text: JSON.stringify(index % 2 ? concepts : summary), cabinet: null }) })) }] });
 });
 test.afterAll(async () => {
   if (!cabinet) return;
@@ -163,5 +170,5 @@ test("select notes in settings, publish Wiki, open all reader views and capture 
   await expect(viewer.getByRole("tabpanel")).not.toContainText("A later observation.");
   const calls = (await cabinet.agent(agentName).invocations()).filter((call) => call.has(useCodex ? "exec" : "-p"));
   expect(calls.length).toBeGreaterThanOrEqual(4);
-  expect(calls.every((call) => useCodex ? call.flag("--sandbox") === "read-only" && call.has("--ignore-user-config") : useGemini ? !!call.flag("--admin-policy") && call.flag("--extensions") === "none" && !call.has("--yolo") && call.flag("-m") === "gemini-2.5-pro" : call.flag("--tools") === "" && call.has("--strict-mcp-config"))).toBe(true);
+  expect(calls.every((call) => useCodex ? call.flag("--sandbox") === "read-only" && call.has("--ignore-user-config") : useGemini ? !!call.flag("--admin-policy") && call.flag("--extensions") === "none" && !call.has("--yolo") && call.flag("-m") === "gemini-2.5-pro" : useAntigravity ? call.has("--sandbox") && !call.has("--dangerously-skip-permissions") && call.flag("--model") === "gemini-3.8-flash-medium" : call.flag("--tools") === "" && call.has("--strict-mcp-config"))).toBe(true);
 });

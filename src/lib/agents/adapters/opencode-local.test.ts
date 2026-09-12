@@ -60,6 +60,40 @@ printf '%s\n' \
   ]);
 });
 
+test("openCodeLocalAdapter inferenceOnly denies all tools via config env, no session", async () => {
+  const scriptPath = await createExecutableScript(`#!/bin/sh
+cat >/dev/null
+printf '%s\n' \
+  '{"type":"text","sessionID":"session-oc-wiki","part":{"text":"{\\"summary\\":[]}"}}' \
+  '{"type":"step_finish","sessionID":"session-oc-wiki","part":{"tokens":{"input":10,"output":4,"reasoning":0,"cache":{"read":0}},"cost":0}}'
+`);
+
+  let capturedArgs: string[] = [];
+  let capturedEnv: Record<string, string> = {};
+  const result = await openCodeLocalAdapter.execute?.({
+    runId: "wiki",
+    adapterType: "opencode_local",
+    config: { command: scriptPath, inferenceOnly: true },
+    prompt: "Evidence",
+    cwd: process.cwd(),
+    sessionParams: { sessionId: "old-session", cwd: "/tmp" },
+    onLog: async () => {},
+    onMeta: async (meta) => {
+      capturedArgs = meta.commandArgs ?? [];
+      capturedEnv = meta.env ?? {};
+    },
+  });
+
+  assert.ok(result);
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.output, '{"summary":[]}');
+  assert.equal(capturedArgs.includes("--session"), false);
+  assert.match(
+    capturedEnv.OPENCODE_CONFIG_CONTENT ?? "",
+    /"permission":\{"\*":"deny"\}/
+  );
+});
+
 test("opencode session codec round-trips session params", () => {
   const codec = openCodeLocalAdapter.sessionCodec;
   assert.ok(codec);

@@ -28,7 +28,21 @@ function firstNonEmptyLine(text: string): string | null {
 }
 
 function buildCopilotArgs(config: Record<string, unknown>, prompt: string): string[] {
-  const args = ["-p", prompt, "--allow-all-tools"];
+  // inferenceOnly: no wildcard deny exists in Copilot CLI, so we drop the
+  // blanket allow and deny the built-in tool groups by name (best effort —
+  // adapter reports hardened:false).
+  const args =
+    config.inferenceOnly === true
+      ? [
+          "-p",
+          prompt,
+          "--deny-tool",
+          "shell(*)",
+          "--deny-tool",
+          "write",
+          "--disable-builtin-mcps",
+        ]
+      : ["-p", prompt, "--allow-all-tools"];
 
   const model = readStringConfig(config, "model");
   if (model) {
@@ -54,6 +68,7 @@ export const copilotLocalAdapter: AgentExecutionAdapter = {
   supportsSessionResume: false,
   models: copilotCliProvider.models,
   effortLevels: copilotCliProvider.effortLevels,
+  inference: { hardened: false },
   classifyError(stderr, exitCode) {
     return classifyChain(stderr, exitCode, [
       (s, c) =>

@@ -138,6 +138,7 @@ export const codexLocalAdapter: AgentExecutionAdapter = {
   supportsSessionResume: false,
   models: codexCliProvider.models,
   sessionCodec: codexSessionCodec,
+  inference: { hardened: true },
   classifyError(stderr, exitCode) {
     return classifyChain(stderr, exitCode, [
       // Codex-specific: plan-gated model rejections arrive via stdout

@@ -33,9 +33,11 @@ function buildCursorArgs(
   cwd: string,
   resumeSessionId: string | null
 ): string[] {
-  const args = ["-p", "--output-format", "stream-json", "--workspace", cwd, "--yolo"];
+  const inferenceOnly = config.inferenceOnly === true;
+  const args = ["-p", "--output-format", "stream-json", "--workspace", cwd,
+    ...(inferenceOnly ? ["--mode", "ask"] : ["--yolo"])];
 
-  if (resumeSessionId) {
+  if (resumeSessionId && !inferenceOnly) {
     args.push("--resume", resumeSessionId);
   }
 
@@ -45,7 +47,7 @@ function buildCursorArgs(
   }
 
   const mode = readStringConfig(config, "mode");
-  if (mode === "plan" || mode === "ask") {
+  if (!inferenceOnly && (mode === "plan" || mode === "ask")) {
     args.push("--mode", mode);
   }
 
@@ -133,6 +135,7 @@ export const cursorLocalAdapter: AgentExecutionAdapter = {
   models: cursorCliProvider.models,
   effortLevels: cursorCliProvider.effortLevels,
   sessionCodec: cursorSessionCodec,
+  inference: { hardened: true },
   classifyError(stderr, exitCode) {
     return classifyChain(stderr, exitCode, [
       (s, c) =>
@@ -159,7 +162,10 @@ export const cursorLocalAdapter: AgentExecutionAdapter = {
           ? ((ctx.sessionParams as Record<string, unknown>).sessionId as string)
           : null
         : null;
-    const resumeId = storedSessionId || ctx.sessionId || null;
+    const resumeId =
+      ctx.config.inferenceOnly === true
+        ? null
+        : storedSessionId || ctx.sessionId || null;
 
     const firstArgs = buildCursorArgs(ctx.config, ctx.cwd, resumeId);
     const first = await runCursorOnce(ctx, command, firstArgs);
@@ -184,7 +190,10 @@ export const cursorLocalAdapter: AgentExecutionAdapter = {
       clearSession = true;
     }
 
-    const output = accumulator.display.trim() || null;
+    const output =
+      (ctx.config.inferenceOnly === true
+        ? accumulator.lastAssistantMessage
+        : accumulator.display)?.trim() || null;
     const summaryLine =
       firstNonEmptyLine(accumulator.lastAssistantMessage || output || "")?.slice(0, 300) ||
       null;

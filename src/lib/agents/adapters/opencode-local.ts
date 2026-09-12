@@ -114,6 +114,17 @@ async function runOpenCodeOnce(
   args: string[]
 ) {
   const accumulator = createOpenCodeStreamAccumulator();
+  // inferenceOnly: replace the whole config with a deny-everything blob so no
+  // tool, permission, or MCP server from the user's setup can fire.
+  const env: Record<string, string> = {
+    OPENCODE_DISABLE_PROJECT_CONFIG: "true",
+    ...(ctx.config.inferenceOnly === true
+      ? {
+          OPENCODE_CONFIG_CONTENT:
+            '{"permission":{"*":"deny"},"tools":{"*":false}}',
+        }
+      : {}),
+  };
 
   await ctx.onMeta?.({
     adapterType: ctx.adapterType,
@@ -122,13 +133,13 @@ async function runOpenCodeOnce(
     cwd: ctx.cwd,
     env: {
       PATH: getAdapterRuntimePath(),
-      OPENCODE_DISABLE_PROJECT_CONFIG: "true",
+      ...env,
     },
   });
 
   const result = await runChildProcess(command, args, {
     cwd: ctx.cwd,
-    env: { OPENCODE_DISABLE_PROJECT_CONFIG: "true" },
+    env,
     stdin: ctx.prompt,
     timeoutMs: ctx.timeoutMs,
     onSpawn: ctx.onSpawn,
@@ -164,6 +175,7 @@ export const openCodeLocalAdapter: AgentExecutionAdapter = {
   models: openCodeProvider.models,
   effortLevels: openCodeProvider.effortLevels,
   sessionCodec: openCodeSessionCodec,
+  inference: { hardened: true },
   classifyError(stderr, exitCode) {
     return classifyChain(stderr, exitCode, [
       (s, c) =>
@@ -190,7 +202,10 @@ export const openCodeLocalAdapter: AgentExecutionAdapter = {
           ? ((ctx.sessionParams as Record<string, unknown>).sessionId as string)
           : null
         : null;
-    const resumeId = storedSessionId || ctx.sessionId || null;
+    const resumeId =
+      ctx.config.inferenceOnly === true
+        ? null
+        : storedSessionId || ctx.sessionId || null;
 
     const firstArgs = buildOpenCodeArgs(ctx.config, resumeId);
     const first = await runOpenCodeOnce(ctx, command, firstArgs);
@@ -218,7 +233,10 @@ export const openCodeLocalAdapter: AgentExecutionAdapter = {
       clearSession = true;
     }
 
-    const output = accumulator.display.trim() || null;
+    const output =
+      (ctx.config.inferenceOnly === true
+        ? accumulator.lastAssistantMessage
+        : accumulator.display)?.trim() || null;
     const summaryLine =
       firstNonEmptyLine(accumulator.lastAssistantMessage || output || "")?.slice(0, 300) ||
       null;

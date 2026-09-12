@@ -54,6 +54,7 @@ export const grokLocalAdapter: AgentExecutionAdapter = {
   supportsSessionResume: false,
   models: grokCliProvider.models,
   effortLevels: grokCliProvider.effortLevels,
+  inference: { hardened: false },
   classifyError(stderr, exitCode) {
     return classifyChain(stderr, exitCode, [
       (s, c) =>

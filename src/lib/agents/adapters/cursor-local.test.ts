@@ -58,6 +58,39 @@ printf '%s\n' \
   ]);
 });
 
+test("cursorLocalAdapter inferenceOnly uses ask mode, no resume, last message output", async () => {
+  const scriptPath = await createExecutableScript(`#!/bin/sh
+cat >/dev/null
+printf '%s\n' \
+  '{"type":"system","subtype":"init","session_id":"cursor-wiki-1"}' \
+  '{"type":"assistant","message":{"content":[{"type":"text","text":"{\\"summary\\":[]}"}]}}' \
+  '{"type":"result"}'
+`);
+
+  let capturedArgs: string[] = [];
+  const result = await cursorLocalAdapter.execute?.({
+    runId: "wiki",
+    adapterType: "cursor_local",
+    config: { command: scriptPath, inferenceOnly: true },
+    prompt: "Evidence",
+    cwd: process.cwd(),
+    sessionParams: { sessionId: "old-session", cwd: "/tmp" },
+    onLog: async () => {},
+    onMeta: async (meta) => {
+      capturedArgs = meta.commandArgs ?? [];
+    },
+  });
+
+  assert.ok(result);
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.output, '{"summary":[]}');
+  assert.equal(capturedArgs.includes("--yolo"), false);
+  assert.equal(capturedArgs.includes("--resume"), false);
+  const modeIdx = capturedArgs.indexOf("--mode");
+  assert.ok(modeIdx !== -1);
+  assert.equal(capturedArgs[modeIdx + 1], "ask");
+});
+
 test("cursor session codec round-trips session params", () => {
   const codec = cursorLocalAdapter.sessionCodec;
   assert.ok(codec);

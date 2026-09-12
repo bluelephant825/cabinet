@@ -6,7 +6,7 @@ import { useTreeStore } from "@/stores/tree-store";
 interface Status {
   enabled: boolean; cabinetName: string; running: boolean; busy: boolean; error: string | null; folders: string[]; wikiPath: string; selectedAgent?: string | null;
   agents?: { slug: string; name: string; provider: string; model: string | null; active?: boolean }[];
-  provider: { available: boolean; message: string; provider: string; model?: string | null };
+  provider: { available: boolean; message: string; provider: string; model?: string | null; hardened?: boolean };
   jobs: { id: string; status: string; sourceId: string | null; input?: { path: string } | null; error: string | null; updatedAt: string }[];
   sources: { id: string; title: string; path: string | null; rawPath: string; version: number | null; compiled: boolean; status: string; warnings?: { message: string }[] }[];
 }
@@ -80,7 +80,7 @@ export function WikiSection() {
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {connectionError && <p role="alert" className="text-sm text-destructive">Cannot refresh progress. The background service may still be processing. Showing the last received status; reconnecting automatically.</p>}
     {!status ? <p role="status" className="text-sm">Connecting to the Wiki service…</p> : !status.enabled ? <Button disabled={busy} onClick={() => void act({ action: "enable" })}>Enable LLM Wiki</Button> : <>
-      <p className="text-sm text-muted-foreground">{status.provider.message}</p>
+      <p className={status.provider.available && status.provider.hardened === false ? "text-xs text-amber-600 dark:text-amber-400" : "text-sm text-muted-foreground"}>{status.provider.message}</p>
       <label className="flex items-center gap-2 text-sm">Wiki agent<select aria-label="Wiki agent" className="rounded-md border border-border bg-background p-2" value={status.selectedAgent ?? ""} disabled={busy || status.busy || !agents.length} onChange={(event) => void act({ action: "agent", agentSlug: event.target.value })}><option value="">Choose a Cabinet agent</option>{agents.map((agent) => <option key={agent.slug} value={agent.slug}>{agent.name} ({agent.provider}{agent.active === false ? ", inactive for team runs" : ""})</option>)}</select></label>
       {outdatedWikiService ? <p role="alert" className="text-xs text-destructive">Restart Cabinet’s background service to load the Wiki agent selector. Your current Wiki status remains available.</p> : !agents.length && <p className="text-xs text-destructive">No Cabinet agents are available. Add an agent before building the Wiki.</p>}
       {!!agents.length && agents.some((agent) => agent.active === false) && <p className="text-xs text-muted-foreground">You can use an inactive team agent for the Wiki. This does not activate its team runs.</p>}

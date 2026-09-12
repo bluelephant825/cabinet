@@ -20,10 +20,11 @@ import { WikiInferenceModel } from "./wiki-model";
 import { XbergAdapter } from "./xberg";
 import { commitWikiPublication } from "../../src/lib/history/engine";
 import { listPersonas } from "../../src/lib/agents/persona-manager";
+import { providerRegistry } from "../../src/lib/agents/provider-registry";
 import { WIKI_COMPILATION_TIMEOUT_MS, WIKI_WORKER_LEASE_MS, WIKI_WORKER_HEARTBEAT_MS } from "../../src/lib/llm-wiki/execution-limits";
 
 const settingsPath = `${WIKI_STATE_PATH}/workflow.json`;
-interface Settings { folders: string[]; running: boolean; agentSlug?: string; provider?: "claude-code" | "codex-cli"; model?: string }
+interface Settings { folders: string[]; running: boolean; agentSlug?: string; provider?: string; model?: string }
 interface CaptureRecord { predecessor: SourceVersionId | null; fingerprint: string; warnings: readonly unknown[]; versionId?: SourceVersionId }
 export class WikiWorkflow {
   private active: AbortController | null = null;
@@ -84,7 +85,7 @@ export class WikiWorkflow {
     }
     if (input.action === "provider") {
       if (this.active) throw new Error("Pause the current run before changing provider");
-      if (input.provider !== "claude-code" && input.provider !== "codex-cli") throw new Error("Choose Claude Code or Codex");
+      if (typeof input.provider !== "string" || !providerRegistry.get(input.provider)) throw new Error("Choose a Cabinet AI provider");
       if (input.model !== undefined && (typeof input.model !== "string" || input.model.length > 120)) throw new Error("Invalid model");
       await this.save({ ...settings, provider: input.provider, model: typeof input.model === "string" && input.model.trim() ? input.model.trim() : undefined });
       return this.status();

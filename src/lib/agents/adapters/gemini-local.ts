@@ -58,6 +58,7 @@ export const geminiLocalAdapter: AgentExecutionAdapter = {
   supportsDetachedRuns: true,
   supportsSessionResume: false,
   models: geminiCliProvider.models,
+  inference: { hardened: true },
   classifyError(stderr, exitCode) {
     return classifyChain(stderr, exitCode, [
       (s, c) =>

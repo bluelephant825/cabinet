@@ -118,6 +118,7 @@ export const claudeLocalAdapter: AgentExecutionAdapter = {
   models: claudeCodeProvider.models,
   effortLevels: claudeCodeProvider.effortLevels,
   sessionCodec: claudeSessionCodec,
+  inference: { hardened: true, systemPrompt: true },
   classifyError(stderr, exitCode) {
     return classifyChain(stderr, exitCode, [
       (s, c) =>

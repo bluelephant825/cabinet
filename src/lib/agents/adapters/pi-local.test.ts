@@ -72,6 +72,39 @@ test("pi session codec round-trips session file path", () => {
   assert.equal(codec.getDisplayId?.({ sessionFile: "/tmp/pi/session-1.json" }), "session-1");
 });
 
+test("piLocalAdapter inferenceOnly empties the tool list and returns the final message", async () => {
+  const scriptPath = await createExecutableScript(`#!/bin/sh
+printf '%s\n' \
+  '{"type":"agent_start"}' \
+  '{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"{\\"summary\\":[]}"}]}}' \
+  '{"type":"agent_end"}'
+`);
+
+  let capturedArgs: string[] = [];
+  const result = await piLocalAdapter.execute?.({
+    runId: "wiki",
+    adapterType: "pi_local",
+    config: { command: scriptPath, inferenceOnly: true },
+    prompt: "Evidence",
+    cwd: process.cwd(),
+    sessionParams: { sessionFile: "/tmp/pi/reused.json" },
+    onLog: async () => {},
+    onMeta: async (meta) => {
+      capturedArgs = meta.commandArgs ?? [];
+    },
+  });
+
+  assert.ok(result);
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.output, '{"summary":[]}');
+  const toolsIdx = capturedArgs.indexOf("--tools");
+  assert.ok(toolsIdx !== -1);
+  assert.equal(capturedArgs[toolsIdx + 1], "");
+  const sessionIdx = capturedArgs.indexOf("--session");
+  assert.ok(sessionIdx !== -1);
+  assert.notEqual(capturedArgs[sessionIdx + 1], "/tmp/pi/reused.json");
+});
+
 test("piLocalAdapter repairs a stale table-row model id into clean --provider/--model args", async () => {
   const scriptPath = await createExecutableScript(`#!/bin/sh
 printf '%s\\n' '{"type":"agent_start"}' '{"type":"agent_end"}'
