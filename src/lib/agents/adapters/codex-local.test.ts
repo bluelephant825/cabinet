@@ -151,3 +151,23 @@ printf '%s\n' \
   ]);
   assert.ok(!JSON.stringify(chunks).includes("short-form-video"));
 });
+
+test("Wiki Codex inference isolates configuration and uses the final structured answer", async () => {
+  const scriptPath = await createExecutableScript(`#!/bin/sh
+cat >/dev/null
+printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"Preparing answer"}}' '{"type":"item.completed","item":{"type":"agent_message","text":"{}"}}'
+`);
+  let args: string[] = [];
+  const result = await codexLocalAdapter.execute!({ runId: "wiki", adapterType: "codex_local", cwd: path.dirname(scriptPath),
+    config: { command: scriptPath, inferenceOnly: true, profile: "untrusted" }, prompt: "Evidence",
+    onLog: async () => {}, onMeta: async (meta) => { args = meta.commandArgs ?? []; } });
+  assert.equal(result.output, "{}");
+  assert.equal(args[args.indexOf("--sandbox") + 1], "read-only");
+  assert.ok(args.includes("--ignore-user-config"));
+  assert.ok(args.includes("mcp_servers={}"));
+  assert.ok(args.includes("shell_tool"));
+  assert.ok(args.includes("hooks"));
+  assert.ok(args.includes("skip_host_skill_discovery"));
+  assert.equal(args.includes("--profile"), false);
+  assert.equal(args.includes("--dangerously-bypass-approvals-and-sandbox"), false);
+});

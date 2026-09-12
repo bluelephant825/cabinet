@@ -28,6 +28,7 @@ export interface AdapterExecutionContext {
   prompt: string;
   cwd: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
   sessionId?: string | null;
   sessionParams?: Record<string, unknown> | null;
   onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;

@@ -10,6 +10,7 @@ import { CanvasView } from "@/components/layout/canvas-view";
 import { WebsiteViewer } from "@/components/editor/website-viewer";
 import { PdfViewer } from "@/components/editor/pdf-viewer";
 import { CsvViewer } from "@/components/editor/csv-viewer";
+import { RawSourceBoundary } from "@/components/editor/raw-source-viewer";
 import { SourceViewer } from "@/components/editor/source-viewer";
 import { NotebookViewer } from "@/components/editor/notebook-viewer";
 import { ImageViewer } from "@/components/editor/image-viewer";
@@ -1275,11 +1276,9 @@ export function AppShell() {
             elevated ContentSheet; the editor manages its own layout — its
             toolbars sit on the desk — so it opts out of the default sheet. */}
         <main className="flex-1 flex flex-col overflow-hidden min-h-0 gap-1.5">
-          {bareLayout ? (
-            renderContent()
-          ) : (
-            <ContentSheet>{renderContent()}</ContentSheet>
-          )}
+          {section.type === "page" && selectedPath && appMode !== "browse" && appMode !== "canvas" ? (
+            <RawSourceBoundary key={selectedPath} path={selectedPath}>{bareLayout ? renderContent() : <ContentSheet>{renderContent()}</ContentSheet>}</RawSourceBoundary>
+          ) : bareLayout ? renderContent() : <ContentSheet>{renderContent()}</ContentSheet>}
         </main>
         {terminalOpen && terminalPosition === "bottom" && <TerminalTabs />}
         {!isMobile && (

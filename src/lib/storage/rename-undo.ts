@@ -70,6 +70,11 @@ export async function undoRename(token: string): Promise<UndoOutcome> {
   gc();
   const rec = registry.get(token);
   if (!rec) return { ok: false, reason: "expired" };
+  const { assertWritablePath } = await import("@/lib/knowledge-sources/store");
+  const { DATA_DIR } = await import("./path-utils");
+  for (const target of [rec.dirFrom, rec.dirTo, ...(rec.extraMoves ?? []).flatMap((move) => [move.from, move.to]), ...rec.files.map((file) => file.fsPath)]) {
+    await assertWritablePath(path.relative(DATA_DIR, target));
+  }
   registry.delete(token);
 
   // 1. Reverse the directory move so original file paths exist again.

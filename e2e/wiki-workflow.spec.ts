@@ -1,0 +1,167 @@
+import { test, expect } from "@playwright/test";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { bootCabinet, type CabinetInstance } from "../test/support/harness";
+import { claudeStream } from "../test/support/fake-agent-cli";
+let cabinet: CabinetInstance;
+const useCodex = process.env.CABINET_WIKI_TEST_PROVIDER === "codex";
+const useGemini = process.env.CABINET_WIKI_TEST_PROVIDER === "gemini";
+const agentName = useCodex ? "codex" : useGemini ? "gemini" : "claude";
+const agentProvider = useCodex ? "codex-cli" : useGemini ? "gemini-cli" : "claude-code";
+const geminiStream = (value: unknown) => [
+  JSON.stringify({ type: "init", session_id: randomUUID(), model: "gemini-2.5-pro" }),
+  JSON.stringify({ type: "message", role: "assistant", content: JSON.stringify(value), delta: true }),
+  JSON.stringify({ type: "result", status: "success" }),
+];
+const quote = "Spaced repetition improves recall.";
+const summary = { summary: [{ text: "The note discusses a study method.", quote }], claims: [], qualifications: [] };
+const concepts = { candidates: [{ kind: "concept", category: "method", name: "Spaced repetition", description: "A method discussed for recall.", quote }] };
+const files = ["Notes/Apple Notes/Apple study.md", "Notes/Eureka/Eureka study.md"];
+test.beforeAll(async () => {
+  cabinet = await bootCabinet({ files: {
+    "Cabinet/.agents/.config/providers.json": JSON.stringify({ defaultProvider: "claude-code", disabledProviderIds: [] }),
+    "Cabinet/.agents/wiki-helper/persona.md": `---\nname: Wiki Helper\nslug: wiki-helper\nrole: Wiki editor\nprovider: ${agentProvider}\n${useGemini ? "model: gemini-2.5-pro\n" : ""}active: false\nheartbeatEnabled: false\n---\n\nYou are the Wiki Helper fixture agent.\n`,
+    "Cabinet/.agents/.runtime/daemon-token": randomUUID(),
+    ...Object.fromEntries(files.map((name) => [`Cabinet/${name}`, `# Study\n\n${quote}\n\nA separate personal observation.\n`])),
+  }, fakeAgents: [{ name: agentName, steps: Array.from({ length: 12 }, (_, index) => ({ stdout: useCodex ? [JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: JSON.stringify(index % 2 ? concepts : summary) } })] : useGemini ? geminiStream(index % 2 ? concepts : summary) : claudeStream({ text: JSON.stringify(index % 2 ? concepts : summary), cabinet: null }) })) }] });
+});
+test.afterAll(async () => {
+  if (!cabinet) return;
+  try {
+    const token = (await cabinet.read("Cabinet/.agents/.runtime/daemon-token")).trim();
+    await fetch(`${cabinet.daemonUrl}/restart`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    await expect.poll(async () => { try { return (await fetch(`${cabinet.daemonUrl}/health`)).ok; } catch { return false; } }).toBe(false);
+  } finally { await cabinet.close(); }
+});
+test("older Wiki service response keeps Settings usable and requests a service restart", async ({ page }) => {
+  await page.route("**/api/llm-wiki/workflow", (route) => route.fulfill({ json: {
+    enabled: true, cabinetName: "My Study", running: true, busy: false, error: null,
+    folders: ["Notes/Eureka"], wikiPath: "wiki", jobs: [], sources: [],
+    provider: { available: true, provider: "codex-cli", message: "Codex ready" },
+  } }));
+  await page.addInitScript(() => { localStorage.setItem("cabinet.tour-done", "1"); localStorage.setItem("cabinet.wizard-done", "1"); });
+  await page.goto(`${cabinet.appUrl}/#/settings/storage`);
+  const wiki = page.getByRole("region", { name: "LLM Wiki", exact: true });
+  await expect(wiki).toContainText("Restart Cabinet’s background service");
+  await expect(wiki.getByRole("combobox", { name: "Wiki agent" })).toBeDisabled();
+  await expect(wiki.getByRole("textbox", { name: "Wiki source folders" })).toHaveValue("Notes/Eureka");
+});
+test("Wiki folder edits persist across refreshes and remain specific to each Cabinet", async ({ page }) => {
+  const state = { enabled: true, cabinetName: "Folder draft test", running: false, busy: false, error: null, selectedAgent: "editor", agents: [{ slug: "editor", name: "Editor", provider: "codex-cli", model: null }],
+    folders: ["Notes/Saved articles"], wikiPath: "wiki", jobs: [], sources: [],
+    provider: { available: true, provider: "codex-cli", message: "Codex ready" } };
+  let polls = 0;
+  await page.route("**/api/llm-wiki/workflow", (route) => { polls++; return route.fulfill({ json: state }); });
+  await page.addInitScript(() => { localStorage.setItem("cabinet.tour-done", "1"); localStorage.setItem("cabinet.wizard-done", "1"); });
+  await page.goto(`${cabinet.appUrl}/#/settings/storage`);
+  const input = page.getByRole("textbox", { name: "Wiki source folders" });
+  await expect(input).toHaveValue("Notes/Saved articles");
+  await input.fill("Notes/Eureka/Articles\nNotes/Research");
+  const initialPolls = polls;
+  await expect.poll(() => polls).toBeGreaterThan(initialPolls);
+  await expect(input).toHaveValue("Notes/Eureka/Articles\nNotes/Research");
+  await page.reload();
+  await expect(input).toHaveValue("Notes/Eureka/Articles\nNotes/Research");
+  state.cabinetName = "Another Cabinet";
+  await page.reload();
+  await expect(input).toHaveValue("Notes/Saved articles");
+  state.cabinetName = "Folder draft test";
+  await page.reload();
+  await expect(input).toHaveValue("Notes/Eureka/Articles\nNotes/Research");
+  await input.fill("");
+  await page.reload();
+  await expect(input).toHaveValue("");
+});
+
+test("Wiki progress shows current work, failures and connection loss", async ({ page }) => {
+  const jobs = Array.from({ length: 26 }, (_, index) => ({ id: `job-${index}`, sourceId: `source-${index}`,
+    status: index < 3 ? "complete" : index === 3 ? "compiling" : index === 4 ? "needs-review" : "queued",
+    input: { path: `Notes/Article ${index}.md` }, error: index === 4 ? "Summary validation failed" : null, updatedAt: new Date().toISOString() }));
+  let offline = false;
+  const state = { enabled: true, cabinetName: "Test Study", running: true, busy: true, error: null, selectedAgent: "editor", agents: [{ slug: "editor", name: "Editor", provider: "codex-cli", model: null }],
+    folders: [], wikiPath: "wiki", jobs, sources: [], provider: { available: true, provider: "codex-cli", message: "Codex ready" } };
+  await page.route("**/api/llm-wiki/workflow", (route) => offline ? route.abort() : route.fulfill({ json: state }));
+  await page.addInitScript(() => { localStorage.setItem("cabinet.tour-done", "1"); localStorage.setItem("cabinet.wizard-done", "1"); });
+  await page.goto(`${cabinet.appUrl}/#/settings/storage`);
+  const wiki = page.getByRole("region", { name: "LLM Wiki", exact: true });
+  const progress = wiki.getByRole("region", { name: "Wiki ingestion progress" });
+  const bar = progress.getByRole("progressbar");
+  await expect(bar).toHaveAttribute("aria-valuenow", "3");
+  await expect(bar).toHaveAttribute("aria-valuemax", "26");
+  await expect(progress).toContainText("1 in progress · 21 waiting · 1 need attention");
+  await expect(progress).toContainText("Notes/Article 3.md");
+  await expect(progress).toContainText("Generating and checking Wiki content");
+  await expect(progress).toContainText("Status received at");
+  await progress.locator("summary").click();
+  await expect(progress.getByRole("listitem")).toHaveCount(26);
+  offline = true;
+  await expect(wiki).toContainText("Cannot refresh progress");
+  await expect(wiki).toContainText("Progress unavailable");
+  await expect(bar).toHaveAttribute("aria-valuenow", "3");
+  offline = false;
+  state.busy = false;
+  for (const job of jobs) if (job.status !== "needs-review") job.status = "complete";
+  await expect(bar).toHaveAttribute("aria-valuenow", "25");
+  await expect(wiki).toContainText("Finished processing; some operations need attention");
+  await expect(wiki).not.toContainText("Cannot refresh progress");
+  jobs[4].status = "complete";
+  await expect(bar).toHaveAttribute("aria-valuenow", "26");
+  await expect(progress).toContainText("100%");
+});
+
+test("select notes in settings, publish Wiki, open all reader views and capture a later edit", async ({ page, request }) => {
+  await page.addInitScript(() => { localStorage.setItem("cabinet.tour-done", "1"); localStorage.setItem("cabinet.wizard-done", "1"); });
+  await page.goto(`${cabinet.appUrl}/#/settings/storage`);
+  const wiki = page.getByRole("region", { name: "LLM Wiki", exact: true });
+  await expect(wiki).toBeVisible();
+  await wiki.getByRole("button", { name: "Enable LLM Wiki" }).click();
+  await wiki.getByRole("combobox", { name: "Wiki agent" }).selectOption("wiki-helper");
+  await expect.poll(async () => (await (await request.get(`${cabinet.appUrl}/api/llm-wiki/workflow`)).json()).selectedAgent).toBe("wiki-helper");
+  expect(await cabinet.read("Cabinet/.agents/wiki-helper/persona.md")).toContain("active: false");
+  await wiki.getByRole("button", { name: "Preview notes" }).click();
+  await expect(wiki).toContainText("2 notes found");
+  await wiki.getByRole("checkbox").nth(0).check(); await wiki.getByRole("checkbox").nth(1).check();
+  await wiki.getByRole("button", { name: "Build Wiki from 2 selected notes" }).click();
+  const status = async () => (await request.get(`${cabinet.appUrl}/api/llm-wiki/workflow`)).json();
+  await expect.poll(async () => (await status()).jobs.filter((job: { status: string }) => job.status === "complete").length, { timeout: 60_000 }).toBe(2);
+  await expect(wiki).toContainText("2 of 2 operations completed.");
+  const state = await status();
+  expect(state.sources.every((source: { compiled: boolean }) => source.compiled)).toBe(true);
+  const appleSource = state.sources.find((source: { path: string }) => source.path === files[0]);
+  expect(appleSource.rawPath).toBe("raw/Notes/Apple Notes/Apple study");
+  await page.goto(`${cabinet.appUrl}/room/${appleSource.rawPath}/v1/capture.json`);
+  await expect(page.getByRole("region", { name: "Captured file" })).toContainText('"original":"original.md"');
+  await page.goto(`${cabinet.appUrl}/room/${appleSource.rawPath}/manifest.yaml`);
+  await expect(page.getByRole("region", { name: "Captured file" })).toContainText("schemaVersion: 1");
+  await page.goto(`${cabinet.appUrl}/room/${appleSource.rawPath}/v1/original`);
+  await expect(page.getByRole("region", { name: "Captured file" })).toContainText(quote);
+  for (const folder of ["raw", "Notes", "Apple Notes", "Apple study", "v1"]) {
+    const expand = page.getByRole("button", { name: `Expand ${folder}`, exact: true }).last();
+    if (await expand.count()) await expand.click();
+  }
+  await page.getByRole("button", { name: "capture.json", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Captured file" })).toContainText('"original":"original.md"');
+  await page.goto(`${cabinet.appUrl}/room/wiki/sources/source-${state.sources.find((source: { path: string }) => source.path === files[0]).id}`);
+  await page.getByRole("link", { name: "Raw v1", exact: true }).first().click();
+  await expect(page.getByRole("region", { name: "Captured source" })).toBeVisible();
+  await page.goto(`${cabinet.appUrl}/room/${files[0].replace(/\.md$/, "").split("/").map(encodeURIComponent).join("/")}`);
+  await page.getByRole("link", { name: "Read captured source (Reader / Original / Markdown)" }).click();
+  const viewer = page.getByRole("region", { name: "Captured source" });
+  await expect(viewer).toBeVisible();
+  await expect(viewer.getByRole("tabpanel")).toContainText(quote);
+  await viewer.getByRole("tab", { name: "Original", exact: true }).click();
+  await expect(viewer.getByRole("tabpanel")).toContainText("A separate personal observation.");
+  await viewer.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await expect(viewer.getByRole("tabpanel")).toContainText("source_version_id:");
+  await fs.appendFile(path.join(cabinet.dataDir, "Cabinet", files[0]), "\nA later observation.\n");
+  await expect.poll(async () => (await status()).sources.find((source: { path: string }) => source.path === files[0])?.version, { timeout: 60_000 }).toBe(2);
+  await page.reload();
+  await expect(viewer.getByRole("combobox", { name: "Source version" })).toBeVisible();
+  const options = viewer.getByRole("combobox", { name: "Source version" }).locator("option");
+  await viewer.getByRole("combobox", { name: "Source version" }).selectOption((await options.nth(1).getAttribute("value"))!);
+  await expect(viewer.getByRole("tabpanel")).not.toContainText("A later observation.");
+  const calls = (await cabinet.agent(agentName).invocations()).filter((call) => call.has(useCodex ? "exec" : "-p"));
+  expect(calls.length).toBeGreaterThanOrEqual(4);
+  expect(calls.every((call) => useCodex ? call.flag("--sandbox") === "read-only" && call.has("--ignore-user-config") : useGemini ? !!call.flag("--admin-policy") && call.flag("--extensions") === "none" && !call.has("--yolo") && call.flag("-m") === "gemini-2.5-pro" : call.flag("--tools") === "" && call.has("--strict-mcp-config"))).toBe(true);
+});

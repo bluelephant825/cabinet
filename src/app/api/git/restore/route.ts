@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { restoreFileFromCommit } from "@/lib/git/git-service";
 import path from "path";
+import { assertWritablePath } from "@/lib/knowledge-sources/store";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +12,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    await assertWritablePath(pagePath);
 
     // Directory index.md, standalone .md, or the exact file (non-markdown
     // viewers — CSV, source, assets — restore too).

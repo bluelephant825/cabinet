@@ -1977,6 +1977,10 @@ ipcMain.handle("cabinet:write-file", async (_event, payload) => {
       return { ok: false, error: "path-traversal" };
     }
 
+    if (!baseAppUrl) return { ok: false, error: "write-guard-unavailable" };
+    const allowed = await fetch(`${baseAppUrl}/api/llm-wiki/reader?writable=1&path=${encodeURIComponent(relative)}`, { redirect: "error" });
+    if (!allowed.ok || (await allowed.json()).writable !== true) return { ok: false, error: "This path is read-only or unavailable." };
+
     const fs = require("fs");
     fs.mkdirSync(path.dirname(resolved), { recursive: true });
     fs.writeFileSync(resolved, content, "utf8");

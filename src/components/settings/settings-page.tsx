@@ -94,6 +94,8 @@ import {
 import { ICON_PICKER_KEYS, getIconByKey, friendlyIconName } from "@/lib/agents/icon-catalog";
 import { AGENT_PALETTE } from "@/lib/themes";
 import { StorageBackendSection } from "@/components/settings/storage-backend-section";
+import { WikiSection } from "@/components/settings/wiki-section";
+import { InboxSection } from "@/components/settings/inbox-section";
 import { DiagnosticsSection } from "@/components/settings/diagnostics-section";
 import { version as pkgVersion } from "../../../package.json";
 import releaseJson from "../../../cabinet-release.json";
@@ -1697,6 +1699,8 @@ export function SettingsPage() {
               </div>
 
               <StorageBackendSection />
+              <WikiSection />
+              <InboxSection />
 
               <div className="border-t border-border pt-6">
                 <h3 className="text-[14px] font-semibold mb-1">Public Directory (shared)</h3>

@@ -51,3 +51,18 @@ printf '%s\n' \
   });
   assert.deepEqual(chunks, [{ stream: "stdout", chunk: "Hello world" }]);
 });
+
+test("Wiki inference disables tools, MCP, skills and session resume", async () => {
+  const scriptPath = await createExecutableScript("#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' '{\"type\":\"result\",\"result\":\"{}\"}'\n");
+  let args: string[] = [];
+  await claudeLocalAdapter.execute!({ runId: "wiki", adapterType: "claude_local", cwd: path.dirname(scriptPath),
+    config: { command: scriptPath, inferenceOnly: true, skillsDir: "/untrusted" }, sessionId: "old", prompt: "data",
+    onLog: async () => {}, onMeta: async (meta) => { args = meta.commandArgs ?? []; } });
+  assert.equal(args[args.indexOf("--tools") + 1], "");
+  assert.ok(args.includes("--strict-mcp-config"));
+  assert.ok(args.includes("--disable-slash-commands"));
+  assert.ok(args.includes("--no-session-persistence"));
+  assert.equal(args.includes("--resume"), false);
+  assert.equal(args.includes("--plugin-dir"), false);
+  assert.equal(args.includes("--dangerously-skip-permissions"), false);
+});

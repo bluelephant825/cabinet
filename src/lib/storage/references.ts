@@ -214,6 +214,9 @@ export async function rewriteReferencesForRename(opts: {
 
     if (rewritten === 0 || content === raw) continue;
 
+    const { isProtectedRawPath } = await import("@/lib/llm-wiki/raw-write-guard");
+    const { DATA_DIR } = await import("./path-utils");
+    if (await isProtectedRawPath(DATA_DIR, path.relative(DATA_DIR, fsPath))) continue;
     await fs.writeFile(fsPath, content, "utf8");
     linkCount += rewritten;
 

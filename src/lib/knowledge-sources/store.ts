@@ -289,6 +289,8 @@ export class ReadOnlySourceError extends Error {
 export async function assertWritablePath(virtualPath: string): Promise<void> {
   const norm = normTreePath(virtualPath);
   if (!norm) return;
+  const { isProtectedRawPath } = await import("@/lib/llm-wiki/raw-write-guard");
+  if (await isProtectedRawPath(resolveContentPath(""), norm)) throw new ReadOnlySourceError("Raw evidence");
   for (const s of await listAllSources()) {
     if (s.surface !== "inline" || s.policy !== "read-only" || !s.treePath) continue;
     const tp = normTreePath(s.treePath);

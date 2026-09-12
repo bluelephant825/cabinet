@@ -42,6 +42,12 @@ import yaml from "js-yaml";
 import chokidar from "chokidar";
 import matter from "gray-matter";
 import { getDb, closeDb } from "./db";
+import { InboxWatcher } from "./ingestion/inbox";
+import { ManagedSourceWatcher } from "./ingestion/managed";
+import { openActiveIngestionQueue } from "./ingestion/queue";
+import { WikiWorkflow } from "./ingestion/wiki-workflow";
+import { handleWikiRequest } from "./ingestion/wiki-http";
+import { handleInboxRequest } from "./ingestion/inbox-http";
 import { DATA_DIR } from "../src/lib/storage/path-utils";
 import { countWatchableDirs } from "../src/lib/storage/watchable-dirs";
 import { discoverCabinetPathsSync } from "../src/lib/cabinets/discovery";
@@ -230,6 +236,11 @@ async function guardAgainstBigTree(): Promise<void> {
 
 const searchIndex = new SearchIndex();
 let searchIndexReady = false;
+const wikiWorkflow = new WikiWorkflow(DATA_DIR, openActiveIngestionQueue, undefined, isProcessStale);
+const inboxWatcher = new InboxWatcher(DATA_DIR, openActiveIngestionQueue);
+const managedSourceWatcher = new ManagedSourceWatcher(DATA_DIR, openActiveIngestionQueue, {
+  onError: (message) => console.warn("[managed-source-watcher]", message),
+});
 
 async function bootstrapSearchIndex(): Promise<void> {
   const t0 = Date.now();
@@ -1875,6 +1886,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/ingestion/wiki") {
+    await handleWikiRequest(req, res, wikiWorkflow);
+    return;
+  }
+
+  if (url.pathname === "/ingestion/inbox") {
+    await handleInboxRequest(req, res, inboxWatcher);
+    return;
+  }
+
   // GET /sessions — list all active sessions
   if (url.pathname === "/sessions" && req.method === "GET") {
     const activeSessions = Array.from(sessions.values()).map((s) => ({
@@ -2221,6 +2242,9 @@ server.listen(PORT, () => {
   emitTelemetry("app.launched", {});
 
   void reloadSchedules();
+  wikiWorkflow.start();
+  void managedSourceWatcher.start().catch((error) => console.warn("[managed-source-watcher] startup failed:", error));
+  void inboxWatcher.start().catch((error) => console.warn("[inbox-watcher] startup failed:", error));
   void cleanupStaleRunningConversations();
   // Sweep composer-attachment staging dirs that were abandoned (paste
   // without send). Runs once on boot, then daily.
@@ -2275,7 +2299,10 @@ server.listen(PORT, () => {
 
 // ===== Graceful Shutdown =====
 
-function shutdown(): void {
+let shuttingDown = false;
+async function shutdown(): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log("\nShutting down...");
   emitTelemetry("app.exited", {});
   clearSessionId();
@@ -2292,6 +2319,9 @@ function shutdown(): void {
   }
   void scheduleWatcher.close();
   void shutdownTelegramGateway();
+  await wikiWorkflow.close();
+  await managedSourceWatcher.close().catch((error) => console.warn("[managed-source-watcher] shutdown failed:", error));
+  await inboxWatcher.close().catch((error) => console.warn("[inbox-watcher] shutdown failed:", error));
   closeDb();
   server.close();
   process.exit(0);

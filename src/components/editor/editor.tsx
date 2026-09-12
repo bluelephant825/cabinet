@@ -135,6 +135,23 @@ function resolveInternalLink(
 ): string | null {
   const allPages = flattenTree(nodes);
 
+  // Evidence links use encoded, parent-relative paths. Resolve them before
+  // basename fallback, otherwise every Raw source.md looks like the same page.
+  try {
+    const clean = decodeURIComponent(href.split(/[?#]/)[0]);
+    if (clean.startsWith("/room/")) return clean.slice(6).replace(/\.md$/, "");
+    if (clean.startsWith(".") && currentPath) {
+      const segments = currentPath.split("/").slice(0, -1);
+      for (const segment of clean.split("/")) {
+        if (!segment || segment === ".") continue;
+        if (segment === "..") { if (!segments.length) return null; segments.pop(); }
+        else segments.push(segment);
+      }
+      const resolved = segments.join("/").replace(/\.md$/, "");
+      return allPages.find((page) => page.path === resolved)?.path ?? resolved;
+    }
+  } catch { return null; }
+
   // Clean up the href: strip .md extension, leading ./ or /
   const linkPath = href
     .replace(/\.md$/, "")

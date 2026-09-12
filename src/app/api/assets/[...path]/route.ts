@@ -70,9 +70,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { path: segments } = await params;
     const virtualPath = segments.join("/");
+    const { isProtectedRawPath } = await import("@/lib/llm-wiki/raw-write-guard");
+    if (await isProtectedRawPath(resolveContentPath(""), virtualPath)) {
+      return NextResponse.json({ error: "Open captured evidence in the Source viewer." }, { status: 403 });
+    }
 
     // Google Drive file: path starts with "gdrive:" — validate against mounts and serve directly.
     const driveAbsPath = decodeDrivePath(virtualPath);
+    if (driveAbsPath && await isProtectedRawPath(resolveContentPath(""), driveAbsPath)) {
+      return NextResponse.json({ error: "Open captured evidence in the Source viewer." }, { status: 403 });
+    }
     if (driveAbsPath !== null) {
       const normalized = path.normalize(driveAbsPath);
       if (normalized.includes("..")) {

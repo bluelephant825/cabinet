@@ -11,6 +11,8 @@ import { googleNativeKind, parseGoogleNative } from "@/lib/google-drive/native-d
 import { DATA_DIR, virtualPathFromFs, isHiddenEntry } from "./path-utils";
 import { listDirectory, readFileContent, fileExists } from "./fs-operations";
 import { ORDER_SIDECAR } from "./order-store";
+import { readWikiCabinet } from "@/lib/llm-wiki/config";
+import { contains } from "@/lib/llm-wiki/filesystem";
 
 const CODE_EXTENSIONS = new Set([
   // Notes and plain text
@@ -496,6 +498,21 @@ async function buildTreeUncached(showHidden: boolean): Promise<TreeNode[]> {
   // provider/policy. Best-effort: a lookup failure must never break the tree.
   const inlineMap = await getInlineSourceMap().catch(() => new Map<string, InlineMark>());
   const children = await buildTreeRecursive(DATA_DIR, new Set<string>(), showHidden, inlineMap);
+  const wiki = await readWikiCabinet(DATA_DIR);
+  if (wiki) {
+    const tidyRaw = (nodes: TreeNode[]) => {
+      for (let index = nodes.length - 1; index >= 0; index--) {
+        const node = nodes[index];
+        if (node.children) tidyRaw(node.children);
+        if (!contains(wiki.config.paths.raw, node.path)) continue;
+        if (node.name === "assets" && node.children?.length === 0) { nodes.splice(index, 1); continue; }
+        if (["source.md", "original.md", "capture.json", "manifest.yaml"].includes(node.name)) {
+          node.frontmatter = { ...node.frontmatter, title: node.name };
+        }
+      }
+    };
+    tidyRaw(children);
+  }
   const rootManifest = await readCabinetManifest(DATA_DIR);
 
   if (Object.keys(rootManifest).length === 0) {

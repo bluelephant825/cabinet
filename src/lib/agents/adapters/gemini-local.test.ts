@@ -57,3 +57,31 @@ printf '%s\n' \
     { stream: "stderr", chunk: "Meaningful stderr line\n" },
   ]);
 });
+
+test("Gemini Wiki inference requires and uses a tool-deny policy", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cabinet-gemini-wiki-test-"));
+  const policyPath = path.join(dir, "wiki-policy.toml");
+  await fs.writeFile(policyPath, '[[rule]]\ntoolName = "*"\ndecision = "deny"\npriority = 999\n');
+  const scriptPath = await createExecutableScript(`#!/bin/sh
+policy=''
+extensions=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --admin-policy) policy="$2"; shift 2 ;;
+    --extensions) extensions="$2"; shift 2 ;;
+    --yolo) exit 4 ;;
+    *) shift ;;
+  esac
+done
+test -f "$policy" || exit 5
+test "$extensions" = none || exit 6
+grep -F 'toolName = "*"' "$policy" >/dev/null || exit 7
+grep -F 'decision = "deny"' "$policy" >/dev/null || exit 8
+printf '%s\\n' '{"type":"message","role":"assistant","content":"{\\"summary\\":[]}","delta":true}' '{"type":"result","status":"success"}'
+`);
+  await assert.rejects(geminiLocalAdapter.execute!({ runId: "missing-policy", adapterType: "gemini_local", config: { command: scriptPath, inferenceOnly: true }, prompt: "Evidence", cwd: dir, onLog: async () => {} }), /requires a tool-deny policy/);
+  const result = await geminiLocalAdapter.execute!({ runId: "wiki", adapterType: "gemini_local", config: { command: scriptPath, inferenceOnly: true, inferencePolicyPath: policyPath }, prompt: "Evidence", cwd: dir, onLog: async () => {} });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.output, '{"summary":[]}');
+  await fs.rm(dir, { recursive: true, force: true });
+});

@@ -45,6 +45,7 @@ export interface RunChildProcessOptions {
   stdin?: string;
   timeoutMs?: number;
   gracePeriodMs?: number;
+  signal?: AbortSignal;
   onStdout?: (chunk: string) => void | Promise<void>;
   onStderr?: (chunk: string) => void | Promise<void>;
   onSpawn?: (meta: {
@@ -139,6 +140,7 @@ export async function runChildProcess(
   args: string[],
   options: RunChildProcessOptions
 ): Promise<RunChildProcessResult> {
+  options.signal?.throwIfAborted();
   const startedAt = new Date().toISOString();
   const env = withAdapterRuntimeEnv({
     ...process.env,
@@ -175,6 +177,7 @@ export async function runChildProcess(
   const clearTimers = () => {
     if (timeoutHandle) clearTimeout(timeoutHandle);
     if (killTimer) clearTimeout(killTimer);
+    options.signal?.removeEventListener("abort", abort);
   };
 
   const signalChild = (signal: NodeJS.Signals) => {
@@ -196,6 +199,13 @@ export async function runChildProcess(
       child.kill(signal);
     }
   };
+
+  const abort = () => {
+    signalChild("SIGTERM");
+    killTimer = setTimeout(() => signalChild("SIGKILL"), options.gracePeriodMs ?? 5000);
+  };
+  options.signal?.addEventListener("abort", abort, { once: true });
+  if (options.signal?.aborted) abort();
 
   child.stdout.on("data", (buffer: Buffer) => {
     const chunk = buffer.toString();

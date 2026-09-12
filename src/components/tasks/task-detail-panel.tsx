@@ -14,6 +14,7 @@ import { useSideDrawer } from "@/hooks/use-side-drawer";
 import { Button } from "@/components/ui/button";
 import { setConversationMuted } from "@/components/tasks/board/board-actions";
 import { useLocale } from "@/i18n/use-locale";
+import { extractHighlights } from "@/lib/markdown/highlights";
 
 const HIGHLIGHT_COLOR_MAP: Record<string, string> = {
   gray: "#e5e7eb",
@@ -158,49 +159,7 @@ export function TaskDetailPanel() {
 
   const highlights = useMemo(() => {
     if (!currentPath || !contentStore) return [];
-    const matches = [...contentStore.matchAll(/<mark\b([^>]*?)>([\s\S]*?)<\/mark>/gi)];
-    return matches
-      .map((m, idx) => {
-        const attrs = m[1];
-        const text = m[2].replace(/<[^>]*>/g, "").trim();
-        
-        // Robust color extraction from data-color, color, or style attributes
-        let color: string | null = null;
-        // Capture everything inside single/double quotes to support values with spaces like rgb(...)
-        const colorMatch = attrs.match(/(?:data-color|color)=["']([^"']+)["']/i) || attrs.match(/(?:data-color|color)=([^"'\s>]+)/i);
-        if (colorMatch) {
-          color = colorMatch[1].trim();
-        } else {
-          const styleMatch = attrs.match(/style=["']([^"']+)["']/i);
-          if (styleMatch) {
-            const bgMatch = styleMatch[1].match(/(?:background-color|background)\s*:\s*([^;]+)/i);
-            if (bgMatch) {
-              color = bgMatch[1].trim();
-            }
-          }
-        }
-
-        // Extract custom note and tags attributes from mark tag
-        const noteMatch = attrs.match(/data-note=["']([^"']+)["']/i);
-        const note = noteMatch ? noteMatch[1] : null;
-
-        const tagsMatch = attrs.match(/data-tags=["']([^"']+)["']/i);
-        const tagsVal = tagsMatch ? tagsMatch[1] : null;
-        const tagsList = tagsVal
-          ? Array.from(
-              new Set(
-                tagsVal
-                  .split(/[\s,]+/)
-                  .map((t) => t.trim())
-                  .map((t) => (t.startsWith("#") ? t.slice(1) : t))
-                  .filter(Boolean)
-              )
-            )
-          : [];
-        
-        return { id: idx, text, color, note, tags: tagsList };
-      })
-      .filter((h) => h.text.length > 0);
+    return extractHighlights(contentStore);
   }, [contentStore, currentPath]);
 
   const inlineTags = useMemo(() => {

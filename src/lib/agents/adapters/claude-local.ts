@@ -47,10 +47,12 @@ function buildClaudeArgs(
     "stream-json",
     "--include-partial-messages",
     "--verbose",
-    "--dangerously-skip-permissions",
+    ...(config.inferenceOnly === true
+      ? ["--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence"]
+      : ["--dangerously-skip-permissions"]),
   ];
 
-  if (resumeSessionId) {
+  if (resumeSessionId && config.inferenceOnly !== true) {
     args.push("--resume", resumeSessionId);
   }
   // No --no-session-persistence: we want Claude to create a session on
@@ -87,7 +89,7 @@ function buildClaudeArgs(
   // Absent when the persona has no `skills:` field or the catalog is empty;
   // harmless to omit.
   const skillsDir = readStringConfig(config, "skillsDir");
-  if (skillsDir) {
+  if (skillsDir && config.inferenceOnly !== true) {
     args.push("--plugin-dir", skillsDir);
     args.push("--add-dir", skillsDir);
   }
@@ -152,6 +154,7 @@ export const claudeLocalAdapter: AgentExecutionAdapter = {
       cwd: ctx.cwd,
       stdin: ctx.prompt,
       timeoutMs: ctx.timeoutMs,
+      signal: ctx.signal,
       onSpawn: ctx.onSpawn,
       onStdout: (chunk) => {
         const display = consumeClaudeStreamJson(accumulator, chunk);

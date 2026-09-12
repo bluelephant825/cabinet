@@ -28,14 +28,16 @@ function firstNonEmptyLine(text: string): string | null {
 }
 
 function buildGeminiArgs(config: Record<string, unknown>, prompt: string): string[] {
+  const inferencePolicyPath = readStringConfig(config, "inferencePolicyPath");
+  if (config.inferenceOnly === true && !inferencePolicyPath) throw new Error("Gemini Wiki inference requires a tool-deny policy");
   const args = [
     "-p",
     prompt,
     "--output-format",
     "stream-json",
-    "--yolo",
-    "--sandbox",
-    "false",
+    ...(config.inferenceOnly === true
+      ? ["--admin-policy", inferencePolicyPath!, "--extensions", "none"]
+      : ["--yolo", "--sandbox", "false"]),
   ];
 
   const model = readStringConfig(config, "model");
@@ -95,6 +97,7 @@ export const geminiLocalAdapter: AgentExecutionAdapter = {
       cwd: ctx.cwd,
       env: headlessEnv,
       timeoutMs: ctx.timeoutMs,
+      signal: ctx.signal,
       onSpawn: ctx.onSpawn,
       onStdout: (chunk) => {
         const display = consumeGeminiJsonStream(stdoutAccumulator, chunk);
@@ -118,7 +121,7 @@ export const geminiLocalAdapter: AgentExecutionAdapter = {
       await ctx.onLog("stderr", trailingStderr);
     }
 
-    const output = stdoutAccumulator.display.trim() || null;
+    const output = (ctx.config.inferenceOnly === true ? stdoutAccumulator.lastAssistantMessage : stdoutAccumulator.display)?.trim() || null;
     const filteredStderr = filterGeminiStderr(result.stderr);
     const summaryLine =
       firstNonEmptyLine(stdoutAccumulator.lastAssistantMessage || output || "")?.slice(0, 300) ||

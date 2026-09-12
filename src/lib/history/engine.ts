@@ -3,6 +3,7 @@ import path from "path";
 import simpleGit, { SimpleGit } from "simple-git";
 import { DATA_DIR } from "@/lib/storage/path-utils";
 import { CABINET_MANIFEST_FILE } from "@/lib/cabinets/files";
+import { readWikiCabinet } from "@/lib/llm-wiki/config";
 
 /**
  * File-edit history engine (docs/LOGGING_AND_FILE_HISTORY_PRD.md §4).
@@ -503,10 +504,23 @@ async function flushBucket(bucket: CommitBucket): Promise<void> {
   const config = readHistoryConfig(bucket.cabinetRootVirtual);
   if (config.journalOnly) return;
 
-  const pathspecs = [...bucket.pathspecs].filter((p) => p && p !== ".");
+  let pathspecs = [...bucket.pathspecs].filter((p) => p && p !== ".");
   if (!pathspecs.length) return;
 
   try {
+    // Raw is immutable evidence, not user-facing history. Keep it ignored and
+    // remove it from any mutation bucket before status/add can enumerate it.
+    try {
+      const cabinet = await readWikiCabinet(path.join(DATA_DIR, normalizeCabinetRoot(bucket.cabinetRootVirtual)));
+      if (cabinet) {
+        maintainExcludes(handle.root, [cabinet.config.paths.raw]);
+        const rawPath = repoRelative(handle, cabinet.config.paths.raw);
+        if (rawPath) pathspecs = pathspecs.filter((p) => p !== rawPath && !p.startsWith(`${rawPath}/`));
+      }
+    } catch {
+      // Non-Wiki cabinets retain the general history policy.
+    }
+    if (!pathspecs.length) return;
     await withIndexLockRetry(async () => {
       // status with pathspecs is lenient about non-matches (unlike add)
       const status = await handle.git.status(["--", ...pathspecs]);
@@ -548,6 +562,33 @@ async function flushBucket(bucket: CommitBucket): Promise<void> {
 }
 
 const FLUSH_DEBOUNCE_MS = 5000;
+
+/** Commit only Wiki pages produced by a completed publication. Raw evidence
+ * and Wiki runtime state stay outside Git history. */
+export async function commitWikiPublication(rootPath: string, wikiRoot: string, virtualPaths: string[], jobId: string): Promise<void> {
+  const cabinetRootVirtual = path.relative(DATA_DIR, rootPath).split(path.sep).filter(Boolean).join("/");
+  const handle = await repoForCabinetRoot(cabinetRootVirtual);
+  if (!handle || !handle.managed) return;
+  const config = readHistoryConfig(cabinetRootVirtual);
+  if (config.journalOnly) return;
+  const cabinet = await readWikiCabinet(rootPath);
+  if (!cabinet) return;
+  const wikiPrefix = `${wikiRoot.replace(/^\/+|\/+$/g, "")}/`;
+  const paths = [...new Set(virtualPaths.filter((value) => value.startsWith(wikiPrefix)).map((value) => repoRelative(handle, value)).filter((value): value is string => !!value))];
+  if (!paths.length) return;
+  maintainExcludes(handle.root, [cabinet.config.paths.raw]);
+  await withIndexLockRetry(async () => {
+    const status = await handle.git.status(["--", ...paths]);
+    const changed = status.files.map((file) => file.path).filter((value) => paths.includes(value));
+    if (!changed.length) return;
+    await handle.git.raw(["add", "-A", "--", ...changed]);
+    const staged = await handle.git.status(["--", ...changed]);
+    if (!staged.staged.length && !staged.files.length) return;
+    const actor: AgentActor = { kind: "agent", slug: "llm-wiki", cabinetPath: cabinetRootVirtual || ".", conversationId: jobId, displayName: "LLM Wiki" };
+    await handle.git.commit(`llm-wiki: publish ${jobId}`, changed, { "--author": actorAuthor(actor) });
+    commitsSinceGc++;
+  });
+}
 
 /**
  * Schedule a scoped, attributed commit. Debounced per (cabinet, actor)

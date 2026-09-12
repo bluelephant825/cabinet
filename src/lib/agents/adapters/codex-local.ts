@@ -93,7 +93,13 @@ function buildCodexArgs(config: Record<string, unknown>): string[] {
     "--json",
     "--ephemeral",
     "--skip-git-repo-check",
-    "--dangerously-bypass-approvals-and-sandbox",
+    ...(config.inferenceOnly === true ? [
+      "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only",
+      "-c", 'approval_policy="never"', "-c", 'web_search="disabled"',
+      "-c", "mcp_servers={}", "-c", "project_doc_max_bytes=0",
+      ...["shell_tool", "unified_exec", "apps", "plugins", "hooks", "multi_agent", "multi_agent_v2", "browser_use", "browser_use_external", "computer_use", "in_app_browser", "image_generation", "view_image", "skill_search"].flatMap((feature) => ["--disable", feature]),
+      "--enable", "skip_host_skill_discovery",
+    ] : ["--dangerously-bypass-approvals-and-sandbox"]),
   ];
 
   const model = readStringConfig(config, "model");
@@ -102,7 +108,7 @@ function buildCodexArgs(config: Record<string, unknown>): string[] {
   }
 
   const profile = readStringConfig(config, "profile");
-  if (profile) {
+  if (profile && config.inferenceOnly !== true) {
     args.push("--profile", profile);
   }
 
@@ -175,6 +181,7 @@ export const codexLocalAdapter: AgentExecutionAdapter = {
       cwd: ctx.cwd,
       stdin: ctx.prompt,
       timeoutMs: ctx.timeoutMs,
+      signal: ctx.signal,
       onSpawn: ctx.onSpawn,
       onStdout: (chunk) => {
         const display = consumeCodexJsonStream(stdoutAccumulator, chunk);
@@ -199,7 +206,7 @@ export const codexLocalAdapter: AgentExecutionAdapter = {
     }
 
     const filteredStderr = filterCodexStderr(result.stderr);
-    const output = stdoutAccumulator.display.trim() || null;
+    const output = (ctx.config.inferenceOnly === true ? stdoutAccumulator.lastAgentMessage : stdoutAccumulator.display)?.trim() || null;
     const summaryLine =
       firstNonEmptyLine(stdoutAccumulator.lastAgentMessage || output || "")?.slice(0, 300) || null;
     const streamError = stdoutAccumulator.errorMessage?.trim() || null;

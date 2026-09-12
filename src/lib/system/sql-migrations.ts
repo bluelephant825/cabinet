@@ -39,13 +39,16 @@ export function runSqlMigrations(
 
     const sql = fs.readFileSync(path.join(migrationsDir, file), "utf-8");
     const applyMigration = db.transaction(() => {
+      // Next.js and the daemon can discover the same pending migration before
+      // either acquires the write lock. Recheck under that lock so the second
+      // process does not apply already-committed DDL or duplicate its version.
+      if (db.prepare("SELECT version FROM schema_version WHERE version = ?").get(version)) return;
       db.exec(sql);
       db.prepare(
         "INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))"
       ).run(version);
     });
 
-    applyMigration();
+    applyMigration.immediate();
   }
 }
-
