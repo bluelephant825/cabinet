@@ -67,6 +67,12 @@ export const MCP_PROVIDERS: McpProvider[] = [
     mcpConfig: cfg(path.join(HOME, ".codex", "config.toml"), "toml", ["stdio", "http"]),
   },
   {
+    id: "antigravity-cli",
+    name: "Antigravity CLI",
+    iconAsset: "/providers/antigravity.svg",
+    mcpConfig: cfg(path.join(HOME, ".gemini", "config", "mcp_config.json"), "json", ["stdio", "http"]),
+  },
+  {
     id: "gemini-cli",
     name: "Gemini CLI",
     iconAsset: "/providers/gemini.svg",

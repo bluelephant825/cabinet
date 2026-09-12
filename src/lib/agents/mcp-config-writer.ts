@@ -239,7 +239,14 @@ export function writeEntry(providerId: string, entry: CatalogEntry): ProviderWri
     const doc = readDocument(provider.mcpConfig);
     const key = serversKey(provider.mcpConfig);
     const servers = getServers(doc, key);
-    servers[entry.mcpServerName] = buildServerEntry(entry);
+    const server = buildServerEntry(entry);
+    // Antigravity's mcp_config.json names the remote URL key `serverUrl`
+    // instead of the `url` the other JSON providers use.
+    if (providerId === "antigravity-cli" && typeof server.url === "string") {
+      server.serverUrl = server.url;
+      delete server.url;
+    }
+    servers[entry.mcpServerName] = server;
     writeDocumentAtomic(provider.mcpConfig, doc);
     return { ...base, ok: true, supported: true };
   } catch (err) {

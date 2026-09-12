@@ -1,4 +1,5 @@
 import { providerRegistry } from "../provider-registry";
+import { antigravityCliProvider } from "../providers/antigravity-cli";
 import { claudeCodeProvider } from "../providers/claude-code";
 import { codexCliProvider } from "../providers/codex-cli";
 import { copilotCliProvider } from "../providers/copilot-cli";
@@ -12,6 +13,7 @@ import type {
   AdapterEnvironmentTestContext,
   AgentExecutionAdapter,
 } from "./types";
+import { antigravityLocalAdapter } from "./antigravity-local";
 import { claudeLocalAdapter } from "./claude-local";
 import { codexLocalAdapter } from "./codex-local";
 import { copilotLocalAdapter } from "./copilot-local";
@@ -25,6 +27,7 @@ import { piLocalAdapter } from "./pi-local";
 export const LEGACY_ADAPTER_BY_PROVIDER_ID: Record<string, string> = {
   "claude-code": "claude_code_legacy",
   "codex-cli": "codex_cli_legacy",
+  "antigravity-cli": "antigravity_cli_legacy",
   "gemini-cli": "gemini_cli_legacy",
   "cursor-cli": "cursor_cli_legacy",
   "opencode": "opencode_legacy",
@@ -37,6 +40,7 @@ export const LEGACY_ADAPTER_BY_PROVIDER_ID: Record<string, string> = {
 export const DEFAULT_ADAPTER_BY_PROVIDER_ID: Record<string, string> = {
   "claude-code": claudeLocalAdapter.type,
   "codex-cli": codexLocalAdapter.type,
+  "antigravity-cli": antigravityLocalAdapter.type,
   "gemini-cli": geminiLocalAdapter.type,
   "cursor-cli": cursorLocalAdapter.type,
   "opencode": openCodeLocalAdapter.type,
@@ -99,6 +103,13 @@ export const legacyCodexCliAdapter = buildLegacyCliAdapter({
   description:
     "Launch Codex in a PTY terminal session. Use when you need to watch the CLI stream live or continue an existing session interactively.",
   providerId: codexCliProvider.id,
+});
+
+export const legacyAntigravityCliAdapter = buildLegacyCliAdapter({
+  type: "antigravity_cli_legacy",
+  name: "Antigravity CLI (Terminal)",
+  description: "Launch Antigravity in a PTY terminal session.",
+  providerId: antigravityCliProvider.id,
 });
 
 export const legacyGeminiCliAdapter = buildLegacyCliAdapter({
@@ -194,6 +205,7 @@ export const agentAdapterRegistry = new AgentAdapterRegistry();
 
 agentAdapterRegistry.register(claudeLocalAdapter);
 agentAdapterRegistry.register(codexLocalAdapter);
+agentAdapterRegistry.register(antigravityLocalAdapter);
 agentAdapterRegistry.register(geminiLocalAdapter);
 agentAdapterRegistry.register(cursorLocalAdapter);
 agentAdapterRegistry.register(openCodeLocalAdapter);
@@ -202,6 +214,7 @@ agentAdapterRegistry.register(grokLocalAdapter);
 agentAdapterRegistry.register(copilotLocalAdapter);
 agentAdapterRegistry.register(legacyClaudeCodeAdapter);
 agentAdapterRegistry.register(legacyCodexCliAdapter);
+agentAdapterRegistry.register(legacyAntigravityCliAdapter);
 agentAdapterRegistry.register(legacyGeminiCliAdapter);
 agentAdapterRegistry.register(legacyCursorCliAdapter);
 agentAdapterRegistry.register(legacyOpenCodeAdapter);

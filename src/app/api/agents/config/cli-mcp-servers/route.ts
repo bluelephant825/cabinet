@@ -6,8 +6,8 @@ import path from "node:path";
 /**
  * `/api/agents/config/cli-mcp-servers` — read-only aggregator that surfaces
  * MCP servers the user has already configured in their Claude Code, Codex CLI,
- * and Gemini CLI configs. Cabinet only displays them; editing happens via the
- * CLIs themselves. Never writes to any of these files.
+ * Gemini CLI, and Antigravity CLI configs. Cabinet only displays them; editing
+ * happens via the CLIs themselves. Never writes to any of these files.
  */
 
 export type McpServerEntry = {
@@ -21,7 +21,7 @@ export type McpServerEntry = {
 };
 
 type ProviderResult = {
-  id: "claude-code" | "codex-cli" | "gemini-cli";
+  id: "claude-code" | "codex-cli" | "gemini-cli" | "antigravity-cli";
   name: string;
   configPath: string;
   servers: McpServerEntry[];
@@ -32,6 +32,7 @@ const HOME = os.homedir();
 const CLAUDE_JSON = path.join(HOME, ".claude.json");
 const CODEX_TOML = path.join(HOME, ".codex", "config.toml");
 const GEMINI_JSON = path.join(HOME, ".gemini", "settings.json");
+const ANTIGRAVITY_JSON = path.join(HOME, ".gemini", "config", "mcp_config.json");
 
 function tildify(p: string): string {
   return p.startsWith(HOME) ? "~" + p.slice(HOME.length) : p;
@@ -54,7 +55,12 @@ function normalizeMcpEntry(name: string, raw: unknown, scope: "global" | "projec
   const type = typeof r.type === "string" ? r.type : undefined;
   const command = typeof r.command === "string" ? r.command : undefined;
   const args = Array.isArray(r.args) ? r.args.filter((a): a is string => typeof a === "string") : undefined;
-  const url = typeof r.url === "string" ? r.url : undefined;
+  const url =
+    typeof r.url === "string"
+      ? r.url
+      : typeof r.serverUrl === "string"
+        ? r.serverUrl
+        : undefined;
   const inferredType: McpServerEntry["type"] | undefined =
     type === "stdio" || type === "http" || type === "sse"
       ? type
@@ -137,6 +143,33 @@ async function readGeminiServers(): Promise<ProviderResult> {
     }
   } catch (err) {
     result.error = err instanceof Error ? err.message : "Failed to read Gemini config";
+  }
+  return result;
+}
+
+async function readAntigravityServers(): Promise<ProviderResult> {
+  const result: ProviderResult = {
+    id: "antigravity-cli",
+    name: "Antigravity CLI",
+    configPath: tildify(ANTIGRAVITY_JSON),
+    servers: [],
+  };
+  try {
+    const data = await readJson(ANTIGRAVITY_JSON);
+    if (data === null) return result;
+    if (!data || typeof data !== "object") {
+      result.error = "Could not parse ~/.gemini/config/mcp_config.json";
+      return result;
+    }
+    const mcps = (data as Record<string, unknown>).mcpServers;
+    if (mcps && typeof mcps === "object") {
+      for (const [name, raw] of Object.entries(mcps)) {
+        const entry = normalizeMcpEntry(name, raw, "global");
+        if (entry) result.servers.push(entry);
+      }
+    }
+  } catch (err) {
+    result.error = err instanceof Error ? err.message : "Failed to read Antigravity config";
   }
   return result;
 }
@@ -231,13 +264,14 @@ async function readCodexServers(): Promise<ProviderResult> {
 }
 
 export async function GET(): Promise<NextResponse> {
-  const [claude, codex, gemini] = await Promise.all([
+  const [claude, codex, gemini, antigravity] = await Promise.all([
     readClaudeServers(),
     readCodexServers(),
     readGeminiServers(),
+    readAntigravityServers(),
   ]);
   return NextResponse.json(
-    { providers: [claude, codex, gemini] },
+    { providers: [claude, codex, gemini, antigravity] },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

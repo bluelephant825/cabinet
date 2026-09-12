@@ -1,4 +1,5 @@
 import type { AgentProvider, ProviderRegistry } from "./provider-interface";
+import { antigravityCliProvider } from "./providers/antigravity-cli";
 import { claudeCodeProvider } from "./providers/claude-code";
 import { codexCliProvider } from "./providers/codex-cli";
 import { copilotCliProvider } from "./providers/copilot-cli";
@@ -46,6 +47,7 @@ export const providerRegistry = new ProviderRegistryImpl();
 // Register built-in providers
 providerRegistry.register(claudeCodeProvider);
 providerRegistry.register(codexCliProvider);
+providerRegistry.register(antigravityCliProvider);
 providerRegistry.register(geminiCliProvider);
 providerRegistry.register(cursorCliProvider);
 providerRegistry.register(openCodeProvider);

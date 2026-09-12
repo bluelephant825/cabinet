@@ -121,7 +121,7 @@ export function buildGeminiHeadlessEnv(): Record<string, string> {
 
 export const geminiCliProvider: AgentProvider = {
   id: "gemini-cli",
-  name: "Gemini CLI",
+  name: "Gemini CLI (API key / enterprise)",
   type: "cli",
   icon: "gemini",
   installMessage:
@@ -135,7 +135,7 @@ export const geminiCliProvider: AgentProvider = {
     {
       title: "Log in",
       detail:
-        "Start Gemini and choose Sign in with Google, or configure GEMINI_API_KEY for headless use.",
+        "Personal Google sign-in stopped working on June 18, 2026. Use a GEMINI_API_KEY from Google AI Studio, Vertex AI, or an enterprise Code Assist license. Personal accounts should use Antigravity CLI instead.",
       command: "gemini",
       link: {
         label: "Open Gemini auth guide",

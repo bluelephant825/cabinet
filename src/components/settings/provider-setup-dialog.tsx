@@ -22,6 +22,7 @@ const ICON_FALLBACK: Record<string, string> = {
   "claude-code": "/providers/claude.svg",
   "codex-cli": "/providers/openai.png",
   "gemini-cli": "/providers/gemini.svg",
+  "antigravity-cli": "/providers/antigravity.svg",
 };
 // Single-API-key providers get an inline key field (writes .cabinet.env).
 const API_KEY_ENV: Record<string, string> = { "grok-cli": "XAI_API_KEY" };

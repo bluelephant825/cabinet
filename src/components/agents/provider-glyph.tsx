@@ -6,6 +6,7 @@ const PROVIDER_IMAGE_BY_ICON: Record<string, string> = {
   sparkles: "/providers/claude.svg",
   bot: "/providers/openai.png",
   gemini: "/providers/gemini.svg",
+  antigravity: "/providers/antigravity.svg",
   cursor: "/providers/cursor.svg",
   opencode: "/providers/opencode.svg",
   pi: "/providers/pi.svg",

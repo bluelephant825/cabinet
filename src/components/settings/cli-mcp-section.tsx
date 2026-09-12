@@ -9,7 +9,7 @@ import { BrandLogo } from "@/components/integrations/brand-logo";
  * Settings → Integrations → "MCP Servers".
  *
  * Read-only surface that lists MCP servers the user has already configured
- * in their Claude Code, Codex CLI, and Gemini CLI configs. Cabinet does
+ * in their Claude Code, Codex CLI, Gemini CLI, and Antigravity CLI configs. Cabinet does
  * NOT modify these files — editing happens via each CLI's own commands.
  * The "Editing coming soon" pill makes the read-only nature explicit.
  */
@@ -25,7 +25,7 @@ type ServerEntry = {
 };
 
 type ProviderResult = {
-  id: "claude-code" | "codex-cli" | "gemini-cli";
+  id: "claude-code" | "codex-cli" | "gemini-cli" | "antigravity-cli";
   name: string;
   configPath: string;
   servers: ServerEntry[];
@@ -36,6 +36,7 @@ const ADD_HINT: Record<ProviderResult["id"], string> = {
   "claude-code": "claude mcp add <name> <command>",
   "codex-cli": "Edit ~/.codex/config.toml ([mcp_servers.<name>])",
   "gemini-cli": "Edit ~/.gemini/settings.json (mcpServers)",
+  "antigravity-cli": "Edit ~/.gemini/config/mcp_config.json (mcpServers)",
 };
 
 function projectBasename(p: string): string {
@@ -93,7 +94,7 @@ export function CliMcpSection() {
       </div>
       <p className="text-xs text-muted-foreground mb-4">
         MCP servers configured in your CLIs. Cabinet auto-discovers them from
-        Claude Code, Codex, and Gemini. Edit via the CLI for now.
+        Claude Code, Codex, Gemini, and Antigravity. Edit via the CLI for now.
       </p>
 
       {loading && (

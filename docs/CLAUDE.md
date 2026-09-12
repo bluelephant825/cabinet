@@ -15,7 +15,7 @@ Cabinet is an AI-first self-hosted knowledge base and startup OS. All content li
 - **Fonts:** Inter (sans) + JetBrains Mono (code)
 - **Icons:** Lucide (no emoji in system chrome)
 - **Markdown:** gray-matter (frontmatter), unified/remark (MD→HTML), turndown (HTML→MD)
-- **AI providers:** Claude Code, Codex CLI, Cursor CLI, OpenCode, Copilot CLI, Grok CLI, Pi, and a generic CLI adapter — all driven through the shared adapter runtime in `src/lib/agents/`.
+- **AI providers:** Claude Code, Codex CLI, Antigravity CLI, Cursor CLI, OpenCode, Copilot CLI, Grok CLI, Pi, and a generic CLI adapter — all driven through the shared adapter runtime in `src/lib/agents/`.
 
 ## Architecture
 

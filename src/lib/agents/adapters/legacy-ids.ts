@@ -11,6 +11,7 @@
 export const LEGACY_ADAPTER_TYPES = [
   "claude_code_legacy",
   "codex_cli_legacy",
+  "antigravity_cli_legacy",
   "gemini_cli_legacy",
   "cursor_cli_legacy",
   "opencode_legacy",

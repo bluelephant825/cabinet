@@ -11,6 +11,8 @@ import {
 test("legacy adapter registry exposes the current compatibility adapters", () => {
   const adapterTypes = agentAdapterRegistry.listAll().map((adapter) => adapter.type).sort();
   assert.deepEqual(adapterTypes, [
+    "antigravity_cli_legacy",
+    "antigravity_local",
     "claude_code_legacy",
     "claude_local",
     "codex_cli_legacy",
@@ -37,6 +39,7 @@ test("legacy adapter registry exposes the current compatibility adapters", () =>
     .map((a) => a.providerId)
     .sort();
   assert.deepEqual(legacyTypes, [
+    "antigravity-cli",
     "claude-code",
     "codex-cli",
     "copilot-cli",
@@ -94,6 +97,7 @@ test("legacy adapter registry exposes the current compatibility adapters", () =>
 test("provider-to-adapter defaults map current providers onto structured adapters when available", () => {
   assert.equal(defaultAdapterTypeForProvider("claude-code"), "claude_local");
   assert.equal(defaultAdapterTypeForProvider("codex-cli"), "codex_local");
+  assert.equal(defaultAdapterTypeForProvider("antigravity-cli"), "antigravity_local");
   assert.equal(defaultAdapterTypeForProvider("gemini-cli"), "gemini_local");
   assert.equal(defaultAdapterTypeForProvider("cursor-cli"), "cursor_local");
   assert.equal(defaultAdapterTypeForProvider("opencode"), "opencode_local");

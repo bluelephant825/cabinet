@@ -32,12 +32,14 @@ function cabinetScopedSkillsDir(cabinetPath: string): string {
 
 function systemSkillsDirs(): string[] {
   // Two host-managed conventions:
-  // - ~/.claude/skills/  — Claude Code's home (Anthropic native)
-  // - ~/.agents/skills/  — Cross-CLI shared (Codex + Gemini both walk this)
+  // - ~/.claude/skills/                    — Claude Code's home (Anthropic native)
+  // - ~/.agents/skills/                    — Cross-CLI shared (Codex + Gemini both walk this)
+  // - ~/.gemini/antigravity-cli/skills/    — Antigravity CLI's global skills path
   const home = homeDir();
   return [
     path.join(home, ".claude", "skills"),
     path.join(home, ".agents", "skills"),
+    path.join(home, ".gemini", "antigravity-cli", "skills"),
   ];
 }
 

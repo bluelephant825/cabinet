@@ -128,6 +128,9 @@ export interface AgentExecutionAdapter {
   experimental?: boolean;
   supportsSessionResume?: boolean;
   supportsDetachedRuns?: boolean;
+  /** Declares support for `config.inferenceOnly` (LLM Wiki). `hardened` = the CLI can be
+   *  told to deny all tools; `systemPrompt` = honors `config.systemPrompt`. */
+  inference?: { hardened: boolean; systemPrompt?: boolean };
   models?: AgentAdapterModel[];
   effortLevels?: AgentAdapterEffortLevel[];
   sessionCodec?: AdapterSessionCodec;

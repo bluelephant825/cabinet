@@ -62,9 +62,9 @@ const PRESETS: Preset[] = [
   },
   {
     id: "gemini-cli",
-    label: "Gemini CLI",
+    label: "Gemini API key",
     envVar: "GEMINI_API_KEY",
-    hint: "Used by the Gemini agent execution CLI",
+    hint: "Used by Gemini CLI, and by Antigravity CLI when settings.json sets modelProvider to gemini",
   },
   {
     id: "google-sa",

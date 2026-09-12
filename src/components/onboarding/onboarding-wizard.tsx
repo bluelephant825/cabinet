@@ -1919,7 +1919,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
     return [...providers].sort((a, b) => rank(a) - rank(b));
   }, [providers]);
   const TIER_1_PROVIDER_IDS = useMemo(
-    () => new Set(["gemini-cli", "claude-code", "opencode", "codex-cli"]),
+    () => new Set(["antigravity-cli", "claude-code", "opencode", "codex-cli"]),
     []
   );
   const tier1Providers = useMemo(
