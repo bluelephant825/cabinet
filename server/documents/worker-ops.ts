@@ -8,6 +8,9 @@
  * All ops take file paths, not bytes: the broker owns temp files, the worker
  * reads `inputPath` and writes `outputPath`, returning metadata only.
  */
+import os from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import {
   parseDocx,
@@ -24,7 +27,15 @@ import {
   type Pdfium,
 } from "../../src/vendor/genoffice/apps/pdf/main/text-edit";
 import { savePdfToPath } from "../../src/vendor/genoffice/apps/pdf/main/save-pdf";
-import { convertPdfToDocx } from "../../src/vendor/genoffice/packages/pdf2docx/src/index";
+import {
+  extractIrDocument,
+  isScannedDocument,
+  type ConvertOptions,
+} from "../../src/vendor/genoffice/packages/pdf2docx/src/pipeline";
+import { rebuild } from "../../src/vendor/genoffice/packages/pdf2docx/src/index";
+import type { OcrRecognition } from "../../src/vendor/genoffice/packages/pdf2docx/src/ocr";
+import { selectOcrProvider } from "./ocr/registry";
+import type { JobProgress } from "../../src/lib/documents/types";
 import type {
   SavePdfRequest,
   TextEditInput,
@@ -714,26 +725,210 @@ async function applyPatchOp(args: {
 
 // ── convert ─────────────────────────────────────────────────────────────────
 
-async function convertOp(args: {
-  inputPath: string;
-  outputPath: string;
-}): Promise<{
+/**
+ * PDF→DOCX with replaceable OCR. The vendored pipeline's OcrEngine hook is
+ * synchronous (it runs inside a sync PDFium document scope), while our
+ * OcrProvider contract is async — so conversion runs in two passes:
+ *
+ *   1. 'scan'   — extractIrDocument with a RECORDER engine: upstream calls it
+ *                 once per scanned page (in page order) with the hi-res render;
+ *                 recording those PNGs and returning null yields the same
+ *                 bitmap fallback as a no-OCR run plus the exact inputs the
+ *                 provider will see.
+ *   2. 'ocr'    — provider.recognize() per recorded page (PNG temp file,
+ *                 per-page timeout; failures → null → bitmap fallback).
+ *   3. 'convert'— a second extractIrDocument, this time with a FIFO engine
+ *                 serving the recognitions in the same call order; upstream's
+ *                 confidence/coverage gates then decide OCR vs bitmap per page.
+ *   4. 'write'  — rebuildDocx + output file.
+ *
+ * Pass 3 is skipped when no page was recognized (the pass-1 result is already
+ * the correct output).
+ */
+async function convertOp(
+  args: {
+    inputPath: string;
+    outputPath: string;
+    languageHints?: string[];
+    acknowledgeDegraded?: boolean;
+    /** CABINET_DOC_TEST_OPS only: drop fallback renders to simulate failures. */
+    dropRenders?: boolean;
+  },
+  progress?: (p: JobProgress) => void,
+): Promise<{
   pageCount: number;
   scannedDocument: boolean;
   warnings: string[];
   pageResults: unknown[];
+  ocr: { provider: string; version: string } | null;
+  degraded?: boolean;
 }> {
+  const emit = progress ?? (() => {});
   const pdf = new Uint8Array(await readFile(args.inputPath));
-  const result = await convertPdfToDocx(pdf, {
-    pdfium: (await pdfium()) as unknown as Parameters<typeof convertPdfToDocx>[1]["pdfium"],
+  const pdfiumModule = (await pdfium()) as unknown as ConvertOptions["pdfium"];
+  const provider = selectOcrProvider();
+  const caps = await provider.capabilities().catch(() => ({
+    available: false,
+    reason: "OCR provider failed to report capabilities",
+    languages: [] as string[],
+  }));
+
+  emit({ phase: "scan", page: 0, pageCount: 0 });
+  const recorded: { png: Uint8Array; widthPt: number; heightPt: number }[] = [];
+  const first = extractIrDocument(pdf, {
+    pdfium: pdfiumModule,
+    ocr: (png, page) => {
+      recorded.push({ png, widthPt: page.widthPt, heightPt: page.heightPt });
+      return null;
+    },
+    onProgress: (page, pageCount) => emit({ phase: "scan", page, pageCount }),
   });
-  await writeFile(args.outputPath, result.docx);
+
+  const scannedPages = first.pageResults
+    .filter((r) => r.status === "scanned")
+    .map((r) => r.page);
+  let doc = first;
+  let warnings = [...first.warnings];
+  let ocrMeta: { provider: string; version: string } | null = null;
+
+  if (scannedPages.length > 0) {
+    if (!caps.available) {
+      warnings.push(`scanned pages kept as images — ${caps.reason ?? "no OCR provider"}`);
+    } else if (recorded.length > 0) {
+      const results: (OcrRecognition | null)[] = [];
+      const temps: string[] = [];
+      try {
+        for (let i = 0; i < recorded.length; i++) {
+          const r = recorded[i]!;
+          const pageNo = scannedPages[i] ?? i + 1;
+          emit({ phase: "ocr", page: i + 1, pageCount: recorded.length });
+          const tmp = path.join(
+            os.tmpdir(),
+            `cab-ocr-${process.pid}-${randomUUID()}.png`,
+          );
+          temps.push(tmp);
+          await writeFile(tmp, r.png);
+          try {
+            // Backstop: the helper wrapper enforces timeoutMs itself, but a
+            // provider that ignores it must not hang the job.
+            const timeoutMs = Number(process.env.CABINET_OCR_TIMEOUT_MS ?? 30_000);
+            const rec = await Promise.race([
+              provider.recognize({
+                imagePath: tmp,
+                width: r.widthPt,
+                height: r.heightPt,
+                languageHints: args.languageHints,
+                timeoutMs,
+              }),
+              new Promise<null>((resolve) =>
+                setTimeout(() => resolve(null), timeoutMs + 5_000),
+              ),
+            ]);
+            results.push(
+              rec
+                ? {
+                    lines: rec.lines.map((l) => ({
+                      text: l.text,
+                      confidence: l.confidence,
+                      box: { x0: l.bounds[0], y0: l.bounds[1], x1: l.bounds[2], y1: l.bounds[3] },
+                      ...(l.words
+                        ? {
+                            chars: l.words.map((w) => ({
+                              text: w.text,
+                              box: {
+                                x0: w.bounds[0],
+                                y0: w.bounds[1],
+                                x1: w.bounds[2],
+                                y1: w.bounds[3],
+                              },
+                            })),
+                          }
+                        : {}),
+                    })),
+                    ...(rec.paperShare !== undefined ? { paperShare: rec.paperShare } : {}),
+                  }
+                : null,
+            );
+          } catch {
+            results.push(null);
+            warnings.push(`page ${pageNo}: OCR failed or timed out, kept as image`);
+          }
+        }
+      } finally {
+        for (const f of temps) await rm(f, { force: true }).catch(() => {});
+      }
+
+      if (results.some((r) => r)) {
+        ocrMeta = { provider: provider.id, version: provider.version };
+        let next = 0;
+        const server = (): OcrRecognition | null => results[next++] ?? null;
+        doc = extractIrDocument(pdf, {
+          pdfium: pdfiumModule,
+          ocr: server,
+          onProgress: (page, pageCount) => emit({ phase: "convert", page, pageCount }),
+        });
+        warnings = [...doc.warnings];
+      } else {
+        warnings.push(
+          `OCR (${provider.id}) produced no usable text — scanned pages kept as images`,
+        );
+      }
+    }
+  }
+
+  // Degraded rule: a page that produced NO content at all (scanned/degraded
+  // with no fallback render) fails the job unless the caller acknowledged.
+  if (process.env.CABINET_DOC_TEST_OPS === "1" && args.dropRenders) {
+    // Test seam: a failed fallback render is hard to synthesize from pdf-lib.
+    for (const p of doc.irPages) {
+      if (p.scanned || p.degraded) p.render = undefined;
+    }
+  }
+  const dropped = doc.irPages
+    .map((p, i) => ({ page: i + 1, p }))
+    .filter(({ p }) => (p.scanned || p.degraded) && !p.render)
+    .map(({ page }) => page);
+  if (dropped.length > 0 && !args.acknowledgeDegraded) {
+    throw new DocumentError(
+      "degraded",
+      `${dropped.length} page(s) produced no content: ${dropped.join(", ")}`,
+      { pages: dropped },
+    );
+  }
+
+  emit({ phase: "write", page: 0, pageCount: doc.irPages.length });
+  const docx = await rebuild.rebuildDocx(doc.irPages, { furnitureHf: doc.furnitureHf });
+  await writeFile(args.outputPath, docx);
   return {
-    pageCount: result.pages,
-    scannedDocument: result.scannedDocument,
-    warnings: result.warnings,
-    pageResults: result.pageResults,
+    pageCount: doc.irPages.length,
+    scannedDocument: isScannedDocument(doc.pageResults, doc.irPages.length),
+    warnings,
+    pageResults: doc.pageResults,
+    ocr: ocrMeta,
+    ...(dropped.length > 0 ? { degraded: true } : {}),
   };
+}
+
+/**
+ * Lightweight convert preview for the UI dialog: page count + which pages look
+ * like scans (no text lines and a page-covering image — same rule the
+ * pipeline's scanned detection approximates).
+ */
+async function pdfConvertPlanOp(args: {
+  inputPath: string;
+}): Promise<{ pageCount: number; scannedPages: number[] }> {
+  const geo = await pdfPageGeometryOp({ inputPath: args.inputPath });
+  const scannedPages: number[] = [];
+  for (const p of geo.pages) {
+    if (p.textLines.length > 0) continue;
+    const pageArea = Math.max(p.width * p.height, 1e-6);
+    const covering = p.images.some((im) => {
+      const area = (im.bounds[2] - im.bounds[0]) * (im.bounds[3] - im.bounds[1]);
+      return area / pageArea >= 0.6;
+    });
+    if (covering) scannedPages.push(p.index + 1);
+  }
+  return { pageCount: geo.pages.length, scannedPages };
 }
 
 // ── docx editor model / save plan (Step 4) ──────────────────────────────────
@@ -802,7 +997,11 @@ async function docxSaveOp(args: {
 
 // ── dispatch ────────────────────────────────────────────────────────────────
 
-export async function runOp(op: string, args: Record<string, unknown>): Promise<unknown> {
+export async function runOp(
+  op: string,
+  args: Record<string, unknown>,
+  progress?: (p: JobProgress) => void,
+): Promise<unknown> {
   switch (op) {
     case "inspect":
       return args.format === "docx"
@@ -815,7 +1014,9 @@ export async function runOp(op: string, args: Record<string, unknown>): Promise<
     case "applyPatch":
       return applyPatchOp(args as never);
     case "convert":
-      return convertOp(args as never);
+      return convertOp(args as never, progress);
+    case "pdfConvertPlan":
+      return pdfConvertPlanOp(args as never);
     case "docxLoad":
       return docxLoadOp(args as never);
     case "docxSave":

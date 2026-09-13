@@ -88,3 +88,5 @@ skills-lock.json
 /playwright-report/
 /blob-report/
 /public/document-editor/pdfjs/
+/resources/documents/ocr/darwin-*/
+/resources/documents/ocr/win32-*/

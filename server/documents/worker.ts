@@ -12,7 +12,11 @@ import { DocumentError, asDocumentError } from "../../src/lib/documents/errors";
 
 // Lazy: importing this module for `workerEntry()` (broker/daemon side) must
 // not drag the vendored engines into the host process.
-type RunOp = (op: string, args: Record<string, unknown>) => Promise<unknown>;
+type RunOp = (
+  op: string,
+  args: Record<string, unknown>,
+  progress?: (p: unknown) => void,
+) => Promise<unknown>;
 let runOpPromise: Promise<RunOp> | null = null;
 function runOpLoader(): Promise<RunOp> {
   return (runOpPromise ??= import("./worker-ops").then((m) => m.runOp));
@@ -55,7 +59,9 @@ async function handleLine(line: string): Promise<void> {
   }
   try {
     const runOp = await runOpLoader();
-    const result = await runOp(req.op, req.args ?? {});
+    const result = await runOp(req.op, req.args ?? {}, (p) =>
+      send({ id: req.id, progress: p }),
+    );
     send({ id: req.id, ok: true, result });
   } catch (err) {
     const e = asDocumentError(err, "worker-failed");

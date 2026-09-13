@@ -22,6 +22,7 @@ import type { DocumentErrorCode } from "../../src/lib/documents/errors";
 import type {
   DocumentFormat,
   JobInfo,
+  JobProgress,
   JobResult,
   JobStatus,
 } from "../../src/lib/documents/types";
@@ -44,9 +45,9 @@ export interface DocumentJob {
   jobId: string;
   kind: string;
   status: JobStatus;
-  progress?: number;
+  progress?: JobProgress;
   result?: JobResult;
-  error?: { code: DocumentErrorCode; message: string };
+  error?: { code: DocumentErrorCode; message: string; details?: Record<string, unknown> };
   createdAt: Date;
   /** Set when a worker is actively running this job (cancel kills it). */
   worker?: WorkerHandle;
@@ -85,6 +86,7 @@ export class DocumentBroker {
   private sweeper: ReturnType<typeof setInterval> | null = null;
   private shuttingDown = false;
   private revisionCache = new Map<string, { size: number; mtimeMs: number; revision: string }>();
+  private lastProgressEmit = new Map<string, number>();
   /** Fired on every job status transition (queued/running/done/failed/cancelled). */
   onJobChange?: (job: DocumentJob) => void;
 
@@ -290,13 +292,24 @@ export class DocumentBroker {
     handle.rl.on("line", (line) => {
       const t = line.trim();
       if (!t) return;
-      let msg: { id: number; ok: boolean; result?: unknown; error?: { code: DocumentErrorCode; message: string; details?: Record<string, unknown> } };
+      let msg: { id: number; ok: boolean; result?: unknown; progress?: JobProgress; error?: { code: DocumentErrorCode; message: string; details?: Record<string, unknown> } };
       try {
         msg = JSON.parse(t);
       } catch {
         return;
       }
       const req = handle.pending.get(msg.id);
+      // Mid-op progress frame — update the job and re-emit (throttled).
+      if (msg.progress !== undefined && req?.job) {
+        req.job.progress = msg.progress;
+        const now = Date.now();
+        const last = this.lastProgressEmit.get(req.job.jobId) ?? 0;
+        if (now - last >= 250) {
+          this.lastProgressEmit.set(req.job.jobId, now);
+          this.onJobChange?.(req.job);
+        }
+        return;
+      }
       if (!req) return;
       handle.pending.delete(msg.id);
       if (handle.pending.size === 0) handle.busy = false;

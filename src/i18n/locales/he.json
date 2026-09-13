@@ -1044,7 +1044,10 @@
     },
     "panels": {
       "menuTitle": ""
-    }
+    },
+    "back": "",
+    "cancel": "",
+    "close": ""
   },
   "dialogs": {
     "newPage": {
@@ -2182,5 +2185,31 @@
     "toolInsertText": "",
     "toolSelect": "",
     "typeHere": ""
+  },
+  "pdfConvert": {
+    "button": "",
+    "buttonHint": "",
+    "convertAnyway": "",
+    "degradedExplain": "",
+    "degradedNote": "",
+    "destination": "",
+    "doneSummary": "",
+    "language": "",
+    "languageAuto": "",
+    "loadingPlan": "",
+    "ocrAvailable": "",
+    "ocrUnavailable": "",
+    "ocrUnavailableReason": "",
+    "openDocument": "",
+    "pageCount": "",
+    "scannedPages": "",
+    "start": "",
+    "title": "",
+    "warnings": "",
+    "working": "",
+    "phaseScan": "",
+    "phaseOcr": "",
+    "phaseConvert": "",
+    "phaseWrite": ""
   }
 }

@@ -15,9 +15,11 @@ interface OfficeChromeProps {
   hideFinder?: boolean;
   /** Live editor status (dirty/saving/conflict) rendered inside the toolbar row. */
   status?: React.ReactNode;
+  /** Extra toolbar actions (e.g. Convert to Word) rendered before external. */
+  actions?: React.ReactNode;
 }
 
-export function OfficeChrome({ path, extLabel, external, hideFinder, status }: OfficeChromeProps) {
+export function OfficeChrome({ path, extLabel, external, hideFinder, status, actions }: OfficeChromeProps) {
   const { t } = useLocale();
   const assetUrl = `/api/assets/${path}`;
   const filename = path.split("/").pop() || path;
@@ -37,6 +39,7 @@ export function OfficeChrome({ path, extLabel, external, hideFinder, status }: O
   return (
     <ViewerToolbar path={path} badge={extLabel || undefined}>
       {status}
+      {actions}
       {external && (
         <ToolbarButton
           icon={ExternalLink}

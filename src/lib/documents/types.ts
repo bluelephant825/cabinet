@@ -297,17 +297,50 @@ export interface ConvertRequest {
   baseRevision: string;
   destinationVirtualPath?: string;
   actor?: DocumentActor;
+  /** BCP-47 OCR language hints passed to the selected provider. */
+  languageHints?: string[];
+  /** Re-run after a `degraded` failure: write the output anyway. */
+  acknowledgeDegraded?: boolean;
+}
+
+/** Per-page conversion outcome — mirrors upstream PageResult. */
+export interface ConvertPageResult {
+  /** 1-based page number */
+  page: number;
+  status: "ok" | "degraded" | "scanned" | "ocr";
+  reason?: string;
+  confidence?: number;
+}
+
+/** What `POST /documents/convert/plan` returns — destination preview + scan info. */
+export interface ConvertPlanResult {
+  destinationVirtualPath: string;
+  pageCount: number;
+  /** 1-based page numbers detected as scans (no usable text layer). */
+  scannedPages: number[];
+  ocr: { available: boolean; reason?: string; languages: string[] };
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
+
+export interface JobProgress {
+  phase: "scan" | "ocr" | "convert" | "write";
+  page: number;
+  pageCount: number;
+}
 
 export interface JobResult {
   virtualPath?: string;
   revision?: string;
   size?: number;
   pageCount?: number;
+  pageResults?: ConvertPageResult[];
   scannedDocument?: boolean;
   warnings?: string[];
+  /** OCR engine metadata when recognition ran, null otherwise. */
+  ocr?: { provider: string; version: string } | null;
+  /** Output written despite empty pages (acknowledgeDegraded re-run). */
+  degraded?: boolean;
   /** Set once the Next route has recorded the history mutation for this job. */
   mutationRecorded?: boolean;
 }
@@ -316,9 +349,9 @@ export interface JobInfo {
   jobId: string;
   kind: string;
   status: JobStatus;
-  progress?: number;
+  progress?: JobProgress;
   result?: JobResult;
-  error?: { code: DocumentErrorCode; message: string };
+  error?: { code: DocumentErrorCode; message: string; details?: Record<string, unknown> };
   createdAt: string;
 }
 

@@ -1063,7 +1063,10 @@
     },
     "panels": {
       "menuTitle": "panels.menuTitle"
-    }
+    },
+    "back": "back",
+    "cancel": "cancel",
+    "close": "close"
   },
   "dialogs": {
     "newPage": {
@@ -2215,5 +2218,31 @@
     "signedWarning": "Saving will invalidate the document’s digital signature",
     "pendingEdit": "Pending edit — click to remove",
     "typeHere": "Type here…"
+  },
+  "pdfConvert": {
+    "button": "Convert to Word",
+    "buttonHint": "Convert this PDF to an editable Word document",
+    "title": "Convert to Word",
+    "destination": "Destination",
+    "pageCount": "{{count}} page(s)",
+    "scannedPages": "{{count}} scanned page(s) detected",
+    "ocrAvailable": "Text recognition: Apple Vision available",
+    "ocrUnavailable": "Text recognition not available on this host — scanned pages will be kept as images. {{reason}}",
+    "ocrUnavailableReason": "No OCR provider",
+    "language": "Language hint",
+    "languageAuto": "Auto-detect",
+    "loadingPlan": "Analyzing document…",
+    "start": "Convert",
+    "working": "Converting…",
+    "doneSummary": "Done — {{ok}} converted, {{ocr}} recovered via OCR, {{scanned}} kept as images.",
+    "degradedNote": "Some pages produced no content and were left empty.",
+    "degradedExplain": "Some pages produced no content at all. You can convert anyway — those pages will be kept as images or left empty.",
+    "convertAnyway": "Convert anyway (keep as images)",
+    "warnings": "{{count}} warning(s)",
+    "openDocument": "Open document",
+    "phaseScan": "Scanning",
+    "phaseOcr": "Recognizing text",
+    "phaseConvert": "Converting",
+    "phaseWrite": "Writing"
   }
 }

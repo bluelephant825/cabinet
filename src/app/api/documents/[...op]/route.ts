@@ -142,6 +142,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       return res;
     }
     case "convert": {
+      if (op[1] === "plan") return forwardJson("convert/plan", req);
       const res = await forwardJson("convert", req);
       return res;
     }
@@ -208,6 +209,11 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const denied = await requireApiAuth(req);
   if (denied) return denied;
   const { op } = await ctx.params;
+
+  // GET /api/documents/ocr/capabilities — selected OCR provider status.
+  if (op[0] === "ocr" && op[1] === "capabilities") {
+    return proxyJson(await documentsDaemonFetch("/documents/ocr/capabilities"));
+  }
 
   // GET /api/documents/recovery?path=
   if (op[0] === "recovery") {

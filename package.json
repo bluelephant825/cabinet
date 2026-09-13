@@ -37,7 +37,8 @@
     "i18n:check": "node scripts/i18n-extract.mjs --check",
     "i18n:report": "node scripts/i18n-find-hardcoded.mjs",
     "postinstall": "node scripts/postinstall.mjs",
-    "i18n:translate": "node scripts/i18n-translate.mjs"
+    "i18n:translate": "node scripts/i18n-translate.mjs",
+    "ocr:build": "node scripts/build-ocr-helpers.mjs"
   },
   "dependencies": {
     "@aarkue/tiptap-math-extension": "^1.4.0",

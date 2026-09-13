@@ -7,22 +7,19 @@
       "path": "LICENSE",
       "upstreamPath": "LICENSE",
       "sha256": "68e32334df324ef4fc79fad3a26487e5abac36055a484bb6c8d7ecf9d8350885",
-      "adapted": false,
-      "upstreamSha256": "68e32334df324ef4fc79fad3a26487e5abac36055a484bb6c8d7ecf9d8350885"
+      "adapted": false
     },
     {
       "path": "LICENSE-UNICODE.txt",
       "upstreamPath": "LICENSE-UNICODE.txt",
       "sha256": "4f3a46c1907819c08f5c8689ac38ea5c594c602b1da71e4a43ebac40e7c9540a",
-      "adapted": false,
-      "upstreamSha256": "4f3a46c1907819c08f5c8689ac38ea5c594c602b1da71e4a43ebac40e7c9540a"
+      "adapted": false
     },
     {
       "path": "NOTICE",
       "upstreamPath": "NOTICE",
       "sha256": "ff1ad79ed52b0f5c1d0e10a9370c22c0c0e6ee83074b6a9b644b25ab7b129f94",
-      "adapted": false,
-      "upstreamSha256": "ff1ad79ed52b0f5c1d0e10a9370c22c0c0e6ee83074b6a9b644b25ab7b129f94"
+      "adapted": false
     },
     {
       "path": "README.md",
@@ -40,778 +37,668 @@
       "path": "apps/docs/src/renderer/doc-dirty.ts",
       "upstreamPath": "apps/docs/src/renderer/doc-dirty.ts",
       "sha256": "63ee39f626ef0b1a633fcff23b4b1d92faed44c0d07b98424959ce008a3dd7b3",
-      "adapted": false,
-      "upstreamSha256": "63ee39f626ef0b1a633fcff23b4b1d92faed44c0d07b98424959ce008a3dd7b3"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/doc-state.ts",
       "upstreamPath": "apps/docs/src/renderer/doc-state.ts",
       "sha256": "657b0607f41db9035767765df576ad18ca24be1f358db4c6d101bb4dcdbd2614",
-      "adapted": false,
-      "upstreamSha256": "657b0607f41db9035767765df576ad18ca24be1f358db4c6d101bb4dcdbd2614"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/doc-style-css.ts",
       "upstreamPath": "apps/docs/src/renderer/doc-style-css.ts",
       "sha256": "ff219a3e37c9da7018cdfa64f3c98a5580083e22abe3e6da6e95c18567950032",
-      "adapted": false,
-      "upstreamSha256": "ff219a3e37c9da7018cdfa64f3c98a5580083e22abe3e6da6e95c18567950032"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/active-editor.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/active-editor.ts",
       "sha256": "edf5ddf9ed73a52639cbc02dbc1ae3647b668626c5ad6cbe73493900ab8c32e8",
-      "adapted": false,
-      "upstreamSha256": "edf5ddf9ed73a52639cbc02dbc1ae3647b668626c5ad6cbe73493900ab8c32e8"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/ai-queue-anchors.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/ai-queue-anchors.ts",
       "sha256": "9db0cdbea65ae3b065c9274c76e532c1f8544b694176da637cb7a9538f36e074",
-      "adapted": false,
-      "upstreamSha256": "9db0cdbea65ae3b065c9274c76e532c1f8544b694176da637cb7a9538f36e074"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/caret-marks.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/caret-marks.ts",
       "sha256": "d605424b35db7994e91b5c9837ec696fda1b3fccd89c0604bc1d54f6233b5600",
-      "adapted": false,
-      "upstreamSha256": "d605424b35db7994e91b5c9837ec696fda1b3fccd89c0604bc1d54f6233b5600"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/cjk-punct-shrink.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/cjk-punct-shrink.ts",
       "sha256": "128574249a5eea177cb3f6676ed623111000abaafbd43d20e3de4f3690b9da1b",
-      "adapted": false,
-      "upstreamSha256": "128574249a5eea177cb3f6676ed623111000abaafbd43d20e3de4f3690b9da1b"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/column-layout.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/column-layout.ts",
       "sha256": "f9a915ad4c828f0ca65aef0ea259c624e9a88ff5e0a5b370dc532b08c7f6d8c7",
-      "adapted": false,
-      "upstreamSha256": "f9a915ad4c828f0ca65aef0ea259c624e9a88ff5e0a5b370dc532b08c7f6d8c7"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/comments.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/comments.ts",
       "sha256": "7517ede5af2ddfbab288c7c6eec65d4074f30729dc53f43ecc3e1bed61a6a67f",
-      "adapted": false,
-      "upstreamSha256": "7517ede5af2ddfbab288c7c6eec65d4074f30729dc53f43ecc3e1bed61a6a67f"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/compare.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/compare.ts",
       "sha256": "cfd92e2bbbbf31027c504c60688db061e79ff9f86f3689f82db8e3a9c21875f8",
-      "adapted": false,
-      "upstreamSha256": "cfd92e2bbbbf31027c504c60688db061e79ff9f86f3689f82db8e3a9c21875f8"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/convert.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/convert.ts",
       "sha256": "767844e766e4e228f972ac2571502cb10a4453e5eb1ccf908818f07f742c5562",
-      "adapted": false,
-      "upstreamSha256": "767844e766e4e228f972ac2571502cb10a4453e5eb1ccf908818f07f742c5562"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/cover-pages.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/cover-pages.ts",
       "sha256": "9b51ca9199d13e30dd19fc16c6099f86bb04aa969c53bf2b01f4f9cf28742efe",
-      "adapted": false,
-      "upstreamSha256": "9b51ca9199d13e30dd19fc16c6099f86bb04aa969c53bf2b01f4f9cf28742efe"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/decoration-extensions.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/decoration-extensions.ts",
       "sha256": "12b6f45dceea1e970fc40a76a0d050815630a6c0e0d99db2258d501d8aa9c084",
-      "adapted": false,
-      "upstreamSha256": "12b6f45dceea1e970fc40a76a0d050815630a6c0e0d99db2258d501d8aa9c084"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/direction.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/direction.ts",
       "sha256": "18cc1853a7867b06d48db5d3660ad11fae193c92d147e660422580a47159f0cd",
-      "adapted": false,
-      "upstreamSha256": "18cc1853a7867b06d48db5d3660ad11fae193c92d147e660422580a47159f0cd"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/equation.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/equation.ts",
       "sha256": "225906ef0a6af2e1b111da7568eeadad0a5344c58794b272d1eee9ee799c5f62",
-      "adapted": false,
-      "upstreamSha256": "225906ef0a6af2e1b111da7568eeadad0a5344c58794b272d1eee9ee799c5f62"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/extensions.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/extensions.ts",
       "sha256": "23861a44496ad295125cb09bb4b5414b15332cee141ab602e78ce658ce97e18d",
-      "adapted": false,
-      "upstreamSha256": "23861a44496ad295125cb09bb4b5414b15332cee141ab602e78ce658ce97e18d"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/headings.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/headings.ts",
       "sha256": "584990a2c970c416415d2f0db886b34ee74bd22624eedf52bc8cbc888aeace11",
-      "adapted": false,
-      "upstreamSha256": "584990a2c970c416415d2f0db886b34ee74bd22624eedf52bc8cbc888aeace11"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/hf-dom.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/hf-dom.ts",
       "sha256": "08a47680b3288d208e9bbfeb866ec98efec9e7093debea16a431a179864c6eeb",
-      "adapted": false,
-      "upstreamSha256": "08a47680b3288d208e9bbfeb866ec98efec9e7093debea16a431a179864c6eeb"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/hf-text.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/hf-text.ts",
       "sha256": "7e76c47c60ef650fca69819f511a2decea54e9ba1956c9ae53e9ed566b84c473",
-      "adapted": false,
-      "upstreamSha256": "7e76c47c60ef650fca69819f511a2decea54e9ba1956c9ae53e9ed566b84c473"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/inactive-selection.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/inactive-selection.ts",
       "sha256": "37b7e87b6ee2d3cb0ee0c103b846c39a43be1f4a0fca23925ed08c6b25849fcc",
-      "adapted": false,
-      "upstreamSha256": "37b7e87b6ee2d3cb0ee0c103b846c39a43be1f4a0fca23925ed08c6b25849fcc"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/indent.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/indent.ts",
       "sha256": "2a2a9b8759cc3bcd8769ec8917115a7fc83f5bb09cec90ed4a8367f6a0d0e7b3",
-      "adapted": false,
-      "upstreamSha256": "2a2a9b8759cc3bcd8769ec8917115a7fc83f5bb09cec90ed4a8367f6a0d0e7b3"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/ink.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/ink.ts",
       "sha256": "063cc96b7a2656b80fc4f952fdcc04423a381f207b3a5468b7aefecf53ca0686",
-      "adapted": false,
-      "upstreamSha256": "063cc96b7a2656b80fc4f952fdcc04423a381f207b3a5468b7aefecf53ca0686"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/justify-shrink.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/justify-shrink.ts",
       "sha256": "2c5e0006a6a1cdb3a963400b315631c04fd403577858d3ad1e523ba831500eb3",
-      "adapted": false,
-      "upstreamSha256": "2c5e0006a6a1cdb3a963400b315631c04fd403577858d3ad1e523ba831500eb3"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/margin-annotations.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/margin-annotations.ts",
       "sha256": "a9b27fc60ee9cd84077d4ed12d1374a9277ba1791e357b56fa7b1e36674da8a9",
-      "adapted": false,
-      "upstreamSha256": "a9b27fc60ee9cd84077d4ed12d1374a9277ba1791e357b56fa7b1e36674da8a9"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/markdown-paste.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/markdown-paste.ts",
       "sha256": "82927b2de099a8a959008bc94dd5b3ba5e5e25b33813d72ac4ddc104b9a56ed0",
-      "adapted": false,
-      "upstreamSha256": "82927b2de099a8a959008bc94dd5b3ba5e5e25b33813d72ac4ddc104b9a56ed0"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/marks.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/marks.ts",
       "sha256": "8d798d6723d034b82068c42df98478e6dc85f3ba3c39cc451c3c1bb0cd987abf",
-      "adapted": false,
-      "upstreamSha256": "8d798d6723d034b82068c42df98478e6dc85f3ba3c39cc451c3c1bb0cd987abf"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/move-block.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/move-block.ts",
       "sha256": "16e74ee21395d77c2aef5d5f983c3ab0836a03023eaff685e29a15395378d620",
-      "adapted": false,
-      "upstreamSha256": "16e74ee21395d77c2aef5d5f983c3ab0836a03023eaff685e29a15395378d620"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/numbering.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/numbering.ts",
       "sha256": "4cd4901b36166ea9bbe9ab52a332ca4edbdb9bb99417f51f7aa389136fd8e2d4",
-      "adapted": false,
-      "upstreamSha256": "4cd4901b36166ea9bbe9ab52a332ca4edbdb9bb99417f51f7aa389136fd8e2d4"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/page-break.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/page-break.ts",
       "sha256": "8f534de85fd924ba45b85e93e7dd8cf2dd0443ce652e733945c40eaed80d4ebd",
-      "adapted": false,
-      "upstreamSha256": "8f534de85fd924ba45b85e93e7dd8cf2dd0443ce652e733945c40eaed80d4ebd"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/page-gap-nav.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/page-gap-nav.ts",
       "sha256": "5d0fa12458a796bbcbd29a6e1f90c47e6d37715bb4ba57e3a7d6346e74c2f24c",
-      "adapted": false,
-      "upstreamSha256": "5d0fa12458a796bbcbd29a6e1f90c47e6d37715bb4ba57e3a7d6346e74c2f24c"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/pagination-gaps.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/pagination-gaps.ts",
       "sha256": "c626245d886b7cd6c74891ac4fe6a707f05a3bffba89aba8265ac91419249d8f",
-      "adapted": false,
-      "upstreamSha256": "c626245d886b7cd6c74891ac4fe6a707f05a3bffba89aba8265ac91419249d8f"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/para-border-merge.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/para-border-merge.ts",
       "sha256": "a663387c22b958564f9daa48cd783e67b0227682ee3c880dff2d3a5a50cce6f4",
-      "adapted": false,
-      "upstreamSha256": "a663387c22b958564f9daa48cd783e67b0227682ee3c880dff2d3a5a50cce6f4"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/protected-render.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/protected-render.ts",
       "sha256": "d187ca759af9f67d2acf6d1147c631a4cfc594106b51844ccd9a68e92b09a836",
-      "adapted": false,
-      "upstreamSha256": "d187ca759af9f67d2acf6d1147c631a4cfc594106b51844ccd9a68e92b09a836"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/revisions.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/revisions.ts",
       "sha256": "70b1e6647d75389bfe7d0bfadee97e45743a32c461a2944deedf1c756a333b73",
-      "adapted": false,
-      "upstreamSha256": "70b1e6647d75389bfe7d0bfadee97e45743a32c461a2944deedf1c756a333b73"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/shape-draw.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/shape-draw.ts",
       "sha256": "08ab4541d7a4a040e072de24b3521af2d05bf1a839240767f6c3fba1a1295d70",
-      "adapted": false,
-      "upstreamSha256": "08ab4541d7a4a040e072de24b3521af2d05bf1a839240767f6c3fba1a1295d70"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/shape-svg.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/shape-svg.ts",
       "sha256": "997887165f376fe5b54aaa5d13223552fdd4ca75ac1549db7cbfcfeaf5c2ed07",
-      "adapted": false,
-      "upstreamSha256": "997887165f376fe5b54aaa5d13223552fdd4ca75ac1549db7cbfcfeaf5c2ed07"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/table-handle.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/table-handle.ts",
       "sha256": "b09b62337c0998bff94f594f5f4bd3d098487a64608d067c82eb163d1d369083",
-      "adapted": false,
-      "upstreamSha256": "b09b62337c0998bff94f594f5f4bd3d098487a64608d067c82eb163d1d369083"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/table-properties.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/table-properties.ts",
       "sha256": "bbff51fa2da6198df69fb290b8dd5624c00c87713c381b32713d9cf36fd0001f",
-      "adapted": false,
-      "upstreamSha256": "bbff51fa2da6198df69fb290b8dd5624c00c87713c381b32713d9cf36fd0001f"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/table-sizing.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/table-sizing.ts",
       "sha256": "11bf07e33df9eab1df537c8faac383ba89212eda8ab9bf962acac9f0f7eb0b8a",
-      "adapted": false,
-      "upstreamSha256": "11bf07e33df9eab1df537c8faac383ba89212eda8ab9bf962acac9f0f7eb0b8a"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/text-style-resolve.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/text-style-resolve.ts",
       "sha256": "190863a664fe1028bd21c168a64dd7d54e7a0246c51cfcdff6601c7230e955a6",
-      "adapted": false,
-      "upstreamSha256": "190863a664fe1028bd21c168a64dd7d54e7a0246c51cfcdff6601c7230e955a6"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/editor/toc-refresh.ts",
       "upstreamPath": "apps/docs/src/renderer/editor/toc-refresh.ts",
       "sha256": "817bada1c3c85c072d179a8a02511c716281ddb4e7ee2c88833a10641f80a2c0",
-      "adapted": false,
-      "upstreamSha256": "817bada1c3c85c072d179a8a02511c716281ddb4e7ee2c88833a10641f80a2c0"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/env.d.ts",
       "upstreamPath": "apps/docs/src/renderer/env.d.ts",
       "sha256": "b20106e3396c9937c79092a373c1d751f0ba1bc8606e5ba64255ba2e375a5e73",
       "adapted": true,
-      "upstreamSha256": "d0d566b30008107e5ddc6667e926bedf6d2be4d11c080e0863fce900697e1206",
       "adaptationNote": "upstream declares the full Electron DesktopApi; Cabinet declares only the minimal optional shape the vendored editor touches (copyImageToClipboard, onLanguageChanged)"
     },
     {
       "path": "apps/docs/src/renderer/font-check.ts",
       "upstreamPath": "apps/docs/src/renderer/font-check.ts",
       "sha256": "f63fbaaf01760e5e56382eb24b17aaca322b629a308766405a4c8ee40ee94a6b",
-      "adapted": false,
-      "upstreamSha256": "f63fbaaf01760e5e56382eb24b17aaca322b629a308766405a4c8ee40ee94a6b"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/font-list.ts",
       "upstreamPath": "apps/docs/src/renderer/font-list.ts",
       "sha256": "eee04958a582b7bd976dd39df4878403bfabc3c3aca4b7d1fda750b35b9fedb6",
-      "adapted": false,
-      "upstreamSha256": "eee04958a582b7bd976dd39df4878403bfabc3c3aca4b7d1fda750b35b9fedb6"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/locale.tsx",
       "upstreamPath": "apps/docs/src/renderer/i18n/locale.tsx",
       "sha256": "33699957b02c1830cf54e83fe1b4c85a628a77bdee917d4df0ab0a8993f16643",
-      "adapted": false,
-      "upstreamSha256": "33699957b02c1830cf54e83fe1b4c85a628a77bdee917d4df0ab0a8993f16643"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/ar.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/ar.ts",
       "sha256": "1ddf910eb65273429875eddd33da39165475bf84cbdd44671be4fb4d8d991bfd",
-      "adapted": false,
-      "upstreamSha256": "1ddf910eb65273429875eddd33da39165475bf84cbdd44671be4fb4d8d991bfd"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/de.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/de.ts",
       "sha256": "420e3111a78cf6e3d52eae1081ef05c85044bf9651f865ae44fd7c46b8837b0c",
-      "adapted": false,
-      "upstreamSha256": "420e3111a78cf6e3d52eae1081ef05c85044bf9651f865ae44fd7c46b8837b0c"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/en.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/en.ts",
       "sha256": "8d9d0114cdc72926552c91ddb2d6ba3016c2b599a7d991834b35ff95dfa58760",
-      "adapted": false,
-      "upstreamSha256": "8d9d0114cdc72926552c91ddb2d6ba3016c2b599a7d991834b35ff95dfa58760"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/es.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/es.ts",
       "sha256": "072d8911e472cdbf9605859353e4e7e12b9ffd9d6f9807cb2fb1118c1e70a931",
-      "adapted": false,
-      "upstreamSha256": "072d8911e472cdbf9605859353e4e7e12b9ffd9d6f9807cb2fb1118c1e70a931"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/fr.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/fr.ts",
       "sha256": "5b7ed0c56da63b9c311e41de4c53e4a0ca708ed691b9dedfea0bba27e9d003ee",
-      "adapted": false,
-      "upstreamSha256": "5b7ed0c56da63b9c311e41de4c53e4a0ca708ed691b9dedfea0bba27e9d003ee"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/he.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/he.ts",
       "sha256": "88c04ecd4f9127271df45aeda71f284d0d3eb65d3942f02b8e8482fb6255be78",
-      "adapted": false,
-      "upstreamSha256": "88c04ecd4f9127271df45aeda71f284d0d3eb65d3942f02b8e8482fb6255be78"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/hi.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/hi.ts",
       "sha256": "462c26aabb3fcb99e874568800d69536e8f097979ac292c49f76cbc9ab601ddb",
-      "adapted": false,
-      "upstreamSha256": "462c26aabb3fcb99e874568800d69536e8f097979ac292c49f76cbc9ab601ddb"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/id.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/id.ts",
       "sha256": "f3bb3f230365b750ac2e325fadb5fa73fcfe23ce260a724e8bb03ff112587366",
-      "adapted": false,
-      "upstreamSha256": "f3bb3f230365b750ac2e325fadb5fa73fcfe23ce260a724e8bb03ff112587366"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/it.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/it.ts",
       "sha256": "ea42cdc0c05a8eed9180611a9d83ce361b027bf485921f579774fa21efab63ac",
-      "adapted": false,
-      "upstreamSha256": "ea42cdc0c05a8eed9180611a9d83ce361b027bf485921f579774fa21efab63ac"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/ja.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/ja.ts",
       "sha256": "8cd36424a8b6229d684caa56fd8f1755599f96b0a2bdbbb71cc57a67396dbb54",
-      "adapted": false,
-      "upstreamSha256": "8cd36424a8b6229d684caa56fd8f1755599f96b0a2bdbbb71cc57a67396dbb54"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/ko.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/ko.ts",
       "sha256": "eb51d2d6d91147d884d965cc82a0212a60a06c5620b117ab51a8c4d33a65fdcf",
-      "adapted": false,
-      "upstreamSha256": "eb51d2d6d91147d884d965cc82a0212a60a06c5620b117ab51a8c4d33a65fdcf"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/ms.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/ms.ts",
       "sha256": "2bec40d590f79e792d4fca90290ada7a50619d8957c0b0a436d99055ab0ae820",
-      "adapted": false,
-      "upstreamSha256": "2bec40d590f79e792d4fca90290ada7a50619d8957c0b0a436d99055ab0ae820"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/nl.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/nl.ts",
       "sha256": "f01e03272cfb23712f3e8dad52d2f2e69ed25a84aef5eb750bfa360fc08fac0d",
-      "adapted": false,
-      "upstreamSha256": "f01e03272cfb23712f3e8dad52d2f2e69ed25a84aef5eb750bfa360fc08fac0d"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/pl.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/pl.ts",
       "sha256": "74e1c3858f9cb8ba065f28adc24c14356be3338acdc72c455044433183409e6f",
-      "adapted": false,
-      "upstreamSha256": "74e1c3858f9cb8ba065f28adc24c14356be3338acdc72c455044433183409e6f"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/pt.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/pt.ts",
       "sha256": "d2ffef7fb14d18000fe4ed4d74d4d34f860b0eeb86f026c8f9c4dea626a51b47",
-      "adapted": false,
-      "upstreamSha256": "d2ffef7fb14d18000fe4ed4d74d4d34f860b0eeb86f026c8f9c4dea626a51b47"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/ru.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/ru.ts",
       "sha256": "c8a433817a9c1c200928adcadcc025ad591cd5849cf99f25f6f7f7440397117e",
-      "adapted": false,
-      "upstreamSha256": "c8a433817a9c1c200928adcadcc025ad591cd5849cf99f25f6f7f7440397117e"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/th.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/th.ts",
       "sha256": "c90e68393924f913c6c03add2128fda8e4dc350d7c739f6fb92869d686b704c6",
-      "adapted": false,
-      "upstreamSha256": "c90e68393924f913c6c03add2128fda8e4dc350d7c739f6fb92869d686b704c6"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/zh-TW.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/zh-TW.ts",
       "sha256": "b09181d8f2a198a54a8120928974a2f5372acd4c19c3baf24ceddd862089930e",
-      "adapted": false,
-      "upstreamSha256": "b09181d8f2a198a54a8120928974a2f5372acd4c19c3baf24ceddd862089930e"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/ribbon/zh.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/ribbon/zh.ts",
       "sha256": "139e6badc2f503035793778a5f81c795663014af8f9157f260912fe8acdb4e4e",
-      "adapted": false,
-      "upstreamSha256": "139e6badc2f503035793778a5f81c795663014af8f9157f260912fe8acdb4e4e"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/strings-editor.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/strings-editor.ts",
       "sha256": "df0cd62bcf5d3f7d8d8effa0991663e767556b10e1f218e6fc102dced082edbf",
-      "adapted": false,
-      "upstreamSha256": "df0cd62bcf5d3f7d8d8effa0991663e767556b10e1f218e6fc102dced082edbf"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/strings-ribbon.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/strings-ribbon.ts",
       "sha256": "ec0019baa3b1a2b43dcc1e3de1b34d7dda08c830987d34bb5295b700b019c90c",
-      "adapted": false,
-      "upstreamSha256": "ec0019baa3b1a2b43dcc1e3de1b34d7dda08c830987d34bb5295b700b019c90c"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/strings-table.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/strings-table.ts",
       "sha256": "f135e1414fdd646b1b4fe77b78cb69346e21a630b2cc831e761a68ce47d96844",
-      "adapted": false,
-      "upstreamSha256": "f135e1414fdd646b1b4fe77b78cb69346e21a630b2cc831e761a68ce47d96844"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/i18n/strings.ts",
       "upstreamPath": "apps/docs/src/renderer/i18n/strings.ts",
       "sha256": "04b4680c35dfa863380cb414b6488347f9478d500e066fa2d1b84de23b1d7a9e",
       "adapted": true,
-      "upstreamSha256": "d2b4d376a2a7806b14eca7ea5d32f79eda535feb28c8207dcbe8fe996b27e7e0",
       "adaptationNote": "aggregator rewritten to merge only the vendored string domains (editor + ribbon + table); the app/, ai/ and other shell domains are not vendored"
     },
     {
       "path": "apps/docs/src/renderer/line-metrics.ts",
       "upstreamPath": "apps/docs/src/renderer/line-metrics.ts",
       "sha256": "47544902259ad23687680f043adf99ce55e5b3c84759e7284d921611f49349b1",
-      "adapted": false,
-      "upstreamSha256": "47544902259ad23687680f043adf99ce55e5b3c84759e7284d921611f49349b1"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/note-format.ts",
       "upstreamPath": "apps/docs/src/renderer/note-format.ts",
       "sha256": "394addfaf17b6f3eb66f3a28be31ea8e02104e8f7d1aecca0c856ae3a9016e09",
-      "adapted": false,
-      "upstreamSha256": "394addfaf17b6f3eb66f3a28be31ea8e02104e8f7d1aecca0c856ae3a9016e09"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/pagination-hf.ts",
       "upstreamPath": "apps/docs/src/renderer/pagination-hf.ts",
       "sha256": "d7c2f15b46d850cfa0755ef1e6603853cc18e8e891744ef6120017948550abc4",
-      "adapted": false,
-      "upstreamSha256": "d7c2f15b46d850cfa0755ef1e6603853cc18e8e891744ef6120017948550abc4"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/pagination-lines.ts",
       "upstreamPath": "apps/docs/src/renderer/pagination-lines.ts",
       "sha256": "4caa1daad546e0da13fd4be763d3691c5ecfc7324c9e02de1490ea77d2bf3bc8",
-      "adapted": false,
-      "upstreamSha256": "4caa1daad546e0da13fd4be763d3691c5ecfc7324c9e02de1490ea77d2bf3bc8"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/pagination-measure.ts",
       "upstreamPath": "apps/docs/src/renderer/pagination-measure.ts",
       "sha256": "f240045ddfc5a07f8b253da9f364c5aa2661db559af42504608229cf0732ea93",
-      "adapted": false,
-      "upstreamSha256": "f240045ddfc5a07f8b253da9f364c5aa2661db559af42504608229cf0732ea93"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/pagination-sections.ts",
       "upstreamPath": "apps/docs/src/renderer/pagination-sections.ts",
       "sha256": "5786ff24e26936e522e6de6a58034be07fdf20d80dda0e615b9bc0a763d42b8d",
-      "adapted": false,
-      "upstreamSha256": "5786ff24e26936e522e6de6a58034be07fdf20d80dda0e615b9bc0a763d42b8d"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/pagination-slices.ts",
       "upstreamPath": "apps/docs/src/renderer/pagination-slices.ts",
       "sha256": "af2e807e1d146c0b55e6d4a7b8e2b908da9c86925ae79280d6bf5fe3a907ab73",
-      "adapted": false,
-      "upstreamSha256": "af2e807e1d146c0b55e6d4a7b8e2b908da9c86925ae79280d6bf5fe3a907ab73"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/pagination-types.ts",
       "upstreamPath": "apps/docs/src/renderer/pagination-types.ts",
       "sha256": "5793e79eec6e7320ad728601fa331926ddbceacdd0039aca5369d461de195c94",
-      "adapted": false,
-      "upstreamSha256": "5793e79eec6e7320ad728601fa331926ddbceacdd0039aca5369d461de195c94"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/pagination.ts",
       "upstreamPath": "apps/docs/src/renderer/pagination.ts",
       "sha256": "ad335e9610a58248a4080c16d81403c4920b4360b6e56c1fca4033d5f859c3a6",
-      "adapted": false,
-      "upstreamSha256": "ad335e9610a58248a4080c16d81403c4920b4360b6e56c1fca4033d5f859c3a6"
+      "adapted": false
     },
     {
       "path": "apps/docs/src/renderer/styles.css",
       "upstreamPath": "apps/docs/src/renderer/styles.css",
       "sha256": "d928512261c33228616bf365c92c3aaa182c9fef329949d7950291df843cec66",
-      "adapted": false,
-      "upstreamSha256": "d928512261c33228616bf365c92c3aaa182c9fef329949d7950291df843cec66"
+      "adapted": false
     },
     {
       "path": "apps/pdf/main/annot-delete.ts",
       "upstreamPath": "apps/pdf/src/main/annot-delete.ts",
       "sha256": "e081e19dbee36f79c5fd1b4457118b112d27adfc87b234965d1ba0ea4072535e",
-      "adapted": false,
-      "upstreamSha256": "e081e19dbee36f79c5fd1b4457118b112d27adfc87b234965d1ba0ea4072535e"
+      "adapted": false
     },
     {
       "path": "apps/pdf/main/atomic-write.ts",
       "upstreamPath": "apps/pdf/src/main/atomic-write.ts",
       "sha256": "4521b4e11cf53fcc1f9618f7792d986724f63d1fbda928f43c86c8ce9310c857",
-      "adapted": false,
-      "upstreamSha256": "4521b4e11cf53fcc1f9618f7792d986724f63d1fbda928f43c86c8ce9310c857"
+      "adapted": false
     },
     {
       "path": "apps/pdf/main/font-cmap.ts",
       "upstreamPath": "apps/pdf/src/main/font-cmap.ts",
       "sha256": "16b81cff9f15aa5e974506b41a5862c56ea73bb449a0d586d8ffea0b1ca111fa",
-      "adapted": false,
-      "upstreamSha256": "16b81cff9f15aa5e974506b41a5862c56ea73bb449a0d586d8ffea0b1ca111fa"
+      "adapted": false
     },
     {
       "path": "apps/pdf/main/font-locate.ts",
       "upstreamPath": "apps/pdf/src/main/font-locate.ts",
       "sha256": "ae7ca6b8144e423cbe934a3fd49d5815389dcf0e6a6d9d9057a03a009fa237fc",
       "adapted": true,
-      "upstreamSha256": "50209937d848a0f62847b1b1379cf02492b6a1e98d9c01a91ea637fc4fbee678",
       "adaptationNote": "workspace import @genoffice/font-metrics rewritten to a relative path"
     },
     {
       "path": "apps/pdf/main/font-subset.ts",
       "upstreamPath": "apps/pdf/src/main/font-subset.ts",
       "sha256": "e21aaf07165476c6511354d8372df05750fd4b9d439f15c54fc690b3fe18f2c6",
-      "adapted": false,
-      "upstreamSha256": "e21aaf07165476c6511354d8372df05750fd4b9d439f15c54fc690b3fe18f2c6"
+      "adapted": false
     },
     {
       "path": "apps/pdf/main/image-edit.ts",
       "upstreamPath": "apps/pdf/src/main/image-edit.ts",
       "sha256": "83b7e76462db550642d101bfa0d029333d1f5421fd2e5268440dd9d552e8f14f",
       "adapted": true,
-      "upstreamSha256": "e90e5ad5d24ba71005291e0cfbe04d10e5851cb7bebc17f65807127a73a79395",
       "adaptationNote": "electron nativeImage import replaced with the host codec adapter '../../../host/image-codec'"
     },
     {
       "path": "apps/pdf/main/save-pdf.ts",
       "upstreamPath": "apps/pdf/src/main/save-pdf.ts",
       "sha256": "f392b060ad3d2be43f064660e99bfe572b548a79992762b3b40515096c7e210e",
-      "adapted": false,
-      "upstreamSha256": "f392b060ad3d2be43f064660e99bfe572b548a79992762b3b40515096c7e210e"
+      "adapted": false
     },
     {
       "path": "apps/pdf/main/text-edit.ts",
       "upstreamPath": "apps/pdf/src/main/text-edit.ts",
       "sha256": "25427ad5b10d539502cf7de5aee7a587264e4eb0bf4144229b77921d09a103ab",
-      "adapted": false,
-      "upstreamSha256": "25427ad5b10d539502cf7de5aee7a587264e4eb0bf4144229b77921d09a103ab"
+      "adapted": false
     },
     {
       "path": "apps/pdf/main/wasm-path.ts",
       "upstreamPath": "apps/pdf/src/main/wasm-path.ts",
       "sha256": "495f809eb3ba623375f5d64ed2443d4d112b2fdf6f05c82e5bbcc539389777c2",
       "adapted": true,
-      "upstreamSha256": "9e1b993dffaad77125212b9a3aa3b19744bf9a3e6400cc4062051cf06bd61a60",
       "adaptationNote": "process.resourcesPath fallback guarded for plain Node; CABINET_WASM_DIR env override added"
     },
     {
       "path": "apps/pdf/renderer/DrawLayer.tsx",
       "upstreamPath": "apps/pdf/src/renderer/DrawLayer.tsx",
       "sha256": "bd81638c9459731fa2b66ccced88b572964ed4543a0f1a857dc9f42cfa0d9403",
-      "adapted": false,
-      "upstreamSha256": "bd81638c9459731fa2b66ccced88b572964ed4543a0f1a857dc9f42cfa0d9403"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/ImageEditLayer.tsx",
       "upstreamPath": "apps/pdf/src/renderer/ImageEditLayer.tsx",
       "sha256": "5b06c620f17d642580a6cedcd5f66a9d58949f27b077161fd3ea287663d85912",
-      "adapted": false,
-      "upstreamSha256": "5b06c620f17d642580a6cedcd5f66a9d58949f27b077161fd3ea287663d85912"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/PdfPage.tsx",
       "upstreamPath": "apps/pdf/src/renderer/PdfPage.tsx",
       "sha256": "26c521a1f00a3b1e0c979243abca5d6f8c21699cd8b1443ec669fcee1dba0bb2",
-      "adapted": false,
-      "upstreamSha256": "26c521a1f00a3b1e0c979243abca5d6f8c21699cd8b1443ec669fcee1dba0bb2"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/PdfThumb.tsx",
       "upstreamPath": "apps/pdf/src/renderer/PdfThumb.tsx",
       "sha256": "a6b9207a5cebdda96cb176e303e07edb1ef0268b4f676dc9f98d8474517c116f",
-      "adapted": false,
-      "upstreamSha256": "a6b9207a5cebdda96cb176e303e07edb1ef0268b4f676dc9f98d8474517c116f"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/annotations.ts",
       "upstreamPath": "apps/pdf/src/renderer/annotations.ts",
       "sha256": "18074cc801efbba1c6f86274f59353df776f32470e9b82f5c5c9f83e2748b50b",
-      "adapted": false,
-      "upstreamSha256": "18074cc801efbba1c6f86274f59353df776f32470e9b82f5c5c9f83e2748b50b"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/color-runs.ts",
       "upstreamPath": "apps/pdf/src/renderer/color-runs.ts",
       "sha256": "36d9991200645dfdf34b1d6256818ad28bb89d83ce238f8c33dadf7f29e0df6b",
-      "adapted": false,
-      "upstreamSha256": "36d9991200645dfdf34b1d6256818ad28bb89d83ce238f8c33dadf7f29e0df6b"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/cutout.ts",
       "upstreamPath": "apps/pdf/src/renderer/cutout.ts",
       "sha256": "907bf9b770b660cdfca6d80ae91e2aed8f89a11831f4eeb023b2f73486b9a26e",
-      "adapted": false,
-      "upstreamSha256": "907bf9b770b660cdfca6d80ae91e2aed8f89a11831f4eeb023b2f73486b9a26e"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/doc-font.ts",
       "upstreamPath": "apps/pdf/src/renderer/doc-font.ts",
       "sha256": "d3cf177b81358f1d22475c8747c5c6f0109e4298f040cc46bb54f6fbbf264913",
-      "adapted": false,
-      "upstreamSha256": "d3cf177b81358f1d22475c8747c5c6f0109e4298f040cc46bb54f6fbbf264913"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/edit-state.ts",
       "upstreamPath": "apps/pdf/src/renderer/edit-state.ts",
       "sha256": "14331d23a06374c3ef5ea7e807ab7f5c4e1b337cf68ff2de4ae21f8ac6dff970",
-      "adapted": false,
-      "upstreamSha256": "14331d23a06374c3ef5ea7e807ab7f5c4e1b337cf68ff2de4ae21f8ac6dff970"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/image-bake.ts",
       "upstreamPath": "apps/pdf/src/renderer/image-bake.ts",
       "sha256": "b7337df774fbcedaab19afab4280b0a27c4e628380f09b079a5f6284ff55c9d3",
-      "adapted": false,
-      "upstreamSha256": "b7337df774fbcedaab19afab4280b0a27c4e628380f09b079a5f6284ff55c9d3"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/note-threads.ts",
       "upstreamPath": "apps/pdf/src/renderer/note-threads.ts",
       "sha256": "f9cab9e58abc372f8e751de3b993a393868796a3d7f41f65770ca6363d3f9a3c",
-      "adapted": false,
-      "upstreamSha256": "f9cab9e58abc372f8e751de3b993a393868796a3d7f41f65770ca6363d3f9a3c"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/search.ts",
       "upstreamPath": "apps/pdf/src/renderer/search.ts",
       "sha256": "379be3d97fd2da5fac39dcb8e12f4f2ebaf370d375eba5289d28713774e82017",
-      "adapted": false,
-      "upstreamSha256": "379be3d97fd2da5fac39dcb8e12f4f2ebaf370d375eba5289d28713774e82017"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/stamps.ts",
       "upstreamPath": "apps/pdf/src/renderer/stamps.ts",
       "sha256": "e8b57e2ac9ae8bc022753ce992da44b2ba7e62bc924901fc44df761a98509e88",
-      "adapted": false,
-      "upstreamSha256": "e8b57e2ac9ae8bc022753ce992da44b2ba7e62bc924901fc44df761a98509e88"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/styles.css",
       "upstreamPath": "apps/pdf/src/renderer/styles.css",
       "sha256": "1dda1a42e9aa70e98b524308cb1523a383d8725b79e4d96117a91979251f1c74",
-      "adapted": false,
-      "upstreamSha256": "1dda1a42e9aa70e98b524308cb1523a383d8725b79e4d96117a91979251f1c74"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/text-block.ts",
       "upstreamPath": "apps/pdf/src/renderer/text-block.ts",
       "sha256": "91cdd0b0c7da9d84108989ab2b462d53ca48fceb181e1c4168e5ae670d5435db",
-      "adapted": false,
-      "upstreamSha256": "91cdd0b0c7da9d84108989ab2b462d53ca48fceb181e1c4168e5ae670d5435db"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/text-edit-preview.tsx",
       "upstreamPath": "apps/pdf/src/renderer/text-edit-preview.tsx",
       "sha256": "cce45a78bc2932d1fe863f1b115609092b6d277bf6eac1462bb46f68458fe704",
-      "adapted": false,
-      "upstreamSha256": "cce45a78bc2932d1fe863f1b115609092b6d277bf6eac1462bb46f68458fe704"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/text-line.ts",
       "upstreamPath": "apps/pdf/src/renderer/text-line.ts",
       "sha256": "a81bda30aa3f82b9be658fac9fff0f516aeaa28dd972038355428c077c769cc2",
-      "adapted": false,
-      "upstreamSha256": "a81bda30aa3f82b9be658fac9fff0f516aeaa28dd972038355428c077c769cc2"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/text-wrap.ts",
       "upstreamPath": "apps/pdf/src/renderer/text-wrap.ts",
       "sha256": "fd12e39a2e9a2bd42f5777016cd0df087930e83f7b27f43a052fda67a9532581",
-      "adapted": false,
-      "upstreamSha256": "fd12e39a2e9a2bd42f5777016cd0df087930e83f7b27f43a052fda67a9532581"
+      "adapted": false
     },
     {
       "path": "apps/pdf/renderer/view-config.ts",
       "upstreamPath": "apps/pdf/src/renderer/view-config.ts",
       "sha256": "937ee722fb9cce16b2d7863c32feb2cdb856e62b3987f776f3b1e398a8b38b1d",
       "adapted": true,
-      "upstreamSha256": "0526756d764dce24d7518123c18469e99bb34b29479336d520ced0e41e9a49b0",
       "adaptationNote": "ASSET_BASE rewritten to the absolute same-origin path /document-editor/pdfjs/ (assets copied by scripts/postinstall.mjs)"
     },
     {
       "path": "apps/pdf/renderer/view-state.ts",
       "upstreamPath": "apps/pdf/src/renderer/view-state.ts",
       "sha256": "0a76830e18afddf812890325cb9d13b93903cb930aa5dfca58bdbc94eb67e836",
-      "adapted": false,
-      "upstreamSha256": "0a76830e18afddf812890325cb9d13b93903cb930aa5dfca58bdbc94eb67e836"
+      "adapted": false
     },
     {
       "path": "apps/pdf/shared/ipc.ts",
       "upstreamPath": "apps/pdf/src/shared/ipc.ts",
       "sha256": "a4c1c16e85307b1826a7412db1d565eee250371bd97d1ed49868c6c905f2cbae",
       "adapted": true,
-      "upstreamSha256": "82011f45d4d6eb4355fe93d0c05b8854c439255c5871964d0c7a15bb1ca5d7b5",
       "adaptationNote": "dropped @genoffice/i18n + @genoffice/ai-provider type imports and the shell-facing AI_CHANNELS/ImageSearchResponse/PdfApi tail; document-domain types unchanged"
     },
     {
       "path": "apps/pdf/shared/radicals.ts",
       "upstreamPath": "apps/pdf/src/shared/radicals.ts",
       "sha256": "575de046475eb6a074676ffb6e0fb22adf2e317c8dcec133cf529a556c07a09d",
-      "adapted": false,
-      "upstreamSha256": "575de046475eb6a074676ffb6e0fb22adf2e317c8dcec133cf529a556c07a09d"
+      "adapted": false
     },
     {
       "path": "apps/pdf/shared/x-layers.ts",
       "upstreamPath": "apps/pdf/src/shared/x-layers.ts",
       "sha256": "b4207c97c41dc63b6190e3e74eccda182bab6a93e0c66321ab927d22e02225c0",
-      "adapted": false,
-      "upstreamSha256": "b4207c97c41dc63b6190e3e74eccda182bab6a93e0c66321ab927d22e02225c0"
+      "adapted": false
     },
     {
       "path": "host/image-codec.ts",
@@ -823,968 +710,842 @@
       "path": "packages/docx-engine/src/blank.ts",
       "upstreamPath": "packages/docx-engine/src/blank.ts",
       "sha256": "2465303a194d635a1496a22a3267f25f6ab947bf9fb7328c69c85def58260474",
-      "adapted": false,
-      "upstreamSha256": "2465303a194d635a1496a22a3267f25f6ab947bf9fb7328c69c85def58260474"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/chart.ts",
       "upstreamPath": "packages/docx-engine/src/chart.ts",
       "sha256": "170ddba543f570198bc666e822f30e369e4f7d0c3afab9cad5eaf36afe078aef",
-      "adapted": false,
-      "upstreamSha256": "170ddba543f570198bc666e822f30e369e4f7d0c3afab9cad5eaf36afe078aef"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/font-table.ts",
       "upstreamPath": "packages/docx-engine/src/font-table.ts",
       "sha256": "98a7d2bcbc92072f23a265b9ac78862d4a2ac5a6c121fa1df309013d6c24b7c5",
-      "adapted": false,
-      "upstreamSha256": "98a7d2bcbc92072f23a265b9ac78862d4a2ac5a6c121fa1df309013d6c24b7c5"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/generate.ts",
       "upstreamPath": "packages/docx-engine/src/generate.ts",
       "sha256": "714908b02e2c8d00da9cb9151a445be9c097706f39a1070ce5929ba0cdfad1b2",
-      "adapted": false,
-      "upstreamSha256": "714908b02e2c8d00da9cb9151a445be9c097706f39a1070ce5929ba0cdfad1b2"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/index.ts",
       "upstreamPath": "packages/docx-engine/src/index.ts",
       "sha256": "6fe373e1ce015875cd29a8bea3aa1952ee25ac947445e81ea718a959c769f0a8",
-      "adapted": false,
-      "upstreamSha256": "6fe373e1ce015875cd29a8bea3aa1952ee25ac947445e81ea718a959c769f0a8"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/ink.ts",
       "upstreamPath": "packages/docx-engine/src/ink.ts",
       "sha256": "d17b27a57c3d30b3462856b6921bc7be0801c1f69686f89633e965936d84109a",
-      "adapted": false,
-      "upstreamSha256": "d17b27a57c3d30b3462856b6921bc7be0801c1f69686f89633e965936d84109a"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/list-markers.ts",
       "upstreamPath": "packages/docx-engine/src/list-markers.ts",
       "sha256": "82cbd1abe2ac96c55adc397b9c9b5a1a22677f94c0bba1f608dd0fa55ceeb8da",
-      "adapted": false,
-      "upstreamSha256": "82cbd1abe2ac96c55adc397b9c9b5a1a22677f94c0bba1f608dd0fa55ceeb8da"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/math.ts",
       "upstreamPath": "packages/docx-engine/src/math.ts",
       "sha256": "4d022f70389796db09cd7956657ed140195e58e1490c8b395fb086bce2b2eed0",
-      "adapted": false,
-      "upstreamSha256": "4d022f70389796db09cd7956657ed140195e58e1490c8b395fb086bce2b2eed0"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/metafile.ts",
       "upstreamPath": "packages/docx-engine/src/metafile.ts",
       "sha256": "43b8f94122a7d07098190306506d1d3b3e19feb54b38278925e0873cc472f7db",
-      "adapted": false,
-      "upstreamSha256": "43b8f94122a7d07098190306506d1d3b3e19feb54b38278925e0873cc472f7db"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/notes.ts",
       "upstreamPath": "packages/docx-engine/src/notes.ts",
       "sha256": "cd854d3b1134fa39e6ae54a0db02cb923aa679b05329985a8b9a6dfd926ef23c",
-      "adapted": false,
-      "upstreamSha256": "cd854d3b1134fa39e6ae54a0db02cb923aa679b05329985a8b9a6dfd926ef23c"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/ooxml-normalize.ts",
       "upstreamPath": "packages/docx-engine/src/ooxml-normalize.ts",
       "sha256": "1ba2768129b9c3c0fa6d1abd4c8bf7915382873f6fc0f31d5911e7f390103e5b",
-      "adapted": false,
-      "upstreamSha256": "1ba2768129b9c3c0fa6d1abd4c8bf7915382873f6fc0f31d5911e7f390103e5b"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-block-passes.ts",
       "upstreamPath": "packages/docx-engine/src/parse-block-passes.ts",
       "sha256": "d16926350f43e450403c222998630ca7dde4d84c4aa1ea272c2dfe924d2049bf",
-      "adapted": false,
-      "upstreamSha256": "d16926350f43e450403c222998630ca7dde4d84c4aa1ea272c2dfe924d2049bf"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-drawing-geometry.ts",
       "upstreamPath": "packages/docx-engine/src/parse-drawing-geometry.ts",
       "sha256": "cb9760cb43db1989d749c1e578ad4bc6363e6f36027517eb9f8b8a8934ebf335",
-      "adapted": false,
-      "upstreamSha256": "cb9760cb43db1989d749c1e578ad4bc6363e6f36027517eb9f8b8a8934ebf335"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-fields.ts",
       "upstreamPath": "packages/docx-engine/src/parse-fields.ts",
       "sha256": "69fc65e0b7800b05c1cbc5adcbd3fb428115ea711dd3b5c4538b29d7c7b6e75c",
-      "adapted": false,
-      "upstreamSha256": "69fc65e0b7800b05c1cbc5adcbd3fb428115ea711dd3b5c4538b29d7c7b6e75c"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-package.ts",
       "upstreamPath": "packages/docx-engine/src/parse-package.ts",
       "sha256": "591f89952553e704bb1382e5f1e44a95993b101f1b2158d74d2226e6a50c129a",
-      "adapted": false,
-      "upstreamSha256": "591f89952553e704bb1382e5f1e44a95993b101f1b2158d74d2226e6a50c129a"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-props.ts",
       "upstreamPath": "packages/docx-engine/src/parse-props.ts",
       "sha256": "53d22777f2563f6479a5d476b33498d44549bdd8a9f713ee629914f5355e5541",
-      "adapted": false,
-      "upstreamSha256": "53d22777f2563f6479a5d476b33498d44549bdd8a9f713ee629914f5355e5541"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-sdt.ts",
       "upstreamPath": "packages/docx-engine/src/parse-sdt.ts",
       "sha256": "cd8ca690f9db8a37bb5c49996a74c1a399eef802467420965dfb94fa75d2f6f2",
-      "adapted": false,
-      "upstreamSha256": "cd8ca690f9db8a37bb5c49996a74c1a399eef802467420965dfb94fa75d2f6f2"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-styles.ts",
       "upstreamPath": "packages/docx-engine/src/parse-styles.ts",
       "sha256": "f522ec37284084d40207bbe0275f3d39b38dc8e32a32a3f1ce751dda4f027e07",
-      "adapted": false,
-      "upstreamSha256": "f522ec37284084d40207bbe0275f3d39b38dc8e32a32a3f1ce751dda4f027e07"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-vml.ts",
       "upstreamPath": "packages/docx-engine/src/parse-vml.ts",
       "sha256": "8f4e6203cdd52e4387cdf38bd4701c30aa836b8d3d1dc05bf3ad334d75c9f1f0",
-      "adapted": false,
-      "upstreamSha256": "8f4e6203cdd52e4387cdf38bd4701c30aa836b8d3d1dc05bf3ad334d75c9f1f0"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse-xml-text.ts",
       "upstreamPath": "packages/docx-engine/src/parse-xml-text.ts",
       "sha256": "3efd3037d36bead1acd7ee6b04b84828cde15d637890e46e364ce4a157679e21",
-      "adapted": false,
-      "upstreamSha256": "3efd3037d36bead1acd7ee6b04b84828cde15d637890e46e364ce4a157679e21"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/parse.ts",
       "upstreamPath": "packages/docx-engine/src/parse.ts",
       "sha256": "e03da8c48a341fd7b0cf488dfa4adbb12d47849586289903fff07f782563f4c6",
       "adapted": true,
-      "upstreamSha256": "d7e7023ffbfecfcfec17490c5f2312ba9c6073d4cee76d5fa048fe87e2506966",
       "adaptationNote": "workspace import @genoffice/pptx-engine/custgeom rewritten to a relative path"
     },
     {
       "path": "packages/docx-engine/src/patch.ts",
       "upstreamPath": "packages/docx-engine/src/patch.ts",
       "sha256": "a92b27989e90b8c1fed9f8fa7977ad80a0a41d1212557230a0d1f1ebd0afda25",
-      "adapted": false,
-      "upstreamSha256": "a92b27989e90b8c1fed9f8fa7977ad80a0a41d1212557230a0d1f1ebd0afda25"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/protection.ts",
       "upstreamPath": "packages/docx-engine/src/protection.ts",
       "sha256": "9ff9c9233d38dd66dd4ee93ede9bae51ee1f7433310335cec9b061b52fddbfe3",
-      "adapted": false,
-      "upstreamSha256": "9ff9c9233d38dd66dd4ee93ede9bae51ee1f7433310335cec9b061b52fddbfe3"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/resource-cleanup.ts",
       "upstreamPath": "packages/docx-engine/src/resource-cleanup.ts",
       "sha256": "51f9f0d1282ea688071ecdceb5b4e40760c51b70a7c16c9d0ba20d8011fb6df8",
-      "adapted": false,
-      "upstreamSha256": "51f9f0d1282ea688071ecdceb5b4e40760c51b70a7c16c9d0ba20d8011fb6df8"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/scan.ts",
       "upstreamPath": "packages/docx-engine/src/scan.ts",
       "sha256": "2f4231d13fb63fe69ac73883eae9ad8bfb3c5c3fc24c6d6401eeef2e3df0667a",
-      "adapted": false,
-      "upstreamSha256": "2f4231d13fb63fe69ac73883eae9ad8bfb3c5c3fc24c6d6401eeef2e3df0667a"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/section.ts",
       "upstreamPath": "packages/docx-engine/src/section.ts",
       "sha256": "83af13d81f846ebd0ae41fae9cb7d045e874d38a77c7da2925dbbe9865feff49",
-      "adapted": false,
-      "upstreamSha256": "83af13d81f846ebd0ae41fae9cb7d045e874d38a77c7da2925dbbe9865feff49"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/sources.ts",
       "upstreamPath": "packages/docx-engine/src/sources.ts",
       "sha256": "839d62b2e2b2bf53b1ab264cd91f136c64632d52be7393861959f7496c77b0f6",
-      "adapted": false,
-      "upstreamSha256": "839d62b2e2b2bf53b1ab264cd91f136c64632d52be7393861959f7496c77b0f6"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/symbol-fonts.ts",
       "upstreamPath": "packages/docx-engine/src/symbol-fonts.ts",
       "sha256": "870750b7578fb2c31a91a97c085ec88bb50e9cdd0d19113119738458bf811dab",
-      "adapted": false,
-      "upstreamSha256": "870750b7578fb2c31a91a97c085ec88bb50e9cdd0d19113119738458bf811dab"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/text-patch.ts",
       "upstreamPath": "packages/docx-engine/src/text-patch.ts",
       "sha256": "36bf587bca2a21ad81d6c6e0ad6b1ca8919105ec41caa919429c89737bc346d4",
-      "adapted": false,
-      "upstreamSha256": "36bf587bca2a21ad81d6c6e0ad6b1ca8919105ec41caa919429c89737bc346d4"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/theme.ts",
       "upstreamPath": "packages/docx-engine/src/theme.ts",
       "sha256": "fb77ba3abd19af1ecd92022110aaaf3674c1f33a9ddef36c69303f1c58391a9b",
-      "adapted": false,
-      "upstreamSha256": "fb77ba3abd19af1ecd92022110aaaf3674c1f33a9ddef36c69303f1c58391a9b"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/tiff.ts",
       "upstreamPath": "packages/docx-engine/src/tiff.ts",
       "sha256": "f597f8afb98c9c0a9a98948419ce29581d8eca5220ab8bd36bdd2a8df26a1782",
-      "adapted": false,
-      "upstreamSha256": "f597f8afb98c9c0a9a98948419ce29581d8eca5220ab8bd36bdd2a8df26a1782"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/types.ts",
       "upstreamPath": "packages/docx-engine/src/types.ts",
       "sha256": "1d1018fc45a2b3385e8958829d8b6c42c16e3a400d169852974c3278a37b3443",
-      "adapted": false,
-      "upstreamSha256": "1d1018fc45a2b3385e8958829d8b6c42c16e3a400d169852974c3278a37b3443"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/vendor/emf-converter/LICENSE",
       "upstreamPath": "packages/docx-engine/src/vendor/emf-converter/LICENSE",
       "sha256": "2c27550900d2cabf83527a04600ba8042e3ba89e70ec077ff220afa48c8230a7",
-      "adapted": false,
-      "upstreamSha256": "2c27550900d2cabf83527a04600ba8042e3ba89e70ec077ff220afa48c8230a7"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/vendor/emf-converter/index.mjs",
       "upstreamPath": "packages/docx-engine/src/vendor/emf-converter/index.mjs",
       "sha256": "0c81013241eb580f64740bb3966b515b060febc0db20731acaa1d603602d098e",
-      "adapted": false,
-      "upstreamSha256": "0c81013241eb580f64740bb3966b515b060febc0db20731acaa1d603602d098e"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/watermark.ts",
       "upstreamPath": "packages/docx-engine/src/watermark.ts",
       "sha256": "90ac6d8280158b41664e57720d0a40227e1ae9f16385113d0024dea0fccc6a37",
-      "adapted": false,
-      "upstreamSha256": "90ac6d8280158b41664e57720d0a40227e1ae9f16385113d0024dea0fccc6a37"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/xml-utils.ts",
       "upstreamPath": "packages/docx-engine/src/xml-utils.ts",
       "sha256": "838c23df106ac27b998349335fe3fc0e7baae849b326dc28c080ff05afb72bbe",
-      "adapted": false,
-      "upstreamSha256": "838c23df106ac27b998349335fe3fc0e7baae849b326dc28c080ff05afb72bbe"
+      "adapted": false
     },
     {
       "path": "packages/docx-engine/src/zip-load.ts",
       "upstreamPath": "packages/docx-engine/src/zip-load.ts",
       "sha256": "45cb7e44d47c2319b7c679a01fcd5132e6287e5217db1456c080bd6a8782fabe",
-      "adapted": false,
-      "upstreamSha256": "45cb7e44d47c2319b7c679a01fcd5132e6287e5217db1456c080bd6a8782fabe"
+      "adapted": false
     },
     {
       "path": "packages/font-metrics/src/advance.ts",
       "upstreamPath": "packages/font-metrics/src/advance.ts",
       "sha256": "bcdb3bad03e6b6a369abb2d538ea726a690f8f73e93352a9f53bb9e67f596a9f",
-      "adapted": false,
-      "upstreamSha256": "bcdb3bad03e6b6a369abb2d538ea726a690f8f73e93352a9f53bb9e67f596a9f"
+      "adapted": false
     },
     {
       "path": "packages/font-metrics/src/font-locate.ts",
       "upstreamPath": "packages/font-metrics/src/font-locate.ts",
       "sha256": "754ae6e55722a6ee11cda9700727ffb6fce6a57930c55ca187879f0e2bb94b59",
-      "adapted": false,
-      "upstreamSha256": "754ae6e55722a6ee11cda9700727ffb6fce6a57930c55ca187879f0e2bb94b59"
+      "adapted": false
     },
     {
       "path": "packages/font-metrics/src/index.ts",
       "upstreamPath": "packages/font-metrics/src/index.ts",
       "sha256": "96bf394d35724cce93cd7bad43bb974d5284f3b88dfeb9af20e7bbd2657f3658",
-      "adapted": false,
-      "upstreamSha256": "96bf394d35724cce93cd7bad43bb974d5284f3b88dfeb9af20e7bbd2657f3658"
+      "adapted": false
     },
     {
       "path": "packages/font-metrics/src/metrics.ts",
       "upstreamPath": "packages/font-metrics/src/metrics.ts",
       "sha256": "281b3ef96dbc21f75db77446301b48eeaf130c7b62accbca4a6b27580b2d733d",
-      "adapted": false,
-      "upstreamSha256": "281b3ef96dbc21f75db77446301b48eeaf130c7b62accbca4a6b27580b2d733d"
+      "adapted": false
     },
     {
       "path": "packages/font-metrics/src/sfnt.ts",
       "upstreamPath": "packages/font-metrics/src/sfnt.ts",
       "sha256": "87f8fee726060da6ef51c101567ad547fb54df73fdfa050f8dee17397fa9b518",
-      "adapted": false,
-      "upstreamSha256": "87f8fee726060da6ef51c101567ad547fb54df73fdfa050f8dee17397fa9b518"
+      "adapted": false
     },
     {
       "path": "packages/i18n/src/index.ts",
       "upstreamPath": "packages/i18n/src/index.ts",
       "sha256": "4c5f089a64962934f8123e7d014d2dabc9d53037509e67a9033167bbd0282340",
-      "adapted": false,
-      "upstreamSha256": "4c5f089a64962934f8123e7d014d2dabc9d53037509e67a9033167bbd0282340"
+      "adapted": false
+    },
+    {
+      "path": "packages/pdf2docx/ocr-helper/vision-ocr.swift",
+      "upstreamPath": "packages/pdf2docx/ocr-helper/vision-ocr.swift",
+      "sha256": "90600dc0b7943c3348181078af674572d6780da191e5d3ea31aa29fd03c9ec22",
+      "adapted": false
+    },
+    {
+      "path": "packages/pdf2docx/ocr-helper/win-ocr.cs",
+      "upstreamPath": "packages/pdf2docx/ocr-helper/win-ocr.cs",
+      "sha256": "3868fcbe81825913bf2f00b2816fdabd56dbc0640408453bcdfbd170510d4206",
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/blocks.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/blocks.ts",
       "sha256": "ea237609f1e690656b4e27ba416cad49122c050bee1e62c062a64f7e206d6999",
-      "adapted": false,
-      "upstreamSha256": "ea237609f1e690656b4e27ba416cad49122c050bee1e62c062a64f7e206d6999"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/canvas.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/canvas.ts",
       "sha256": "9041517a45c3d2eae622f0244aff547cca3faec88ee2c6274093dc1b7fd30064",
-      "adapted": false,
-      "upstreamSha256": "9041517a45c3d2eae622f0244aff547cca3faec88ee2c6274093dc1b7fd30064"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/chars.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/chars.ts",
       "sha256": "6fcdfa4c8bd100e4fbd5ad43c39901e3054ce5926d43d72de2c5e8ed35987ec2",
-      "adapted": false,
-      "upstreamSha256": "6fcdfa4c8bd100e4fbd5ad43c39901e3054ce5926d43d72de2c5e8ed35987ec2"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/columns.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/columns.ts",
       "sha256": "e0b7223de5554bf64ef1a17017aac9b67b46da954962415f0351182398241d07",
-      "adapted": false,
-      "upstreamSha256": "e0b7223de5554bf64ef1a17017aac9b67b46da954962415f0351182398241d07"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/confidence.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/confidence.ts",
       "sha256": "9a22178ff752d25fc3eb8071bd55a6ca185db170bf388cd5412056818e2a264d",
-      "adapted": false,
-      "upstreamSha256": "9a22178ff752d25fc3eb8071bd55a6ca185db170bf388cd5412056818e2a264d"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/decor.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/decor.ts",
       "sha256": "ec3eebb488133240b0180f6a0391455b28b586776a31199cb2f5962298d1664c",
-      "adapted": false,
-      "upstreamSha256": "ec3eebb488133240b0180f6a0391455b28b586776a31199cb2f5962298d1664c"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/floats.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/floats.ts",
       "sha256": "8ba2975fe541cf7f92b961e316ab5b4d1ef698e076cf52529de973e66de4bb40",
-      "adapted": false,
-      "upstreamSha256": "8ba2975fe541cf7f92b961e316ab5b4d1ef698e076cf52529de973e66de4bb40"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/footnotes.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/footnotes.ts",
       "sha256": "1a04dda4a96140f338c155484a98108dcb3b94003fc497058a86ffd83547d617",
-      "adapted": false,
-      "upstreamSha256": "1a04dda4a96140f338c155484a98108dcb3b94003fc497058a86ffd83547d617"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/form.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/form.ts",
       "sha256": "14c4588c4ea9eb02465c5587242d09f102e7be8bc19c3a017e2d9b28b4c778d3",
-      "adapted": false,
-      "upstreamSha256": "14c4588c4ea9eb02465c5587242d09f102e7be8bc19c3a017e2d9b28b4c778d3"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/frames.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/frames.ts",
       "sha256": "57534cca7a0edb8f7ece16e0c2b31cd5606e218673fe0b14775785bbe4c91d2c",
-      "adapted": false,
-      "upstreamSha256": "57534cca7a0edb8f7ece16e0c2b31cd5606e218673fe0b14775785bbe4c91d2c"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/furniture.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/furniture.ts",
       "sha256": "46faaaa77e3282c62014492e2227b0ec5e135d23bcc08820c50fe34fe197eb3d",
-      "adapted": false,
-      "upstreamSha256": "46faaaa77e3282c62014492e2227b0ec5e135d23bcc08820c50fe34fe197eb3d"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/index.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/index.ts",
       "sha256": "a82fb5e4dc61835e671f3aaebe3941a6360338937ac72c09a520029c66fb974b",
-      "adapted": false,
-      "upstreamSha256": "a82fb5e4dc61835e671f3aaebe3941a6360338937ac72c09a520029c66fb974b"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/lines.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/lines.ts",
       "sha256": "61dc45ff34e65544c7bf6501be98e0c31a4f2f78cf879990c3fee158497dc171",
-      "adapted": false,
-      "upstreamSha256": "61dc45ff34e65544c7bf6501be98e0c31a4f2f78cf879990c3fee158497dc171"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/lists.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/lists.ts",
       "sha256": "0539a72b1487ee1022a6a66c27bcd55cd0df23bc8d0e171a07fe1588e483c842",
-      "adapted": false,
-      "upstreamSha256": "0539a72b1487ee1022a6a66c27bcd55cd0df23bc8d0e171a07fe1588e483c842"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/panels.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/panels.ts",
       "sha256": "95b7ecfd1529be971a2bad073bd4a6e82eda6399784d9c135f43f138a50a7a62",
-      "adapted": false,
-      "upstreamSha256": "95b7ecfd1529be971a2bad073bd4a6e82eda6399784d9c135f43f138a50a7a62"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/rtl.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/rtl.ts",
       "sha256": "38c586cbcc1f03d6c1608af1cd478028935b23897872fce1d0506b7eb9ad35bf",
-      "adapted": false,
-      "upstreamSha256": "38c586cbcc1f03d6c1608af1cd478028935b23897872fce1d0506b7eb9ad35bf"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/shapes.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/shapes.ts",
       "sha256": "c353845f15f6f5faab91b763d73616485aad1f7ed862678b74d4940ee3c1d436",
-      "adapted": false,
-      "upstreamSha256": "c353845f15f6f5faab91b763d73616485aad1f7ed862678b74d4940ee3c1d436"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/spacing.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/spacing.ts",
       "sha256": "32620696b49f7eba824f810db8831adc3e5588deaa06a7179df9b14c1de9be00",
-      "adapted": false,
-      "upstreamSha256": "32620696b49f7eba824f810db8831adc3e5588deaa06a7179df9b14c1de9be00"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/spans.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/spans.ts",
       "sha256": "a4df014f6bf07e656a9f827c31741e9d70a360a495077be38128ef6b571840a1",
-      "adapted": false,
-      "upstreamSha256": "a4df014f6bf07e656a9f827c31741e9d70a360a495077be38128ef6b571840a1"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/stream.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/stream.ts",
       "sha256": "345595f8b97604a7f2bd1abbd2a9e33aca79f128df4f632fcf3da4b70db94923",
-      "adapted": false,
-      "upstreamSha256": "345595f8b97604a7f2bd1abbd2a9e33aca79f128df4f632fcf3da4b70db94923"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/styling.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/styling.ts",
       "sha256": "748c4f74854c216a7e35461063d3d8b4d8fbb811ed34eff07526b159249ba324",
-      "adapted": false,
-      "upstreamSha256": "748c4f74854c216a7e35461063d3d8b4d8fbb811ed34eff07526b159249ba324"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/table.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/table.ts",
       "sha256": "dafb9f43a3ddcf9a11e13f9db706d41ffd68ce1b480262bfadd962071ed4fa41",
-      "adapted": false,
-      "upstreamSha256": "dafb9f43a3ddcf9a11e13f9db706d41ffd68ce1b480262bfadd962071ed4fa41"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/toc.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/toc.ts",
       "sha256": "22a546bdd95b7fb63ef842d498065655626718ff680bed8176a9c2b967d4b188",
-      "adapted": false,
-      "upstreamSha256": "22a546bdd95b7fb63ef842d498065655626718ff680bed8176a9c2b967d4b188"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/units.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/units.ts",
       "sha256": "1bb35148d91c27c0b20c5c821672a77f540ed6ce7da9e4704488d384fb8ab287",
-      "adapted": false,
-      "upstreamSha256": "1bb35148d91c27c0b20c5c821672a77f540ed6ce7da9e4704488d384fb8ab287"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/vector.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/vector.ts",
       "sha256": "ea16e59348d0a3ebbc929875bcc3d509366fe8a39c26b983f1139d6e72d9f87f",
-      "adapted": false,
-      "upstreamSha256": "ea16e59348d0a3ebbc929875bcc3d509366fe8a39c26b983f1139d6e72d9f87f"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/words.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/words.ts",
       "sha256": "6166834a28e12af893804c9977cb5dfce7b4e875aa76cd8c5b534cbce6db4450",
-      "adapted": false,
-      "upstreamSha256": "6166834a28e12af893804c9977cb5dfce7b4e875aa76cd8c5b534cbce6db4450"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/analyze/zones.ts",
       "upstreamPath": "packages/pdf2docx/src/analyze/zones.ts",
       "sha256": "1f299c1b2b3222d0344476e8f6f65754d9bb86d7598f670b6e259245c9f6bf3d",
-      "adapted": false,
-      "upstreamSha256": "1f299c1b2b3222d0344476e8f6f65754d9bb86d7598f670b6e259245c9f6bf3d"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/bidi-js.d.ts",
       "upstreamPath": "packages/pdf2docx/src/bidi-js.d.ts",
       "sha256": "8023c474431cb5153735de0ddc72366221eee646c9fba1315611443a1610c68f",
-      "adapted": false,
-      "upstreamSha256": "8023c474431cb5153735de0ddc72366221eee646c9fba1315611443a1610c68f"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/extract/fontname.ts",
       "upstreamPath": "packages/pdf2docx/src/extract/fontname.ts",
       "sha256": "ee140c39f07b1b303f8a2d3f06080a5fe2dd1a2ebbb609736cdd6a875ea6c7bc",
-      "adapted": false,
-      "upstreamSha256": "ee140c39f07b1b303f8a2d3f06080a5fe2dd1a2ebbb609736cdd6a875ea6c7bc"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/extract/index.ts",
       "upstreamPath": "packages/pdf2docx/src/extract/index.ts",
       "sha256": "bd5e99146191d3abef6c066694d9c4d083b6c08cd86d544001cf8b3dc5351f0e",
-      "adapted": false,
-      "upstreamSha256": "bd5e99146191d3abef6c066694d9c4d083b6c08cd86d544001cf8b3dc5351f0e"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/extract/pdfium.ts",
       "upstreamPath": "packages/pdf2docx/src/extract/pdfium.ts",
       "sha256": "5d3326d6bc7317548218067bc33c45e22aa5e14468fcc70c7ab5004562bf104c",
-      "adapted": false,
-      "upstreamSha256": "5d3326d6bc7317548218067bc33c45e22aa5e14468fcc70c7ab5004562bf104c"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/extract/png.ts",
       "upstreamPath": "packages/pdf2docx/src/extract/png.ts",
       "sha256": "392037b0db58ed0f082bb545029686980a5ae391a3852b3aa626364a815aba05",
-      "adapted": false,
-      "upstreamSha256": "392037b0db58ed0f082bb545029686980a5ae391a3852b3aa626364a815aba05"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/geometry.ts",
       "upstreamPath": "packages/pdf2docx/src/geometry.ts",
       "sha256": "5ed6714f5da71d8be092856b84e26f2508f651a90d48de25e869bf5354fc6fa8",
-      "adapted": false,
-      "upstreamSha256": "5ed6714f5da71d8be092856b84e26f2508f651a90d48de25e869bf5354fc6fa8"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/index.ts",
       "upstreamPath": "packages/pdf2docx/src/index.ts",
       "sha256": "abae510b8b14cd23d851f9a7ef8808a685b67e81d257b0d9058d4ce5081289e1",
-      "adapted": false,
-      "upstreamSha256": "abae510b8b14cd23d851f9a7ef8808a685b67e81d257b0d9058d4ce5081289e1"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/ir.ts",
       "upstreamPath": "packages/pdf2docx/src/ir.ts",
       "sha256": "4f1ca9d54053aabfd376ad2f1a9f61c03a3062ba9636837247524637a1953a0d",
-      "adapted": false,
-      "upstreamSha256": "4f1ca9d54053aabfd376ad2f1a9f61c03a3062ba9636837247524637a1953a0d"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/ocr.ts",
       "upstreamPath": "packages/pdf2docx/src/ocr.ts",
       "sha256": "c88ce715e795130db341f547f827ed907e6c3f7e763ad5bb39681895de9c14ab",
-      "adapted": false,
-      "upstreamSha256": "c88ce715e795130db341f547f827ed907e6c3f7e763ad5bb39681895de9c14ab"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/pipeline.ts",
       "upstreamPath": "packages/pdf2docx/src/pipeline.ts",
       "sha256": "faa1e695de8739ee268255fc14a8c6dbb7851e3e303b6b82818e54384e0f0e1a",
-      "adapted": false,
-      "upstreamSha256": "faa1e695de8739ee268255fc14a8c6dbb7851e3e303b6b82818e54384e0f0e1a"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild/fit.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild/fit.ts",
       "sha256": "8735ef95fbe34d357d95c9d5b96cc3a78db874e1f1c41c279b50ebb68912b3b9",
-      "adapted": false,
-      "upstreamSha256": "8735ef95fbe34d357d95c9d5b96cc3a78db874e1f1c41c279b50ebb68912b3b9"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild/fontmap.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild/fontmap.ts",
       "sha256": "4e421da8534f5282ae5a39dff0e74e28f3bca92370d37ad56d2f11dc6a506769",
-      "adapted": false,
-      "upstreamSha256": "4e421da8534f5282ae5a39dff0e74e28f3bca92370d37ad56d2f11dc6a506769"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild/index.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild/index.ts",
       "sha256": "8667efb33a562fe93cb01321d803b59967c82def9c3934edf92c544447598fb2",
-      "adapted": false,
-      "upstreamSha256": "8667efb33a562fe93cb01321d803b59967c82def9c3934edf92c544447598fb2"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-pptx/index.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-pptx/index.ts",
       "sha256": "b1b1b7d988012efb199d01f37943a530e69cbd75129c612620e09e92e91726b7",
-      "adapted": false,
-      "upstreamSha256": "b1b1b7d988012efb199d01f37943a530e69cbd75129c612620e09e92e91726b7"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-pptx/rebuild.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-pptx/rebuild.ts",
       "sha256": "225de4f20a584c498c02257b51001cfe7f15ae9b1b94b19e403b21830ad031d2",
-      "adapted": false,
-      "upstreamSha256": "225de4f20a584c498c02257b51001cfe7f15ae9b1b94b19e403b21830ad031d2"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-pptx/table.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-pptx/table.ts",
       "sha256": "c4a5a3798f8a7f756e1d7b2f6a586e2f17a44502832a4c3473f95d999ce9feb0",
-      "adapted": false,
-      "upstreamSha256": "c4a5a3798f8a7f756e1d7b2f6a586e2f17a44502832a4c3473f95d999ce9feb0"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-pptx/text.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-pptx/text.ts",
       "sha256": "a6ffb24025d58e6cba2c7a8700b070611200f8c0636b80f5d2fdbb2ca0db98cb",
-      "adapted": false,
-      "upstreamSha256": "a6ffb24025d58e6cba2c7a8700b070611200f8c0636b80f5d2fdbb2ca0db98cb"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-xlsx/index.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-xlsx/index.ts",
       "sha256": "b1af1c0180ef383e00910a92407841ea6447fe5b16a5b7d1ae36bd66a2bab9e3",
-      "adapted": false,
-      "upstreamSha256": "b1af1c0180ef383e00910a92407841ea6447fe5b16a5b7d1ae36bd66a2bab9e3"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-xlsx/numbers.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-xlsx/numbers.ts",
       "sha256": "3b2c7badc4d4c69e4d689b453043fe5aacab772701dc5dac89f2c6b4909e3bb4",
-      "adapted": false,
-      "upstreamSha256": "3b2c7badc4d4c69e4d689b453043fe5aacab772701dc5dac89f2c6b4909e3bb4"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-xlsx/rebuild.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-xlsx/rebuild.ts",
       "sha256": "9d321122bddc0b4560ef3882a0d1489b031d154c05c77564e826929f505afa73",
-      "adapted": false,
-      "upstreamSha256": "9d321122bddc0b4560ef3882a0d1489b031d154c05c77564e826929f505afa73"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-xlsx/rowsplit.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-xlsx/rowsplit.ts",
       "sha256": "9783d1e6fd2e4f3e97fe4a01c30c16ecee4da456a51c89e41e8808429772fb72",
-      "adapted": false,
-      "upstreamSha256": "9783d1e6fd2e4f3e97fe4a01c30c16ecee4da456a51c89e41e8808429772fb72"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/rebuild-xlsx/workbook.ts",
       "upstreamPath": "packages/pdf2docx/src/rebuild-xlsx/workbook.ts",
       "sha256": "cbf3f761ddd0830c7b54d096b8f6a0f913adb83d90fdbfd40a4341684a45e37d",
-      "adapted": false,
-      "upstreamSha256": "cbf3f761ddd0830c7b54d096b8f6a0f913adb83d90fdbfd40a4341684a45e37d"
+      "adapted": false
     },
     {
       "path": "packages/pdf2docx/src/script.ts",
       "upstreamPath": "packages/pdf2docx/src/script.ts",
       "sha256": "4d66fddac6af2fc331a1bdf1708bc7fd1e0a31e22ae8a5fbdab16487201be6cb",
-      "adapted": false,
-      "upstreamSha256": "4d66fddac6af2fc331a1bdf1708bc7fd1e0a31e22ae8a5fbdab16487201be6cb"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/align.ts",
       "upstreamPath": "packages/pptx-engine/src/align.ts",
       "sha256": "7cb048ec0139a0117eec21dd20efc8a2f2db7f391751fed88081282fecd7606f",
-      "adapted": false,
-      "upstreamSha256": "7cb048ec0139a0117eec21dd20efc8a2f2db7f391751fed88081282fecd7606f"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/animation.ts",
       "upstreamPath": "packages/pptx-engine/src/animation.ts",
       "sha256": "c6b4d300e2d71099824b6c6cea29f9e225564ab2ef4ad8ffd61057d21f31bd61",
-      "adapted": false,
-      "upstreamSha256": "c6b4d300e2d71099824b6c6cea29f9e225564ab2ef4ad8ffd61057d21f31bd61"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/background-promote.ts",
       "upstreamPath": "packages/pptx-engine/src/background-promote.ts",
       "sha256": "5979b1105e12599b0e2eeaed35d4f05aa62d01848e12efec8b3b9bf3e676ef6b",
-      "adapted": false,
-      "upstreamSha256": "5979b1105e12599b0e2eeaed35d4f05aa62d01848e12efec8b3b9bf3e676ef6b"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/blank.ts",
       "upstreamPath": "packages/pptx-engine/src/blank.ts",
       "sha256": "1b8e6f5f7808c9ef6ff2cc68055d3584b0f35913d0fb3b70b50f25db835b8724",
-      "adapted": false,
-      "upstreamSha256": "1b8e6f5f7808c9ef6ff2cc68055d3584b0f35913d0fb3b70b50f25db835b8724"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/builtin-layouts.ts",
       "upstreamPath": "packages/pptx-engine/src/builtin-layouts.ts",
       "sha256": "1ca85b79dcd73aef687521468942e74400ccbb4fbc6fe18175a0d5a140317e03",
-      "adapted": false,
-      "upstreamSha256": "1ca85b79dcd73aef687521468942e74400ccbb4fbc6fe18175a0d5a140317e03"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/chart-insert.ts",
       "upstreamPath": "packages/pptx-engine/src/chart-insert.ts",
       "sha256": "9294593da4401de3af63dbe0619185acde9a049caca5811156a1d7ac87a3c0b6",
-      "adapted": false,
-      "upstreamSha256": "9294593da4401de3af63dbe0619185acde9a049caca5811156a1d7ac87a3c0b6"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/chart.ts",
       "upstreamPath": "packages/pptx-engine/src/chart.ts",
       "sha256": "0251096a79beac27e4b414e6018b6be0f998f6ca22178c3709a0f03946025abe",
-      "adapted": false,
-      "upstreamSha256": "0251096a79beac27e4b414e6018b6be0f998f6ca22178c3709a0f03946025abe"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/chartex.ts",
       "upstreamPath": "packages/pptx-engine/src/chartex.ts",
       "sha256": "3edcf9e8bbe526bdc61dd490ddb451d6a1143ba3a1ea791422dd0e4a72a06164",
-      "adapted": false,
-      "upstreamSha256": "3edcf9e8bbe526bdc61dd490ddb451d6a1143ba3a1ea791422dd0e4a72a06164"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/color.ts",
       "upstreamPath": "packages/pptx-engine/src/color.ts",
       "sha256": "97d97e77a3a2e79d3ebd028c680935907a942a488bfe6f2a6bc2edc945b51248",
-      "adapted": false,
-      "upstreamSha256": "97d97e77a3a2e79d3ebd028c680935907a942a488bfe6f2a6bc2edc945b51248"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/comments.ts",
       "upstreamPath": "packages/pptx-engine/src/comments.ts",
       "sha256": "b7f465bff0797c42417752313b45bb2d59d097c269b5b2c7c48e3a01d1792ba4",
-      "adapted": false,
-      "upstreamSha256": "b7f465bff0797c42417752313b45bb2d59d097c269b5b2c7c48e3a01d1792ba4"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/custgeom.ts",
       "upstreamPath": "packages/pptx-engine/src/custgeom.ts",
       "sha256": "dcdf8707d0801f1a09afb90eb278bbfa54aa71583f1ebd83454507e3d17dc61a",
-      "adapted": false,
-      "upstreamSha256": "dcdf8707d0801f1a09afb90eb278bbfa54aa71583f1ebd83454507e3d17dc61a"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/dgm-hier.ts",
       "upstreamPath": "packages/pptx-engine/src/dgm-hier.ts",
       "sha256": "b68c56b0f92be2e44799b35b0a1b9cff8a337a44f28eb90cdcf05d05ad0c9599",
-      "adapted": false,
-      "upstreamSha256": "b68c56b0f92be2e44799b35b0a1b9cff8a337a44f28eb90cdcf05d05ad0c9599"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/embedded-fonts.ts",
       "upstreamPath": "packages/pptx-engine/src/embedded-fonts.ts",
       "sha256": "a4d720680f0d688f7088983c42a609f4bcb4f1c6bd245d045dbf46196fb0d63d",
-      "adapted": false,
-      "upstreamSha256": "a4d720680f0d688f7088983c42a609f4bcb4f1c6bd245d045dbf46196fb0d63d"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/format-brush.ts",
       "upstreamPath": "packages/pptx-engine/src/format-brush.ts",
       "sha256": "88d468ef44754165278aad62976deb75031e5eb23dd5b0e014228fb03e9cbff0",
-      "adapted": false,
-      "upstreamSha256": "88d468ef44754165278aad62976deb75031e5eb23dd5b0e014228fb03e9cbff0"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/generate.ts",
       "upstreamPath": "packages/pptx-engine/src/generate.ts",
       "sha256": "0e56bce26243f2744d8bcf439cfef7054a8a33d2d10c629415d61d833f30ac7c",
-      "adapted": false,
-      "upstreamSha256": "0e56bce26243f2744d8bcf439cfef7054a8a33d2d10c629415d61d833f30ac7c"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/headerfooter.ts",
       "upstreamPath": "packages/pptx-engine/src/headerfooter.ts",
       "sha256": "5e17a79b6ba0f605cdd091d06beaeb507b6aac85e3e88e18d2171c0077f070c6",
-      "adapted": false,
-      "upstreamSha256": "5e17a79b6ba0f605cdd091d06beaeb507b6aac85e3e88e18d2171c0077f070c6"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/hyperlink.ts",
       "upstreamPath": "packages/pptx-engine/src/hyperlink.ts",
       "sha256": "428e9f73cfac9a7cf85eb5d75de2ade56e9381ca5f8a93984e761645154e59ea",
-      "adapted": false,
-      "upstreamSha256": "428e9f73cfac9a7cf85eb5d75de2ade56e9381ca5f8a93984e761645154e59ea"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/identity.ts",
       "upstreamPath": "packages/pptx-engine/src/identity.ts",
       "sha256": "25cc627b6db0a6456a800ae723a75138654652a97c26757dfcb9b2c0cb26ffba",
-      "adapted": false,
-      "upstreamSha256": "25cc627b6db0a6456a800ae723a75138654652a97c26757dfcb9b2c0cb26ffba"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/index.ts",
       "upstreamPath": "packages/pptx-engine/src/index.ts",
       "sha256": "9686f2e8fa72e59d6d20eadccd64de3f3c054b0959fb1848a948bfce04b94c1f",
-      "adapted": false,
-      "upstreamSha256": "9686f2e8fa72e59d6d20eadccd64de3f3c054b0959fb1848a948bfce04b94c1f"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/insert.ts",
       "upstreamPath": "packages/pptx-engine/src/insert.ts",
       "sha256": "6d22da96adeb48b1f5016793f7e0dfed07340d78a61d57b1c72a4794101abfb0",
-      "adapted": false,
-      "upstreamSha256": "6d22da96adeb48b1f5016793f7e0dfed07340d78a61d57b1c72a4794101abfb0"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/layout.ts",
       "upstreamPath": "packages/pptx-engine/src/layout.ts",
       "sha256": "109996cc3ccead377c2182bf23b7ed07829c0914c9f930cf63250474cc36d0b9",
-      "adapted": false,
-      "upstreamSha256": "109996cc3ccead377c2182bf23b7ed07829c0914c9f930cf63250474cc36d0b9"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/master-edit.ts",
       "upstreamPath": "packages/pptx-engine/src/master-edit.ts",
       "sha256": "01ac2951ff734ec7895a4399431a47f63195f84bb60774c3f8b0e67b984de07b",
-      "adapted": false,
-      "upstreamSha256": "01ac2951ff734ec7895a4399431a47f63195f84bb60774c3f8b0e67b984de07b"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/media-insert.ts",
       "upstreamPath": "packages/pptx-engine/src/media-insert.ts",
       "sha256": "5ad603c16e2ecee408d3bd43ffdc66d137abdebf3f8ddf04be29cc32a0fd4ab7",
-      "adapted": false,
-      "upstreamSha256": "5ad603c16e2ecee408d3bd43ffdc66d137abdebf3f8ddf04be29cc32a0fd4ab7"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/notes.ts",
       "upstreamPath": "packages/pptx-engine/src/notes.ts",
       "sha256": "f6b535b68f9dd28fb010ff17b7daa907a55abf3d2a74c0e7dede3b831024ca08",
-      "adapted": false,
-      "upstreamSha256": "f6b535b68f9dd28fb010ff17b7daa907a55abf3d2a74c0e7dede3b831024ca08"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/parse.ts",
       "upstreamPath": "packages/pptx-engine/src/parse.ts",
       "sha256": "b0409eb8cd7f2c53efb06efa6b4120c410fc708647467da3a88b38e9bb21f28d",
-      "adapted": false,
-      "upstreamSha256": "b0409eb8cd7f2c53efb06efa6b4120c410fc708647467da3a88b38e9bb21f28d"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/placeholder.ts",
       "upstreamPath": "packages/pptx-engine/src/placeholder.ts",
       "sha256": "7782b6845f1059019cf34a42e0ec37b0a2c59d09162a2d5b94e8eecee401c081",
-      "adapted": false,
-      "upstreamSha256": "7782b6845f1059019cf34a42e0ec37b0a2c59d09162a2d5b94e8eecee401c081"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/resource-cleanup.ts",
       "upstreamPath": "packages/pptx-engine/src/resource-cleanup.ts",
       "sha256": "357b51a787c6a4aa42f91705bee278a7aa02aa92e164a994aa2888cb7c59d72f",
-      "adapted": false,
-      "upstreamSha256": "357b51a787c6a4aa42f91705bee278a7aa02aa92e164a994aa2888cb7c59d72f"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/scan.ts",
       "upstreamPath": "packages/pptx-engine/src/scan.ts",
       "sha256": "1f542515dc0dbd7a6a91db520d46e1033c050e6217ec73017884ac79da157d5e",
-      "adapted": false,
-      "upstreamSha256": "1f542515dc0dbd7a6a91db520d46e1033c050e6217ec73017884ac79da157d5e"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/sections.ts",
       "upstreamPath": "packages/pptx-engine/src/sections.ts",
       "sha256": "e123305c9f10b262bee52ccf7d2de297e5431d5e18f2ada46d909057f109e37a",
-      "adapted": false,
-      "upstreamSha256": "e123305c9f10b262bee52ccf7d2de297e5431d5e18f2ada46d909057f109e37a"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/slide-transfer.ts",
       "upstreamPath": "packages/pptx-engine/src/slide-transfer.ts",
       "sha256": "046db9037460c9c3623f88e86421a925a2a72e30fc36b438d306e27ac21e654a",
-      "adapted": false,
-      "upstreamSha256": "046db9037460c9c3623f88e86421a925a2a72e30fc36b438d306e27ac21e654a"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/smartart-layout.ts",
       "upstreamPath": "packages/pptx-engine/src/smartart-layout.ts",
       "sha256": "9c6a502038f537c04dea181e66449f51c2e1cb3a5ddf4f7392aca8206ca90cc6",
-      "adapted": false,
-      "upstreamSha256": "9c6a502038f537c04dea181e66449f51c2e1cb3a5ddf4f7392aca8206ca90cc6"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/smartart.ts",
       "upstreamPath": "packages/pptx-engine/src/smartart.ts",
       "sha256": "cb1c6d362bc69a9463984c8ba68e2f7e62bd2faa9c91d46c024038366c60b5d1",
-      "adapted": false,
-      "upstreamSha256": "cb1c6d362bc69a9463984c8ba68e2f7e62bd2faa9c91d46c024038366c60b5d1"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/table-edit.ts",
       "upstreamPath": "packages/pptx-engine/src/table-edit.ts",
       "sha256": "857df57f7baa3865b683927fb8a349c45b7adc5be04e645d5740b19a230a0b0d",
-      "adapted": false,
-      "upstreamSha256": "857df57f7baa3865b683927fb8a349c45b7adc5be04e645d5740b19a230a0b0d"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/table-grid.ts",
       "upstreamPath": "packages/pptx-engine/src/table-grid.ts",
       "sha256": "a18ba0640fe86604ab24b00d96b770b1ecdc98a6872a34f308f591857dda8a40",
-      "adapted": false,
-      "upstreamSha256": "a18ba0640fe86604ab24b00d96b770b1ecdc98a6872a34f308f591857dda8a40"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/table-style.ts",
       "upstreamPath": "packages/pptx-engine/src/table-style.ts",
       "sha256": "9fa824374f6de81ec620bc74ee47e36e1887475823f4ebfba28c22db71ecbc80",
-      "adapted": false,
-      "upstreamSha256": "9fa824374f6de81ec620bc74ee47e36e1887475823f4ebfba28c22db71ecbc80"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/theme-apply.ts",
       "upstreamPath": "packages/pptx-engine/src/theme-apply.ts",
       "sha256": "1c547137a6a3ea49a3a0a297ad4b93e0a8bac431cecbd76de832ee9aa3fb95e0",
-      "adapted": false,
-      "upstreamSha256": "1c547137a6a3ea49a3a0a297ad4b93e0a8bac431cecbd76de832ee9aa3fb95e0"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/theme.ts",
       "upstreamPath": "packages/pptx-engine/src/theme.ts",
       "sha256": "7810fb06d2be32e4956972387ab05154249704b3d1c0913b3fea9f003d15efdf",
-      "adapted": false,
-      "upstreamSha256": "7810fb06d2be32e4956972387ab05154249704b3d1c0913b3fea9f003d15efdf"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/types.ts",
       "upstreamPath": "packages/pptx-engine/src/types.ts",
       "sha256": "10bebbffad3d779e21e90094e6d5b1e824ef8cbd9d5d0be23dd8c8c783889949",
-      "adapted": false,
-      "upstreamSha256": "10bebbffad3d779e21e90094e6d5b1e824ef8cbd9d5d0be23dd8c8c783889949"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/xml-utils.ts",
       "upstreamPath": "packages/pptx-engine/src/xml-utils.ts",
       "sha256": "2411a7c4de2981e101e6ac93339f86386da703992aa70fb165c6c81b9fc7ed14",
-      "adapted": false,
-      "upstreamSha256": "2411a7c4de2981e101e6ac93339f86386da703992aa70fb165c6c81b9fc7ed14"
+      "adapted": false
     },
     {
       "path": "packages/pptx-engine/src/zip.ts",
       "upstreamPath": "packages/pptx-engine/src/zip.ts",
       "sha256": "fbf33323bf4621c0690496aa6e33fef2deecab08dc88eb4946e19848e7d27413",
-      "adapted": false,
-      "upstreamSha256": "fbf33323bf4621c0690496aa6e33fef2deecab08dc88eb4946e19848e7d27413"
+      "adapted": false
     },
     {
       "path": "packages/pptx-render/src/preset-geometry.ts",
       "upstreamPath": "packages/pptx-render/src/preset-geometry.ts",
       "sha256": "69b9e3947d9f75385dd339a8884d7a22f3b26b7b1883bb8ed574c95bc5ec8639",
-      "adapted": false,
-      "upstreamSha256": "69b9e3947d9f75385dd339a8884d7a22f3b26b7b1883bb8ed574c95bc5ec8639"
+      "adapted": false
     },
     {
       "path": "packages/ui/src/index.ts",
       "upstreamPath": "packages/ui/src/index.ts",
       "sha256": "2ea08b04799a08c88bb9fbf683eef39f16fec42cc7401a355acf708f1b83c830",
-      "adapted": false,
-      "upstreamSha256": "3aadb54f6a57a10c8b321b92289aa775c46b336e38f79a90288ed343bbc4c30a"
+      "adapted": false
     },
     {
       "path": "packages/ui/src/shape-gallery.tsx",
       "upstreamPath": "packages/ui/src/shape-gallery.tsx",
       "sha256": "316b6d345e3ad1da3cc3c14813ac9196a993d461cf12ec8b8c5d39e76bf41e95",
-      "adapted": false,
-      "upstreamSha256": "316b6d345e3ad1da3cc3c14813ac9196a993d461cf12ec8b8c5d39e76bf41e95"
+      "adapted": false
     },
     {
       "path": "packages/ui/src/tokens.css",
       "upstreamPath": "packages/ui/src/tokens.css",
       "sha256": "0b06587b55e524e6350d74a6e1982da0ada316886ee25f48fc18f89fd9230180",
-      "adapted": false,
-      "upstreamSha256": "0b06587b55e524e6350d74a6e1982da0ada316886ee25f48fc18f89fd9230180"
+      "adapted": false
     },
     {
       "path": "packages/ui/src/wordart-presets.ts",
       "upstreamPath": "packages/ui/src/wordart-presets.ts",
       "sha256": "5ff2e934a4a3893963f8464ccb869d3e762f324e854ed7d5762c986e079f94eb",
-      "adapted": false,
-      "upstreamSha256": "5ff2e934a4a3893963f8464ccb869d3e762f324e854ed7d5762c986e079f94eb"
+      "adapted": false
     }
   ]
 }

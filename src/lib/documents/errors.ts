@@ -10,7 +10,8 @@ export type DocumentErrorCode =
   | "busy"
   | "cancelled"
   | "worker-failed"
-  | "verification-failed";
+  | "verification-failed"
+  | "degraded";
 
 const HTTP_STATUS: Record<DocumentErrorCode, number> = {
   "not-found": 404,
@@ -25,6 +26,7 @@ const HTTP_STATUS: Record<DocumentErrorCode, number> = {
   cancelled: 409,
   "worker-failed": 500,
   "verification-failed": 500,
+  degraded: 422,
 };
 
 /**

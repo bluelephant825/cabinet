@@ -30,10 +30,13 @@ import {
   recoveryUsage,
 } from "./recovery";
 import { DocumentBroker, type DocumentSession } from "./broker";
+import { selectOcrProvider } from "./ocr/registry";
 import type {
+  ConvertPlanResult,
   ConvertRequest,
   InspectResult,
   JobInfo,
+  JobResult,
   OpenRequest,
   OpenResult,
   PatchRequest,
@@ -407,14 +410,45 @@ export class DocumentService {
       });
     }
     const ext = path.posix.extname(input.virtualPath);
-    const defaultDest = `${input.virtualPath.slice(0, input.virtualPath.length - ext.length)}.docx`;
+    const stem = input.virtualPath.slice(0, input.virtualPath.length - ext.length);
+    // Read-only source (gdrive:/read-only mount): the sibling can't be written,
+    // so the destination defaults to a Converted/ folder at the cabinet root.
+    const defaultDest = src.readOnlyReason ? `Converted/${stem.split("/").pop()}.docx` : `${stem}.docx`;
     const dest = await this.collisionFreePath(input.destinationVirtualPath ?? defaultDest);
 
     const outputPath = this.broker.tempPathFor(dest.absPath);
     const job = this.broker.createJob("convert-pdf-docx", [outputPath]);
     this.broker.onJobChange?.(job); // queued
-    void this.runConvertJob(job.jobId, src.absPath, outputPath, dest, actor);
+    void this.runConvertJob(job.jobId, src.absPath, outputPath, dest, actor, {
+      languageHints: input.languageHints,
+      acknowledgeDegraded: input.acknowledgeDegraded,
+    });
     return { jobId: job.jobId };
+  }
+
+  /** Destination + scan preview for the convert dialog. */
+  async convertPlan(virtualPath: string): Promise<ConvertPlanResult> {
+    const src = await authorizeDocumentPath(virtualPath, { write: false });
+    if (src.format !== "pdf") {
+      throw new DocumentError("unsupported", "Only PDF sources can be converted to DOCX");
+    }
+    const ext = path.posix.extname(virtualPath);
+    const stem = virtualPath.slice(0, virtualPath.length - ext.length);
+    const wanted = src.readOnlyReason ? `Converted/${stem.split("/").pop()}.docx` : `${stem}.docx`;
+    const dest = await this.collisionFreePath(wanted);
+    const scan = (await this.broker.run("pdfConvertPlan", {
+      inputPath: src.absPath,
+    })) as { pageCount: number; scannedPages: number[] };
+    return {
+      destinationVirtualPath: dest.virtualPath,
+      pageCount: scan.pageCount,
+      scannedPages: scan.scannedPages,
+      ocr: await this.ocrCapabilities(),
+    };
+  }
+
+  async ocrCapabilities() {
+    return selectOcrProvider().capabilities();
   }
 
   private async runConvertJob(
@@ -423,14 +457,27 @@ export class DocumentService {
     outputPath: string,
     dest: { virtualPath: string; absPath: string },
     actor: DocumentActor,
+    opts: { languageHints?: string[]; acknowledgeDegraded?: boolean } = {},
   ): Promise<void> {
     const job = this.broker.jobs.get(jobId)!;
     try {
       const meta = (await this.broker.run(
         "convert",
-        { inputPath, outputPath },
+        {
+          inputPath,
+          outputPath,
+          languageHints: opts.languageHints,
+          acknowledgeDegraded: opts.acknowledgeDegraded,
+        },
         job,
-      )) as { pageCount: number; scannedDocument: boolean; warnings: string[] };
+      )) as {
+        pageCount: number;
+        scannedDocument: boolean;
+        warnings: string[];
+        pageResults?: unknown[];
+        ocr?: { provider: string; version: string } | null;
+        degraded?: boolean;
+      };
       if (job.status === "cancelled") return;
       // Commit under the destination lock; if the name was taken meanwhile,
       // fall through to the next collision-free name.
@@ -449,8 +496,11 @@ export class DocumentService {
           revision: committed.revision,
           size: committed.size,
           pageCount: meta.pageCount,
+          pageResults: meta.pageResults as JobResult["pageResults"],
           scannedDocument: meta.scannedDocument,
           warnings: meta.warnings,
+          ocr: meta.ocr ?? null,
+          degraded: meta.degraded,
           mutationRecorded: false,
         };
         job.status = "done";
@@ -467,7 +517,7 @@ export class DocumentService {
       if (job.status === "cancelled") return;
       job.status = "failed";
       const e = err instanceof DocumentError ? err : new DocumentError("worker-failed", String(err));
-      job.error = { code: e.code, message: e.message };
+      job.error = { code: e.code, message: e.message, details: e.details };
       this.broker.onJobChange?.(job);
       await fs.rm(outputPath, { force: true }).catch(() => {});
     }

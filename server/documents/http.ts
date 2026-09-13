@@ -67,6 +67,11 @@ export async function handleDocumentsRequest(
       return true;
     }
 
+    if (req.method === "GET" && parts[1] === "ocr" && parts[2] === "capabilities") {
+      sendJson(res, 200, await service.ocrCapabilities());
+      return true;
+    }
+
     if (req.method === "GET" && parts[1] === "recovery" && !parts[2]) {
       sendJson(res, 200, await service.listRecovery(url.searchParams.get("path") ?? ""));
       return true;
@@ -201,6 +206,14 @@ export async function handleDocumentsRequest(
         sendJson(res, 200, await service.saveCopy(body as never));
         return true;
       case "convert":
+        if (parts[2] === "plan") {
+          sendJson(
+            res,
+            200,
+            await service.convertPlan(String(body.virtualPath ?? "")),
+          );
+          return true;
+        }
         sendJson(res, 200, await service.convert(body as never));
         return true;
       case "revision":

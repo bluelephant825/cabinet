@@ -5,6 +5,8 @@ import { OfficeChrome } from "./office/office-chrome";
 import { ViewerLayout } from "@/components/layout/viewer-layout";
 import { useLocale } from "@/i18n/use-locale";
 import { PdfEditorHost } from "@/components/editor/documents/pdf-editor-host";
+import { ConvertToWordButton } from "@/components/editor/documents/convert-to-word";
+import { useTreeStore } from "@/stores/tree-store";
 
 interface PdfViewerProps {
   path: string;
@@ -53,6 +55,16 @@ export function PdfViewer({ path, title }: PdfViewerProps) {
           title={title}
           extLabel="PDF"
           status={statusBadge}
+          actions={
+            <ConvertToWordButton
+              path={path}
+              onNavigate={async (p) => {
+                const { loadTree, focusPath } = useTreeStore.getState();
+                await loadTree();
+                focusPath(p);
+              }}
+            />
+          }
           external={{ label: "Open in new tab", href: pdfSrc }}
         />
       }
