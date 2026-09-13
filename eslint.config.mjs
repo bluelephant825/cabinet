@@ -21,6 +21,26 @@ const eslintConfig = defineConfig([
       "react-hooks/static-components": "warn",
     },
   },
+  // Vendored GenOffice document engines are worker-only: nothing outside
+  // server/documents/worker*.ts (and tests) may import them.
+  {
+    files: ["src/**/*.ts", "src/**/*.tsx", "server/**/*.ts"],
+    ignores: ["src/vendor/**", "server/documents/worker.ts", "server/documents/worker-ops.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/vendor/genoffice/**", "*/vendor/genoffice/*", "**/src/vendor/genoffice/**"],
+              message:
+                "GenOffice engines run only in server/documents/worker*.ts — call the document service instead.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

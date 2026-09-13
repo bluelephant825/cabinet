@@ -48,6 +48,8 @@ import { openActiveIngestionQueue } from "./ingestion/queue";
 import { WikiWorkflow } from "./ingestion/wiki-workflow";
 import { handleWikiRequest } from "./ingestion/wiki-http";
 import { handleInboxRequest } from "./ingestion/inbox-http";
+import { handleDocumentsRequest } from "./documents/http";
+import { DocumentService } from "./documents/service";
 import { DATA_DIR } from "../src/lib/storage/path-utils";
 import { countWatchableDirs } from "../src/lib/storage/watchable-dirs";
 import { discoverCabinetPathsSync } from "../src/lib/cabinets/discovery";
@@ -238,6 +240,7 @@ const searchIndex = new SearchIndex();
 let searchIndexReady = false;
 const wikiWorkflow = new WikiWorkflow(DATA_DIR, openActiveIngestionQueue, undefined, isProcessStale);
 const inboxWatcher = new InboxWatcher(DATA_DIR, openActiveIngestionQueue);
+const documentService = new DocumentService();
 const managedSourceWatcher = new ManagedSourceWatcher(DATA_DIR, openActiveIngestionQueue, {
   onError: (message) => console.warn("[managed-source-watcher]", message),
 });
@@ -1886,6 +1889,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith("/documents/")) {
+    await handleDocumentsRequest(req, res, documentService);
+    return;
+  }
+
   if (url.pathname === "/ingestion/wiki") {
     await handleWikiRequest(req, res, wikiWorkflow);
     return;
@@ -2322,6 +2330,7 @@ async function shutdown(): Promise<void> {
   await wikiWorkflow.close();
   await managedSourceWatcher.close().catch((error) => console.warn("[managed-source-watcher] shutdown failed:", error));
   await inboxWatcher.close().catch((error) => console.warn("[inbox-watcher] shutdown failed:", error));
+  await documentService.shutdown().catch((error) => console.warn("[documents] shutdown failed:", error));
   closeDb();
   server.close();
   process.exit(0);

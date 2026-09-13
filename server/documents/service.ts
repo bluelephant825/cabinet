@@ -1,0 +1,334 @@
+/**
+ * DocumentService — application-level document API for the daemon.
+ *
+ * Every write follows: authorizeDocumentPath(write) → path mutex → commitBytes.
+ * Engine work happens in pooled worker processes via the broker; this layer
+ * only orchestrates policy, revisions, sessions, and jobs.
+ */
+import fs from "node:fs/promises";
+import path from "node:path";
+import { authorizeDocumentPath } from "../../src/lib/documents/policy";
+import { DocumentError } from "../../src/lib/documents/errors";
+import { fileExists } from "../../src/lib/storage/fs-operations";
+import {
+  commitBytes,
+  readWithRevision,
+  stageTempPathFor,
+} from "./persistence";
+import { DocumentBroker, type DocumentSession } from "./broker";
+import type {
+  ConvertRequest,
+  InspectResult,
+  JobInfo,
+  OpenRequest,
+  OpenResult,
+  PatchRequest,
+  PatchResult,
+  ReadResult,
+  SaveCopyRequest,
+  SaveCopyResult,
+  SearchResult,
+  DocumentActor,
+} from "../../src/lib/documents/types";
+
+function validateActor(actor: DocumentActor | undefined): DocumentActor {
+  if (actor === undefined) return { kind: "user" };
+  if (actor.kind === "user") return actor;
+  if (actor.kind === "agent" && typeof actor.id === "string" && actor.id) return actor;
+  throw new DocumentError("invalid", "Malformed actor");
+}
+
+interface ResolvedTarget {
+  session?: DocumentSession;
+  virtualPath: string;
+  absPath: string;
+  format: "docx" | "pdf";
+}
+
+export class DocumentService {
+  constructor(private readonly broker = new DocumentBroker()) {
+    this.broker.start();
+  }
+
+  // ── open / sessions ───────────────────────────────────────────────────
+
+  async open(input: OpenRequest): Promise<OpenResult> {
+    validateActor(input.actor);
+    const auth = await authorizeDocumentPath(input.virtualPath, { write: false });
+    const { bytes, revision } = await readWithRevision(auth.absPath);
+    const session = this.broker.openSession({
+      virtualPath: input.virtualPath,
+      absPath: auth.absPath,
+      format: auth.format,
+      revision,
+    });
+    return {
+      sessionId: session.sessionId,
+      virtualPath: input.virtualPath,
+      format: auth.format,
+      revision,
+      size: bytes.byteLength,
+      capabilities: { edit: !auth.readOnlyReason, convert: auth.format === "pdf" },
+      readOnlyReason: auth.readOnlyReason,
+    };
+  }
+
+  close(sessionId: string): { closed: true } {
+    this.broker.closeSession(sessionId);
+    return { closed: true };
+  }
+
+  private async resolveTarget(input: {
+    sessionId?: string;
+    virtualPath?: string;
+  }): Promise<ResolvedTarget> {
+    if (input.sessionId) {
+      const session = this.broker.touchSession(input.sessionId);
+      return {
+        session,
+        virtualPath: session.virtualPath,
+        absPath: session.absPath,
+        format: session.format,
+      };
+    }
+    if (!input.virtualPath) {
+      throw new DocumentError("invalid", "Provide sessionId or virtualPath");
+    }
+    const auth = await authorizeDocumentPath(input.virtualPath, { write: false });
+    return { virtualPath: input.virtualPath, absPath: auth.absPath, format: auth.format };
+  }
+
+  // ── read-side ops (serialized on the same mutex for a consistent read) ──
+
+  async inspect(input: { sessionId?: string; virtualPath?: string }): Promise<InspectResult> {
+    const t = await this.resolveTarget(input);
+    return this.broker.withPathLock(t.absPath, () =>
+      this.broker.run("inspect", { inputPath: t.absPath, format: t.format }),
+    ) as Promise<InspectResult>;
+  }
+
+  async read(input: {
+    sessionId?: string;
+    virtualPath?: string;
+    page?: number;
+    paragraphRange?: [number, number];
+  }): Promise<ReadResult> {
+    const t = await this.resolveTarget(input);
+    return this.broker.withPathLock(t.absPath, () =>
+      this.broker.run("read", {
+        inputPath: t.absPath,
+        format: t.format,
+        page: input.page,
+        paragraphRange: input.paragraphRange,
+      }),
+    ) as Promise<ReadResult>;
+  }
+
+  async search(input: {
+    sessionId?: string;
+    virtualPath?: string;
+    query: string;
+  }): Promise<SearchResult> {
+    const t = await this.resolveTarget(input);
+    return this.broker.withPathLock(t.absPath, () =>
+      this.broker.run("search", { inputPath: t.absPath, format: t.format, query: input.query }),
+    ) as Promise<SearchResult>;
+  }
+
+  // ── mutations ─────────────────────────────────────────────────────────
+
+  async applyPatch(input: PatchRequest): Promise<PatchResult> {
+    validateActor(input.actor);
+    const session = this.broker.touchSession(input.sessionId);
+    if (!input.baseRevision) {
+      throw new DocumentError("invalid", "baseRevision is required");
+    }
+    await authorizeDocumentPath(session.virtualPath, { write: true });
+    return this.broker.withPathLock(session.absPath, async () => {
+      const current = await readWithRevision(session.absPath);
+      if (current.revision !== input.baseRevision) {
+        throw new DocumentError("conflict", "Document changed since baseRevision", {
+          currentRevision: current.revision,
+        });
+      }
+      const outputPath = this.broker.tempPathFor(session.absPath);
+      const result = (await this.broker.run("applyPatch", {
+        inputPath: session.absPath,
+        outputPath,
+        format: session.format,
+        ops: input.ops,
+      })) as { applied: number; diagnostics: { index: number; code: string; message: string }[] };
+      try {
+        const committed = await commitBytes({
+          absPath: session.absPath,
+          tempPath: outputPath,
+          expectedRevision: input.baseRevision,
+        });
+        session.revision = committed.revision;
+        session.lastSeenAt = new Date();
+        return {
+          revision: committed.revision,
+          applied: result.applied,
+          diagnostics: result.diagnostics,
+          virtualPath: session.virtualPath,
+        };
+      } finally {
+        await fs.rm(outputPath, { force: true }).catch(() => {});
+      }
+    });
+  }
+
+  /** Stage path for an upload body — caller streams bytes here, then calls `save`. */
+  async prepareSaveTarget(virtualPath: string): Promise<{ absPath: string; tempPath: string }> {
+    const auth = await authorizeDocumentPath(virtualPath, { write: true });
+    return { absPath: auth.absPath, tempPath: stageTempPathFor(auth.absPath) };
+  }
+
+  /** Commit a body previously streamed to `tempPath` (from prepareSaveTarget). */
+  async save(input: {
+    virtualPath: string;
+    baseRevision: string | null;
+    tempPath: string;
+    actor?: DocumentActor;
+  }): Promise<{ revision: string; size: number }> {
+    validateActor(input.actor);
+    const auth = await authorizeDocumentPath(input.virtualPath, { write: true });
+    return this.broker.withPathLock(auth.absPath, () =>
+      commitBytes({
+        absPath: auth.absPath,
+        tempPath: input.tempPath,
+        expectedRevision: input.baseRevision,
+      }),
+    );
+  }
+
+  async saveCopy(input: SaveCopyRequest): Promise<SaveCopyResult> {
+    validateActor(input.actor);
+    const src = await authorizeDocumentPath(input.virtualPath, { write: false });
+    const { bytes, revision } = await readWithRevision(src.absPath);
+    if (input.baseRevision !== revision) {
+      throw new DocumentError("conflict", "Document changed since baseRevision", {
+        currentRevision: revision,
+      });
+    }
+    const dest = await this.collisionFreePath(input.destinationVirtualPath);
+    const committed = await this.broker.withPathLock(dest.absPath, () =>
+      commitBytes({ absPath: dest.absPath, bytes, expectedRevision: null }),
+    );
+    return { virtualPath: dest.virtualPath, revision: committed.revision, size: committed.size };
+  }
+
+  /**
+   * Next free path for `virtualPath`: if taken, inserts ` (2)`, ` (3)`… before
+   * the extension. The returned path has already passed write authorization.
+   */
+  private async collisionFreePath(virtualPath: string): Promise<{ virtualPath: string; absPath: string }> {
+    const ext = path.posix.extname(virtualPath);
+    const stem = virtualPath.slice(0, virtualPath.length - ext.length);
+    for (let i = 0; i < 1000; i++) {
+      const candidate = i === 0 ? virtualPath : `${stem} (${i + 1})${ext}`;
+      const auth = await authorizeDocumentPath(candidate, { write: true });
+      if (!(await fileExists(auth.absPath))) {
+        return { virtualPath: candidate, absPath: auth.absPath };
+      }
+    }
+    throw new DocumentError("invalid", "Could not find a free destination name");
+  }
+
+  // ── convert job ─────────────────────────────────────────────────────────
+
+  async convert(input: ConvertRequest): Promise<{ jobId: string }> {
+    validateActor(input.actor);
+    const src = await authorizeDocumentPath(input.virtualPath, { write: false });
+    if (src.format !== "pdf") {
+      throw new DocumentError("unsupported", "Only PDF sources can be converted to DOCX");
+    }
+    const { revision } = await readWithRevision(src.absPath);
+    if (input.baseRevision !== revision) {
+      throw new DocumentError("conflict", "Document changed since baseRevision", {
+        currentRevision: revision,
+      });
+    }
+    const ext = path.posix.extname(input.virtualPath);
+    const defaultDest = `${input.virtualPath.slice(0, input.virtualPath.length - ext.length)}.docx`;
+    const dest = await this.collisionFreePath(input.destinationVirtualPath ?? defaultDest);
+
+    const outputPath = this.broker.tempPathFor(dest.absPath);
+    const job = this.broker.createJob("convert-pdf-docx", [outputPath]);
+    void this.runConvertJob(job.jobId, src.absPath, outputPath, dest);
+    return { jobId: job.jobId };
+  }
+
+  private async runConvertJob(
+    jobId: string,
+    inputPath: string,
+    outputPath: string,
+    dest: { virtualPath: string; absPath: string },
+  ): Promise<void> {
+    const job = this.broker.jobs.get(jobId)!;
+    try {
+      const meta = (await this.broker.run(
+        "convert",
+        { inputPath, outputPath },
+        job,
+      )) as { pageCount: number; scannedDocument: boolean; warnings: string[] };
+      if (job.status === "cancelled") return;
+      // Commit under the destination lock; if the name was taken meanwhile,
+      // fall through to the next collision-free name.
+      await this.broker.withPathLock(dest.absPath, async () => {
+        let target = dest;
+        if (await fileExists(dest.absPath)) {
+          target = await this.collisionFreePath(dest.virtualPath);
+        }
+        const committed = await commitBytes({
+          absPath: target.absPath,
+          tempPath: outputPath,
+          expectedRevision: null,
+        });
+        job.result = {
+          virtualPath: target.virtualPath,
+          revision: committed.revision,
+          size: committed.size,
+          pageCount: meta.pageCount,
+          scannedDocument: meta.scannedDocument,
+          warnings: meta.warnings,
+          mutationRecorded: false,
+        };
+        job.status = "done";
+      });
+    } catch (err) {
+      if (job.status === "cancelled") return;
+      job.status = "failed";
+      const e = err instanceof DocumentError ? err : new DocumentError("worker-failed", String(err));
+      job.error = { code: e.code, message: e.message };
+      await fs.rm(outputPath, { force: true }).catch(() => {});
+    }
+  }
+
+  jobStatus(jobId: string): JobInfo {
+    return this.broker.jobInfo(jobId);
+  }
+
+  markJobRecorded(jobId: string): JobInfo {
+    return this.broker.markJobRecorded(jobId);
+  }
+
+  cancel(jobId: string): JobInfo {
+    return this.broker.cancelJob(jobId);
+  }
+
+  /** Test/diagnostic hook: run a raw op on the worker pool. */
+  runWorkerOp(op: string, args: Record<string, unknown>): Promise<unknown> {
+    return this.broker.run(op, args);
+  }
+
+  health(): { workers: number; sessions: number; jobs: number; queue: number } {
+    return this.broker.stats();
+  }
+
+  async shutdown(): Promise<void> {
+    await this.broker.shutdown();
+  }
+}
+
+

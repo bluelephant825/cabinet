@@ -101,7 +101,10 @@ async function makeTwoLinePdf(): Promise<PdfFixture> {
 
 /** Extract a page's text through the same PDFium build the engine writes with. */
 async function extractPageText(bytes: Uint8Array, pageIndex = 0): Promise<string> {
-  const m = await loadPdfium()
+  // The vendored Pdfium interface omits a couple of FPDF exports the module has.
+  const m = (await loadPdfium()) as Awaited<ReturnType<typeof loadPdfium>> & {
+    _FPDFText_GetUnicode(textPage: number, index: number): number
+  }
   return chainPdfium(() =>
     withDocument(m, bytes, async (doc) => {
       const page = m._FPDF_LoadPage(doc, pageIndex)
@@ -174,7 +177,7 @@ test('docx: targeted edit preserves untouched structures', async () => {
   const reparsed = await parseDocx(saved)
   const texts = reparsed.blocks
     .filter((b) => !b.hidden)
-    .map((b) => b.text ?? (b.runs ?? []).map((r) => r.text).join(''))
+    .map((b) => (b.runs ?? []).map((r) => r.text).join('') || b.previewText || '')
   assert.ok(texts.some((t) => t.includes('Alpha EDITED line')))
   assert.ok(texts.some((t) => t.includes('Beta second line')))
 

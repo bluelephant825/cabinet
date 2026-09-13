@@ -105,8 +105,9 @@ export const config = {
     // /api/upload is excluded on purpose: matched requests get their body
     // cloned into memory by Next (and silently truncated at 10MB —
     // proxyClientMaxBodySize), which breaks and bloats large streaming
-    // uploads. That route enforces the identical gate itself via
-    // requireApiAuth() from @/lib/auth/request-gate.
-    "/((?!_next/static|_next/image|favicon.ico|api/upload).*)",
+    // uploads. /api/documents is excluded for the same reason (PUT save
+    // streams binary document bodies). Those routes enforce the identical
+    // gate themselves via requireApiAuth() from @/lib/auth/request-gate.
+    "/((?!_next/static|_next/image|favicon.ico|api/upload|api/documents).*)",
   ],
 };

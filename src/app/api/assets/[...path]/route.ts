@@ -6,6 +6,7 @@ import { autoCommit } from "@/lib/git/git-service";
 import { resolveAuthorizedMountPaths, assertWritablePath, ReadOnlySourceError } from "@/lib/knowledge-sources/store";
 import { decodeDrivePath } from "@/lib/google-drive/paths";
 import { storageOverCap } from "@/lib/cloud/tier";
+import { isBinaryDocumentWrite } from "@/lib/documents/policy";
 import fs from "fs/promises";
 import { invalidateTreeCache } from "@/lib/storage/tree-builder";
 import { removeSidecarEntry } from "@/lib/storage/order-store";
@@ -288,7 +289,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
     let resolved = resolveContentPath(virtualPath);
     
+    // Binary documents must go through the document service (binary-safe
+    // commitBytes + revision checks); a utf-8 text write here would corrupt
+    // them. Text-ish saves (svg, markdown, json…) pass through unchanged.
+    const ext = path.extname(resolved).toLowerCase();
     const isDir = req.nextUrl.searchParams.get("dir") === "1";
+    if (!isDir && isBinaryDocumentWrite(ext, req.headers.get("content-type"))) {
+      return NextResponse.json(
+        { error: "Binary documents must be saved through /api/documents/save" },
+        { status: 415 }
+      );
+    }
     if (!isDir) {
       const mdPath = resolved + ".md";
       const mdxPath = resolved + ".mdx";
