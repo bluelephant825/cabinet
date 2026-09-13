@@ -46,7 +46,23 @@ const nextConfig: NextConfig = {
   // dev. Disable it entirely — actual Next.js compile errors still surface
   // via the terminal and the error overlay.
   devIndicators: false,
-  serverExternalPackages: ["node-pty", "simple-git", "better-sqlite3", "node-cron"],
+  serverExternalPackages: [
+    "node-pty",
+    "simple-git",
+    "better-sqlite3",
+    "node-cron",
+    // Vendored GenOffice engines are server/daemon-only: keep their runtime
+    // deps external so Next never bundles them (or their wasm assets) into
+    // client or server chunks.
+    "@embedpdf/pdfium",
+    "pdf-lib",
+    "fast-xml-parser",
+    "bidi-js",
+    "harfbuzzjs",
+    "utif2",
+    "pngjs",
+    "jpeg-js",
+  ],
   outputFileTracingExcludes: {
     "/*": [
       ".next/dev/**/*",
