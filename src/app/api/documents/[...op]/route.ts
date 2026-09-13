@@ -226,12 +226,16 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     return proxyJson(await documentsDaemonFetch("/documents/pdf-composition/catalog"));
   }
 
-  // GET /api/documents/pdf-composition/status?path=
+  // GET /api/documents/pdf-composition/status?path= (or ?output= for the
+  // reverse lookup from a generated PDF back to its source).
   if (op[0] === "pdf-composition" && op[1] === "status") {
+    const params = new URLSearchParams();
+    const sourcePath = req.nextUrl.searchParams.get("path");
+    const outputPath = req.nextUrl.searchParams.get("output");
+    if (sourcePath) params.set("path", sourcePath);
+    if (outputPath) params.set("output", outputPath);
     return proxyJson(
-      await documentsDaemonFetch(
-        `/documents/pdf-composition/status?path=${encodeURIComponent(req.nextUrl.searchParams.get("path") ?? "")}`,
-      ),
+      await documentsDaemonFetch(`/documents/pdf-composition/status?${params}`),
     );
   }
 

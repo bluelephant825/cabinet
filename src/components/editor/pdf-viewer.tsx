@@ -1,12 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { FilePenLine } from "lucide-react";
 import { OfficeChrome } from "./office/office-chrome";
 import { ViewerLayout } from "@/components/layout/viewer-layout";
+import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { useLocale } from "@/i18n/use-locale";
 import { PdfEditorHost } from "@/components/editor/documents/pdf-editor-host";
 import { ConvertToWordButton } from "@/components/editor/documents/convert-to-word";
 import { useTreeStore } from "@/stores/tree-store";
+
+/**
+ * "Edit source" — only when generation metadata links this PDF to a
+ * validated .pdf.source.json (i.e. it was produced by the composer).
+ */
+function EditSourceButton({ path }: { path: string }) {
+  const { t } = useLocale();
+  const [source, setSource] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/documents/pdf-composition/status?output=${encodeURIComponent(path)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { sourceVirtualPath?: string } | null) => {
+        if (!cancelled && d?.sourceVirtualPath) setSource(d.sourceVirtualPath);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+  if (!source) return null;
+  return (
+    <ToolbarButton
+      icon={FilePenLine}
+      label={t("pdfComposer:editSource")}
+      title={source}
+      onClick={async () => {
+        const { loadTree, focusPath } = useTreeStore.getState();
+        await loadTree();
+        focusPath(source);
+      }}
+    />
+  );
+}
 
 interface PdfViewerProps {
   path: string;
@@ -56,6 +92,8 @@ export function PdfViewer({ path, title }: PdfViewerProps) {
           extLabel="PDF"
           status={statusBadge}
           actions={
+            <>
+            <EditSourceButton path={path} />
             <ConvertToWordButton
               path={path}
               onNavigate={async (p) => {
@@ -64,6 +102,7 @@ export function PdfViewer({ path, title }: PdfViewerProps) {
                 focusPath(p);
               }}
             />
+            </>
           }
           external={{ label: "Open in new tab", href: pdfSrc }}
         />

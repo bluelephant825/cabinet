@@ -48,7 +48,7 @@ function allText(geo: PdfGeometryResult, page?: number): string {
     .join("\n");
 }
 
-test("gate: A4 pagination, searchable text, footer page numbers", async (t) => {
+test("gate: A4 pagination, searchable text, footer page numbers", async () => {
   const file = await renderGate("professional");
   const bytes = readFileSync(file);
   const doc = await PDFDocument.load(bytes);
@@ -67,7 +67,7 @@ test("gate: A4 pagination, searchable text, footer page numbers", async (t) => {
   );
 });
 
-test("gate: concurrent renders with different themes stay isolated", async (t) => {
+test("gate: concurrent renders with different themes stay isolated", async () => {
   const [a, b] = await Promise.all([renderGate("professional"), renderGate("minimal")]);
   const [ba, bb] = [readFileSync(a), readFileSync(b)];
   assert.notDeepEqual(bb, ba, "different themes produced identical bytes");

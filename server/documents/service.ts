@@ -927,6 +927,37 @@ export class DocumentService {
     };
   }
 
+  /**
+   * Reverse lookup for the PDF viewer's "Edit source" action: find the
+   * generation metadata that produced this output PDF, then report the same
+   * shape as pdfCompositionStatus plus the source path.
+   */
+  async pdfCompositionStatusByOutput(outputVirtualPath: string): Promise<
+    | ({ sourceVirtualPath: string } & Awaited<ReturnType<DocumentService["pdfCompositionStatus"]>>)
+    | null
+  > {
+    let entries: string[] = [];
+    try {
+      entries = await fs.readdir(PDF_GENERATION_META_DIR);
+    } catch {
+      return null;
+    }
+    for (const name of entries) {
+      if (!name.endsWith(".json")) continue;
+      try {
+        const m = JSON.parse(await fs.readFile(path.join(PDF_GENERATION_META_DIR, name), "utf8"));
+        if (m?.outputVirtualPath !== outputVirtualPath || typeof m?.sourceVirtualPath !== "string") {
+          continue;
+        }
+        const status = await this.pdfCompositionStatus(m.sourceVirtualPath);
+        return { sourceVirtualPath: m.sourceVirtualPath, ...status };
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
   private generationMetaPath(sourceVirtualPath: string): string {
     const key = createHash("sha256").update(sourceVirtualPath).digest("hex");
     return path.join(PDF_GENERATION_META_DIR, `${key}.json`);

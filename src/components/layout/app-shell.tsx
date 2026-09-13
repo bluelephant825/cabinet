@@ -36,6 +36,12 @@ const PptxViewer = dynamic(
 );
 const Model3dViewer = dynamic(
   () => import("@/components/editor/model3d-viewer").then((m) => m.Model3dViewer),
+);
+const PdfCompositionEditor = dynamic(
+  () =>
+    import("@/components/pdf-generation/pdf-composition-editor").then(
+      (m) => m.PdfCompositionEditor,
+    ),
   { ssr: false }
 );
 import { HomeScreen } from "@/components/home/home-screen";
@@ -781,6 +787,10 @@ export function AppShell() {
       })()
     : null;
   const nodeType = selectedNode?.type || inferredType;
+  // .pdf.source.json files classify as "code" via the .json extension — route
+  // them to the PDF composition editor BEFORE the generic source viewer.
+  const compositionPath = selectedNode?.path || selectedPath || "";
+  const isPdfComposition = compositionPath.toLowerCase().endsWith(".pdf.source.json");
   const isWebsite = nodeType === "website";
   const isApp = nodeType === "app";
   const prevIsApp = useRef(false);
@@ -1066,6 +1076,12 @@ export function AppShell() {
       const nbTitle = selectedNode?.frontmatter?.title || selectedNode?.name || nbPath.split("/").pop() || "Notebook";
       return <NotebookViewer path={nbPath} title={nbTitle} />;
     }
+    if (isPdfComposition && (selectedNode || selectedPath)) {
+      const p = selectedNode?.path || selectedPath!;
+      const t = selectedNode?.frontmatter?.title || selectedNode?.name || p.split("/").pop() || "PDF";
+      return <PdfCompositionEditor path={p} title={t} />;
+    }
+
     if (isCode && (selectedNode || selectedPath)) {
       const codePath = selectedNode?.path || selectedPath!;
       const codeTitle = selectedNode?.frontmatter?.title || selectedNode?.name || codePath.split("/").pop() || "Source";

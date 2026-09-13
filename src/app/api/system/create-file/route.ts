@@ -14,6 +14,12 @@ import { autoCommit } from "@/lib/git/git-service";
 import { slugifyFileName } from "@/lib/markdown/wiki-links";
 import { blankOffice, type BlankOfficeKind } from "@/lib/storage/office-templates";
 import { appendOrder, setEntryOrder } from "@/lib/storage/order-store";
+import { documentsDaemonFetch } from "@/lib/documents/client";
+import { newComposition, newNodeId } from "@/lib/documents/pdf-composition";
+import type { PdfComposition } from "@/lib/documents/pdf-composition";
+import blankPdfTemplate from "@/lib/documents/pdf-templates/blank.json";
+import invoicePdfTemplate from "@/lib/documents/pdf-templates/invoice.json";
+import reportPdfTemplate from "@/lib/documents/pdf-templates/report.json";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +47,15 @@ interface CreateFileRequest {
   name?: string;
   ext?: string;
   googleUrl?: string;
+  /** pdfComposition only: which catalog template to start from. */
+  template?: string;
 }
+
+const PDF_TEMPLATES: Record<string, PdfComposition> = {
+  blank: blankPdfTemplate as unknown as PdfComposition,
+  invoice: invoicePdfTemplate as unknown as PdfComposition,
+  report: reportPdfTemplate as unknown as PdfComposition,
+};
 
 function sanitizeBaseName(name: string): string {
   return name
@@ -125,6 +139,41 @@ export async function POST(req: NextRequest) {
       invalidateTreeCache();
       autoCommit(virtualPath, "Add");
       return NextResponse.json({ ok: true, path: virtualPath, isPage: true });
+    }
+
+    // ── PDF composition source: validated creation through the daemon so
+    // the document service's authorization/read-only guards apply. ────────
+    if (type === "pdfComposition") {
+      const template = PDF_TEMPLATES[(body.template || "").trim()] ?? PDF_TEMPLATES.blank;
+      const base = sanitizeBaseName(rawName.replace(/\.[^.]+$/, "")) || "untitled";
+      const parentResolved = parentPath ? resolveContentPath(parentPath) : resolveContentPath("");
+      await ensureDirectory(parentResolved);
+      const { filename } = await uniqueFilePath(parentResolved, base, ".pdf.source.json");
+      const virtualPath = parentPath ? `${parentPath}/${filename}` : filename;
+      const composition = newComposition({ template });
+      composition.documentId = newNodeId("doc");
+      composition.title = rawName;
+      const res = await documentsDaemonFetch("/documents/pdf-composition/source", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ virtualPath, composition }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: data?.error || `Create failed (${res.status})` },
+          { status: res.status === 409 ? 409 : 500 },
+        );
+      }
+      try {
+        const order = await appendOrder(parentPath);
+        await setEntryOrder(parentPath, filename, order);
+      } catch (err) {
+        console.error("Failed to assign order to created file:", err);
+      }
+      invalidateTreeCache();
+      autoCommit(virtualPath, "Add");
+      return NextResponse.json({ ok: true, path: virtualPath, isPage: false });
     }
 
     // ── Flat file types: code, mermaid, csv, office ───────────────────────

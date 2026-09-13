@@ -10,6 +10,7 @@ import {
   Sheet,
   Table,
   Workflow,
+  LayoutTemplate,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ const FILE_TYPES: FileTypeDef[] = [
   { id: "code", group: "native", icon: Code, color: "text-violet-400" },
   { id: "mermaid", group: "native", icon: Workflow, color: "text-teal-400", ext: ".mermaid" },
   { id: "csv", group: "native", icon: Table, color: "text-green-400", ext: ".csv" },
+  { id: "pdfComposition", group: "native", icon: LayoutTemplate, color: "text-rose-400", ext: ".pdf.source.json" },
   { id: "docx", group: "office", icon: FileText, color: "text-blue-400", ext: ".docx" },
   { id: "xlsx", group: "office", icon: FileSpreadsheet, color: "text-green-500", ext: ".xlsx" },
   { id: "pptx", group: "office", icon: Presentation, color: "text-orange-400", ext: ".pptx" },
@@ -82,6 +84,7 @@ export function NewFileDialog({
   const [name, setName] = useState("");
   const [ext, setExt] = useState(".ts");
   const [googleUrl, setGoogleUrl] = useState("");
+  const [pdfTemplate, setPdfTemplate] = useState<string>("blank");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -91,6 +94,7 @@ export function NewFileDialog({
       setName("");
       setExt(".ts");
       setGoogleUrl("");
+      setPdfTemplate("blank");
       setError("");
       setCreating(false);
     }
@@ -118,6 +122,7 @@ export function NewFileDialog({
           name: trimmed,
           ext: selected === "code" ? ext : undefined,
           googleUrl: selectedDef.google ? googleUrl.trim() || undefined : undefined,
+          template: selected === "pdfComposition" ? pdfTemplate : undefined,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -233,7 +238,7 @@ export function NewFileDialog({
               // Fixed-extension types: show the suffix as a read-only grey label.
               <div
                 aria-hidden
-                className="flex h-9 w-24 shrink-0 select-none items-center justify-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+                className="flex h-9 w-auto min-w-24 shrink-0 select-none items-center justify-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
               >
                 {selectedDef.ext}
               </div>
@@ -256,6 +261,31 @@ export function NewFileDialog({
                 ext: selected === "code" ? ext : selectedDef.ext,
               })}
             </p>
+          )}
+
+          {selected === "pdfComposition" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("newFile:pdfTemplateLabel")}
+              </label>
+              <div className="flex gap-2">
+                {(["blank", "invoice", "report"] as const).map((tpl) => (
+                  <button
+                    key={tpl}
+                    type="button"
+                    onClick={() => setPdfTemplate(tpl)}
+                    className={cn(
+                      "flex-1 rounded-md border px-3 py-1.5 text-xs transition-colors",
+                      pdfTemplate === tpl
+                        ? "border-primary/50 bg-primary/5 text-foreground ring-1 ring-primary/30"
+                        : "border-border text-muted-foreground hover:bg-foreground/3"
+                    )}
+                  >
+                    {t(`newFile:pdfTemplates.${tpl}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {selectedDef.google && (

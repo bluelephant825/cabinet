@@ -126,6 +126,11 @@ export async function handleDocumentsRequest(
     }
 
     if (req.method === "GET" && parts[1] === "pdf-composition" && parts[2] === "status") {
+      const output = url.searchParams.get("output");
+      if (output) {
+        sendJson(res, 200, (await service.pdfCompositionStatusByOutput(output)) ?? {});
+        return true;
+      }
       sendJson(res, 200, await service.pdfCompositionStatus(url.searchParams.get("path") ?? ""));
       return true;
     }
