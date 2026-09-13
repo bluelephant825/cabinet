@@ -99,20 +99,24 @@ export function DocxViewer({ path, title }: Props) {
     saving: false,
   });
 
+  const statusBadge =
+    status.dirty || status.saving || status.error ? (
+      <span className="rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
+        {status.error
+          ? status.error
+          : status.saving
+            ? t("docxEditor:saving")
+            : t("docxEditor:unsaved")}
+      </span>
+    ) : null;
+
   return (
-    <ViewerLayout toolbar={<OfficeChrome path={path} title={title} extLabel="DOCX" />}>
+    <ViewerLayout
+      toolbar={
+        <OfficeChrome path={path} title={title} extLabel="DOCX" status={statusBadge} />
+      }
+    >
       <div className="flex-1 min-h-0 flex flex-col relative">
-        {(status.dirty || status.saving || status.error) && (
-          <div className="absolute top-2 right-4 z-10 rounded-md bg-background/90 border px-2 py-1 text-xs text-muted-foreground shadow-sm">
-            {status.error
-              ? status.error
-              : status.saving
-                ? t("docxEditor:saving")
-                : status.dirty
-                  ? t("docxEditor:unsaved")
-                  : ""}
-          </div>
-        )}
         <DocxEditorHost
           path={path}
           onStatus={setStatus}

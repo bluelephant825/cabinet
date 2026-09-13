@@ -118,6 +118,7 @@
     "nodemailer": "^8.0.10",
     "parse5": "^8.0.1",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.2.108",
     "pngjs": "^7.0.0",
     "posthog-js": "^1.200.0",
     "pptx-preview": "^1.0.7",

@@ -2165,5 +2165,22 @@
     "saving": "",
     "tryExternal": "",
     "unsaved": ""
+  },
+  "pdfEditor": {
+    "convertHint": "",
+    "deleteImage": "",
+    "imageInvalid": "",
+    "insertImage": "",
+    "nonEditable": "",
+    "overflow": "",
+    "pendingEdit": "",
+    "replaceImage": "",
+    "save": "",
+    "signedWarning": "",
+    "toolEditText": "",
+    "toolImages": "",
+    "toolInsertText": "",
+    "toolSelect": "",
+    "typeHere": ""
   }
 }

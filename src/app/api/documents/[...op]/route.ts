@@ -124,6 +124,10 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       }
       return res;
     }
+    case "pdf": {
+      if (op[1] === "geometry") return forwardJson("pdf/geometry", req);
+      return NextResponse.json({ error: "Unknown document route" }, { status: 404 });
+    }
     case "save-copy": {
       const res = await forwardJson("save-copy", req);
       if (res.ok) {

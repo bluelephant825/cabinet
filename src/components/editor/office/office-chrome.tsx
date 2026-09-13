@@ -13,9 +13,11 @@ interface OfficeChromeProps {
   external?: { label: string; href: string };
   /** Hide the "Open in Finder" button (useful for Google embeds that aren't on disk). */
   hideFinder?: boolean;
+  /** Live editor status (dirty/saving/conflict) rendered inside the toolbar row. */
+  status?: React.ReactNode;
 }
 
-export function OfficeChrome({ path, extLabel, external, hideFinder }: OfficeChromeProps) {
+export function OfficeChrome({ path, extLabel, external, hideFinder, status }: OfficeChromeProps) {
   const { t } = useLocale();
   const assetUrl = `/api/assets/${path}`;
   const filename = path.split("/").pop() || path;
@@ -34,6 +36,7 @@ export function OfficeChrome({ path, extLabel, external, hideFinder }: OfficeChr
 
   return (
     <ViewerToolbar path={path} badge={extLabel || undefined}>
+      {status}
       {external && (
         <ToolbarButton
           icon={ExternalLink}

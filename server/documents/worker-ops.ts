@@ -28,6 +28,7 @@ import { convertPdfToDocx } from "../../src/vendor/genoffice/packages/pdf2docx/s
 import type {
   SavePdfRequest,
   TextEditInput,
+  TextInsertInput,
   ImageEditInput,
 } from "../../src/vendor/genoffice/apps/pdf/shared/ipc";
 import { DocumentError } from "../../src/lib/documents/errors";
@@ -39,10 +40,12 @@ import type {
   DocxSavePlan,
   PdfInspectResult,
   PatchDiagnostic,
+  PdfGeometryResult,
 } from "../../src/lib/documents/types";
 
 const INSPECT_LINE_CAP = 5000;
 const SEARCH_MATCH_CAP = 500;
+const FPDF_PAGEOBJ_TEXT = 1;
 const FPDF_PAGEOBJ_IMAGE = 3;
 
 // PDFium loads lazily once per worker process.
@@ -57,6 +60,8 @@ function blockText(block: Block): string {
 
 interface PdfChar {
   ch: string;
+  /** Character index inside the text page (for FPDFText_GetFontInfo). */
+  index: number;
   originY: number;
   bounds: [number, number, number, number];
 }
@@ -73,15 +78,17 @@ function readPageChars(m: PdfiumExt, textPage: number): PdfChar[] {
       const ch = String.fromCodePoint(m._FPDFText_GetUnicode(textPage, i));
       m._FPDFText_GetLooseCharBox(textPage, i, rect);
       m._FPDFText_GetCharOrigin(textPage, i, px, py);
+      // On rotated pages the loose box comes back with the y slots swapped —
+      // normalize to [minX, minY, maxX, maxY] so bounds are always ordered.
+      const x1 = m.HEAPF32[rect >> 2]!;
+      const y1 = m.HEAPF32[(rect >> 2) + 1]!;
+      const x2 = m.HEAPF32[(rect >> 2) + 2]!;
+      const y2 = m.HEAPF32[(rect >> 2) + 3]!;
       chars.push({
         ch,
+        index: i,
         originY: m.HEAPF64[py >> 3]!,
-        bounds: [
-          m.HEAPF32[rect >> 2]!,
-          m.HEAPF32[(rect >> 2) + 1]!,
-          m.HEAPF32[(rect >> 2) + 2]!,
-          m.HEAPF32[(rect >> 2) + 3]!,
-        ],
+        bounds: [Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2)],
       });
     }
   } finally {
@@ -93,6 +100,7 @@ function readPageChars(m: PdfiumExt, textPage: number): PdfChar[] {
 interface PdfLine {
   text: string;
   bounds: [number, number, number, number];
+  chars: PdfChar[];
 }
 
 /** Group chars into lines by baseline origin (2 pt tolerance), top-to-bottom. */
@@ -112,7 +120,7 @@ function groupLines(chars: PdfChar[]): PdfLine[] {
       Math.max(...inOrder.map((c) => c.bounds[2])),
       Math.max(...inOrder.map((c) => c.bounds[3])),
     ];
-    return { text: inOrder.map((c) => c.ch).join(""), bounds };
+    return { text: inOrder.map((c) => c.ch).join(""), bounds, chars: inOrder };
   });
 }
 
@@ -121,6 +129,17 @@ function groupLines(chars: PdfChar[]): PdfLine[] {
 type PdfiumExt = Pdfium & {
   _FPDFText_GetUnicode(textPage: number, index: number): number;
   _FPDFPage_GetRotation?(page: number): number;
+  _FPDF_GetLastError?(): number;
+  _FPDF_GetDocPermissions?(doc: number): number;
+  _FPDFPage_GetCropBox?(page: number, l: number, b: number, r: number, t: number): number;
+  _FPDFImageObj_GetImagePixelSize?(obj: number, w: number, h: number): number;
+  _FPDFText_GetFontInfo?(
+    textPage: number,
+    index: number,
+    buffer: number,
+    buflen: number,
+    flags: number,
+  ): number;
 };
 
 // ── inspect ─────────────────────────────────────────────────────────────────
@@ -205,6 +224,256 @@ async function inspectPdf(inputPath: string): Promise<PdfInspectResult> {
       return result;
     }),
   );
+}
+
+// ── pdf page geometry (Step 5 editor overlay) ──────────────────────────────
+
+interface PageObject {
+  index: number;
+  type: number;
+  bounds: [number, number, number, number];
+}
+
+/** Top-level page objects (position index + type + bounds) — mirrors the
+    enumeration the vendored engines use for matching. */
+function listPageObjects(m: PdfiumExt, page: number): PageObject[] {
+  const out: PageObject[] = [];
+  const bl = m._malloc(4);
+  const bb = m._malloc(4);
+  const br = m._malloc(4);
+  const bt = m._malloc(4);
+  try {
+    const count = m._FPDFPage_CountObjects(page);
+    for (let i = 0; i < count; i++) {
+      const obj = m._FPDFPage_GetObject(page, i);
+      if (!obj) continue;
+      const type = m._FPDFPageObj_GetType(obj);
+      if (!m._FPDFPageObj_GetBounds(obj, bl, bb, br, bt)) continue;
+      out.push({
+        index: i,
+        type,
+        bounds: [
+          m.HEAPF32[bl >> 2]!,
+          m.HEAPF32[bb >> 2]!,
+          m.HEAPF32[br >> 2]!,
+          m.HEAPF32[bt >> 2]!,
+        ],
+      });
+    }
+  } finally {
+    for (const p of [bl, bb, br, bt]) m._free(p);
+  }
+  return out;
+}
+
+function rectOverlapArea(
+  a: readonly number[],
+  b: readonly number[],
+): number {
+  const w = Math.min(a[2], b[2]) - Math.max(a[0], b[0]);
+  const h = Math.min(a[3], b[3]) - Math.max(a[1], b[1]);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+
+/** UTF-16LE font name for one text-page char (null when unavailable). */
+function charFontName(m: PdfiumExt, textPage: number, index: number): string | null {
+  if (!m._FPDFText_GetFontInfo) return null;
+  const buflen = 256;
+  const buf = m._malloc(buflen);
+  const flags = m._malloc(4);
+  try {
+    const len = m._FPDFText_GetFontInfo(textPage, index, buf, buflen, flags);
+    if (len <= 2) return null;
+    return Buffer.from(m.HEAPU8.buffer, buf, Math.min(len - 2, buflen - 2)).toString("utf16le");
+  } catch {
+    return null;
+  } finally {
+    m._free(buf);
+    m._free(flags);
+  }
+}
+
+function pageCropBox(
+  m: PdfiumExt,
+  page: number,
+): [number, number, number, number] {
+  const l = m._malloc(4);
+  const b = m._malloc(4);
+  const r = m._malloc(4);
+  const t = m._malloc(4);
+  try {
+    if (
+      m._FPDFPage_GetCropBox &&
+      m._FPDFPage_GetCropBox(page, l, b, r, t)
+    ) {
+      return [
+        m.HEAPF32[l >> 2]!,
+        m.HEAPF32[b >> 2]!,
+        m.HEAPF32[r >> 2]!,
+        m.HEAPF32[t >> 2]!,
+      ];
+    }
+    // No explicit crop box — the media box is the effective one.
+    return [0, 0, m._FPDF_GetPageWidthF(page), m._FPDF_GetPageHeightF(page)];
+  } finally {
+    for (const p of [l, b, r, t]) m._free(p);
+  }
+}
+
+function imagePixelSize(m: PdfiumExt, obj: number): [number, number] {
+  if (!m._FPDFImageObj_GetImagePixelSize) return [0, 0];
+  const w = m._malloc(4);
+  const h = m._malloc(4);
+  try {
+    if (!m._FPDFImageObj_GetImagePixelSize(obj, w, h)) return [0, 0];
+    return [m.HEAP32[w >> 2]!, m.HEAP32[h >> 2]!];
+  } finally {
+    m._free(w);
+    m._free(h);
+  }
+}
+
+/** pdf-lib AcroForm scan for signature fields — cheap enough for a
+    read-side op, and the frame needs it before the first save anyway. */
+async function pdfHasSignature(bytes: Uint8Array): Promise<boolean> {
+  try {
+    const { PDFDocument, PDFSignature } = await import("pdf-lib");
+    const doc = await PDFDocument.load(bytes, {
+      ignoreEncryption: true,
+      updateMetadata: false,
+    });
+    const form = doc.getForm();
+    return form.getFields().some((f) => f instanceof PDFSignature);
+  } catch {
+    // Malformed/odd files: a raw /Sig scan is better than nothing.
+    return /\/Sig\b/.test(Buffer.from(bytes).toString("latin1"));
+  }
+}
+
+async function pdfPageGeometryOp(args: {
+  inputPath: string;
+  pages?: number[];
+}): Promise<PdfGeometryResult> {
+  const bytes = new Uint8Array(await readFile(args.inputPath));
+  const m = (await pdfium()) as PdfiumExt;
+  const encrypted = /\/Encrypt\b/.test(
+    Buffer.from(bytes.subarray(0, Math.min(bytes.length, 4096))).toString("latin1"),
+  ) || /\/Encrypt\b/.test(
+    Buffer.from(bytes.subarray(Math.max(0, bytes.length - 64 * 1024))).toString("latin1"),
+  );
+  let result: PdfGeometryResult;
+  try {
+    result = await chainPdfium(() =>
+      withDocument(m, bytes, async (doc) => {
+        const pageCount = m._FPDF_GetPageCount(doc);
+        const wanted = args.pages ? new Set(args.pages) : null;
+        const pages: PdfGeometryResult["pages"] = [];
+        for (let i = 0; i < pageCount; i++) {
+          if (wanted && !wanted.has(i)) continue;
+          const page = m._FPDF_LoadPage(doc, i);
+          if (!page) continue;
+          const textPage = m._FPDFText_LoadPage(page);
+          try {
+            const objects = listPageObjects(m, page);
+            const textObjects = objects.filter((o) => o.type === FPDF_PAGEOBJ_TEXT);
+            const firstTextIdx = objects.find((o) => o.type === FPDF_PAGEOBJ_TEXT)?.index;
+            const chars = textPage ? readPageChars(m, textPage) : [];
+            const lines = groupLines(chars);
+            const textLines: PdfGeometryResult["pages"][number]["textLines"] = [];
+            for (let l = 0; l < lines.length; l++) {
+              const line = lines[l]!;
+              const lineArea = Math.max(
+                (line.bounds[2] - line.bounds[0]) * (line.bounds[3] - line.bounds[1]),
+                1e-6,
+              );
+              const covered = Math.min(
+                textObjects.reduce(
+                  (sum, o) => sum + rectOverlapArea(line.bounds, o.bounds),
+                  0,
+                ) / lineArea,
+                1,
+              );
+              const editable = covered >= 0.5;
+              const fontName =
+                textPage && line.chars.length
+                  ? (charFontName(m, textPage, line.chars[0]!.index) ?? undefined)
+                  : undefined;
+              textLines.push({
+                id: `p${i}l${l}`,
+                text: line.text,
+                bounds: line.bounds,
+                ...(fontName ? { fontName } : {}),
+                ...(line.chars.length
+                  ? {
+                      fontSize:
+                        Math.round(
+                          Math.max(...line.chars.map((c) => c.bounds[3] - c.bounds[1])) * 10,
+                        ) / 10,
+                    }
+                  : {}),
+                editable,
+                ...(editable
+                  ? {}
+                  : { reason: "Text is inside a Form XObject or unsupported container" }),
+              });
+            }
+            const images: PdfGeometryResult["pages"][number]["images"] = [];
+            for (const o of objects) {
+              if (o.type !== FPDF_PAGEOBJ_IMAGE) continue;
+              if (o.bounds[2] - o.bounds[0] < 3 || o.bounds[3] - o.bounds[1] < 3) continue;
+              const obj = m._FPDFPage_GetObject(page, o.index);
+              const [w, h] = obj ? imagePixelSize(m, obj) : [0, 0];
+              images.push({
+                id: `p${i}i${o.index}`,
+                bounds: o.bounds,
+                width: w,
+                height: h,
+                objectIndex: o.index,
+                aboveText: firstTextIdx !== undefined && o.index > firstTextIdx,
+              });
+            }
+            pages.push({
+              index: i,
+              width: m._FPDF_GetPageWidthF(page),
+              height: m._FPDF_GetPageHeightF(page),
+              rotation: (m._FPDFPage_GetRotation?.(page) ?? 0) * 90,
+              cropBox: pageCropBox(m, page),
+              textLines,
+              images,
+            });
+          } finally {
+            if (textPage) m._FPDFText_ClosePage(textPage);
+            m._FPDF_ClosePage(page);
+          }
+        }
+        return {
+          format: "pdf" as const,
+          pages,
+          encrypted,
+          signed: false,
+        };
+      }),
+    );
+  } catch (err) {
+    // FPDF_LoadMemDocument failure: lastError 4 = password required,
+    // 5 = unsupported security handler — both mean "not editable here".
+    const lastError = m._FPDF_GetLastError?.() ?? 0;
+    if (lastError === 4 || lastError === 5) {
+      throw new DocumentError(
+        "read-only",
+        lastError === 4
+          ? "PDF is password-protected"
+          : "PDF uses an unsupported security handler",
+      );
+    }
+    throw new DocumentError(
+      "invalid",
+      `Could not read PDF geometry: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  result.signed = await pdfHasSignature(bytes);
+  result.encrypted = encrypted;
+  return result;
 }
 
 // ── read ────────────────────────────────────────────────────────────────────
@@ -385,13 +654,15 @@ async function patchPdf(
   ops: DocumentPatchOp[],
 ): Promise<{ applied: number; diagnostics: PatchDiagnostic[] }> {
   const textEdits: TextEditInput[] = [];
+  const textInserts: TextInsertInput[] = [];
   const imageEdits: ImageEditInput[] = [];
   ops.forEach((op) => {
     if (op.kind === "pdfTextEdit") textEdits.push(op.edit as TextEditInput);
+    else if (op.kind === "pdfTextInsert") textInserts.push(op.insert as TextInsertInput);
     else if (op.kind === "pdfImageOp") imageEdits.push(op.op as ImageEditInput);
     else throw new DocumentError("invalid", `Unsupported PDF op '${op.kind}'`);
   });
-  if (textEdits.length + imageEdits.length === 0) {
+  if (textEdits.length + textInserts.length + imageEdits.length === 0) {
     throw new DocumentError("invalid", "No applicable edits");
   }
   const request: SavePdfRequest = {
@@ -402,6 +673,7 @@ async function patchPdf(
     formValues: [],
     stamps: [],
     textEdits,
+    textInserts,
     imageEdits,
   };
   let skips;
@@ -421,10 +693,11 @@ async function patchPdf(
     await rm(outputPath, { force: true }).catch(() => {});
     throw new DocumentError("invalid", `${skipped} edit(s) could not be matched to the document`, {
       skippedTextEdits: skips.skippedTextEdits,
+      skippedTextInserts: skips.skippedTextInserts,
       skippedImageEdits: skips.skippedImageEdits,
     });
   }
-  return { applied: textEdits.length + imageEdits.length, diagnostics: [] };
+  return { applied: textEdits.length + textInserts.length + imageEdits.length, diagnostics: [] };
 }
 
 async function applyPatchOp(args: {
@@ -547,6 +820,8 @@ export async function runOp(op: string, args: Record<string, unknown>): Promise<
       return docxLoadOp(args as never);
     case "docxSave":
       return docxSaveOp(args as never);
+    case "pdfPageGeometry":
+      return pdfPageGeometryOp(args as never);
     case "__crash":
       if (process.env.CABINET_DOC_TEST_OPS !== "1") {
         throw new DocumentError("invalid", "Unknown op '__crash'");

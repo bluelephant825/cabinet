@@ -74,6 +74,63 @@ export interface PdfInspectResult {
 
 export type InspectResult = DocxInspectResult | PdfInspectResult;
 
+// ── pdf page geometry (Step 5 editor overlay) ──────────────────────────────
+
+export interface PdfGeometryLine {
+  /** Stable within one geometry call: `p<pageIndex>l<lineIndex>` (same scheme
+      as inspect, so ids stay stable across calls on unchanged bytes). */
+  id: string;
+  text: string;
+  bounds: Rect4;
+  fontName?: string;
+  fontSize?: number;
+  /** False when the text is not a top-level page object (e.g. drawn inside a
+      Form XObject) and therefore cannot be matched by the text-edit engine. */
+  editable: boolean;
+  reason?: string;
+}
+
+export interface PdfGeometryImage {
+  /** Stable within one geometry call: `p<pageIndex>i<objectIndex>`. */
+  id: string;
+  bounds: Rect4;
+  /** Source pixel dimensions (0 when the metadata is unavailable). */
+  width: number;
+  height: number;
+  /** Position in the page's object list — the match key the engine re-finds. */
+  objectIndex: number;
+  /** Painted after the page's first text run (covers text it overlaps). */
+  aboveText: boolean;
+}
+
+export interface PdfPageGeometry {
+  index: number;
+  width: number;
+  height: number;
+  /** Display rotation in degrees (0/90/180/270). */
+  rotation: number;
+  /** Page crop box [left, bottom, right, top] in PDF user space. */
+  cropBox: Rect4;
+  textLines: PdfGeometryLine[];
+  images: PdfGeometryImage[];
+}
+
+export interface PdfGeometryResult {
+  format: "pdf";
+  pages: PdfPageGeometry[];
+  /** True when the document declares an /Encrypt dictionary. */
+  encrypted: boolean;
+  /** True when a /Sig signature field was found — saving invalidates it. */
+  signed: boolean;
+}
+
+export interface PdfGeometryRequest {
+  sessionId?: string;
+  virtualPath?: string;
+  /** 0-based page indexes; absent = all pages. */
+  pages?: number[];
+}
+
 export interface InspectRequest {
   sessionId?: string;
   virtualPath?: string;
@@ -130,6 +187,20 @@ export interface PdfTextEdit {
     italic?: boolean;
   }[];
   newFont?: string;
+  newBold?: boolean;
+  newItalic?: boolean;
+  /** Baseline origin (PDF user space) for the rebuilt first line — paragraph
+      edits anchor the whole block; absent = the anchor object's position. */
+  origin?: [number, number];
+  /** Baseline-to-baseline step between '\n' lines in PDF pt. */
+  lineLeading?: number;
+  /** Per-'\n'-line horizontal offset from origin.x (centered/right reflow). */
+  lineXOffsets?: number[];
+  align?: "left" | "center" | "right";
+  /** Renderer-side metadata for reopening a paragraph draft. */
+  blockSource?: string;
+  /** Move the matched run as-is by this PDF-user-space delta. */
+  translate?: [number, number];
 }
 
 export type PdfImageLayer = "belowText" | "aboveText";
@@ -156,6 +227,24 @@ export type PdfImageEdit =
     }
   | { kind: "deleteImage"; pageIndex: number; oldRect: Rect4 };
 
+/** Mirrors vendored `TextInsertInput` (apps/pdf/shared/ipc.ts). */
+export interface PdfTextInsert {
+  pageIndex: number;
+  /** First-line baseline origin in PDF user space. */
+  origin: [number, number];
+  /** '\n' creates stacked text objects. */
+  text: string;
+  fontSize: number;
+  color: Rgb;
+  font?: string;
+  bold?: boolean;
+  italic?: boolean;
+  lineLeading?: number;
+  lineXOffsets?: number[];
+  align?: "left" | "center" | "right";
+  rotate?: number;
+}
+
 export type DocumentPatchOp =
   | {
       kind: "replaceParagraphText";
@@ -165,6 +254,7 @@ export type DocumentPatchOp =
       newText: string;
     }
   | { kind: "pdfTextEdit"; edit: PdfTextEdit }
+  | { kind: "pdfTextInsert"; insert: PdfTextInsert }
   | { kind: "pdfImageOp"; op: PdfImageEdit };
 
 export interface PatchDiagnostic {

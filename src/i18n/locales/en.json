@@ -2198,5 +2198,22 @@
     "saving": "Saving…",
     "tryExternal": "Try downloading the file and opening it externally.",
     "unsaved": "Unsaved changes"
+  },
+  "pdfEditor": {
+    "toolSelect": "Select",
+    "toolEditText": "Edit text",
+    "toolInsertText": "Insert text",
+    "toolImages": "Images",
+    "insertImage": "Insert image…",
+    "deleteImage": "Delete",
+    "replaceImage": "Replace…",
+    "save": "Save",
+    "overflow": "The edited text does not fit inside its original block.",
+    "convertHint": "Convert to Word for larger changes.",
+    "nonEditable": "This text cannot be edited",
+    "imageInvalid": "Choose a PNG or JPEG image under 20 MB.",
+    "signedWarning": "Saving will invalidate the document’s digital signature",
+    "pendingEdit": "Pending edit — click to remove",
+    "typeHere": "Type here…"
   }
 }

@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Host side of the DOCX editor — thin wrapper over `DocumentEditorHost`.
- * Kept as its own component so existing call sites keep working.
+ * Host side of the PDF editor — thin wrapper over `DocumentEditorHost`.
  */
 import { DocumentEditorHost } from "./document-editor-host";
 
@@ -15,6 +14,6 @@ interface Props {
   onNavigate?: (path: string) => void;
 }
 
-export function DocxEditorHost(props: Props) {
-  return <DocumentEditorHost {...props} format="docx" />;
+export function PdfEditorHost(props: Props) {
+  return <DocumentEditorHost {...props} format="pdf" />;
 }

@@ -87,3 +87,4 @@ skills-lock.json
 /test-results/
 /playwright-report/
 /blob-report/
+/public/document-editor/pdfjs/

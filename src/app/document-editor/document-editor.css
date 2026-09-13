@@ -55,3 +55,117 @@ body {
   color: var(--text, #1f2937);
   cursor: pointer;
 }
+
+/* ── PDF editor frame chrome ───────────────────────────────────────────── */
+
+.pdf-frame-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--surface, #f3f4f6);
+  border-bottom: 1px solid var(--border-strong, #e1e4e8);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+
+.pdf-frame-tools,
+.pdf-frame-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pdf-frame-zoom {
+  margin-left: auto;
+}
+
+.pdf-frame-toolbar button {
+  font: inherit;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--surface-2, #fff);
+  color: var(--text, #1f2937);
+  cursor: pointer;
+}
+
+.pdf-frame-toolbar button.active {
+  background: var(--accent-soft, #fbeae5);
+  border-color: var(--accent, #c43e1c);
+}
+
+.pdf-frame-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pdf-frame-save {
+  margin-left: 8px;
+}
+
+.pdf-scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 24px 120px;
+}
+
+.pdf-scroll .pdf-page {
+  margin: 0 auto;
+}
+
+.pdf-textline-locked {
+  outline-color: var(--pdf-textblock-ring, rgba(96, 99, 102, 0.4));
+  background: rgba(96, 99, 102, 0.08);
+  cursor: not-allowed;
+}
+
+.pdf-insert-draft {
+  position: absolute;
+  z-index: 7;
+  min-width: 160px;
+  min-height: 1.6em;
+  background: var(--pdf-textedit-paper, #fff);
+  color: var(--pdf-textedit-ink, #111);
+  border: 1px dashed var(--pdf-textedit-ring, rgba(196, 62, 28, 0.9));
+  line-height: 1.2;
+  resize: none;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.pdf-imgmenu {
+  position: absolute;
+  z-index: 8;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--surface-2, #fff);
+  border: 1px solid var(--border-strong, #e1e4e8);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.pdf-imgmenu button {
+  font: 12px/1.4 system-ui, sans-serif;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text, #1f2937);
+  cursor: pointer;
+}
+
+.pdf-imgmenu button:hover {
+  background: var(--hover, rgba(0, 0, 0, 0.06));
+}
+
+.pdf-diag-banner,
+.pdf-sign-banner {
+  position: sticky;
+  top: 36px;
+}

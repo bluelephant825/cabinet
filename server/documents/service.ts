@@ -47,7 +47,18 @@ import type {
   DocxLoadRequest,
   DocxSaveRequest,
   DocxSaveResult,
+  PdfGeometryResult,
 } from "../../src/lib/documents/types";
+
+/** Cheap trailer/head scan for a PDF /Encrypt dictionary — good enough to
+    gate the editor; PDFium gives the authoritative answer on load. */
+function looksEncryptedPdf(bytes: Uint8Array): boolean {
+  const head = Buffer.from(bytes.subarray(0, Math.min(bytes.length, 4096))).toString("latin1");
+  const tail = Buffer.from(bytes.subarray(Math.max(0, bytes.length - 128 * 1024))).toString(
+    "latin1",
+  );
+  return /\/Encrypt\b/.test(head) || /\/Encrypt\b/.test(tail);
+}
 
 function validateActor(actor: DocumentActor | undefined): DocumentActor {
   if (actor === undefined) return { kind: "user" };
@@ -109,14 +120,22 @@ export class DocumentService {
       revision,
     });
     noteSessionOpened(auth.absPath, session.sessionId);
+    // Encrypted PDFs can't be edited by the PDFium patch path — flag them
+    // read-only up front so hosts render the fallback viewer instead of
+    // letting the user produce saves that will fail.
+    const readOnlyReason =
+      auth.readOnlyReason ??
+      (auth.format === "pdf" && looksEncryptedPdf(bytes)
+        ? "PDF is encrypted or password-protected"
+        : undefined);
     return {
       sessionId: session.sessionId,
       virtualPath: input.virtualPath,
       format: auth.format,
       revision,
       size: bytes.byteLength,
-      capabilities: { edit: !auth.readOnlyReason, convert: auth.format === "pdf" },
-      readOnlyReason: auth.readOnlyReason,
+      capabilities: { edit: !readOnlyReason, convert: auth.format === "pdf" },
+      readOnlyReason,
     };
   }
 
@@ -171,6 +190,20 @@ export class DocumentService {
         paragraphRange: input.paragraphRange,
       }),
     ) as Promise<ReadResult>;
+  }
+
+  async pdfPageGeometry(input: {
+    sessionId?: string;
+    virtualPath?: string;
+    pages?: number[];
+  }): Promise<PdfGeometryResult> {
+    const t = await this.resolveTarget(input);
+    if (t.format !== "pdf") {
+      throw new DocumentError("unsupported", "Geometry is only available for PDF documents");
+    }
+    return this.broker.withPathLock(t.absPath, () =>
+      this.broker.run("pdfPageGeometry", { inputPath: t.absPath, pages: input.pages }),
+    ) as Promise<PdfGeometryResult>;
   }
 
   async search(input: {

@@ -98,6 +98,41 @@ if (fs.existsSync(monacoDist)) {
 }
 
 
+// Copy pdfjs-dist runtime assets (worker, cmaps, standard fonts, wasm) to
+// public/document-editor/pdfjs/ so the PDF editor frame can load them from
+// same-origin URLs — no CDN, and the worker file is never committed.
+const pdfjsDist = path.join("node_modules", "pdfjs-dist");
+const pdfjsPublic = path.join("public", "document-editor", "pdfjs");
+if (fs.existsSync(pdfjsDist)) {
+  try {
+    fs.rmSync(pdfjsPublic, { recursive: true, force: true });
+    fs.mkdirSync(pdfjsPublic, { recursive: true });
+    for (const dir of ["cmaps", "standard_fonts", "wasm"]) {
+      const src = path.join(pdfjsDist, dir);
+      if (fs.existsSync(src)) {
+        copyDirRecursive(src, path.join(pdfjsPublic, dir));
+      }
+    }
+    for (const file of [
+      path.join("build", "pdf.worker.min.mjs"),
+      path.join("legacy", "build", "pdf.worker.min.mjs"),
+    ]) {
+      const src = path.join(pdfjsDist, file);
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, path.join(pdfjsPublic, "pdf.worker.min.mjs"));
+        break;
+      }
+    }
+    console.log(
+      "[cabinet] postinstall: pdfjs-dist assets copied to public/document-editor/pdfjs/",
+    );
+  } catch (err) {
+    // Without these the PDF editor can't parse/render PDFs at all.
+    console.error("[cabinet] postinstall: failed to copy pdfjs-dist assets:", err);
+    process.exitCode = 1;
+  }
+}
+
 function copyDirRecursive(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {

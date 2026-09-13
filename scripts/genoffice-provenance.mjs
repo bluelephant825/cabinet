@@ -40,6 +40,8 @@ const ADAPTED = {
     'workspace import @genoffice/pptx-engine/custgeom rewritten to a relative path',
   'apps/docs/src/renderer/env.d.ts':
     'upstream declares the full Electron DesktopApi; Cabinet declares only the minimal optional shape the vendored editor touches (copyImageToClipboard, onLanguageChanged)',
+  'apps/pdf/renderer/view-config.ts':
+    'ASSET_BASE rewritten to the absolute same-origin path /document-editor/pdfjs/ (assets copied by scripts/postinstall.mjs)',
   'apps/docs/src/renderer/i18n/strings.ts':
     'aggregator rewritten to merge only the vendored string domains (editor + ribbon + table); the app/, ai/ and other shell domains are not vendored',
 }
@@ -53,6 +55,8 @@ const EXCLUDED = new Set(['PROVENANCE.json'])
 /** Map a vendored relative path back to its upstream repo path. */
 function upstreamPathFor(rel) {
   if (rel.startsWith('apps/pdf/main/')) return `apps/pdf/src/main/${rel.slice('apps/pdf/main/'.length)}`
+  if (rel.startsWith('apps/pdf/renderer/'))
+    return `apps/pdf/src/renderer/${rel.slice('apps/pdf/renderer/'.length)}`
   if (rel.startsWith('apps/pdf/shared/'))
     return `apps/pdf/src/shared/${rel.slice('apps/pdf/shared/'.length)}`
   if (rel === 'LICENSE' || rel === 'NOTICE' || rel === 'LICENSE-UNICODE.txt') return rel
