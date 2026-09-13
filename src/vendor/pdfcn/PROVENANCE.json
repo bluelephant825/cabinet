@@ -1,0 +1,293 @@
+{
+  "upstream": "https://github.com/shadcn-labs/pdfcn",
+  "parent": null,
+  "commit": "88ca522c13dff7cd13d05c208fa47f970d32fd8c",
+  "files": [
+    {
+      "path": "LICENSE",
+      "upstreamPath": "LICENSE",
+      "sha256": "6ce0c2dc1b054d7f63b7613da7816424be95555f71a09aa4639e8519e612d717",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/blocks/invoice-classic/invoice-classic.tsx",
+      "upstreamPath": "registry/bases/takumi/blocks/invoice-classic/invoice-classic.tsx",
+      "sha256": "f90ac4f7039ae04debf7b90f057e53bdd64b21cd10926c25b189a8fff4946740",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/blocks/invoice-classic/invoice-classic.types.ts",
+      "upstreamPath": "registry/bases/takumi/blocks/invoice-classic/invoice-classic.types.ts",
+      "sha256": "d5885ac92bc1dbe7196a4fc28ae15787a4838305718ecd1da2b61245ceb85f16",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/blocks/report-financial/report-financial.tsx",
+      "upstreamPath": "registry/bases/takumi/blocks/report-financial/report-financial.tsx",
+      "sha256": "d3c8dbba034903b3eda65cb62a412ebe28db086322667d7116e63428edc18243",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/blocks/report-financial/report-layout.tsx",
+      "upstreamPath": "registry/bases/takumi/blocks/report-financial/report-layout.tsx",
+      "sha256": "63295846dd71fbfcf3512e27e8867ebe90311fde24f5172ae8bc1ebbcab0602c",
+      "adapted": true,
+      "adaptationNote": "DataTable column render callback param annotated `unknown` — implicit any under strict"
+    },
+    {
+      "path": "registry/bases/takumi/blocks/report-financial/report.types.ts",
+      "upstreamPath": "registry/bases/takumi/blocks/report-financial/report.types.ts",
+      "sha256": "980db45787e74d70df921c2f7a2971a1ab1c7e8dce0d1ca3e18a556c68dea15d",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/alert/alert.tsx",
+      "upstreamPath": "registry/bases/takumi/components/alert/alert.tsx",
+      "sha256": "dec63b3756aac28d95a4390d2d6c6b5b8f68d6099a8673984aa5d2f7947e11bf",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/badge/badge.tsx",
+      "upstreamPath": "registry/bases/takumi/components/badge/badge.tsx",
+      "sha256": "177a9296b9287c07ff9a558b7fbc0e92db9f916f542dc8e8e1039a2d5daf991d",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/card/card.tsx",
+      "upstreamPath": "registry/bases/takumi/components/card/card.tsx",
+      "sha256": "516d01ab10eb5d8e4a94c80f50ec4823e124d2d6afe0f70395d75bccf4b1c3d4",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/data-table/data-table.styles.ts",
+      "upstreamPath": "registry/bases/takumi/components/data-table/data-table.styles.ts",
+      "sha256": "e7948ec1f9ee986dff11bd9928eb8466f846ed73c974c1cccc965d6e25548d49",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/data-table/data-table.tsx",
+      "upstreamPath": "registry/bases/takumi/components/data-table/data-table.tsx",
+      "sha256": "e4d04cda1bc8c48007dc033a8ceb8f8ff07f2819b67a7caabc1a1de339aca1e1",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/data-table/data-table.types.ts",
+      "upstreamPath": "registry/bases/takumi/components/data-table/data-table.types.ts",
+      "sha256": "ccf95b7f741975d72c964ead55e3cde0e4ef47a56236a6232e01c570fd4e7452",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/divider/divider.tsx",
+      "upstreamPath": "registry/bases/takumi/components/divider/divider.tsx",
+      "sha256": "51f635e9e66320405f5ceb9d03cbdd9bbbec05f285a41bca95aed1314ef9cf29",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/graph/graph.styles.ts",
+      "upstreamPath": "registry/bases/takumi/components/graph/graph.styles.ts",
+      "sha256": "e4c839801e5f4ae181c5b5116a69f001c7e6c41df75bf0815ef6d733d0f473f8",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/graph/graph.tsx",
+      "upstreamPath": "registry/bases/takumi/components/graph/graph.tsx",
+      "sha256": "fa411a5ac715c7baa3a9f419e736227f7a6e93a7f18a3b1a2af5408d44b08a27",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/graph/graph.types.ts",
+      "upstreamPath": "registry/bases/takumi/components/graph/graph.types.ts",
+      "sha256": "29dd3247a8221a9c5ee0dbf7baf400201460875c881811b906085baf22a485a3",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/graph/graph.utils.ts",
+      "upstreamPath": "registry/bases/takumi/components/graph/graph.utils.ts",
+      "sha256": "c34b0f4be621e588dc825b327c5b26e1d07fff302b0a30596d10a82586598bc5",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/heading/heading.tsx",
+      "upstreamPath": "registry/bases/takumi/components/heading/heading.tsx",
+      "sha256": "e32e004ecdef58568cd57f89dcadcb3eafa4fab99e3a695ba6d270152822a353",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/keep-together/keep-together.tsx",
+      "upstreamPath": "registry/bases/takumi/components/keep-together/keep-together.tsx",
+      "sha256": "f4185e379ffba1eeac96f7cefe390ffeae43dc6219def1b42792fb29ebc8b115",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/key-value/key-value.tsx",
+      "upstreamPath": "registry/bases/takumi/components/key-value/key-value.tsx",
+      "sha256": "d4549b02006a15c5fe7fba139a3bb537034259400576d27e0bb84284d1368455",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/link/link.tsx",
+      "upstreamPath": "registry/bases/takumi/components/link/link.tsx",
+      "sha256": "e0f8da639cb2f0f511a04d3218701b4e681614d48b514034ebeff584f711f081",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/list/list.styles.ts",
+      "upstreamPath": "registry/bases/takumi/components/list/list.styles.ts",
+      "sha256": "bc26ef5b666e226aa9b37f0f9e440fd43b1a3ba5e60cdf3177b2eb220af275f2",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/list/list.tsx",
+      "upstreamPath": "registry/bases/takumi/components/list/list.tsx",
+      "sha256": "9fec8655e0892b910d4911b4864e4b2d25ea9b19d0afeae03597657aa729d1cb",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/list/list.types.ts",
+      "upstreamPath": "registry/bases/takumi/components/list/list.types.ts",
+      "sha256": "42cfaf90a9e8afd8047da3b7104f9080f566802f415d8bb8997fab6ef958c78e",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/page-break/page-break.tsx",
+      "upstreamPath": "registry/bases/takumi/components/page-break/page-break.tsx",
+      "sha256": "9564ac03c116a3c8512ac2e8fdf949dbe9e49bba37c1f8703f92ccb1109230fb",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/page-footer/page-footer.tsx",
+      "upstreamPath": "registry/bases/takumi/components/page-footer/page-footer.tsx",
+      "sha256": "a50e1211a8c13b93e11c8217da123a09d1e1ed7516232d2be0139e0a860f7ef1",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/page-header/page-header.tsx",
+      "upstreamPath": "registry/bases/takumi/components/page-header/page-header.tsx",
+      "sha256": "6470206959ee42c92df53a77dd87b6ab9c1818b21a9723a483b76a4e5e122b5b",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/page-number/page-number.tsx",
+      "upstreamPath": "registry/bases/takumi/components/page-number/page-number.tsx",
+      "sha256": "5e053b64e50ab6e565cf071382df30a0bde6befa206f8f91bb7f9fe7a7885f75",
+      "adapted": true,
+      "adaptationNote": "flatten() result cast to CSSProperties at the two primitive style props — upstream relied on a looser Style type"
+    },
+    {
+      "path": "registry/bases/takumi/components/pdf-image/pdf-image.tsx",
+      "upstreamPath": "registry/bases/takumi/components/pdf-image/pdf-image.tsx",
+      "sha256": "fe7a4a02e887590ed4c420f5c928a69dcaf1ab742b6d5e502c4fa5acc4e45909",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/qrcode/qrcode.tsx",
+      "upstreamPath": "registry/bases/takumi/components/qrcode/qrcode.tsx",
+      "sha256": "1b93118a00a3af8a0c4c54f8b93c6f1fb96e722462df286224ad19a9dba64313",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/section/section.tsx",
+      "upstreamPath": "registry/bases/takumi/components/section/section.tsx",
+      "sha256": "be255c07f7ee1cf58b66fc385279d098e05ba8842b38d958b40bd8abe04073f0",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/stack/stack.tsx",
+      "upstreamPath": "registry/bases/takumi/components/stack/stack.tsx",
+      "sha256": "80e1cc15f942460d8e0b35495d85d5e729fa71e6624758f8d82fff94e8a37dd5",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/table/table.styles.ts",
+      "upstreamPath": "registry/bases/takumi/components/table/table.styles.ts",
+      "sha256": "5ef91d11b59646bb0092ea3fdc6744c590524468644fbe20434a191524f579ff",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/table/table.tsx",
+      "upstreamPath": "registry/bases/takumi/components/table/table.tsx",
+      "sha256": "4d0e5576987471f552c732de860b6143642db3eaf7aa287a19d1dfa5f93c28a8",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/table/table.types.ts",
+      "upstreamPath": "registry/bases/takumi/components/table/table.types.ts",
+      "sha256": "6e81f61fdc1722fe019a8f3d296f781b12797e565ebb318338d15a2eae2a925c",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/text/text.tsx",
+      "upstreamPath": "registry/bases/takumi/components/text/text.tsx",
+      "sha256": "d55f1a5bc7a4d2c5da0505efe7999fef5b46ed77d16de3acce333fe37b07de53",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/components/theme-provider.tsx",
+      "upstreamPath": "registry/bases/takumi/components/theme-provider.tsx",
+      "sha256": "94b246bf16994476045d0286154f812b3fbd3a56a07fa3cc361718448addd91f",
+      "adapted": true,
+      "adaptationNote": "serializedTheme module-global replaced with AsyncLocalStorage request-local state (runWithPdfcnTheme) — concurrent renders with different themes raced upstream"
+    },
+    {
+      "path": "registry/bases/takumi/components/watermark/watermark.tsx",
+      "upstreamPath": "registry/bases/takumi/components/watermark/watermark.tsx",
+      "sha256": "38ed92caa1bfd64887ac238309a6547fba0c24973467a36f25a2ec1c9260e662",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/lib/pdf-primitives.tsx",
+      "upstreamPath": "registry/bases/takumi/lib/pdf-primitives.tsx",
+      "sha256": "68ef7ff5020e2b5bd6debf26fcb9b7051cc9012aa2fa7a26867871fc31283ab6",
+      "adapted": true,
+      "adaptationNote": "dropped the upstream `eslint(nextjs/no-img-element)` disable comments — that rule name doesn't exist in Cabinet's flat config and lint rejected it"
+    },
+    {
+      "path": "registry/bases/takumi/lib/pdf-svg.tsx",
+      "upstreamPath": "registry/bases/takumi/lib/pdf-svg.tsx",
+      "sha256": "cfdb5138f4688acfffc51b8bd5e64030b6cff6460b6c72588430611c3ae2cf99",
+      "adapted": false
+    },
+    {
+      "path": "registry/bases/takumi/lib/resolve-color.ts",
+      "upstreamPath": "registry/bases/takumi/lib/resolve-color.ts",
+      "sha256": "6aa59803a5badf29289a0ffadceb73f78771724724822b120cd8286b3bb16852",
+      "adapted": false
+    },
+    {
+      "path": "registry/themes/elegant.ts",
+      "upstreamPath": "registry/themes/elegant.ts",
+      "sha256": "b794d885a67ba8a52dd5775de583cf2cdb46b8db54d5b45f2566c253731f3e1f",
+      "adapted": false
+    },
+    {
+      "path": "registry/themes/minimal.ts",
+      "upstreamPath": "registry/themes/minimal.ts",
+      "sha256": "332db2f12e3261e7236904ac292fb3f0330644981fb37a04c6e6e2a435666096",
+      "adapted": false
+    },
+    {
+      "path": "registry/themes/primitives.ts",
+      "upstreamPath": "registry/themes/primitives.ts",
+      "sha256": "e533370ec298987cd80bcc2325272b5971e243dde6e8dd48bb30acf2f7c1186a",
+      "adapted": false
+    },
+    {
+      "path": "registry/themes/professional.ts",
+      "upstreamPath": "registry/themes/professional.ts",
+      "sha256": "3fb2786b7553616ea2bab6e5e081336adcb178a095709f19f5bbf84c969ba16b",
+      "adapted": false
+    },
+    {
+      "path": "registry/types/pdf-components.ts",
+      "upstreamPath": "registry/types/pdf-components.ts",
+      "sha256": "772faf3045a91c54bdd885ee9707189150c4dc387f54307b0327f95f979d5bba",
+      "adapted": false
+    },
+    {
+      "path": "registry/types/pdf-themes.ts",
+      "upstreamPath": "registry/types/pdf-themes.ts",
+      "sha256": "13e07bc9a2480456b2e632e77844d462be3f4977e59e4e47fcb49983bceca532",
+      "adapted": false
+    }
+  ]
+}

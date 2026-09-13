@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "documentId": "report-document",
+  "catalogVersion": "1.0.0",
+  "title": "Report",
+  "page": {
+    "size": "A4",
+    "orientation": "portrait",
+    "margins": { "top": 56, "right": 48, "bottom": 56, "left": 48 }
+  },
+  "theme": "professional",
+  "header": [
+    { "type": "text", "id": "header-text", "props": { "text": "Report", "align": "left", "fontSize": 9 } }
+  ],
+  "footer": [
+    { "type": "page-number", "id": "page-number-1", "props": { "align": "center" } }
+  ],
+  "body": [
+    { "type": "heading", "id": "report-title", "props": { "level": 1, "text": "Report" } },
+    { "type": "text", "id": "report-intro", "props": { "text": "Summary goes here." } },
+    {
+      "type": "graph",
+      "id": "report-chart",
+      "props": { "variant": "bar", "title": "Key metric", "height": 220, "showGrid": true },
+      "data": {
+        "data": [
+          { "label": "A", "value": 4 },
+          { "label": "B", "value": 7 },
+          { "label": "C", "value": 5 }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "id": "report-table",
+      "props": { "variant": "line", "header": true },
+      "data": {
+        "columns": ["Metric", "Value"],
+        "rows": [
+          ["Total", "16"]
+        ]
+      }
+    },
+    { "type": "callout", "id": "report-note", "props": { "variant": "info", "title": "Note", "text": "Add findings here." } }
+  ]
+}

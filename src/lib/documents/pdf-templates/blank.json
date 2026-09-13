@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "documentId": "blank-document",
+  "catalogVersion": "1.0.0",
+  "title": "Untitled document",
+  "page": {
+    "size": "A4",
+    "orientation": "portrait",
+    "margins": { "top": 56, "right": 48, "bottom": 56, "left": 48 }
+  },
+  "theme": "professional",
+  "footer": [
+    { "type": "page-number", "id": "page-number-1", "props": { "align": "center" } }
+  ],
+  "body": [
+    { "type": "heading", "id": "heading-1", "props": { "level": 1, "text": "Untitled document" } },
+    { "type": "text", "id": "text-1", "props": { "text": "Start writing here." } }
+  ]
+}

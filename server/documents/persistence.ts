@@ -57,6 +57,11 @@ export interface CommitBytesInput {
    */
   expectedRevision: string | null;
   maxBytes?: number;
+  /**
+   * `"json"` replaces the binary signature gate with a JSON-parse check — used
+   * for `.pdf.source.json` composition sources committed through the daemon.
+   */
+  signatureCheck?: "json";
 }
 
 export interface CommitResult {
@@ -144,7 +149,16 @@ export async function commitBytes(input: CommitBytesInput): Promise<CommitResult
   }
 
   const bytes = input.bytes ? Buffer.from(input.bytes) : await fs.readFile(input.tempPath!);
-  await validateSignature(absPath, bytes);
+  if (input.signatureCheck === "json") {
+    try {
+      JSON.parse(bytes.toString("utf8"));
+    } catch {
+      if (input.tempPath) await removeQuiet(input.tempPath);
+      throw new DocumentError("invalid", "File is not valid JSON");
+    }
+  } else {
+    await validateSignature(absPath, bytes);
+  }
 
   // Revision gate against the CURRENT on-disk bytes.
   const exists = await fileExistsPath(absPath);

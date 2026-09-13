@@ -31,6 +31,10 @@ const eslintConfig = defineConfig([
       "src/vendor/**",
       "server/documents/worker.ts",
       "server/documents/worker-ops.ts",
+      "server/documents/pdf-generation.tsx",
+      "test/fixtures/pdfcn-gate-render.tsx",
+      "test/pdf-generation-gate.test.ts",
+      "test/pdf-generation.test.ts",
       "src/app/document-editor/**",
       "src/components/editor/documents/**",
     ],
@@ -43,6 +47,11 @@ const eslintConfig = defineConfig([
               group: ["**/vendor/genoffice/**", "*/vendor/genoffice/*", "**/src/vendor/genoffice/**"],
               message:
                 "GenOffice engines run only in server/documents/worker*.ts — call the document service instead.",
+            },
+            {
+              group: ["**/vendor/pdfcn/**", "*/vendor/pdfcn/*", "**/src/vendor/pdfcn/**", "takumi-pdf"],
+              message:
+                "PDFCN/Takumi renders only in server/documents/pdf-generation.tsx (worker) — call the document service instead.",
             },
           ],
         },

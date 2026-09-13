@@ -23,6 +23,15 @@ import type {
   DocxSavePlan,
   JobInfo,
 } from "@/lib/documents/types";
+import blankTemplate from "../src/lib/documents/pdf-templates/blank.json";
+import invoiceTemplate from "../src/lib/documents/pdf-templates/invoice.json";
+import reportTemplate from "../src/lib/documents/pdf-templates/report.json";
+
+const PDF_TEMPLATES: Record<string, unknown> = {
+  blank: blankTemplate,
+  invoice: invoiceTemplate,
+  report: reportTemplate,
+};
 
 // ── plumbing ─────────────────────────────────────────────────────────────
 
@@ -232,6 +241,17 @@ Commands:
   recovery   --path                          List recovery copies for a document
   revision   --path                          Current revision token (for --base-revision)
 
+PDF generation (compositions live as <name>.pdf.source.json text files):
+  pdf-new    --path <name>.pdf.source.json --template blank|invoice|report [--title T]
+                                             Create a composition source (validated server-side)
+  pdf-validate --path                        Validate a composition source against the catalog
+  pdf-catalog                                Component/theme catalog (types, props, parents)
+  pdf-render --path [--publish [--replace | --copy]] [--wait]
+                                             preview (default) returns { previewKey }; --publish
+                                             commits <name>.pdf. A hand-modified output conflicts
+                                             unless --replace (overwrite) or --copy (new file).
+  pdf-status --path                          { sourceRevision, output?: { stale, modified } }
+
 Patch ops (--ops is a JSON array; one example per kind):
   [{"kind":"replaceParagraphText","paragraphId":"p3","expectedText":"old","newText":"new"}]
   [{"kind":"pdfTextEdit","edit":{"pageIndex":0,"rect":[x0,y0,x1,y1],"oldText":"a","newText":"b","fontSize":12}}]
@@ -369,6 +389,65 @@ async function main(): Promise<void> {
       const id = flags.get("id");
       if (!id) throw new ToolError("invalid", "--id is required");
       return print(await api(`jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }));
+    }
+    case "pdf-catalog": {
+      return print(await api("pdf-composition/catalog"));
+    }
+    case "pdf-validate": {
+      const virtualPath = requiredPath(flags);
+      return print(
+        await api("pdf-composition/validate", { body: { virtualPath } }),
+      );
+    }
+    case "pdf-status": {
+      const virtualPath = requiredPath(flags);
+      return print(
+        await api(`pdf-composition/status?path=${encodeURIComponent(virtualPath)}`),
+      );
+    }
+    case "pdf-new": {
+      const virtualPath = requiredPath(flags);
+      if (!virtualPath.endsWith(".pdf.source.json")) {
+        throw new ToolError("invalid", "--path must end in .pdf.source.json");
+      }
+      const templateName = flags.get("template") ?? "blank";
+      const template = PDF_TEMPLATES[templateName];
+      if (!template) {
+        throw new ToolError(
+          "invalid",
+          `Unknown template '${templateName}' — expected blank|invoice|report`,
+        );
+      }
+      const composition = JSON.parse(JSON.stringify(template)) as Record<string, unknown>;
+      if (flags.get("title")) composition.title = flags.get("title")!;
+      const body: Record<string, unknown> = {
+        virtualPath,
+        composition,
+        actor: actor(),
+      };
+      if (flags.get("base-revision")) body.baseRevision = flags.get("base-revision");
+      return print(await api("pdf-composition/source", { body }));
+    }
+    case "pdf-render": {
+      const virtualPath = requiredPath(flags);
+      const body: Record<string, unknown> = {
+        sourceVirtualPath: virtualPath,
+        mode: bools.has("publish") ? "publish" : "preview",
+        actor: actor(),
+      };
+      if (bools.has("replace")) body.replace = true;
+      if (bools.has("copy")) body.saveAsCopy = true;
+      if (flags.get("dest")) body.destinationVirtualPath = resolveVirtualPath(flags.get("dest")!);
+      const started = (await api("pdf-composition/render", { body })) as { jobId: string };
+      if (!bools.has("wait")) return print(started);
+      const job = await waitForJob(started.jobId);
+      if (job.status === "failed") {
+        throw new ToolError(job.error?.code ?? "failed", job.error?.message ?? "Job failed", job.error?.details);
+      }
+      if (job.status === "cancelled") {
+        throw new ToolError("cancelled", "Job was cancelled");
+      }
+      return print(job.result ?? job);
     }
     case "ocr-capabilities": {
       return print(await api("ocr/capabilities"));

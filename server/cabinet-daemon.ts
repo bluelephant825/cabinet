@@ -1299,7 +1299,7 @@ function ensureAuthEnvFromDotEnv(): void {
 async function recordDocumentAgentMutation(
   e: DocumentChangeEvent & { actor: { kind: "agent"; id: string; runId?: string } },
 ): Promise<void> {
-  const op = e.op === "save-copy" || e.op === "convert" ? "create" : "write";
+  const op = e.op === "save-copy" || e.op === "convert" || e.op === "generate" ? "create" : "write";
   try {
     await recordMutation({
       op,

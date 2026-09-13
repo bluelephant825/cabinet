@@ -5,9 +5,22 @@
  * Engine work happens in pooled worker processes via the broker; this layer
  * only orchestrates policy, revisions, sessions, and jobs.
  */
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { authorizeDocumentPath } from "../../src/lib/documents/policy";
+import { authorizeCompositionPath, authorizeDocumentPath } from "../../src/lib/documents/policy";
+import {
+  migrateComposition,
+  validateComposition,
+  type PdfComposition,
+} from "../../src/lib/documents/pdf-composition";
+import {
+  PDFCN_CATALOG_VERSION,
+  PDFCN_RENDERER,
+  PDF_COMPONENTS,
+  PDF_THEMES,
+} from "../../src/lib/documents/pdf-component-catalog";
+import { CABINET_INTERNAL_DIR, virtualPathFromFs } from "../../src/lib/storage/path-utils";
 import { DocumentError } from "../../src/lib/documents/errors";
 import { fileExists } from "../../src/lib/storage/fs-operations";
 import {
@@ -70,6 +83,9 @@ function validateActor(actor: DocumentActor | undefined): DocumentActor {
   throw new DocumentError("invalid", "Malformed actor");
 }
 
+const PDF_PREVIEW_CACHE_DIR = path.join(CABINET_INTERNAL_DIR, "documents", "preview-cache");
+const PDF_GENERATION_META_DIR = path.join(CABINET_INTERNAL_DIR, "documents", "generation");
+
 interface ResolvedTarget {
   session?: DocumentSession;
   virtualPath: string;
@@ -81,7 +97,7 @@ export interface DocumentChangeEvent {
   virtualPath: string;
   revision: string;
   actor: DocumentActor;
-  op: "patch" | "save" | "save-copy" | "convert" | "restore";
+  op: "patch" | "save" | "save-copy" | "convert" | "restore" | "generate";
 }
 
 export interface DocumentServiceCallbacks {
@@ -543,6 +559,428 @@ export class DocumentService {
 
   jobStatus(jobId: string): JobInfo {
     return this.broker.jobInfo(jobId);
+  }
+
+  // ── pdf composition (Step 7a / PDFCN) ─────────────────────────────────
+
+  /** Component/theme catalog for the UI palette and `pdf-catalog` agent cmd. */
+  pdfCompositionCatalog() {
+    return {
+      catalogVersion: PDFCN_CATALOG_VERSION,
+      themes: [...PDF_THEMES],
+      components: PDF_COMPONENTS,
+    };
+  }
+
+  pdfCompositionValidate(input: { composition?: unknown; virtualPath?: string }) {
+    if (typeof input.virtualPath === "string" && input.virtualPath) {
+      return this.pdfCompositionValidatePath(input.virtualPath);
+    }
+    return validateComposition(migrateComposition(input.composition));
+  }
+
+  private async pdfCompositionValidatePath(virtualPath: string) {
+    const auth = await authorizeCompositionPath(virtualPath, { write: false });
+    const { bytes } = await readWithRevision(auth.absPath);
+    try {
+      return validateComposition(migrateComposition(JSON.parse(bytes.toString("utf8"))));
+    } catch {
+      return {
+        ok: false as const,
+        errors: [{ path: "$", code: "shape" as const, message: "file is not valid JSON" }],
+      };
+    }
+  }
+
+  private async requireCompositionSource(virtualPath: string) {
+    if (typeof virtualPath !== "string" || !virtualPath.endsWith(".pdf.source.json")) {
+      throw new DocumentError("invalid", "Composition sources must end in .pdf.source.json");
+    }
+    const auth = await authorizeCompositionPath(virtualPath, { write: false });
+    const { bytes, revision } = await readWithRevision(auth.absPath);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      throw new DocumentError("invalid", "Composition source is not valid JSON");
+    }
+    const validated = validateComposition(migrateComposition(parsed));
+    if (!validated.ok) {
+      throw new DocumentError("invalid", "Composition failed validation", {
+        errors: validated.errors,
+      });
+    }
+    return { auth, sourceRevision: revision, composition: validated.value as PdfComposition };
+  }
+
+  /**
+   * Validate + commit a `.pdf.source.json` through the daemon so agents never
+   * hand-write JSON that later fails validation. `baseRevision` optional;
+   * create uses expectedRevision null, update uses the current revision.
+   */
+  async pdfCompositionSaveSource(input: {
+    virtualPath: string;
+    composition: unknown;
+    baseRevision?: string;
+    actor?: DocumentActor;
+  }): Promise<{ revision: string; size: number }> {
+    const actor = validateActor(input.actor);
+    if (typeof input.virtualPath !== "string" || !input.virtualPath.endsWith(".pdf.source.json")) {
+      throw new DocumentError("invalid", "Composition sources must end in .pdf.source.json");
+    }
+    const validated = validateComposition(migrateComposition(input.composition));
+    if (!validated.ok) {
+      throw new DocumentError("invalid", "Composition failed validation", {
+        errors: validated.errors,
+      });
+    }
+    const auth = await authorizeCompositionPath(input.virtualPath, { write: true });
+    const text = JSON.stringify(validated.value, null, 2) + "\n";
+    await fs.mkdir(path.dirname(auth.absPath), { recursive: true });
+    return this.broker.withPathLock(auth.absPath, async () => {
+      const exists = await fileExists(auth.absPath);
+      let expected: string | null = null;
+      if (exists) {
+        const current = await readWithRevision(auth.absPath);
+        expected = current.revision;
+        if (input.baseRevision !== undefined && input.baseRevision !== current.revision) {
+          throw new DocumentError("conflict", "Document changed since baseRevision", {
+            currentRevision: current.revision,
+          });
+        }
+      }
+      const tempPath = this.broker.tempPathFor(auth.absPath);
+      await fs.writeFile(tempPath, text);
+      const committed = await commitBytes({
+        absPath: auth.absPath,
+        tempPath,
+        expectedRevision: expected,
+        signatureCheck: "json",
+      });
+      await this.broker.recordCommit(auth.absPath, committed.revision, committed.size);
+      this.changed({
+        virtualPath: input.virtualPath,
+        revision: committed.revision,
+        actor,
+        op: "save",
+      });
+      return committed;
+    });
+  }
+
+  /**
+   * Render a `.pdf.source.json` composition to PDF.
+   * mode=preview → PDF lands in the render cache; result carries `previewKey`.
+   * mode=publish → commits `<stem>.pdf` next to the source and records
+   * generation metadata; refuses to clobber a hand-modified output unless
+   * `replace` (overwrite) or `saveAsCopy` (collision-free copy) is passed.
+   */
+  async pdfCompositionRender(input: {
+    sourceVirtualPath: string;
+    mode: "preview" | "publish";
+    actor?: DocumentActor;
+    replace?: boolean;
+    saveAsCopy?: boolean;
+    destinationVirtualPath?: string;
+  }): Promise<{ jobId: string }> {
+    const actor = validateActor(input.actor);
+    const { auth, sourceRevision, composition } = await this.requireCompositionSource(
+      input.sourceVirtualPath,
+    );
+    const assetsDir = path.dirname(auth.absPath);
+    // Authorize declared assets up front: each must resolve inside the
+    // source's folder (the worker enforces the same boundary) and be inside
+    // an authorized root; escapes fail here as `unauthorized`, not warnings.
+    const assetStats: string[] = [];
+    for (const [key, asset] of Object.entries(composition.assets ?? {})) {
+      const abs = path.resolve(assetsDir, asset.path);
+      if (abs !== assetsDir && !abs.startsWith(assetsDir + path.sep)) {
+        throw new DocumentError("unauthorized", `Asset "${key}" escapes the source folder`);
+      }
+      await authorizeCompositionPath(virtualPathFromFs(abs), { write: false });
+      const stat = await fs.stat(abs).catch(() => null);
+      assetStats.push(`${key}:${abs}:${stat?.size ?? 0}:${stat?.mtimeMs ?? 0}`);
+    }
+    assetStats.sort();
+
+    const previewKey = createHash("sha256")
+      .update(
+        [
+          sourceRevision,
+          PDFCN_CATALOG_VERSION,
+          PDFCN_RENDERER.version,
+          composition.theme,
+          ...assetStats,
+        ].join("\n"),
+      )
+      .digest("hex");
+
+    if (input.mode === "preview") {
+      const cacheFile = path.join(PDF_PREVIEW_CACHE_DIR, `${previewKey}.pdf`);
+      if (await fileExists(cacheFile)) {
+        const job = this.broker.createJob("pdf-render", []);
+        job.status = "done";
+        job.result = { previewKey, cached: true };
+        this.broker.onJobChange?.(job);
+        return { jobId: job.jobId };
+      }
+      // outputPaths includes the cache file so a cancelled render doesn't
+      // leave a truncated PDF behind to be served as a later cache hit.
+      const job = this.broker.createJob("pdf-render", [cacheFile]);
+      this.broker.onJobChange?.(job);
+      void this.runPdfRenderJob(job.jobId, composition, assetsDir, cacheFile, {
+        mode: "preview",
+        actor,
+        sourceVirtualPath: input.sourceVirtualPath,
+        sourceRevision,
+        previewKey,
+      });
+      return { jobId: job.jobId };
+    }
+
+    // publish
+    const stem = input.sourceVirtualPath.slice(
+      0,
+      input.sourceVirtualPath.length - ".source.json".length,
+    );
+    const destVirtual = input.destinationVirtualPath ?? stem;
+    if (!destVirtual.toLowerCase().endsWith(".pdf")) {
+      throw new DocumentError("invalid", "Publish destination must be a .pdf path");
+    }
+    const dest = await authorizeDocumentPath(destVirtual, { write: true });
+    const outputPath = this.broker.tempPathFor(dest.absPath);
+    const job = this.broker.createJob("pdf-render", [outputPath]);
+    this.broker.onJobChange?.(job);
+    void this.runPdfRenderJob(job.jobId, composition, assetsDir, outputPath, {
+      mode: "publish",
+      actor,
+      sourceVirtualPath: input.sourceVirtualPath,
+      sourceRevision,
+      dest: { virtualPath: dest.virtualPath, absPath: dest.absPath },
+      replace: input.replace === true,
+      saveAsCopy: input.saveAsCopy === true,
+    });
+    return { jobId: job.jobId };
+  }
+
+  /** Streamed preview bytes for GET /documents/preview/:key (hex sha256 only). */
+  async pdfPreviewFile(key: string): Promise<string> {
+    if (!/^[a-f0-9]{64}$/.test(key)) {
+      throw new DocumentError("invalid", "Malformed preview key");
+    }
+    const p = path.join(PDF_PREVIEW_CACHE_DIR, `${key}.pdf`);
+    if (!(await fileExists(p))) {
+      throw new DocumentError("not-found", "Preview not found or expired");
+    }
+    return p;
+  }
+
+  private async runPdfRenderJob(
+    jobId: string,
+    composition: PdfComposition,
+    assetsDir: string,
+    outputPath: string,
+    ctx: {
+      mode: "preview" | "publish";
+      actor: DocumentActor;
+      sourceVirtualPath: string;
+      sourceRevision: string;
+      previewKey?: string;
+      dest?: { virtualPath: string; absPath: string };
+      replace?: boolean;
+      saveAsCopy?: boolean;
+    },
+  ): Promise<void> {
+    const job = this.broker.jobs.get(jobId)!;
+    try {
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+      const meta = (await this.broker.run(
+        "pdfCompositionRender",
+        { composition, assetsDir, outputPath, mode: ctx.mode },
+        job,
+      )) as {
+        pageCount: number;
+        pages: { index: number; widthPt: number; heightPt: number }[];
+        warnings: { nodeId?: string; code: string; message: string }[];
+        renderer: { id: string; version: string };
+        byteLength: number;
+      };
+      if (job.status === "cancelled") return;
+
+      if (ctx.mode === "preview") {
+        await this.evictPreviewCache();
+        job.result = {
+          previewKey: ctx.previewKey,
+          cached: false,
+          pageCount: meta.pageCount,
+          warnings: meta.warnings.map((w) => w.message),
+        };
+        job.status = "done";
+        this.broker.onJobChange?.(job);
+        return;
+      }
+
+      const dest = ctx.dest!;
+      await this.broker.withPathLock(dest.absPath, async () => {
+        let target = dest;
+        let expectedRevision: string | null = null;
+        if (await fileExists(dest.absPath)) {
+          const current = await readWithRevision(dest.absPath);
+          const meta2 = await this.readGenerationMeta(ctx.sourceVirtualPath);
+          const currentHash = createHash("sha256").update(current.bytes).digest("hex");
+          const generated = meta2?.outputVirtualPath === dest.virtualPath && meta2.outputHash === currentHash;
+          if (!generated) {
+            if (ctx.saveAsCopy) {
+              target = await this.collisionFreePath(dest.virtualPath);
+            } else if (!ctx.replace) {
+              throw new DocumentError(
+                "conflict",
+                "Output PDF was modified outside the generator — use replace or copy",
+                { reason: "output-modified", currentRevision: current.revision },
+              );
+            } else {
+              expectedRevision = current.revision;
+            }
+          } else {
+            expectedRevision = current.revision;
+          }
+        }
+        const committed = await commitBytes({
+          absPath: target.absPath,
+          tempPath: outputPath,
+          expectedRevision,
+        });
+        const outBytes = await fs.readFile(target.absPath);
+        const outputHash = createHash("sha256").update(outBytes).digest("hex");
+        job.result = {
+          virtualPath: target.virtualPath,
+          revision: committed.revision,
+          size: committed.size,
+          pageCount: meta.pageCount,
+          warnings: meta.warnings.map((w) => w.message),
+          mutationRecorded: ctx.actor.kind === "agent",
+        };
+        job.status = "done";
+        await this.broker.recordCommit(target.absPath, committed.revision, committed.size);
+        // Metadata AFTER the commit; a crash between them is detected on the
+        // next publish via the outputHash mismatch (output → unknown →
+        // conflict/copy/replace).
+        await this.writeGenerationMeta({
+          documentId: composition.documentId,
+          sourceVirtualPath: ctx.sourceVirtualPath,
+          outputVirtualPath: target.virtualPath,
+          sourceRevision: ctx.sourceRevision,
+          outputRevision: committed.revision,
+          outputHash,
+          catalogVersion: PDFCN_CATALOG_VERSION,
+          rendererVersion: meta.renderer.version,
+          renderedAt: new Date().toISOString(),
+        });
+        this.changed({
+          virtualPath: target.virtualPath,
+          revision: committed.revision,
+          actor: ctx.actor,
+          op: "generate",
+        });
+        this.broker.onJobChange?.(job);
+      });
+    } catch (err) {
+      if (job.status === "cancelled") return;
+      job.status = "failed";
+      const e = err instanceof DocumentError ? err : new DocumentError("worker-failed", String(err));
+      job.error = { code: e.code, message: e.message, details: e.details };
+      this.broker.onJobChange?.(job);
+      await fs.rm(outputPath, { force: true }).catch(() => {});
+    }
+  }
+
+  /** Staleness/modification report for a composition source + its output. */
+  async pdfCompositionStatus(virtualPath: string): Promise<{
+    sourceRevision: string;
+    output?: {
+      virtualPath: string;
+      revision: string;
+      stale: boolean;
+      modified: boolean;
+    };
+  }> {
+    const { sourceRevision } = await this.requireCompositionSource(virtualPath);
+    const meta = await this.readGenerationMeta(virtualPath);
+    if (!meta) return { sourceRevision };
+    let outAuth;
+    try {
+      outAuth = await authorizeDocumentPath(meta.outputVirtualPath, { write: false });
+    } catch {
+      return { sourceRevision };
+    }
+    if (!(await fileExists(outAuth.absPath))) return { sourceRevision };
+    const current = await readWithRevision(outAuth.absPath);
+    const hash = createHash("sha256").update(current.bytes).digest("hex");
+    return {
+      sourceRevision,
+      output: {
+        virtualPath: meta.outputVirtualPath,
+        revision: current.revision,
+        stale: meta.sourceRevision !== sourceRevision,
+        modified: hash !== meta.outputHash,
+      },
+    };
+  }
+
+  private generationMetaPath(sourceVirtualPath: string): string {
+    const key = createHash("sha256").update(sourceVirtualPath).digest("hex");
+    return path.join(PDF_GENERATION_META_DIR, `${key}.json`);
+  }
+
+  private async readGenerationMeta(sourceVirtualPath: string): Promise<{
+    documentId: string;
+    sourceVirtualPath: string;
+    outputVirtualPath: string;
+    sourceRevision: string;
+    outputRevision: string;
+    outputHash: string;
+  } | null> {
+    try {
+      const raw = await fs.readFile(this.generationMetaPath(sourceVirtualPath), "utf8");
+      const m = JSON.parse(raw);
+      return m && m.sourceVirtualPath === sourceVirtualPath ? m : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeGenerationMeta(meta: Record<string, unknown>): Promise<void> {
+    await fs.mkdir(PDF_GENERATION_META_DIR, { recursive: true });
+    const p = this.generationMetaPath(String(meta.sourceVirtualPath));
+    const tmp = `${p}.${process.pid}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify(meta, null, 2));
+    await fs.rename(tmp, p);
+  }
+
+  private async evictPreviewCache(): Promise<void> {
+    const CAP = 200 * 1024 * 1024;
+    try {
+      const entries = await fs.readdir(PDF_PREVIEW_CACHE_DIR, { withFileTypes: true });
+      const files: { p: string; size: number; mtimeMs: number }[] = [];
+      let total = 0;
+      for (const e of entries) {
+        if (!e.isFile() || !e.name.endsWith(".pdf")) continue;
+        const p = path.join(PDF_PREVIEW_CACHE_DIR, e.name);
+        const s = await fs.stat(p).catch(() => null);
+        if (!s) continue;
+        total += s.size;
+        files.push({ p, size: s.size, mtimeMs: s.mtimeMs });
+      }
+      if (total <= CAP) return;
+      files.sort((a, b) => a.mtimeMs - b.mtimeMs);
+      for (const f of files) {
+        if (total <= CAP) break;
+        await fs.rm(f.p, { force: true }).catch(() => {});
+        total -= f.size;
+      }
+    } catch {
+      /* cache hygiene must not fail renders */
+    }
   }
 
   // ── revision refresh ──────────────────────────────────────────────────

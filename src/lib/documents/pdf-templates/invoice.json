@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "documentId": "invoice-document",
+  "catalogVersion": "1.0.0",
+  "title": "Invoice",
+  "page": {
+    "size": "A4",
+    "orientation": "portrait",
+    "margins": { "top": 56, "right": 48, "bottom": 56, "left": 48 }
+  },
+  "theme": "professional",
+  "footer": [
+    { "type": "page-number", "id": "page-number-1", "props": { "align": "center" } }
+  ],
+  "body": [
+    { "type": "heading", "id": "invoice-title", "props": { "level": 1, "text": "Invoice" } },
+    {
+      "type": "key-value",
+      "id": "invoice-meta",
+      "data": {
+        "entries": [
+          { "key": "Invoice #", "value": "0001" },
+          { "key": "Date", "value": "" },
+          { "key": "Bill to", "value": "" },
+          { "key": "From", "value": "" }
+        ]
+      }
+    },
+    { "type": "divider", "id": "divider-1" },
+    {
+      "type": "table",
+      "id": "invoice-lines",
+      "props": { "variant": "line", "header": true },
+      "data": {
+        "columns": ["Item", "Qty", "Price", "Total"],
+        "rows": [
+          ["Service", "1", "0.00", "0.00"]
+        ]
+      }
+    },
+    {
+      "type": "key-value",
+      "id": "invoice-totals",
+      "data": {
+        "entries": [
+          { "key": "Subtotal", "value": "0.00" },
+          { "key": "Tax", "value": "0.00" },
+          { "key": "Total", "value": "0.00" }
+        ]
+      }
+    },
+    { "type": "text", "id": "invoice-notes", "props": { "text": "Payment terms: due on receipt." } }
+  ]
+}

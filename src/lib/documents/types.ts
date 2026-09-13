@@ -343,6 +343,10 @@ export interface JobResult {
   degraded?: boolean;
   /** Set once the Next route has recorded the history mutation for this job. */
   mutationRecorded?: boolean;
+  /** PDFCN composition preview: cache key for GET /documents/preview/:key. */
+  previewKey?: string;
+  /** True when a preview result was served from the render cache. */
+  cached?: boolean;
 }
 
 export interface JobInfo {

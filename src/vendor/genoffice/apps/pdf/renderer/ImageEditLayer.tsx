@@ -272,7 +272,7 @@ export function ImageEditLayer({
       imageRectKey(e.input.oldRect) !== imageRectKey(e.input.rect)
     ) {
       mainEls.push(
-        <div key={`${e.id}-veil`} className="pdf-imgedit-veil" style={css(e.input.oldRect)} />,
+        <div key={`${e.id}-veil`} className="pdf-imgedit-veil" style={css(e.input.oldRect) as CSSProperties} />,
       )
     }
     if (e.input.kind === 'insertImage' || e.input.kind === 'replaceImage' || e.png) {

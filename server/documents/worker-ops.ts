@@ -1023,6 +1023,16 @@ export async function runOp(
       return docxSaveOp(args as never);
     case "pdfPageGeometry":
       return pdfPageGeometryOp(args as never);
+    case "pdfCompositionRender": {
+      const { renderComposition } = await import("./pdf-generation");
+      const { bytes, ...result } = await renderComposition(args as never);
+      // Bytes live in the worker-written outputPath; report the size only.
+      return { ...result, byteLength: bytes?.byteLength ?? 0 };
+    }
+    case "pdfCompositionValidate": {
+      const { validateComposition } = await import("@/lib/documents/pdf-composition");
+      return validateComposition(args.composition);
+    }
     case "__crash":
       if (process.env.CABINET_DOC_TEST_OPS !== "1") {
         throw new DocumentError("invalid", "Unknown op '__crash'");

@@ -212,9 +212,46 @@ test("--help exits 0 and documents every command", async () => {
     "inspect", "read", "search", "geometry", "patch", "docx-load",
     "docx-save", "convert", "job", "cancel", "ocr-capabilities",
     "recovery", "revision",
+    "pdf-new", "pdf-validate", "pdf-catalog", "pdf-render", "pdf-status",
   ]) {
     assert.ok(stdout.includes(cmd), `--help missing ${cmd}`);
   }
+});
+
+test("pdf-new → pdf-validate → pdf-render --publish --wait → pdf-status", { timeout: 180_000 }, async () => {
+  const vp = "tool/gen/invoice.pdf.source.json";
+  const created = (await runTool([
+    "pdf-new", "--path", vp, "--template", "invoice", "--title", "Tool Invoice",
+  ])).json as { revision: string; size: number };
+  assert.ok(created.revision);
+  // Composition is valid per the daemon.
+  const validated = (await runTool(["pdf-validate", "--path", vp])).json as { ok: boolean };
+  assert.equal(validated.ok, true);
+
+  const catalog = (await runTool(["pdf-catalog"])).json as {
+    catalogVersion: string;
+    components: { type: string }[];
+    themes: string[];
+  };
+  assert.ok(catalog.catalogVersion);
+  assert.ok(catalog.components.some((c) => c.type === "table"));
+  assert.ok(catalog.themes.includes("professional"));
+
+  const rendered = (await runTool([
+    "pdf-render", "--path", vp, "--publish", "--wait",
+  ])).json as { virtualPath: string; pageCount: number };
+  assert.equal(rendered.virtualPath, "tool/gen/invoice.pdf");
+  assert.ok(rendered.pageCount >= 1);
+  const bytes = await fs.readFile(path.join(DATA_DIR, rendered.virtualPath));
+  assert.equal(bytes.subarray(0, 5).toString("latin1"), "%PDF-");
+
+  const status = (await runTool(["pdf-status", "--path", vp])).json as {
+    sourceRevision: string;
+    output?: { virtualPath: string; stale: boolean; modified: boolean };
+  };
+  assert.equal(status.output?.virtualPath, "tool/gen/invoice.pdf");
+  assert.equal(status.output?.stale, false);
+  assert.equal(status.output?.modified, false);
 });
 
 test("error output never leaks the absolute data dir or the daemon token", async () => {

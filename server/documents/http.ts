@@ -120,6 +120,23 @@ export async function handleDocumentsRequest(
       return true;
     }
 
+    if (req.method === "GET" && parts[1] === "pdf-composition" && parts[2] === "catalog") {
+      sendJson(res, 200, service.pdfCompositionCatalog());
+      return true;
+    }
+
+    if (req.method === "GET" && parts[1] === "pdf-composition" && parts[2] === "status") {
+      sendJson(res, 200, await service.pdfCompositionStatus(url.searchParams.get("path") ?? ""));
+      return true;
+    }
+
+    if (req.method === "GET" && parts[1] === "preview" && parts[2]) {
+      const file = await service.pdfPreviewFile(parts[2]);
+      res.writeHead(200, { "Content-Type": "application/pdf" });
+      fs.createReadStream(file).pipe(res);
+      return true;
+    }
+
     if (parts[1] === "jobs" && parts[2]) {
       const jobId = parts[2];
       if (req.method === "GET" && !parts[3]) {
@@ -243,6 +260,21 @@ export async function handleDocumentsRequest(
           return true;
         }
         sendJson(res, 404, { error: "Unknown recovery route", code: "not-found" });
+        return true;
+      case "pdf-composition":
+        if (parts[2] === "validate") {
+          sendJson(res, 200, await service.pdfCompositionValidate(body));
+          return true;
+        }
+        if (parts[2] === "render") {
+          sendJson(res, 200, await service.pdfCompositionRender(body as never));
+          return true;
+        }
+        if (parts[2] === "source") {
+          sendJson(res, 200, await service.pdfCompositionSaveSource(body as never));
+          return true;
+        }
+        sendJson(res, 404, { error: "Unknown pdf-composition route", code: "not-found" });
         return true;
       case "close":
         sendJson(res, 200, service.close(String(body.sessionId ?? "")));

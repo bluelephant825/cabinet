@@ -569,8 +569,9 @@
     {
       "path": "apps/pdf/renderer/ImageEditLayer.tsx",
       "upstreamPath": "apps/pdf/src/renderer/ImageEditLayer.tsx",
-      "sha256": "5b06c620f17d642580a6cedcd5f66a9d58949f27b077161fd3ea287663d85912",
-      "adapted": false
+      "sha256": "50aefc0bda920755b80dbfb15fad44cd3964f82b549c950287e49ade55efa5ea",
+      "adapted": true,
+      "adaptationNote": "as-CSSProperties cast on the veil style — upstream's local Box type lacks the `--*` index signature current @types/react requires"
     },
     {
       "path": "apps/pdf/renderer/PdfPage.tsx",

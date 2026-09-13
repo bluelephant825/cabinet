@@ -62,6 +62,9 @@ const nextConfig: NextConfig = {
     "utif2",
     "pngjs",
     "jpeg-js",
+    // PDFCN/Takumi renderer — wasm-based, worker-only (server/documents).
+    "takumi-pdf",
+    "@takumi-rs/helpers",
   ],
   outputFileTracingExcludes: {
     "/*": [

@@ -146,6 +146,12 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       const res = await forwardJson("convert", req);
       return res;
     }
+    case "pdf-composition": {
+      if (op[1] === "validate" || op[1] === "render" || op[1] === "source") {
+        return forwardJson(`pdf-composition/${op[1]}`, req);
+      }
+      return NextResponse.json({ error: "Unknown document route" }, { status: 404 });
+    }
     default:
       return NextResponse.json({ error: "Unknown document route" }, { status: 404 });
   }
@@ -215,6 +221,29 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     return proxyJson(await documentsDaemonFetch("/documents/ocr/capabilities"));
   }
 
+  // GET /api/documents/pdf-composition/catalog — component/theme catalog.
+  if (op[0] === "pdf-composition" && op[1] === "catalog") {
+    return proxyJson(await documentsDaemonFetch("/documents/pdf-composition/catalog"));
+  }
+
+  // GET /api/documents/pdf-composition/status?path=
+  if (op[0] === "pdf-composition" && op[1] === "status") {
+    return proxyJson(
+      await documentsDaemonFetch(
+        `/documents/pdf-composition/status?path=${encodeURIComponent(req.nextUrl.searchParams.get("path") ?? "")}`,
+      ),
+    );
+  }
+
+  // GET /api/documents/preview/:key — stream cached render bytes.
+  if (op[0] === "preview" && op[1]) {
+    const res = await documentsDaemonFetch(`/documents/preview/${encodeURIComponent(op[1])}`);
+    return new NextResponse(res.body, {
+      status: res.status,
+      headers: { "content-type": res.headers.get("content-type") ?? "application/octet-stream" },
+    });
+  }
+
   // GET /api/documents/recovery?path=
   if (op[0] === "recovery") {
     return proxyJson(
@@ -245,7 +274,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         const job = JSON.parse(text) as JobInfo;
         if (
           job.status === "done" &&
-          job.kind === "convert-pdf-docx" &&
+          (job.kind === "convert-pdf-docx" || job.kind === "pdf-render") &&
           job.result?.virtualPath &&
           !job.result.mutationRecorded
         ) {

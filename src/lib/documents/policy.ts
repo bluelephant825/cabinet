@@ -176,6 +176,33 @@ export async function authorizeDocumentPath(
     return { virtualPath, absPath: real, format, readOnlyReason: GDRIVE_READ_ONLY_REASON };
   }
 
+  return authorizeFsPath(virtualPath, opts, format) as Promise<AuthorizedDocumentPath>;
+}
+
+/**
+ * Same policy as authorizeDocumentPath but without the .docx/.pdf format gate —
+ * used for `.pdf.source.json` composition sources and their referenced assets,
+ * which are arbitrary text/media files inside the same authorized roots.
+ */
+export async function authorizeCompositionPath(
+  virtualPath: string,
+  opts: { write: boolean; cabinetPath?: string },
+): Promise<Omit<AuthorizedDocumentPath, "format">> {
+  if (!virtualPath || typeof virtualPath !== "string") {
+    throw new DocumentError("invalid", "Missing document path");
+  }
+  if (decodeDrivePath(virtualPath)) {
+    throw new DocumentError("read-only", GDRIVE_READ_ONLY_REASON);
+  }
+  return authorizeFsPath(virtualPath, opts, undefined);
+}
+
+async function authorizeFsPath(
+  virtualPath: string,
+  opts: { write: boolean; cabinetPath?: string },
+  format?: DocumentFormat,
+): Promise<Omit<AuthorizedDocumentPath, "format"> & { format?: DocumentFormat }> {
+  const cabinetPath = normalizeCabinetPath(opts.cabinetPath ?? ROOT_CABINET_PATH, true) || ROOT_CABINET_PATH;
   let resolved: string;
   try {
     resolved = resolveContentPath(virtualPath);
