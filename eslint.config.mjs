@@ -22,10 +22,18 @@ const eslintConfig = defineConfig([
     },
   },
   // Vendored GenOffice document engines are worker-only: nothing outside
-  // server/documents/worker*.ts (and tests) may import them.
+  // server/documents/worker*.ts (and tests) may import them — except the
+  // embedded document-editor frame, which may import the vendored RENDERER
+  // (apps/docs/src/renderer/**) but never the engines (packages/**, pdf main).
   {
     files: ["src/**/*.ts", "src/**/*.tsx", "server/**/*.ts"],
-    ignores: ["src/vendor/**", "server/documents/worker.ts", "server/documents/worker-ops.ts"],
+    ignores: [
+      "src/vendor/**",
+      "server/documents/worker.ts",
+      "server/documents/worker-ops.ts",
+      "src/app/document-editor/**",
+      "src/components/editor/documents/**",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -35,6 +43,31 @@ const eslintConfig = defineConfig([
               group: ["**/vendor/genoffice/**", "*/vendor/genoffice/*", "**/src/vendor/genoffice/**"],
               message:
                 "GenOffice engines run only in server/documents/worker*.ts — call the document service instead.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      "src/app/document-editor/**/*.ts",
+      "src/app/document-editor/**/*.tsx",
+      "src/components/editor/documents/**/*.ts",
+      "src/components/editor/documents/**/*.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/vendor/genoffice/packages/**",
+                "**/vendor/genoffice/apps/pdf/main/**",
+              ],
+              message:
+                "GenOffice engines must not be imported client-side — import the renderer modules instead.",
             },
           ],
         },

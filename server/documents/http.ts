@@ -206,6 +206,17 @@ export async function handleDocumentsRequest(
       case "revision":
         sendJson(res, 200, await service.revision(String(body.virtualPath ?? "")));
         return true;
+      case "docx":
+        if (parts[2] === "load") {
+          sendJson(res, 200, await service.docxLoad(body as never));
+          return true;
+        }
+        if (parts[2] === "save") {
+          sendJson(res, 200, await service.docxSave(body as never));
+          return true;
+        }
+        sendJson(res, 404, { error: "Unknown docx route", code: "not-found" });
+        return true;
       case "recovery":
         if (parts[2] === "restore") {
           sendJson(res, 200, await service.restoreRecovery(body as never));

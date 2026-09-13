@@ -206,7 +206,12 @@
     "loadingAvailableProviders": "טוען ספקים זמינים…",
     "triggerSummary": "מודל: {{model}} · מאמץ: {{effort}} · דרך {{provider}}",
     "triggerSystemDefault": "מודל המשימה — משתמש בברירת המחדל (לחצו לבחור)",
-    "clickToLaunch": "לחצו להפעלת {{name}} בטרמינל PTY"
+    "clickToLaunch": "לחצו להפעלת {{name}} בטרמינל PTY",
+    "chooseModel": "",
+    "sentenceAt": "",
+    "sentenceEffort": "",
+    "sentenceRunWith": "",
+    "sentenceUsing": ""
   },
   "breakingChanges": {
     "agentsFullAccess": "סוכנים פועלים בגישה מלאה.",
@@ -1036,6 +1041,9 @@
       "saving": "שומר…",
       "saved": "נשמר",
       "error": "משהו השתבש"
+    },
+    "panels": {
+      "menuTitle": ""
     }
   },
   "dialogs": {
@@ -1058,6 +1066,13 @@
       "createCabinet": "יצירת ארונית",
       "creating": "יוצר…",
       "createFailed": "יצירת הארונית נכשלה"
+    },
+    "newFolder": {
+      "create": "",
+      "creating": "",
+      "placeholder": "",
+      "title": "",
+      "trigger": ""
     }
   },
   "editor": {
@@ -1076,7 +1091,11 @@
       "saveAsPdf": "שמירה כ-PDF",
       "exportMystPdf": "ייצוא PDF באמצעות MyST",
       "pdfSaveFailed": "שמירת ה-PDF נכשלה",
-      "copiedForLlmToast": "הועתקו {{size}} של Markdown עבור LLM"
+      "copiedForLlmToast": "הועתקו {{size}} של Markdown עבור LLM",
+      "browseMode": "",
+      "canvasMode": "",
+      "editMode": "",
+      "exitFocusMode": ""
     },
     "toolbar": {
       "heading1": "כותרת 1",
@@ -1130,7 +1149,20 @@
       "scrollLeft": "גלילת סרגל הכלים שמאלה",
       "scrollRight": "גלילת סרגל הכלים ימינה",
       "markdown": "Markdown",
-      "preview": "תצוגה מקדימה"
+      "preview": "תצוגה מקדימה",
+      "normalWidth": "",
+      "wideMode": ""
+    },
+    "browser": {
+      "back": "",
+      "forward": "",
+      "noUrl": "",
+      "openExternally": "",
+      "reload": ""
+    },
+    "canvas": {
+      "empty": "",
+      "title": ""
     }
   },
   "home": {
@@ -1168,7 +1200,25 @@
     "greetingWithName": "{{greeting}}, {{name}}.",
     "greetingNoName": "{{greeting}}.",
     "composerPlaceholder": "אני רוצה ליצור...",
-    "composerDaemonDown": "ה-daemon של הסוכנים לא פעיל — הפעילו מחדש כדי לשלוח"
+    "composerDaemonDown": "ה-daemon של הסוכנים לא פעיל — הפעילו מחדש כדי לשלוח",
+    "free": {
+      "browseTemplates": "",
+      "browseTemplatesDesc": "",
+      "importFiles": "",
+      "importFilesDesc": "",
+      "newPage": "",
+      "newPageDesc": ""
+    },
+    "integrations": {
+      "connectCta": "",
+      "connectedCta": ""
+    },
+    "providersEmpty": {
+      "body": "",
+      "cta": "",
+      "seeAll": "",
+      "title": ""
+    }
   },
   "onboarding": {
     "launchHeading": "התחילו את ה-<accent>Cabinet</accent> שלכם",
@@ -1558,6 +1608,11 @@
       "cabinetsImported": "{{count}} קבינטים יובאו",
       "jobCount": "{{count}} משימות",
       "subCabinetCount": "{{count}} קבינטים משנה"
+    },
+    "knowledge": {
+      "footnote": "",
+      "heading": "",
+      "subtitle": ""
     }
   },
   "search": {
@@ -1615,7 +1670,11 @@
       "sidebar": "סרגל צד",
       "showHiddenFiles": "הצג קבצים מוסתרים",
       "sidebarDescription": "הגדירו איך קבצים מוצגים בסרגל הצד.",
-      "showHiddenFilesHint": "להציג קבצים ותיקיות שמתחילים בנקודה (למשל .env, .git)"
+      "showHiddenFilesHint": "להציג קבצים ותיקיות שמתחילים בנקודה (למשל .env, .git)",
+      "autoSortAlphabetical": "",
+      "autoSortAlphabeticalHint": "",
+      "foldersFirst": "",
+      "foldersFirstHint": ""
     },
     "tabs": {
       "profile": "פרופיל",
@@ -1771,6 +1830,54 @@
       "teamSize": "גודל צוות",
       "teamSizePlaceholder": "סולו / 2–5 / 6–20 / 20+",
       "subtitle": "נקלט במהלך ההגעה. סוכנים קוראים את זה כשהם מתכננים עבודה."
+    },
+    "inbox": {
+      "automatic": "",
+      "ingestAll": "",
+      "pending": "",
+      "submitted": "",
+      "title": ""
+    },
+    "providerSetup": {
+      "almostThere": "",
+      "apiKeyFieldHint": "",
+      "codePlaceholder": "",
+      "connect": "",
+      "connectClaude": "",
+      "consoleLabel": "",
+      "done": "",
+      "installBody": "",
+      "installCta": "",
+      "installForMe": "",
+      "installHeading": "",
+      "installingNow": "",
+      "manualHide": "",
+      "manualToggle": "",
+      "notInstalled": "",
+      "notLoggedIn": "",
+      "openClaudeLogin": "",
+      "openInBrowser": "",
+      "openLinkHint": "",
+      "openSettings": "",
+      "pasteCodeHint": "",
+      "phaseInstall": "",
+      "phaseReady": "",
+      "phaseSignIn": "",
+      "preparingLink": "",
+      "ready": "",
+      "readyBody": "",
+      "readyHeading": "",
+      "saveKey": "",
+      "setUp": "",
+      "signInBody": "",
+      "signInCta": "",
+      "signInHeading": "",
+      "signInWaiting": "",
+      "title": "",
+      "tryAgain": "",
+      "verify": "",
+      "verifyingNow": "",
+      "whatNext": ""
     }
   },
   "sidebar": {
@@ -1801,7 +1908,10 @@
     "refreshFailed": "הרענון נכשל.",
     "searchPlaceholder": "חיפוש קבצים…",
     "searchSearching": "מחפש…",
-    "searchNoResults": "אין קבצים התואמים ל־“{{query}}”"
+    "searchNoResults": "אין קבצים התואמים ל־“{{query}}”",
+    "integrations": "",
+    "integrationsConnected": "",
+    "newMenu": ""
   },
   "status": {
     "bar": {
@@ -1840,7 +1950,11 @@
       "providerNotLoggedIn": "לא מחובר",
       "providerNotInstalled": "לא מותקן",
       "install": "התקנה",
-      "howToFix": "איך לתקן"
+      "howToFix": "איך לתקן",
+      "configure": "",
+      "logIn": "",
+      "restart": "",
+      "restarting": ""
     },
     "save": {
       "retryTitle": "לחיצה לניסיון שמירה חוזר",
@@ -2020,5 +2134,36 @@
       "notResponding": "דמון הסוכנים אינו מגיב.",
       "willFail": "סוכנים, משימות ובקשות AI ייכשלו עד שיחזור. {{fixHint}}"
     }
+  },
+  "connectGithub": {
+    "branchLabel": "",
+    "branchPlaceholder": "",
+    "connect": "",
+    "connecting": "",
+    "descriptionLabel": "",
+    "descriptionPlaceholder": "",
+    "intro": "",
+    "localPathLabel": "",
+    "localPathPlaceholder": "",
+    "nameLabel": "",
+    "namePlaceholder": "",
+    "repoUrlLabel": "",
+    "repoUrlPlaceholder": "",
+    "title": ""
+  },
+  "docxEditor": {
+    "changedOnDisk": "",
+    "confirmReload": "",
+    "conflictBanner": "",
+    "loadFailed": "",
+    "loading": "",
+    "opening": "",
+    "readOnly": "",
+    "reloadLatest": "",
+    "rendering": "",
+    "saveACopy": "",
+    "saving": "",
+    "tryExternal": "",
+    "unsaved": ""
   }
 }

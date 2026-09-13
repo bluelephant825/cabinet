@@ -237,3 +237,81 @@ export interface DocumentErrorPayload {
   message: string;
   details?: Record<string, unknown>;
 }
+
+// ── DOCX editor model / save plan (Step 4) ─────────────────────────────────
+//
+// The vendored renderer works directly on the engine's parsed model. `blocks`,
+// `sections`, `themeFonts` and `themeColors` are already plain JSON; `styles`
+// and `numbering` are Maps upstream and ship here as entry arrays so the model
+// crosses the worker → daemon → Next → iframe boundary with JSON.stringify.
+
+export interface DocxDocumentModel {
+  format: "docx";
+  /** engine `Block[]` — plain JSON objects (imageDataUrl is a data URL). */
+  blocks: unknown[];
+  /** engine `SectionInfo[]` from readSections(). */
+  sections: unknown[];
+  /** `styles` Map entries: [styleId, StyleInfo]. */
+  styles: [string, unknown][];
+  /** `numbering` Map entries: [numId, NumberingDef]. */
+  numbering: [string, unknown][];
+  themeFonts: unknown | null;
+  themeColors: unknown | null;
+  /** `fontTable` (word/fontTable.xml entries) — drives text-run font factors. */
+  fontTable?: unknown[] | null;
+  /** `docDefaults` (w:docDefaults display defaults) — list-numbering storage. */
+  docDefaults?: unknown | null;
+  /** Count of images whose data URL exceeded the per-image cap and were
+   *  replaced with a placeholder flag on the block (`imageOversized: true`). */
+  oversizedImages: number;
+}
+
+/**
+ * Structural copy of the vendored `SaveBlock` union
+ * (src/vendor/genoffice/packages/docx-engine/src/patch.ts). The frame builds
+ * real `SaveBlock[]` via the vendored `pmDocToSavePlan`; this shape is what
+ * crosses the wire, so nested engine payloads (GeneratedBlock, NewImage,
+ * NewChart) are typed `unknown` here but carry their verbatim JSON form.
+ */
+export type DocxSaveBlock = (
+  | { kind: "original"; docxIndex: number }
+  | { kind: "generated"; block: unknown }
+  | {
+      kind: "xml";
+      xml: string;
+      docxIndex?: number;
+      replaceImage?: { base64: string; mime: "image/png" | "image/jpeg" | "image/gif" };
+    }
+  | { kind: "image"; image: unknown }
+  | { kind: "chart"; chart: unknown; extentPx?: { w: number; h: number } }
+) & {
+  revision?: { kind: "ins" | "del"; author: string; date?: string; id?: string };
+};
+
+export interface DocxSavePlan {
+  saveBlocks: DocxSaveBlock[];
+  /**
+   * Chart data edits from `pmDocToSavePlan().chartPatches`: each entry patches
+   * a chart's own zip part (the body paragraph stays byte-identical). The
+   * worker applies them into `options.partXml`.
+   */
+  chartPatches?: { partPath: string; patch: unknown }[];
+  /** Optional engine `SaveOptions` subset (JSON-serializable fields only). */
+  options?: Record<string, unknown>;
+}
+
+export interface DocxLoadRequest {
+  sessionId: string;
+}
+
+export interface DocxSaveRequest {
+  sessionId: string;
+  baseRevision: string;
+  plan: DocxSavePlan;
+  actor?: DocumentActor;
+}
+
+export interface DocxSaveResult {
+  revision: string;
+  virtualPath: string;
+}

@@ -43,6 +43,10 @@ import type {
   SaveCopyResult,
   SearchResult,
   DocumentActor,
+  DocxDocumentModel,
+  DocxLoadRequest,
+  DocxSaveRequest,
+  DocxSaveResult,
 } from "../../src/lib/documents/types";
 
 function validateActor(actor: DocumentActor | undefined): DocumentActor {
@@ -224,6 +228,59 @@ export class DocumentService {
           diagnostics: result.diagnostics,
           virtualPath: session.virtualPath,
         };
+      } finally {
+        await fs.rm(outputPath, { force: true }).catch(() => {});
+      }
+    });
+  }
+
+  // ── DOCX editor model / save plan (Step 4) ─────────────────────────────
+
+  async docxLoad(input: DocxLoadRequest): Promise<DocxDocumentModel> {
+    const session = this.broker.touchSession(input.sessionId);
+    if (session.format !== "docx") {
+      throw new DocumentError("unsupported", "docx load is only available for .docx sessions");
+    }
+    return this.broker.withPathLock(session.absPath, () =>
+      this.broker.run("docxLoad", { inputPath: session.absPath }),
+    ) as Promise<DocxDocumentModel>;
+  }
+
+  async docxSave(input: DocxSaveRequest): Promise<DocxSaveResult> {
+    const actor = validateActor(input.actor);
+    const session = this.broker.touchSession(input.sessionId);
+    if (session.format !== "docx") {
+      throw new DocumentError("unsupported", "docx save is only available for .docx sessions");
+    }
+    if (!input.baseRevision) {
+      throw new DocumentError("invalid", "baseRevision is required");
+    }
+    await authorizeDocumentPath(session.virtualPath, { write: true });
+    return this.broker.withPathLock(session.absPath, async () => {
+      const outputPath = this.broker.tempPathFor(session.absPath);
+      // The worker re-parses inputPath and applies the plan to CURRENT bytes;
+      // commitBytes then rejects the write if they no longer match baseRevision.
+      await this.broker.run("docxSave", {
+        inputPath: session.absPath,
+        outputPath,
+        plan: input.plan,
+      });
+      try {
+        const committed = await commitBytes({
+          absPath: session.absPath,
+          tempPath: outputPath,
+          expectedRevision: input.baseRevision,
+        });
+        session.revision = committed.revision;
+        session.lastSeenAt = new Date();
+        await this.broker.recordCommit(session.absPath, committed.revision, committed.size);
+        this.changed({
+          virtualPath: session.virtualPath,
+          revision: committed.revision,
+          actor,
+          op: "save",
+        });
+        return { revision: committed.revision, virtualPath: session.virtualPath };
       } finally {
         await fs.rm(outputPath, { force: true }).catch(() => {});
       }

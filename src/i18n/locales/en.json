@@ -1060,6 +1060,9 @@
       "saving": "Saving…",
       "saved": "Saved",
       "error": "Something went wrong"
+    },
+    "panels": {
+      "menuTitle": "panels.menuTitle"
     }
   },
   "dialogs": {
@@ -1228,6 +1231,14 @@
       "body": "Agents need an AI CLI to run. Set one up. It takes a minute, no terminal required.",
       "cta": "Set up Claude",
       "seeAll": "See all providers"
+    },
+    "free": {
+      "browseTemplates": "free.browseTemplates",
+      "browseTemplatesDesc": "free.browseTemplatesDesc",
+      "importFiles": "free.importFiles",
+      "importFilesDesc": "free.importFilesDesc",
+      "newPage": "free.newPage",
+      "newPageDesc": "free.newPageDesc"
     }
   },
   "onboarding": {
@@ -1907,6 +1918,13 @@
       "manualHide": "Hide manual steps",
       "whatNext": "You can close this and start a task.",
       "setUp": "Set up"
+    },
+    "inbox": {
+      "automatic": "inbox.automatic",
+      "ingestAll": "inbox.ingestAll",
+      "pending": "inbox.pending",
+      "submitted": "inbox.submitted",
+      "title": "inbox.title"
     }
   },
   "sidebar": {
@@ -2165,5 +2183,20 @@
       "notResponding": "The agent daemon isn't responding.",
       "willFail": "Agents, jobs, and AI requests will fail until it's back. {{fixHint}}"
     }
+  },
+  "docxEditor": {
+    "changedOnDisk": "Document changed on disk",
+    "confirmReload": "Discard your edits and reload the latest version?",
+    "conflictBanner": "The document changed on disk while you were editing.",
+    "loadFailed": "Failed to load document",
+    "loading": "Loading document…",
+    "opening": "Opening document…",
+    "readOnly": "This document is read-only",
+    "reloadLatest": "Reload latest",
+    "rendering": "Rendering document…",
+    "saveACopy": "Save a copy",
+    "saving": "Saving…",
+    "tryExternal": "Try downloading the file and opening it externally.",
+    "unsaved": "Unsaved changes"
   }
 }

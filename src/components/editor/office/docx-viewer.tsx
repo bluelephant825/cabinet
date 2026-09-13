@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { OfficeChrome } from "./office-chrome";
 import { ViewerLayout } from "@/components/layout/viewer-layout";
+import { useLocale } from "@/i18n/use-locale";
+import { DocxEditorHost } from "@/components/editor/documents/docx-editor-host";
 import { Loader2 } from "lucide-react";
 
 interface Props {
@@ -10,7 +12,9 @@ interface Props {
   title: string;
 }
 
-export function DocxViewer({ path, title }: Props) {
+/** Existing read-only render (docx-preview) — the fallback when editing is unavailable. */
+function ReadOnlyPreview({ path, reason }: { path: string; reason?: string }) {
+  const { t } = useLocale();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +24,6 @@ export function DocxViewer({ path, title }: Props) {
     const container = containerRef.current;
     if (!container) return;
 
-    // Clear any previous render
     container.innerHTML = "";
 
     (async () => {
@@ -62,25 +65,59 @@ export function DocxViewer({ path, title }: Props) {
   }, [path]);
 
   return (
+    <div className="flex-1 overflow-y-auto bg-muted/30">
+      {reason && (
+        <div className="px-4 py-2 text-xs text-muted-foreground bg-muted/40 border-b">
+          {reason}
+        </div>
+      )}
+      {loading && !error && (
+        <div className="h-full flex items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin mr-2" />
+          {t("docxEditor:rendering")}
+        </div>
+      )}
+      {error && (
+        <div className="h-full flex items-center justify-center">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("docxEditor:tryExternal")}
+            </p>
+          </div>
+        </div>
+      )}
+      <div ref={containerRef} className="docx-viewer-body mx-auto max-w-5xl py-6 px-4" />
+    </div>
+  );
+}
+
+export function DocxViewer({ path, title }: Props) {
+  const { t } = useLocale();
+  const [status, setStatus] = useState<{ dirty: boolean; saving: boolean; error?: string }>({
+    dirty: false,
+    saving: false,
+  });
+
+  return (
     <ViewerLayout toolbar={<OfficeChrome path={path} title={title} extLabel="DOCX" />}>
-      <div className="flex-1 overflow-y-auto bg-muted/30">
-        {loading && !error && (
-          <div className="h-full flex items-center justify-center text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Rendering document…
+      <div className="flex-1 min-h-0 flex flex-col relative">
+        {(status.dirty || status.saving || status.error) && (
+          <div className="absolute top-2 right-4 z-10 rounded-md bg-background/90 border px-2 py-1 text-xs text-muted-foreground shadow-sm">
+            {status.error
+              ? status.error
+              : status.saving
+                ? t("docxEditor:saving")
+                : status.dirty
+                  ? t("docxEditor:unsaved")
+                  : ""}
           </div>
         )}
-        {error && (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center space-y-2">
-              <p className="text-sm text-destructive">{error}</p>
-              <p className="text-xs text-muted-foreground">
-                Try downloading the file and opening it externally.
-              </p>
-            </div>
-          </div>
-        )}
-        <div ref={containerRef} className="docx-viewer-body mx-auto max-w-5xl py-6 px-4" />
+        <DocxEditorHost
+          path={path}
+          onStatus={setStatus}
+          fallback={(reason) => <ReadOnlyPreview path={path} reason={reason} />}
+        />
       </div>
     </ViewerLayout>
   );

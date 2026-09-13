@@ -12,6 +12,8 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import {
   parseDocx,
   saveDocx,
+  readSections,
+  patchChartPartXml,
   type SaveBlock,
   type Block,
 } from "../../src/vendor/genoffice/packages/docx-engine/src/index";
@@ -32,7 +34,9 @@ import { DocumentError } from "../../src/lib/documents/errors";
 import type {
   DocumentFormat,
   DocumentPatchOp,
+  DocxDocumentModel,
   DocxInspectResult,
+  DocxSavePlan,
   PdfInspectResult,
   PatchDiagnostic,
 } from "../../src/lib/documents/types";
@@ -459,6 +463,70 @@ async function convertOp(args: {
   };
 }
 
+// ── docx editor model / save plan (Step 4) ──────────────────────────────────
+
+/** Per-image data-URL cap for the serialized model (chars ≈ base64 length). */
+const DOCX_IMAGE_DATA_URL_CAP = 8 * 1024 * 1024;
+
+async function docxLoadOp(args: { inputPath: string }): Promise<DocxDocumentModel> {
+  const parsed = await parseDocx(new Uint8Array(await readFile(args.inputPath)));
+  let oversizedImages = 0;
+  for (const block of parsed.blocks) {
+    const b = block as Block & { imageOversized?: boolean };
+    if (b.imageDataUrl && b.imageDataUrl.length > DOCX_IMAGE_DATA_URL_CAP) {
+      // Replace the data URL with a flag — the block's originalXml still
+      // carries the real image on save, so nothing is lost on disk.
+      b.imageDataUrl = undefined;
+      b.imageOversized = true;
+      oversizedImages++;
+    }
+  }
+  return {
+    format: "docx",
+    blocks: parsed.blocks as unknown[],
+    sections: readSections(parsed) as unknown[],
+    styles: [...parsed.styles] as [string, unknown][],
+    numbering: [...parsed.numbering] as [string, unknown][],
+    themeFonts: parsed.themeFonts ?? null,
+    themeColors: parsed.themeColors ?? null,
+    fontTable: parsed.fontTable ?? null,
+    docDefaults: parsed.docDefaults ?? null,
+    oversizedImages,
+  };
+}
+
+async function docxSaveOp(args: {
+  inputPath: string;
+  outputPath: string;
+  plan: DocxSavePlan;
+}): Promise<{ size: number }> {
+  if (!args.plan?.saveBlocks?.length) {
+    throw new DocumentError("invalid", "docx save plan contains no blocks");
+  }
+  const parsed = await parseDocx(new Uint8Array(await readFile(args.inputPath)));
+  const options = { ...(args.plan.options ?? {}) } as Parameters<typeof saveDocx>[2] & {
+    partXml?: Record<string, string>;
+  };
+  // Chart edits patch the chart's own zip part, not the body paragraph —
+  // mirror of upstream file-actions.ts buildDocBytes.
+  for (const { partPath, patch } of args.plan.chartPatches ?? []) {
+    const originalPart = parsed.extras?.chartParts?.[partPath];
+    if (originalPart) {
+      (options.partXml ??= {})[partPath] = patchChartPartXml(
+        originalPart,
+        patch as Parameters<typeof patchChartPartXml>[1],
+      );
+    }
+  }
+  const bytes = await saveDocx(
+    parsed,
+    args.plan.saveBlocks as unknown as SaveBlock[],
+    options,
+  );
+  await writeFile(args.outputPath, bytes);
+  return { size: bytes.byteLength };
+}
+
 // ── dispatch ────────────────────────────────────────────────────────────────
 
 export async function runOp(op: string, args: Record<string, unknown>): Promise<unknown> {
@@ -475,6 +543,10 @@ export async function runOp(op: string, args: Record<string, unknown>): Promise<
       return applyPatchOp(args as never);
     case "convert":
       return convertOp(args as never);
+    case "docxLoad":
+      return docxLoadOp(args as never);
+    case "docxSave":
+      return docxSaveOp(args as never);
     case "__crash":
       if (process.env.CABINET_DOC_TEST_OPS !== "1") {
         throw new DocumentError("invalid", "Unknown op '__crash'");

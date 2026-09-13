@@ -38,6 +38,10 @@ const ADAPTED = {
     'process.resourcesPath fallback guarded for plain Node; CABINET_WASM_DIR env override added',
   'packages/docx-engine/src/parse.ts':
     'workspace import @genoffice/pptx-engine/custgeom rewritten to a relative path',
+  'apps/docs/src/renderer/env.d.ts':
+    'upstream declares the full Electron DesktopApi; Cabinet declares only the minimal optional shape the vendored editor touches (copyImageToClipboard, onLanguageChanged)',
+  'apps/docs/src/renderer/i18n/strings.ts':
+    'aggregator rewritten to merge only the vendored string domains (editor + ribbon + table); the app/, ai/ and other shell domains are not vendored',
 }
 
 /** Vendored paths that do not exist upstream (Cabinet-owned additions). */

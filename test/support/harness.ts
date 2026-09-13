@@ -156,8 +156,11 @@ export async function bootCabinet(options: BootOptions = {}): Promise<CabinetIns
   const close = async () => {
     for (const child of children) child.kill("SIGTERM");
     await Promise.all([...fakes.values()].map((fake) => fake.cleanup()));
-    await fs.rm(dataDir, { recursive: true, force: true });
-    await fs.rm(home, { recursive: true, force: true });
+    // Children flush recovery/manifest writes during SIGTERM shutdown — retry
+    // the rm instead of racing them (ENOTEMPTY flake).
+    const rm = { recursive: true, force: true, maxRetries: 10, retryDelay: 300 } as const;
+    await fs.rm(dataDir, rm);
+    await fs.rm(home, rm);
   };
 
   const agent = (name: string): FakeAgentCli => {

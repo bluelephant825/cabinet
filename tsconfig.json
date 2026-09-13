@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@genoffice/i18n": ["./src/vendor/genoffice/packages/i18n/src/index.ts"],
+      "@genoffice/ui": ["./src/vendor/genoffice/packages/ui/src/index.ts"],
+      "@genoffice/docx-engine": ["./src/vendor/genoffice/packages/docx-engine/src/index.ts"],
+      "@genoffice/pptx-render/*": ["./src/vendor/genoffice/packages/pptx-render/src/*"]
     }
   },
   "include": [

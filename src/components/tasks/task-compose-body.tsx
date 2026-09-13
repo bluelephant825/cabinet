@@ -6,6 +6,7 @@ import { useAppStore, type TaskPanelComposeContext } from "@/stores/app-store";
 import { useTreeStore } from "@/stores/tree-store";
 import { flattenTree } from "@/lib/tree-utils";
 import { createConversation } from "@/lib/agents/conversation-client";
+import { flushActiveDocument } from "@/lib/documents/document-store";
 import { fetchCabinetOverviewClient } from "@/lib/cabinets/overview-client";
 import { ComposerInput } from "@/components/composer/composer-input";
 import { useComposerAttachments } from "@/components/composer/use-composer-attachments";
@@ -147,6 +148,13 @@ export function TaskComposeBody({ context }: TaskComposeBodyProps) {
       const pickedTarget =
         pickedAgentSlug && pickedAgentSlug !== "editor" ? pickedAgentSlug : null;
       const targetAgent = mentionTarget ?? pickedTarget;
+
+      // If the active document is a dirty DOCX/PDF editor frame, flush its
+      // edits to disk first so the dispatched agent sees current bytes.
+      // No-op for markdown and clean documents.
+      if (editorScoped) {
+        await flushActiveDocument();
+      }
 
       const data = await createConversation(
         editorScoped && pinnedPagePath && !targetAgent
