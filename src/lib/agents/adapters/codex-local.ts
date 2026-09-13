@@ -16,7 +16,7 @@ import {
 import { readStringConfig, readEffortConfig } from "./_shared/cli-args";
 import type { AdapterSessionCodec, AgentExecutionAdapter } from "./types";
 import type { ConversationErrorClassification } from "@/types/conversations";
-import { getAdapterRuntimePath, runChildProcess } from "./utils";
+import { agentRunEnv, getAdapterRuntimePath, runChildProcess } from "./utils";
 
 /**
  * Match codex's backend-rejection events for "this model isn't available on
@@ -180,6 +180,7 @@ export const codexLocalAdapter: AgentExecutionAdapter = {
 
     const result = await runChildProcess(command, args, {
       cwd: ctx.cwd,
+      env: agentRunEnv(ctx),
       stdin: ctx.prompt,
       timeoutMs: ctx.timeoutMs,
       signal: ctx.signal,

@@ -3,6 +3,7 @@ import path from "path";
 import { execFileSync, spawn } from "child_process";
 import type { AgentProvider } from "./provider-interface";
 import { withAdapterRuntimeEnv } from "./adapters/utils";
+import { documentToolBinDir } from "@/lib/documents/tool-shim";
 import { getNvmNodeBin } from "./nvm-path";
 import { terminateChildProcess } from "./process-utils";
 
@@ -107,6 +108,7 @@ export function buildRuntimePath(options?: {
   if (platform === "win32") {
     const homeDir = resolveHomeDir(env);
     return [
+      documentToolBinDir(),
       env.APPDATA ? pathApi.join(env.APPDATA, "npm") : "",
       pathApi.join(homeDir, ".local", "bin"),
       ...pmDirs,
@@ -116,6 +118,7 @@ export function buildRuntimePath(options?: {
   }
 
   return [
+    documentToolBinDir(),
     `${env.HOME || ""}/.local/bin`,
     "/usr/local/bin",
     "/opt/homebrew/bin",

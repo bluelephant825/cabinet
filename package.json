@@ -11,7 +11,7 @@
     "dev:all": "concurrently -k -n app,daemon \"npm:dev\" \"npm:dev:daemon\"",
     "debug:chrome": "bash scripts/launch-chrome-debug.sh",
     "build": "next build",
-    "postbuild": "node scripts/copy-standalone-assets.mjs",
+    "postbuild": "node scripts/copy-standalone-assets.mjs && node scripts/build-document-tool.mjs",
     "electron:prep": "node scripts/prepare-electron-package.mjs",
     "release:manifest": "node scripts/generate-release-manifest.mjs",
     "start": "concurrently -k -n app,daemon \"npm:start:next\" \"npm:start:daemon\"",

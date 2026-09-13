@@ -74,6 +74,10 @@ export interface SpawnPtyInput {
    * accumulate live PTY processes.
    */
   trigger?: import("../../src/types/tasks").TaskTrigger;
+  /** Originating agent run identity — exported into the PTY env so tools
+      spawned by the CLI (e.g. `cabinet-documents`) can attribute mutations. */
+  agentSlug?: string;
+  cabinetPath?: string;
 }
 
 export interface PtyManager {
@@ -165,6 +169,9 @@ export function createPtyManager(deps: PtyManagerDeps): PtyManager {
         ...cabinetEnvValues,
         ...(process.env as Record<string, string>),
         PATH: deps.enrichedPath,
+        CABINET_RUN_ID: input.sessionId,
+        ...(input.agentSlug ? { CABINET_AGENT_SLUG: input.agentSlug } : {}),
+        ...(input.cabinetPath ? { CABINET_CABINET_PATH: input.cabinetPath } : {}),
         TERM: "xterm-256color",
         COLORTERM: "truecolor",
         FORCE_COLOR: "3",

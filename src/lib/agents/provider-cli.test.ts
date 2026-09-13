@@ -10,6 +10,10 @@ import {
   checkCliProviderAvailable,
   resolveCliCommand,
 } from "./provider-cli";
+import { documentToolBinDir } from "../documents/tool-shim";
+
+// The cabinet-documents shim dir always leads the runtime PATH.
+const TOOL_BIN = documentToolBinDir();
 
 function testEnv(values: Record<string, string>): NodeJS.ProcessEnv {
   return {
@@ -139,6 +143,7 @@ test("buildRuntimePath uses Windows delimiters and npm global bin paths", () => 
   assert.equal(
     runtimePath,
     [
+      TOOL_BIN,
       "C:\\Users\\TestUser\\AppData\\Roaming\\npm",
       "C:\\Users\\TestUser\\.local\\bin",
       "C:\\Users\\TestUser\\.bun\\bin",
@@ -161,6 +166,7 @@ test("buildRuntimePath uses requested platform path semantics even on a differen
   assert.equal(
     runtimePath,
     [
+      TOOL_BIN,
       "C:\\Users\\TestUser\\AppData\\Roaming\\npm",
       "C:\\Users\\TestUser\\.local\\bin",
       "C:\\Users\\TestUser\\.bun\\bin",
@@ -183,6 +189,7 @@ test("buildRuntimePath uses POSIX separators when a POSIX platform is requested"
   assert.equal(
     runtimePath,
     [
+      TOOL_BIN,
       "/home/test-user/.local/bin",
       "/usr/local/bin",
       "/opt/homebrew/bin",

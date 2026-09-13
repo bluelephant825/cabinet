@@ -6,7 +6,7 @@ import {
   classifyCommonError,
 } from "./error-classification";
 import type { AgentExecutionAdapter } from "./types";
-import { getAdapterRuntimePath, runChildProcess } from "./utils";
+import { agentRunEnv, getAdapterRuntimePath, runChildProcess } from "./utils";
 import { readStringConfig } from "./_shared/cli-args";
 
 function readStringArrayConfig(
@@ -87,6 +87,7 @@ export const grokLocalAdapter: AgentExecutionAdapter = {
     let forwardedStdout = "";
     const result = await runChildProcess(command, args, {
       cwd: ctx.cwd,
+      env: agentRunEnv(ctx),
       timeoutMs: ctx.timeoutMs,
       onSpawn: ctx.onSpawn,
       onStdout: (chunk) => {

@@ -87,6 +87,13 @@ export interface DocumentChangeEvent {
 export interface DocumentServiceCallbacks {
   onDocumentChanged?: (e: DocumentChangeEvent) => void;
   onJobChanged?: (job: JobInfo) => void;
+  /**
+   * Agent-actor commits only. The daemon wires this to history `recordMutation`
+   * + a Next tree-cache invalidation, because agent calls (cabinet-documents)
+   * bypass the Next routes that record user mutations. User-actor commits
+   * never fire this — the Next route still records those.
+   */
+  onAgentMutation?: (e: DocumentChangeEvent & { actor: { kind: "agent"; id: string; runId?: string } }) => void;
 }
 
 export class DocumentService {
@@ -107,6 +114,15 @@ export class DocumentService {
       this.callbacks.onDocumentChanged?.(ev);
     } catch {
       /* subscriber errors must not fail the commit */
+    }
+    if (ev.actor.kind === "agent") {
+      try {
+        this.callbacks.onAgentMutation?.(
+          ev as DocumentChangeEvent & { actor: { kind: "agent"; id: string; runId?: string } },
+        );
+      } catch {
+        /* history/notify failures must not fail the commit */
+      }
     }
   }
 
@@ -501,7 +517,9 @@ export class DocumentService {
           warnings: meta.warnings,
           ocr: meta.ocr ?? null,
           degraded: meta.degraded,
-          mutationRecorded: false,
+          // Agent-actor converts are recorded daemon-side via onAgentMutation —
+          // mark them so a Next job poll doesn't record a second mutation.
+          mutationRecorded: actor.kind === "agent",
         };
         job.status = "done";
         await this.broker.recordCommit(target.absPath, committed.revision, committed.size);

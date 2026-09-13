@@ -286,6 +286,16 @@ function buildDiagramOutputInstructions(): string[] {
   ];
 }
 
+function buildDocumentToolInstructions(): string[] {
+  return [
+    "For .docx and .pdf files use the `cabinet-documents` command (run `cabinet-documents --help` first for the exact flags).",
+    "Always `cabinet-documents inspect` or `read` a document before editing it — never rewrite document bytes by hand.",
+    "Edits go through `cabinet-documents patch` / `docx-save`; they are revision-checked and all-or-nothing. If an operation reports unsupported, say so instead of working around it.",
+    "`cabinet-documents convert --wait` turns a PDF into a new .docx and reports per-page outcomes (including OCR-recovered pages).",
+    "Report every document path you created or changed in the ARTIFACT/SUMMARY block.",
+  ];
+}
+
 function buildAgentContextHeader(persona: AgentPersona | null, agentSlug: string): string {
   if (!persona) {
     return [
@@ -347,8 +357,13 @@ async function buildMentionContext(mentionedPaths: string[]): Promise<string> {
     mentionedPaths.map(async (pagePath) => {
       try {
         // Binary / large file: reference by path, never inline the bytes.
-        if (NON_INLINE_MENTION_EXT.has(path.extname(pagePath).toLowerCase())) {
-          return `--- ${pagePath} (file attachment — open it with the Read tool at this path) ---`;
+        const ext = path.extname(pagePath).toLowerCase();
+        if (NON_INLINE_MENTION_EXT.has(ext)) {
+          const hint =
+            ext === ".docx" || ext === ".pdf"
+              ? "open it with `cabinet-documents inspect` / `cabinet-documents read`"
+              : "open it with the Read tool at this path";
+          return `--- ${pagePath} (file attachment — ${hint}) ---`;
         }
         const page = await readPage(pagePath);
         let content = page.content || "";
@@ -393,11 +408,19 @@ function buildAttachmentContext(
     return clean;
   });
 
+  const lineFor = (rel: string): string => {
+    const ext = path.extname(rel).toLowerCase();
+    if (ext === ".docx" || ext === ".pdf") {
+      return `- ${rel} (document — use \`cabinet-documents inspect\` / \`cabinet-documents read\`)`;
+    }
+    return `- ${rel}`;
+  };
+
   return [
     "",
     "",
     "Attached files (read with the Read tool; paths are relative to your cwd):",
-    ...relatives.map((rel) => `- ${rel}`),
+    ...relatives.map(lineFor),
   ].join("\n");
 }
 
@@ -444,6 +467,7 @@ export async function buildManualConversationPrompt(input: {
     ...buildKnowledgeBaseScopeInstructions(baseCwd, input.cabinetPath),
     "Reflect useful outputs in KB files, not only in terminal text.",
     ...buildDiagramOutputInstructions(),
+    ...buildDocumentToolInstructions(),
     await buildCabinetEpilogueInstructions({
       canDispatch: resolvePersonaCanDispatch(persona),
       cabinetPath: input.cabinetPath,
@@ -528,6 +552,7 @@ export async function buildEditorConversationPrompt(input: {
     ...buildKnowledgeBaseScopeInstructions(baseCwd, input.cabinetPath),
     "Edit KB files directly and reflect useful outputs in the KB, not only in terminal text.",
     ...buildDiagramOutputInstructions(),
+    ...buildDocumentToolInstructions(),
     await buildCabinetEpilogueInstructions({
       canDispatch: resolvePersonaCanDispatch(persona),
       cabinetPath: input.cabinetPath,
@@ -1023,6 +1048,7 @@ export async function startJobConversation(
     ...buildKnowledgeBaseScopeInstructions(baseCwd, job.cabinetPath),
     "Reflect the results in KB files whenever useful.",
     ...buildDiagramOutputInstructions(),
+    ...buildDocumentToolInstructions(),
     await buildCabinetEpilogueInstructions({
       canDispatch: resolvePersonaCanDispatch(persona),
       cabinetPath: job.cabinetPath,
@@ -1409,7 +1435,7 @@ function serializeTurnHistory(
   return parts.join("\n\n");
 }
 
-async function buildContinuationPrompt(options: {
+export async function buildContinuationPrompt(options: {
   mode: "resume" | "replay";
   meta: ConversationMeta;
   userMessage: string;
@@ -1485,6 +1511,7 @@ async function buildContinuationPrompt(options: {
     ...buildKnowledgeBaseScopeInstructions(options.baseCwd, options.meta.cabinetPath),
     "Reflect useful outputs in KB files, not only in terminal text.",
     ...buildDiagramOutputInstructions(),
+    ...buildDocumentToolInstructions(),
     await buildCabinetEpilogueInstructions({
       canDispatch,
       cabinetPath: options.meta.cabinetPath,
@@ -2122,6 +2149,8 @@ export async function compactConversation(
   const logChunks: string[] = [];
   const ctx: AdapterExecutionContext = {
     runId: randomUUID(),
+    agentSlug: meta.agentSlug,
+    cabinetPath: meta.cabinetPath,
     adapterType: adapter.type,
     config: meta.adapterConfig || {},
     prompt: compactPrompt,

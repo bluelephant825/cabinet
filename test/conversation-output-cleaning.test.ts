@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { DATA_DIR } from "../src/lib/storage/path-utils";
-import { buildManualConversationPrompt } from "../src/lib/agents/conversation-runner";
+import {
+  buildContinuationPrompt,
+  buildEditorConversationPrompt,
+  buildManualConversationPrompt,
+} from "../src/lib/agents/conversation-runner";
 import {
   parseCabinetBlock,
   transcriptShowsCompletedRun,
@@ -52,6 +56,59 @@ test("manual cabinet-scoped prompts explicitly pin work to the cabinet root", as
   assert.match(
     prompt.prompt,
     /Prefer Mermaid edge labels like `A -->\|label\| B` or `A -\.->\|label\| B`/
+  );
+});
+
+test("document-tool instructions appear in manual, editor, and continuation prompts", async () => {
+  const manual = await buildManualConversationPrompt({
+    agentSlug: "general",
+    userMessage: "Fix the report",
+  });
+  assert.match(manual.prompt, /cabinet-documents --help/);
+  assert.match(manual.prompt, /cabinet-documents patch/);
+
+  const editor = await buildEditorConversationPrompt({
+    pagePath: "docs/report.pdf",
+    userMessage: "Summarise it",
+  });
+  assert.match(editor.prompt, /cabinet-documents --help/);
+
+  const continuation = await buildContinuationPrompt({
+    mode: "replay",
+    meta: { agentSlug: "editor" } as never,
+    userMessage: "Now fix page 2",
+    mentionedPaths: [],
+    persona: null,
+    baseCwd: DATA_DIR,
+    priorTurns: [{ role: "user", content: "hi" }],
+  });
+  assert.match(continuation, /cabinet-documents --help/);
+});
+
+test(".pdf mentions and attachments point at cabinet-documents, not the Read tool", async () => {
+  const prompt = await buildManualConversationPrompt({
+    agentSlug: "general",
+    userMessage: "Read this",
+    mentionedPaths: ["docs/report.pdf"],
+  });
+  assert.match(
+    prompt.prompt,
+    /docs\/report\.pdf \(file attachment — open it with `cabinet-documents inspect` \/ `cabinet-documents read`\)/
+  );
+
+  const attached = await buildContinuationPrompt({
+    mode: "replay",
+    meta: { agentSlug: "editor", cabinetPath: "room" } as never,
+    userMessage: "Read this",
+    mentionedPaths: [],
+    attachmentPaths: ["room/docs/report.pdf"],
+    persona: null,
+    baseCwd: DATA_DIR,
+    priorTurns: [{ role: "user", content: "hi" }],
+  });
+  assert.match(
+    attached,
+    /- docs\/report\.pdf \(document — use `cabinet-documents inspect` \/ `cabinet-documents read`\)/
   );
 });
 

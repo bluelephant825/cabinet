@@ -26,7 +26,7 @@ const eslintConfig = defineConfig([
   // embedded document-editor frame, which may import the vendored RENDERER
   // (apps/docs/src/renderer/**) but never the engines (packages/**, pdf main).
   {
-    files: ["src/**/*.ts", "src/**/*.tsx", "server/**/*.ts"],
+    files: ["src/**/*.ts", "src/**/*.tsx", "server/**/*.ts", "scripts/**/*.ts"],
     ignores: [
       "src/vendor/**",
       "server/documents/worker.ts",

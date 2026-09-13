@@ -38,6 +38,8 @@ export interface FakeInvocation {
   stdin: string;
   /** Working directory — for Cabinet this is always inside the KB. */
   cwd: string;
+  /** Run-identity env Cabinet injects at spawn (subset, never secrets). */
+  agentEnv: { slug?: string; runId?: string; cabinetPath?: string };
   /**
    * For every argv value that is an existing directory, the files inside it
    * (relative paths, depth-limited), captured AT SPAWN TIME.
@@ -78,6 +80,13 @@ export interface FakeStep {
    * that path honestly.
    */
   files?: Record<string, string>;
+  /**
+   * Shell command to run in the agent's cwd before printing stdout/exiting —
+   * for fakes that act like a real CLI calling a helper (e.g.
+   * `cabinet-documents patch --path x.docx --ops ...`). A non-zero exit fails
+   * the step with the command's output on stderr.
+   */
+  run?: string;
   /**
    * Never exit. Use this to test Stop — a fake that exits immediately can finish
    * before the stop request even lands. The harness kills it on close.
@@ -201,7 +210,18 @@ async function main() {
     : 0;
   fs.appendFileSync(
     LOG,
-    JSON.stringify({ index, args, stdin, cwd: process.cwd(), dirs }) + "\n"
+    JSON.stringify({
+      index,
+      args,
+      stdin,
+      cwd: process.cwd(),
+      dirs,
+      agentEnv: {
+        slug: process.env.CABINET_AGENT_SLUG,
+        runId: process.env.CABINET_RUN_ID,
+        cabinetPath: process.env.CABINET_CABINET_PATH,
+      },
+    }) + "\n"
   );
 
   const program = JSON.parse(fs.readFileSync(PROGRAM, "utf8"));
@@ -213,6 +233,24 @@ async function main() {
     const dest = path.resolve(process.cwd(), rel);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, content, "utf8");
+  }
+
+  if (step.run) {
+    // A real CLI shells out to helper tools; run the scripted command the
+    // same way, in the agent's cwd, and forward its output.
+    try {
+      // stderr, not stdout — the structured adapters parse stdout as
+      // stream-JSON and a helper's JSON output would corrupt the stream.
+      const out = require("node:child_process").execSync(step.run, {
+        encoding: "utf8",
+        env: process.env,
+      });
+      process.stderr.write(out);
+    } catch (e) {
+      if (e && e.stdout) process.stdout.write(e.stdout);
+      if (e && e.stderr) process.stderr.write(e.stderr);
+      process.exit(typeof (e && e.status) === "number" ? e.status : 1);
+    }
   }
 
   for (const line of step.stdout ?? []) {
@@ -440,14 +478,15 @@ export function claudeStream(options: ClaudeStreamOptions): string[] {
 export function claudeReply(
   text: string,
   options: Partial<ClaudeStreamOptions> &
-    Pick<FakeStep, "files" | "delayMs" | "lineDelayMs"> = {}
+    Pick<FakeStep, "files" | "delayMs" | "lineDelayMs" | "run"> = {}
 ): FakeStep {
-  const { files, delayMs, lineDelayMs, ...stream } = options;
+  const { files, delayMs, lineDelayMs, run, ...stream } = options;
   return {
     stdout: claudeStream({ text, ...stream }),
     ...(files ? { files } : {}),
     ...(delayMs ? { delayMs } : {}),
     ...(lineDelayMs ? { lineDelayMs } : {}),
+    ...(run ? { run } : {}),
   };
 }
 

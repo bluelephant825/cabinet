@@ -11,7 +11,7 @@ import {
   classifyCommonError,
 } from "./error-classification";
 import type { AdapterSessionCodec, AgentExecutionAdapter } from "./types";
-import { getAdapterRuntimePath, runChildProcess } from "./utils";
+import { agentRunEnv, getAdapterRuntimePath, runChildProcess } from "./utils";
 import { readStringConfig, readEffortConfig } from "./_shared/cli-args";
 
 const claudeSessionCodec: AdapterSessionCodec = {
@@ -153,6 +153,7 @@ export const claudeLocalAdapter: AgentExecutionAdapter = {
 
     const result = await runChildProcess(command, args, {
       cwd: ctx.cwd,
+      env: agentRunEnv(ctx),
       stdin: ctx.prompt,
       timeoutMs: ctx.timeoutMs,
       signal: ctx.signal,

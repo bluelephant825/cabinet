@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getNvmNodeBin } from "../nvm-path";
 import { readCabinetEnvFile } from "@/lib/runtime/cabinet-env";
+import { documentToolBinDir } from "@/lib/documents/tool-shim";
 
 const nvmBin = getNvmNodeBin();
 
@@ -17,6 +18,7 @@ function buildAdapterRuntimePath(
   if (platform === "win32") {
     const homeDir = resolveHomeDir(env);
     return [
+      documentToolBinDir(),
       env.APPDATA ? path.win32.join(env.APPDATA, "npm") : "",
       path.win32.join(homeDir, ".local", "bin"),
       ...(nvmBin ? [path.win32.normalize(nvmBin)] : []),
@@ -25,6 +27,7 @@ function buildAdapterRuntimePath(
   }
 
   return [
+    documentToolBinDir(),
     `${env.HOME || ""}/.local/bin`,
     "/usr/local/bin",
     "/opt/homebrew/bin",
@@ -38,6 +41,20 @@ export function getAdapterRuntimePath(): string {
 }
 
 export const ADAPTER_RUNTIME_PATH = getAdapterRuntimePath();
+
+/** Spawn env identifying the agent run to in-process tools (cabinet-documents).
+    No secrets — the daemon token is read from its 0600 file by the tool. */
+export function agentRunEnv(ctx: {
+  runId: string;
+  agentSlug?: string;
+  cabinetPath?: string;
+}): Record<string, string> {
+  return {
+    CABINET_AGENT_SLUG: ctx.agentSlug?.trim() || "agent",
+    CABINET_RUN_ID: ctx.runId,
+    ...(ctx.cabinetPath ? { CABINET_CABINET_PATH: ctx.cabinetPath } : {}),
+  };
+}
 
 export interface RunChildProcessOptions {
   cwd: string;

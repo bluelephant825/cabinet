@@ -23,6 +23,11 @@ export interface AdapterInvocationMeta {
 
 export interface AdapterExecutionContext {
   runId: string;
+  /** Persona slug + room for the run, when known — forwarded to the spawned
+      CLI as CABINET_AGENT_SLUG / CABINET_CABINET_PATH so tools like
+      `cabinet-documents` can attribute mutations to the right agent. */
+  agentSlug?: string;
+  cabinetPath?: string;
   adapterType: string;
   config: Record<string, unknown>;
   prompt: string;

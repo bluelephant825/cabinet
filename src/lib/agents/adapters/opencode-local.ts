@@ -17,7 +17,7 @@ import type {
   AdapterSessionCodec,
   AgentExecutionAdapter,
 } from "./types";
-import { getAdapterRuntimePath, runChildProcess } from "./utils";
+import { agentRunEnv, getAdapterRuntimePath, runChildProcess } from "./utils";
 import { readStringConfig, readEffortConfig } from "./_shared/cli-args";
 
 function firstNonEmptyLine(text: string): string | null {
@@ -139,7 +139,7 @@ async function runOpenCodeOnce(
 
   const result = await runChildProcess(command, args, {
     cwd: ctx.cwd,
-    env,
+    env: { ...agentRunEnv(ctx), ...env },
     stdin: ctx.prompt,
     timeoutMs: ctx.timeoutMs,
     onSpawn: ctx.onSpawn,

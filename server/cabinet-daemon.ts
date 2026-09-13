@@ -49,7 +49,9 @@ import { WikiWorkflow } from "./ingestion/wiki-workflow";
 import { handleWikiRequest } from "./ingestion/wiki-http";
 import { handleInboxRequest } from "./ingestion/inbox-http";
 import { handleDocumentsRequest } from "./documents/http";
-import { DocumentService } from "./documents/service";
+import { DocumentService, type DocumentChangeEvent } from "./documents/service";
+import { ensureDocumentToolShim } from "../src/lib/documents/tool-shim";
+import { cabinetRootForVirtualPath, recordMutation } from "../src/lib/history/engine";
 import { DATA_DIR } from "../src/lib/storage/path-utils";
 import { countWatchableDirs } from "../src/lib/storage/watchable-dirs";
 import { discoverCabinetPathsSync } from "../src/lib/cabinets/discovery";
@@ -250,6 +252,13 @@ const documentService = new DocumentService(undefined, {
       actor: e.actor,
     }),
   onJobChanged: (job) => broadcast("documents", { type: "document:job", job }),
+  // Agent-actor commits (the `cabinet-documents` helper talks to the daemon
+  // directly) never cross a Next route, so the daemon records the history
+  // mutation and pings Next to drop its tree cache. User-actor commits stay
+  // recorded by the Next route — no double-recording.
+  onAgentMutation: (e) => {
+    void recordDocumentAgentMutation(e);
+  },
 });
 const managedSourceWatcher = new ManagedSourceWatcher(DATA_DIR, openActiveIngestionQueue, {
   onError: (message) => console.warn("[managed-source-watcher]", message),
@@ -796,9 +805,13 @@ function handlePtyConnection(ws: WebSocket, req: http.IncomingMessage): void {
   // the legacy auto-exit behavior — a safe default for unknown spawns).
   void (async () => {
     let trigger: import("../src/types/tasks").TaskTrigger | undefined;
+    let agentSlug: string | undefined;
+    let cabinetPath: string | undefined;
     try {
       const meta = await readConversationMeta(sessionId);
       trigger = meta?.trigger;
+      agentSlug = meta?.agentSlug;
+      cabinetPath = meta?.cabinetPath;
     } catch {
       trigger = undefined;
     }
@@ -810,6 +823,8 @@ function handlePtyConnection(ws: WebSocket, req: http.IncomingMessage): void {
         prompt: prompt || undefined,
         cwd,
         trigger,
+        agentSlug,
+        cabinetPath,
       });
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -845,6 +860,9 @@ function createStructuredSession(input: {
    * native shape (e.g. Cursor sessionId + cwd, Codex threadId).
    */
   adapterSessionParams?: Record<string, unknown> | null;
+  /** Originating agent run identity → ctx → spawn env. */
+  agentSlug?: string;
+  cabinetPath?: string;
 }): StructuredSession {
   const adapter = agentAdapterRegistry.get(input.adapterType);
   if (!adapter) {
@@ -884,6 +902,8 @@ function createStructuredSession(input: {
     try {
       const result = await execute({
         runId: input.sessionId,
+        agentSlug: input.agentSlug,
+        cabinetPath: input.cabinetPath,
         adapterType: input.adapterType,
         config: input.adapterConfig || {},
         prompt,
@@ -1092,6 +1112,8 @@ function createSession(input: {
   launchMode?: "session" | "one-shot";
   adapterSessionId?: string | null;
   adapterSessionParams?: Record<string, unknown> | null;
+  agentSlug?: string;
+  cabinetPath?: string;
   /**
    * Meta trigger (manual/job/heartbeat/agent). Manual PTY sessions opt
    * out of the 1.2s claude idle auto-exit and instead stay alive as
@@ -1124,6 +1146,8 @@ function createSession(input: {
       onData: input.onData,
       adapterSessionId: input.adapterSessionId ?? null,
       adapterSessionParams: input.adapterSessionParams ?? null,
+      agentSlug: input.agentSlug,
+      cabinetPath: input.cabinetPath,
     });
   }
 
@@ -1269,6 +1293,49 @@ function ensureAuthEnvFromDotEnv(): void {
     }
   } catch {
     // No .env / unreadable -- auth gate is presumably disabled.
+  }
+}
+
+async function recordDocumentAgentMutation(
+  e: DocumentChangeEvent & { actor: { kind: "agent"; id: string; runId?: string } },
+): Promise<void> {
+  const op = e.op === "save-copy" || e.op === "convert" ? "create" : "write";
+  try {
+    await recordMutation({
+      op,
+      virtualPath: e.virtualPath,
+      actor: {
+        kind: "agent",
+        slug: e.actor.id,
+        cabinetPath: cabinetRootForVirtualPath(e.virtualPath),
+        conversationId: e.actor.runId,
+      },
+      message: `${op === "create" ? "Create" : "Update"} ${e.virtualPath}`,
+    });
+  } catch (err) {
+    console.warn("[documents] agent mutation record failed:", err);
+  }
+  try {
+    await postJson(`${getAppOrigin()}/api/documents/notify`, {
+      virtualPath: e.virtualPath,
+    });
+  } catch (err) {
+    console.warn("[documents] agent mutation notify failed:", err);
+  }
+}
+
+async function postJson(url: string, body: Record<string, unknown>): Promise<void> {
+  ensureAuthEnvFromDotEnv();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authCookieHeader()),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
   }
 }
 
@@ -1716,9 +1783,13 @@ const server = http.createServer(async (req, res) => {
         }
 
         let trigger: import("../src/types/tasks").TaskTrigger | undefined;
+        let agentSlug: string | undefined;
+        let sessionCabinetPath: string | undefined;
         try {
           const meta = await readConversationMeta(sessionId);
           trigger = meta?.trigger;
+          agentSlug = meta?.agentSlug;
+          sessionCabinetPath = meta?.cabinetPath;
         } catch {
           trigger = undefined;
         }
@@ -1751,6 +1822,8 @@ const server = http.createServer(async (req, res) => {
             adapterSessionId: adapterSessionId ?? null,
             adapterSessionParams: adapterSessionParams ?? null,
             trigger,
+            agentSlug,
+            cabinetPath: sessionCabinetPath,
           });
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
@@ -2032,6 +2105,7 @@ const server = http.createServer(async (req, res) => {
             prompt,
             timeoutSeconds,
             launchMode,
+            agentSlug: agentSlug || undefined,
           });
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: true, sessionId, agentSlug: agentSlug || "manual" }));
@@ -2205,6 +2279,15 @@ wssJupyter.on("connection", async (ws, req) => {
 });
 
 // ===== Startup =====
+
+// Materialize the `cabinet-documents` agent helper launcher. Both runtime
+// PATH builders already prepend documentToolBinDir(), so this one write is
+// the whole integration for spawned CLIs.
+try {
+  ensureDocumentToolShim();
+} catch (err) {
+  console.warn("[documents] failed to write cabinet-documents shim:", err);
+}
 
 const scheduleWatcher = chokidar.watch(
   [

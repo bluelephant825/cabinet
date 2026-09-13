@@ -1,4 +1,5 @@
 import { build as bundle } from "esbuild";
+import { existsSync, statSync } from "node:fs";
 import fs from "fs/promises";
 import path from "path";
 
@@ -194,6 +195,33 @@ async function stageDaemonRuntime() {
   await removeDanglingTracedSymlinks(tracedNodeModulesDir);
 
   await bundleDaemon();
+  // The `cabinet-documents` agent helper: staged next to the daemon bundle —
+  // ensureDocumentToolShim() resolves the sibling document-tool.mjs at runtime.
+  await bundle({
+    entryPoints: [path.join(projectRoot, "scripts", "document-tool.ts")],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node20",
+    outfile: path.join(standaloneServerDir, "document-tool.mjs"),
+    plugins: [
+      {
+        name: "at-alias",
+        setup(b) {
+          b.onResolve({ filter: /^@\// }, (args) => {
+            const base = path.join(projectRoot, "src", args.path.slice(2));
+            for (const candidate of [base, `${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")]) {
+              if (existsSync(candidate) && statSync(candidate).isFile()) {
+                return { path: candidate };
+              }
+            }
+            return { path: `${base}.ts` };
+          });
+        },
+      },
+    ],
+    logLevel: "silent",
+  });
   await copyDirectory(path.join(projectRoot, "server", "migrations"), daemonMigrationsDir);
 
   // Stage node-pty into .native/ (NOT node_modules/) so it ships inside the
