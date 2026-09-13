@@ -31,7 +31,7 @@ import fs from "fs";
 import os from "os";
 import net from "net";
 import path from "path";
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { runChecks } from "./smoke-checks.mjs";
 
@@ -45,6 +45,8 @@ const APP_DIR = path.join(os.homedir(), ".cabinet", "app", `v${TEST_VERSION}`);
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-bundle-test-"));
 
 let child = null;
+let isoDaemon = null;
+let isoDir = null;
 let cleanedUp = false;
 let childOutput = "";
 
@@ -75,8 +77,13 @@ function cleanup() {
     try { process.kill(-child.pid, "SIGTERM"); } catch {}
     try { process.kill(-child.pid, "SIGKILL"); } catch {}
   }
+  if (isoDaemon && isoDaemon.pid) {
+    try { process.kill(-isoDaemon.pid, "SIGTERM"); } catch {}
+    try { process.kill(-isoDaemon.pid, "SIGKILL"); } catch {}
+  }
   removeAppDir();
   fs.rmSync(DATA_DIR, { recursive: true, force: true });
+  if (isoDir) fs.rmSync(isoDir, { recursive: true, force: true });
 }
 
 function fail(msg) {
@@ -110,6 +117,31 @@ function freePort() {
     });
     s.on("error", reject);
   });
+}
+
+/** One-page PDF with real text — no external fixture needed. */
+async function makePdfBytes(text) {
+  // Minimal hand-rolled PDF: one page, Helvetica text.
+  const escaped = text.replace(/[()\\]/g, "\\$&");
+  const stream = `BT /F1 16 Tf 60 740 Td (${escaped}) Tj ET`;
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objs.forEach((body, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= objs.length; i++) pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf, "latin1");
 }
 
 async function pollHealth(url, timeoutMs) {
@@ -225,6 +257,161 @@ try {
 } catch (err) {
   fail(`journey check failed: ${err.message}`);
 }
+
+// ─── 7. Documents phase: prove the bundle is self-contained ──────────────────
+//
+// The symlinked install above can still resolve the REPO's node_modules
+// (Node walks up to the project root). To prove the document engines work
+// with zero repo dependencies we copy the standalone tree into a temp dir
+// that has no node_modules ancestor, boot the bundled daemon from it, and
+// drive every engine through server/document-tool.mjs: docx inspect, pdf
+// inspect + patch (pdfium + harfbuzz wasm), pdf→docx convert, pdfcn render
+// (takumi wasm + staged fonts), and OCR capability probing.
+
+step("Staging an isolated copy of the bundle (no repo node_modules ancestor)...");
+
+isoDir = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-doc-iso-"));
+const ISO_DIR = isoDir;
+const ISO_APP = path.join(ISO_DIR, "app");
+const ISO_DATA = path.join(ISO_DIR, "data");
+fs.cpSync(STANDALONE, ISO_APP, { recursive: true });
+fs.mkdirSync(path.join(ISO_DATA, "Cabinet"), { recursive: true });
+
+const DOC_REQUIRED = [
+  path.join("server", "cabinet-daemon.cjs"),
+  path.join("server", "document-worker.mjs"),
+  path.join("server", "document-tool.mjs"),
+  path.join("documents", "pdf-fonts", "LiberationSans-Regular.ttf"),
+  path.join("node_modules", "takumi-pdf", "pkg", "takumi_pdf_wasm_bg.wasm"),
+  path.join("node_modules", "@embedpdf", "pdfium", "dist", "pdfium.wasm"),
+  path.join("node_modules", "harfbuzzjs", "hb-subset.wasm"),
+  "THIRD_PARTY_NOTICES.md",
+];
+const docMissing = DOC_REQUIRED.filter((f) => !fs.existsSync(path.join(ISO_APP, f)));
+if (docMissing.length > 0) {
+  fail(`isolated bundle is missing document assets: ${docMissing.join(", ")}`);
+}
+ok("document assets staged: worker bundle, fonts, pdfium/harfbuzz/takumi wasm, notices");
+
+const isoNode = fs.existsSync(path.join(ISO_APP, "bin", "node"))
+  ? path.join(ISO_APP, "bin", "node")
+  : process.execPath;
+const isoDaemonPort = await freePort();
+
+step(`Booting the isolated daemon (daemon:${isoDaemonPort})...`);
+isoDaemon = spawn(
+  isoNode,
+  [path.join(ISO_APP, "server", "cabinet-daemon.cjs")],
+  {
+    cwd: ISO_APP,
+    detached: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      HOME: os.homedir(),
+      NODE_ENV: "production",
+      NODE_PATH: path.join(ISO_APP, ".native"),
+      CABINET_DATA_DIR: ISO_DATA,
+      CABINET_DAEMON_PORT: String(isoDaemonPort),
+      CABINET_DAEMON_URL: `http://127.0.0.1:${isoDaemonPort}`,
+      CABINET_PUBLIC_DAEMON_ORIGIN: `ws://127.0.0.1:${isoDaemonPort}`,
+    },
+  }
+);
+let isoDaemonOut = "";
+isoDaemon.stdout.on("data", (d) => { isoDaemonOut += d; });
+isoDaemon.stderr.on("data", (d) => { isoDaemonOut += d; });
+
+const isoHealth = await pollHealth(`http://127.0.0.1:${isoDaemonPort}/health`, 30_000);
+if (isoHealth !== 200) {
+  console.error(isoDaemonOut.slice(-3000));
+  fail(`isolated daemon never became healthy (got ${isoHealth ?? "no response"})`);
+}
+ok("isolated daemon healthy");
+
+function docTool(args, label) {
+  const r = spawnSync(
+    isoNode,
+    [path.join(ISO_APP, "server", "document-tool.mjs"), ...args],
+    {
+      encoding: "utf8",
+      timeout: 120_000,
+      env: {
+        HOME: os.homedir(),
+        CABINET_DATA_DIR: ISO_DATA,
+        // runtime-ports.json lives under the app-managed state dir; point the
+        // tool at the daemon directly so it cannot fall back to a dev daemon.
+        CABINET_DAEMON_URL: `http://127.0.0.1:${isoDaemonPort}`,
+      },
+    }
+  );
+  if (r.status !== 0) {
+    fail(`cabinet-documents ${label} failed:\n${r.stdout}\n${r.stderr}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(r.stdout);
+  } catch {
+    fail(`cabinet-documents ${label} did not return JSON:\n${r.stdout.slice(0, 800)}`);
+  }
+  return parsed;
+}
+
+// Seed fixtures inside the isolated cabinet root.
+const ISO_CABINET = path.join(ISO_DATA, "Cabinet");
+fs.writeFileSync(
+  path.join(ISO_CABINET, "smoke.pdf"),
+  await makePdfBytes("Bundle isolated smoke")
+);
+
+step("documents: pdf inspect + patch (pdfium + harfbuzz wasm)...");
+const pdfInspect = docTool(["inspect", "--path", "smoke.pdf"], "inspect");
+if (pdfInspect.format !== "pdf" || pdfInspect.pageCount < 1) {
+  fail(`inspect returned unexpected shape: ${JSON.stringify(pdfInspect).slice(0, 300)}`);
+}
+const line = pdfInspect.pages?.[0]?.textLines?.[0];
+if (!line?.id || !line.bounds) fail("inspect produced no editable text lines");
+const patched = docTool(
+  [
+    "patch", "--path", "smoke.pdf",
+    "--ops", JSON.stringify([
+      { kind: "pdfTextEdit", edit: { pageIndex: 0, rect: line.bounds, oldText: line.text, newText: "Bundle isolated edit", fontSize: 16 } },
+    ]),
+  ],
+  "patch"
+);
+ok(`inspect (${pdfInspect.pageCount} page) + patch ok${patched?.warnings?.length ? ` (${patched.warnings.length} warnings)` : ""}`);
+
+step("documents: convert pdf → docx (worker pipeline)...");
+const conv = docTool(["convert", "--path", "smoke.pdf", "--wait"], "convert --wait");
+if (conv?.pageCount < 1 || !fs.existsSync(path.join(ISO_CABINET, "smoke.docx"))) {
+  fail(`convert produced no docx: ${JSON.stringify(conv).slice(0, 300)}`);
+}
+ok("convert --wait produced a docx");
+
+step("documents: pdfcn render (takumi wasm + staged fonts)...");
+docTool(["pdf-new", "--path", "comp.pdf.source.json", "--template", "report"], "pdf-new");
+const rendered = docTool(
+  ["pdf-render", "--path", "comp.pdf.source.json", "--publish", "--wait"],
+  "pdf-render"
+);
+if (!fs.existsSync(path.join(ISO_CABINET, "comp.pdf"))) {
+  fail(`pdf-render --publish did not produce comp.pdf: ${JSON.stringify(rendered).slice(0, 300)}`);
+}
+const status = docTool(["pdf-status", "--path", "comp.pdf.source.json"], "pdf-status");
+if (status?.output?.stale !== false) {
+  fail(`pdf-status not clean after publish: ${JSON.stringify(status).slice(0, 300)}`);
+}
+ok("pdf-new → pdf-render --publish --wait → pdf-status (stale:false)");
+
+step("documents: ocr capabilities...");
+const ocr = docTool(["ocr-capabilities"], "ocr-capabilities");
+info(`ocr provider: ${JSON.stringify(ocr).slice(0, 200)}`);
+ok("ocr-capabilities responded");
+
+try { process.kill(-isoDaemon.pid, "SIGTERM"); } catch {}
+isoDaemon = null;
+fs.rmSync(ISO_DIR, { recursive: true, force: true });
+isoDir = null;
 
 console.log(`\n\x1b[32m✓ Bundle boot smoke test passed — \`cabinetai run\` boots the real bundle.\x1b[0m`);
 cleanup();

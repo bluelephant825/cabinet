@@ -2,6 +2,7 @@ import { accessSync, constants, existsSync } from "node:fs";
 import path from "node:path";
 import type { OcrProvider } from "../../../src/lib/documents/ocr-types";
 import { HELPER_DEFAULT_TIMEOUT_MS, runOcrHelper } from "./helper";
+import { docResourceDir } from "../resource-paths";
 
 /**
  * macOS Vision OCR provider — wraps the compiled `vision-ocr` helper (Swift
@@ -32,7 +33,7 @@ const VISION_LANGUAGES = [
 export function visionHelperPath(): string {
   const dir =
     process.env.CABINET_OCR_HELPER_DIR ??
-    path.resolve(process.cwd(), "resources/documents/ocr", `darwin-${process.arch}`);
+    path.join(docResourceDir("ocr"), `darwin-${process.arch}`);
   return path.join(dir, "vision-ocr");
 }
 

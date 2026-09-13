@@ -818,6 +818,42 @@ function packagedStandalonePath(...parts) {
  * Copy node-pty to a writable location outside the bundle so spawn-helper
  * can execute, and return the external node_modules path for NODE_PATH.
  */
+/**
+ * The Vision OCR helper is a compiled Swift binary — like node-pty it cannot
+ * execute from inside the .app bundle on modern macOS, so it is copied to
+ * userData and ad-hoc signed. Returns the dir containing `vision-ocr`, or the
+ * packaged dir on platforms where in-bundle execution is fine.
+ */
+function extractOcrHelper() {
+  const platformDir = process.platform === "win32" ? "win32-x64" : `darwin-${process.arch}`;
+  const bundledDir = packagedStandalonePath("documents", "ocr", platformDir);
+  if (process.platform !== "darwin" || !fs.existsSync(bundledDir)) {
+    return fs.existsSync(bundledDir) ? bundledDir : null;
+  }
+
+  const externalDir = path.join(app.getPath("userData"), "documents-ocr", platformDir);
+  const bundledBinary = path.join(bundledDir, "vision-ocr");
+  const externalBinary = path.join(externalDir, "vision-ocr");
+  if (!fs.existsSync(bundledBinary)) return null;
+
+  let needsCopy = true;
+  if (fs.existsSync(externalBinary)) {
+    needsCopy = fs.statSync(bundledBinary).mtimeMs > fs.statSync(externalBinary).mtimeMs;
+  }
+  if (needsCopy) {
+    fs.mkdirSync(externalDir, { recursive: true });
+    fs.copyFileSync(bundledBinary, externalBinary);
+    fs.chmodSync(externalBinary, 0o755);
+    try {
+      execFileSync("xattr", ["-dr", "com.apple.quarantine", externalBinary]);
+    } catch {}
+    try {
+      execFileSync("codesign", ["--force", "--sign", "-", externalBinary]);
+    } catch {}
+  }
+  return externalDir;
+}
+
 function extractNativeModules() {
   if (process.platform !== "darwin") {
     return packagedStandalonePath(".native");
@@ -959,6 +995,7 @@ async function startEmbeddedCabinet() {
   ensureManagedData();
 
   const externalModulesDir = extractNativeModules();
+  const ocrHelperDir = extractOcrHelper();
   const [appPort, daemonPort] = await Promise.all([
     getStableAppPort(),
     getFreePort(),
@@ -989,6 +1026,10 @@ async function startEmbeddedCabinet() {
   const daemonEnv = {
     ...env,
     NODE_PATH: [externalModulesDir, env.NODE_PATH].filter(Boolean).join(path.delimiter),
+    // Document engines: bundled worker + staged resource tree (fonts/ocr).
+    CABINET_DOC_WORKER_ENTRY: packagedStandalonePath("server", "document-worker.mjs"),
+    CABINET_DOC_RESOURCES_DIR: packagedStandalonePath("documents"),
+    ...(ocrHelperDir ? { CABINET_OCR_HELPER_DIR: ocrHelperDir } : {}),
   };
 
   backendsQuitting = false;

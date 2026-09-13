@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { OcrProvider } from "../../../src/lib/documents/ocr-types";
 import { HELPER_DEFAULT_TIMEOUT_MS, runOcrHelper } from "./helper";
+import { docResourceDir } from "../resource-paths";
 
 /**
  * Windows.Media.Ocr provider — wraps win-ocr.exe (C# source vendored in
@@ -14,7 +15,7 @@ const WIN_LANGUAGES = ["en-US", "zh-Hans-CN", "fr-FR", "de-DE", "es-ES", "ja-JP"
 export function windowsHelperPath(): string {
   const dir =
     process.env.CABINET_OCR_HELPER_DIR ??
-    path.resolve(process.cwd(), "resources/documents/ocr", "win32-x64");
+    path.join(docResourceDir("ocr"), "win32-x64");
   return path.join(dir, "win-ocr.exe");
 }
 

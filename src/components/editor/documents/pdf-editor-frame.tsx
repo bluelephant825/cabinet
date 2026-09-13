@@ -847,13 +847,18 @@ export default function PdfEditorFrame() {
     bridge.send("request", { action: "init" });
 
     // Test/debug hook: lets E2E inject a pending op the engine cannot match
-    // (equivalent to a stale edit against changed bytes).
-    (window as unknown as { __cabinetPdf?: unknown }).__cabinetPdf = {
-      injectEdit: (input: PdfTextEdit) => {
-        setTextEdits((prev) => [...prev, { id: newId(), input }]);
-        markDirtyRef.current();
-      },
-    };
+    // (equivalent to a stale edit against changed bytes). Only exposed under
+    // browser automation (Playwright sets navigator.webdriver) — never in a
+    // normal user session. NEXT_PUBLIC_* cannot gate this because the value
+    // is inlined at build time and E2E runs the production bundle.
+    if (navigator.webdriver) {
+      (window as unknown as { __cabinetPdf?: unknown }).__cabinetPdf = {
+        injectEdit: (input: PdfTextEdit) => {
+          setTextEdits((prev) => [...prev, { id: newId(), input }]);
+          markDirtyRef.current();
+        },
+      };
+    }
 
     const keyHandler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {

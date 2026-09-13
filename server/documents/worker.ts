@@ -5,6 +5,7 @@
  * Bytes never cross this channel — args carry inputPath/outputPath temp files
  * owned by the broker.
  */
+import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -28,10 +29,13 @@ function runOpLoader(): Promise<RunOp> {
  * bundled .js file (Step 8).
  */
 export function workerEntry(): string {
-  return (
-    process.env.CABINET_DOC_WORKER_ENTRY ??
-    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "worker.ts")
-  );
+  if (process.env.CABINET_DOC_WORKER_ENTRY) return process.env.CABINET_DOC_WORKER_ENTRY;
+  const self = path.dirname(fileURLToPath(import.meta.url));
+  // Packaged installs stage the esbuild bundle next to this module's output
+  // (standalone/server/document-worker.mjs) — prefer it over the .ts source.
+  const bundled = path.join(self, "document-worker.mjs");
+  if (existsSync(bundled)) return bundled;
+  return path.join(self, "worker.ts");
 }
 
 interface WorkerRequest {

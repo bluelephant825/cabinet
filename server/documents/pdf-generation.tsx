@@ -10,6 +10,8 @@ import path from "node:path";
 import type { ReactNode } from "react";
 import { render as takumiRender } from "takumi-pdf";
 
+import { docResourceDir } from "./resource-paths";
+
 import type { PdfComposition, PdfNode, JsonValue } from "@/lib/documents/pdf-composition";
 import { PDFCN_RENDERER } from "@/lib/documents/pdf-component-catalog";
 import { runWithPdfcnTheme } from "@/vendor/pdfcn/registry/bases/takumi/components/theme-provider";
@@ -60,7 +62,7 @@ const THEMES: Record<string, PdfcnTheme> = {
 
 // Bundled OFL fonts registered under the family names the vendored themes
 // request (Liberation faces are metric-compatible substitutes).
-const FONT_DIR = path.resolve(__dirname, "../../resources/documents/pdf-fonts");
+const FONT_DIR = docResourceDir("pdf-fonts");
 const FONT_FILES: [string, string, number, string][] = [
   ["Helvetica", "LiberationSans-Regular.ttf", 400, "normal"],
   ["Helvetica", "LiberationSans-Bold.ttf", 700, "normal"],

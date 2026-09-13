@@ -64,7 +64,7 @@
       "dismiss": "Dismiss",
       "lockedHeartbeatTip": "This agent is stopped. Start it on the Agents tab to enable the heartbeat.",
       "lockedRoutineTip": "This agent is stopped. Start it on the Agents tab to enable its routines.",
-      "avatar": "workspace.avatar"
+      "avatar": "Avatar"
     },
     "detail": {
       "clickToTurnOff": "Click to turn off.",
@@ -1070,7 +1070,7 @@
       "error": "Something went wrong"
     },
     "panels": {
-      "menuTitle": "panels.menuTitle"
+      "menuTitle": "Side panels"
     },
     "back": "back",
     "cancel": "cancel",
@@ -1244,12 +1244,12 @@
       "seeAll": "See all providers"
     },
     "free": {
-      "browseTemplates": "free.browseTemplates",
-      "browseTemplatesDesc": "free.browseTemplatesDesc",
-      "importFiles": "free.importFiles",
-      "importFilesDesc": "free.importFilesDesc",
-      "newPage": "free.newPage",
-      "newPageDesc": "free.newPageDesc"
+      "browseTemplates": "Browse templates",
+      "browseTemplatesDesc": "Start from a ready-made cabinet",
+      "importFiles": "Import files",
+      "importFilesDesc": "Bring in files from your computer",
+      "newPage": "New page",
+      "newPageDesc": "Start a doc, sheet, or code file"
     }
   },
   "onboarding": {
@@ -1931,11 +1931,11 @@
       "setUp": "Set up"
     },
     "inbox": {
-      "automatic": "inbox.automatic",
-      "ingestAll": "inbox.ingestAll",
-      "pending": "inbox.pending",
-      "submitted": "inbox.submitted",
-      "title": "inbox.title"
+      "automatic": "Auto-ingest Inbox",
+      "ingestAll": "Ingest all",
+      "pending": "Awaiting ingestion: {{count}}",
+      "submitted": "Submitted to the queue: {{count}}",
+      "title": "Inbox"
     }
   },
   "sidebar": {

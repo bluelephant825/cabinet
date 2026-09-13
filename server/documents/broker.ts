@@ -277,9 +277,13 @@ export class DocumentBroker {
   }
 
   private spawnWorker(): WorkerHandle {
-    const tsxCli = createRequire(import.meta.url).resolve("tsx/cli");
     const entry = workerEntry();
-    const child = spawn(process.execPath, [tsxCli, entry], {
+    // Packaged installs ship an esbuild .mjs bundle — plain node runs it and
+    // tsx is not required (it isn't present outside dev anyway).
+    const argv = entry.endsWith(".ts")
+      ? [createRequire(import.meta.url).resolve("tsx/cli"), entry]
+      : [entry];
+    const child = spawn(process.execPath, argv, {
       stdio: ["pipe", "pipe", "inherit"],
       env: { ...process.env, CABINET_DOC_WORKER: "1" },
     });

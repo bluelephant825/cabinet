@@ -1,5 +1,6 @@
 import { build as bundle } from "esbuild";
 import { existsSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import fs from "fs/promises";
 import path from "path";
 
@@ -11,6 +12,8 @@ const standaloneServerDir = path.join(standaloneDir, "server");
 const standaloneNodeModulesDir = path.join(standaloneDir, "node_modules");
 const standaloneBinDir = path.join(standaloneDir, "bin");
 const daemonBundlePath = path.join(standaloneServerDir, "cabinet-daemon.cjs");
+const workerBundlePath = path.join(standaloneServerDir, "document-worker.mjs");
+const stagedDocsDir = path.join(standaloneDir, "documents");
 const daemonMigrationsDir = path.join(standaloneServerDir, "migrations");
 const stagedNativeDir = path.join(standaloneDir, ".native");
 const stagedNodePtyDir = path.join(stagedNativeDir, "node-pty");
@@ -163,7 +166,10 @@ async function bundleDaemon() {
     outfile: daemonBundlePath,
     platform: "node",
     target: "node20",
-    external: ["better-sqlite3", "node-pty"],
+    // The wasm packages stay external: the lazy worker-ops import pulls them
+    // into the module graph, but their JS is only ever require()d inside the
+    // worker process — and bundling them breaks their on-disk wasm loading.
+    external: ["better-sqlite3", "node-pty", "takumi-pdf", "@takumi-rs/helpers", "@embedpdf/pdfium", "harfbuzzjs"],
     // CJS bundles emit `var import_meta = {}; import_meta.url` which is
     // undefined at runtime. createRequire(undefined) and fileURLToPath(undefined)
     // both crash the daemon at startup (v0.4.0/v0.4.1 Electron bug). Polyfill
@@ -223,6 +229,60 @@ async function stageDaemonRuntime() {
     logLevel: "silent",
   });
   await copyDirectory(path.join(projectRoot, "server", "migrations"), daemonMigrationsDir);
+
+  // Document worker bundle (all ops incl. pdfium/takumi renderers). Packages
+  // that load wasm bytes from disk at runtime stay external and are staged
+  // into standalone/node_modules below — Node resolves them normally from
+  // there, so no CABINET_WASM_DIR is needed.
+  await bundle({
+    entryPoints: [path.join(projectRoot, "server", "documents", "worker.ts")],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node20",
+    outfile: workerBundlePath,
+    jsx: "automatic",
+    external: ["takumi-pdf", "@takumi-rs/helpers", "@embedpdf/pdfium", "harfbuzzjs"],
+    banner: {
+      js: "import { createRequire as __cabinet_cr } from 'node:module';\nconst require = __cabinet_cr(import.meta.url);",
+    },
+    plugins: [
+      {
+        name: "at-alias",
+        setup(b) {
+          b.onResolve({ filter: /^@\// }, (args) => {
+            const base = path.join(projectRoot, "src", args.path.slice(2));
+            for (const candidate of [base, `${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")]) {
+              if (existsSync(candidate) && statSync(candidate).isFile()) {
+                return { path: candidate };
+              }
+            }
+            return { path: `${base}.ts` };
+          });
+        },
+      },
+    ],
+    logLevel: "silent",
+  });
+
+  // Wasm-bearing runtime packages (pdfium, harfbuzz subset, takumi) must be
+  // resolvable from the worker bundle — stage them as real node_modules.
+  for (const pkgName of ["takumi-pdf", "@takumi-rs/helpers", "@embedpdf/pdfium", "harfbuzzjs"]) {
+    await copyDirectory(
+      path.join(projectRoot, "node_modules", pkgName),
+      path.join(standaloneNodeModulesDir, pkgName)
+    );
+  }
+
+  // Document resources: PDFCN fonts + built OCR helpers. The worker resolves
+  // this as <standalone>/documents/<subdir> (see server/documents/resource-paths.ts).
+  await copyDirectory(path.join(resourcesDir, "documents"), stagedDocsDir);
+
+  // Third-party notices ship with every packaged artifact.
+  await copyFileIfExists(
+    path.join(projectRoot, "THIRD_PARTY_NOTICES.md"),
+    path.join(standaloneDir, "THIRD_PARTY_NOTICES.md")
+  );
 
   // Stage node-pty into .native/ (NOT node_modules/) so it ships inside the
   // app bundle but is not resolvable by require(). On macOS main.cjs copies it
@@ -312,6 +372,16 @@ async function stageSeedContent() {
 async function main() {
   if (!(await pathExists(standaloneDir))) {
     throw new Error("Expected .next/standalone to exist. Run `npm run build` first.");
+  }
+
+  // OCR helpers are compiled binaries — build what the toolchain can produce
+  // and warn (never fail) when it is absent; OCR degrades to "none".
+  try {
+    execFileSync(process.execPath, [path.join(projectRoot, "scripts", "build-ocr-helpers.mjs")], {
+      stdio: "inherit",
+    });
+  } catch (error) {
+    console.warn(`[cabinet] ocr:build failed (continuing without helpers): ${error.message}`);
   }
 
   await removePath(outDir);
