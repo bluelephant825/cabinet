@@ -240,7 +240,17 @@ const searchIndex = new SearchIndex();
 let searchIndexReady = false;
 const wikiWorkflow = new WikiWorkflow(DATA_DIR, openActiveIngestionQueue, undefined, isProcessStale);
 const inboxWatcher = new InboxWatcher(DATA_DIR, openActiveIngestionQueue);
-const documentService = new DocumentService();
+const documentService = new DocumentService(undefined, {
+  onDocumentChanged: (e) =>
+    broadcast("documents", {
+      type: "document:changed",
+      virtualPath: e.virtualPath,
+      revision: e.revision,
+      op: e.op,
+      actor: e.actor,
+    }),
+  onJobChanged: (job) => broadcast("documents", { type: "document:job", job }),
+});
 const managedSourceWatcher = new ManagedSourceWatcher(DATA_DIR, openActiveIngestionQueue, {
   onError: (message) => console.warn("[managed-source-watcher]", message),
 });

@@ -16,6 +16,7 @@ import fs from "node:fs/promises";
 import readline from "node:readline";
 import { createRequire } from "node:module";
 import { workerEntry } from "./worker";
+import { revisionOf } from "../../src/lib/documents/revision";
 import { DocumentError } from "../../src/lib/documents/errors";
 import type { DocumentErrorCode } from "../../src/lib/documents/errors";
 import type {
@@ -83,6 +84,9 @@ export class DocumentBroker {
   private nextRequestId = 1;
   private sweeper: ReturnType<typeof setInterval> | null = null;
   private shuttingDown = false;
+  private revisionCache = new Map<string, { size: number; mtimeMs: number; revision: string }>();
+  /** Fired on every job status transition (queued/running/done/failed/cancelled). */
+  onJobChange?: (job: DocumentJob) => void;
 
   constructor(private readonly opts: { concurrency?: number } = {}) {}
 
@@ -134,6 +138,33 @@ export class DocumentBroker {
 
   closeSession(sessionId: string): void {
     this.sessions.delete(sessionId);
+  }
+
+  /**
+   * Cheap revision lookup: recompute the sha only when the file's size or
+   * mtime changed since the cached read — polling stays cheap for big PDFs.
+   */
+  async revisionFor(absPath: string): Promise<{ size: number; mtimeMs: number; revision: string }> {
+    const stat = await fs.stat(absPath).catch(() => null);
+    if (!stat) throw new DocumentError("not-found", "Document does not exist");
+    const cached = this.revisionCache.get(absPath);
+    if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+      return cached;
+    }
+    const bytes = await fs.readFile(absPath);
+    const entry = { size: stat.size, mtimeMs: stat.mtimeMs, revision: revisionOf(bytes) };
+    this.revisionCache.set(absPath, entry);
+    return entry;
+  }
+
+  /** After a successful commit, trust the returned revision instead of re-hashing. */
+  async recordCommit(absPath: string, revision: string, size: number): Promise<void> {
+    const stat = await fs.stat(absPath).catch(() => null);
+    this.revisionCache.set(absPath, {
+      size,
+      mtimeMs: stat?.mtimeMs ?? Date.now(),
+      revision,
+    });
   }
 
   private sweepSessions(): void {
@@ -190,6 +221,7 @@ export class DocumentBroker {
     }
     job.status = "cancelled";
     job.error = { code: "cancelled", message: "Cancelled" };
+    this.onJobChange?.(job);
     if (job.worker) {
       // Kill the running request: the worker is discarded and respawned on demand.
       killWorker(job.worker, this.workers);
@@ -286,6 +318,7 @@ export class DocumentBroker {
       if (req.job && req.job.status !== "cancelled") {
         req.job.status = "failed";
         req.job.error = { code: "worker-failed", message: "Document worker exited unexpectedly" };
+        this.onJobChange?.(req.job);
       }
       req.reject(new DocumentError("worker-failed", "Document worker exited unexpectedly"));
     }
@@ -297,6 +330,7 @@ export class DocumentBroker {
     if (call.job) {
       call.job.status = "running";
       call.job.worker = worker;
+      this.onJobChange?.(call.job);
     }
     worker.busy = true;
     const id = this.nextRequestId++;

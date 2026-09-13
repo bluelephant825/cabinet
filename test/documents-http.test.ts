@@ -164,3 +164,85 @@ test("POST /documents/patch response carries virtualPath", async () => {
   assert.equal(patched.virtualPath, "http/patch.docx");
   assert.notEqual(patched.revision, opened.revision);
 });
+
+test("POST /documents/revision returns stat-based revision", async () => {
+  const bytes = await buildBlankDocx();
+  await writeFixture("http/rev.docx", bytes);
+  const res = await fetch(`${base}/documents/revision`, {
+    method: "POST",
+    headers: auth({ "content-type": "application/json" }),
+    body: JSON.stringify({ virtualPath: "http/rev.docx" }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.revision, revisionOf(bytes));
+  assert.equal(body.size, bytes.byteLength);
+  assert.ok(body.mtimeMs > 0);
+});
+
+test("recovery list shows previous entries after a save; draft PUT/DELETE works", async () => {
+  const v0 = await buildBlankDocx();
+  const abs = await writeFixture("http/rec.docx", v0);
+  void abs;
+  // One save over an existing file → previous entry.
+  const v1 = await buildBlankDocx();
+  const saveRes = await fetch(
+    `${base}/documents/save?path=${encodeURIComponent("http/rec.docx")}&baseRevision=${encodeURIComponent(revisionOf(v0))}`,
+    { method: "PUT", body: v1 as unknown as BodyInit, headers: auth() },
+  );
+  assert.equal(saveRes.status, 200);
+
+  const listRes = await fetch(
+    `${base}/documents/recovery?path=${encodeURIComponent("http/rec.docx")}`,
+    { headers: auth() },
+  );
+  assert.equal(listRes.status, 200);
+  const list = await listRes.json();
+  assert.ok(list.entries.some((e: { kind: string }) => e.kind === "previous"));
+
+  const draftRes = await fetch(
+    `${base}/documents/draft?path=${encodeURIComponent("http/rec.docx")}`,
+    { method: "PUT", body: v0 as unknown as BodyInit, headers: auth() },
+  );
+  assert.equal(draftRes.status, 200);
+  const list2 = await (
+    await fetch(`${base}/documents/recovery?path=${encodeURIComponent("http/rec.docx")}`, {
+      headers: auth(),
+    })
+  ).json();
+  assert.equal(list2.draft.revision, revisionOf(v0));
+
+  const delRes = await fetch(
+    `${base}/documents/draft?path=${encodeURIComponent("http/rec.docx")}`,
+    { method: "DELETE", headers: auth() },
+  );
+  assert.equal(delRes.status, 200);
+  const list3 = await (
+    await fetch(`${base}/documents/recovery?path=${encodeURIComponent("http/rec.docx")}`, {
+      headers: auth(),
+    })
+  ).json();
+  assert.equal(list3.draft, undefined);
+});
+
+test("POST /documents/recovery/restore round-trip via HTTP", async () => {
+  const v0 = await buildBlankDocx();
+  await writeFixture("http/restore.docx", v0);
+  const v1 = await buildBlankDocx();
+  await fetch(
+    `${base}/documents/save?path=${encodeURIComponent("http/restore.docx")}&baseRevision=${encodeURIComponent(revisionOf(v0))}`,
+    { method: "PUT", body: v1 as unknown as BodyInit, headers: auth() },
+  );
+  const restoreRes = await fetch(`${base}/documents/recovery/restore`, {
+    method: "POST",
+    headers: auth({ "content-type": "application/json" }),
+    body: JSON.stringify({
+      virtualPath: "http/restore.docx",
+      revision: revisionOf(v0),
+      baseRevision: revisionOf(v1),
+    }),
+  });
+  assert.equal(restoreRes.status, 200);
+  const body = await restoreRes.json();
+  assert.equal(body.revision, revisionOf(v0));
+});

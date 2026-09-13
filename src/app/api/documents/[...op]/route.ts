@@ -63,6 +63,29 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
     case "search":
     case "close":
       return forwardJson(op[0], req);
+    case "revision":
+      return forwardJson("revision", req);
+    case "recovery": {
+      if (op[1] !== "restore") {
+        return NextResponse.json({ error: "Unknown document route" }, { status: 404 });
+      }
+      const bodyText = await req.text();
+      let vp: string | undefined;
+      try {
+        vp = (JSON.parse(bodyText) as { virtualPath?: string }).virtualPath;
+      } catch {
+        /* daemon validates */
+      }
+      const res = await proxyJson(
+        await documentsDaemonFetch("/documents/recovery/restore", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: bodyText,
+        }),
+      );
+      if (res.ok && vp) recordDocMutation("write", vp);
+      return res;
+    }
     case "patch": {
       const bodyText = await req.text();
       const res = await documentsDaemonFetch("/documents/patch", {
@@ -110,10 +133,24 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const denied = await requireApiAuth(req);
   if (denied) return denied;
   const { op } = await ctx.params;
+  const qs = req.nextUrl.searchParams;
+  if (op[0] === "draft") {
+    // Autosave draft — streamed like save, but records no history.
+    const res = await documentsDaemonFetch(
+      `/documents/draft?path=${encodeURIComponent(qs.get("path") ?? "")}&sessionId=${encodeURIComponent(qs.get("sessionId") ?? "")}&baseRevision=${encodeURIComponent(qs.get("baseRevision") ?? "")}`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/octet-stream" },
+        body: req.body,
+        // @ts-expect-error Node fetch requires duplex for streaming bodies
+        duplex: "half",
+      },
+    );
+    return proxyJson(res);
+  }
   if (op[0] !== "save") {
     return NextResponse.json({ error: "Unknown document route" }, { status: 404 });
   }
-  const qs = req.nextUrl.searchParams;
   const res = await documentsDaemonFetch(
     `/documents/save?path=${encodeURIComponent(qs.get("path") ?? "")}&baseRevision=${encodeURIComponent(qs.get("baseRevision") ?? "")}`,
     {
@@ -131,10 +168,45 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   return out;
 }
 
+export async function DELETE(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
+  const denied = await requireApiAuth(req);
+  if (denied) return denied;
+  const { op } = await ctx.params;
+  if (op[0] !== "draft") {
+    return NextResponse.json({ error: "Unknown document route" }, { status: 404 });
+  }
+  return proxyJson(
+    await documentsDaemonFetch(
+      `/documents/draft?path=${encodeURIComponent(req.nextUrl.searchParams.get("path") ?? "")}`,
+      { method: "DELETE" },
+    ),
+  );
+}
+
 export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const denied = await requireApiAuth(req);
   if (denied) return denied;
   const { op } = await ctx.params;
+
+  // GET /api/documents/recovery?path=
+  if (op[0] === "recovery") {
+    return proxyJson(
+      await documentsDaemonFetch(
+        `/documents/recovery?path=${encodeURIComponent(req.nextUrl.searchParams.get("path") ?? "")}`,
+      ),
+    );
+  }
+
+  // GET /api/documents/revision?path=
+  if (op[0] === "revision") {
+    return proxyJson(
+      await documentsDaemonFetch("/documents/revision", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ virtualPath: req.nextUrl.searchParams.get("path") ?? "" }),
+      }),
+    );
+  }
 
   // GET /api/documents/jobs/:id — poll a job; record the create mutation once
   // when a convert finishes.

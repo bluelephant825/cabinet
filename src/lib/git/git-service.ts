@@ -157,6 +157,25 @@ export async function manualCommit(message: string): Promise<boolean> {
   }
 }
 
+/**
+ * Binary-safe read of a file at a commit (`git cat-file blob <hash>:<path>`).
+ * Returns the raw bytes — NULs and CRLF survive — or null when the blob
+ * doesn't exist at that commit.
+ */
+export async function readFileAtCommit(
+  hash: string,
+  filePath: string
+): Promise<Buffer | null> {
+  const g = await getGit();
+  if (!g) return null;
+  try {
+    const buf = await g.binaryCatFile(["blob", `${hash}:${filePath}`]);
+    return Buffer.isBuffer(buf) ? buf : Buffer.from(buf as Uint8Array);
+  } catch {
+    return null;
+  }
+}
+
 export async function restoreFileFromCommit(
   hash: string,
   filePath: string

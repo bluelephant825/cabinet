@@ -97,7 +97,19 @@ export function FileHistoryPanel() {
       </div>
       <FileTimeline
         path={path}
-        onRestored={() => useEditorStore.getState().loadPage(path)}
+        onRestored={() => {
+          // Binary documents reload through the document service; Step 4
+          // editors subscribe to this event. loadPage() is markdown-only.
+          if (/\.(docx|pdf)$/i.test(path)) {
+            window.dispatchEvent(
+              new CustomEvent("cabinet:document-revision-changed", {
+                detail: { path },
+              }),
+            );
+          } else {
+            useEditorStore.getState().loadPage(path);
+          }
+        }}
       />
     </div>
   );

@@ -14,7 +14,21 @@ import {
   commitBytes,
   readWithRevision,
   stageTempPathFor,
+  setBeforeCommitHook,
+  setCommitFailedHook,
 } from "./persistence";
+import {
+  recoveryBeforeCommit,
+  recoveryCommitFailed,
+  noteSessionOpened,
+  noteSessionClosed,
+  listRecovery,
+  readRecoveryBlob,
+  saveDraft,
+  clearDraft,
+  evictIfNeeded,
+  recoveryUsage,
+} from "./recovery";
 import { DocumentBroker, type DocumentSession } from "./broker";
 import type {
   ConvertRequest,
@@ -45,9 +59,37 @@ interface ResolvedTarget {
   format: "docx" | "pdf";
 }
 
+export interface DocumentChangeEvent {
+  virtualPath: string;
+  revision: string;
+  actor: DocumentActor;
+  op: "patch" | "save" | "save-copy" | "convert" | "restore";
+}
+
+export interface DocumentServiceCallbacks {
+  onDocumentChanged?: (e: DocumentChangeEvent) => void;
+  onJobChanged?: (job: JobInfo) => void;
+}
+
 export class DocumentService {
-  constructor(private readonly broker = new DocumentBroker()) {
+  constructor(
+    private readonly broker = new DocumentBroker(),
+    private readonly callbacks: DocumentServiceCallbacks = {},
+  ) {
     this.broker.start();
+    // Step 3: recovery copies ride the persistence hooks.
+    setBeforeCommitHook(recoveryBeforeCommit);
+    setCommitFailedHook(recoveryCommitFailed);
+    this.broker.onJobChange = (job) => this.callbacks.onJobChanged?.(this.broker.jobInfo(job.jobId));
+    void evictIfNeeded();
+  }
+
+  private changed(ev: DocumentChangeEvent): void {
+    try {
+      this.callbacks.onDocumentChanged?.(ev);
+    } catch {
+      /* subscriber errors must not fail the commit */
+    }
   }
 
   // ── open / sessions ───────────────────────────────────────────────────
@@ -62,6 +104,7 @@ export class DocumentService {
       format: auth.format,
       revision,
     });
+    noteSessionOpened(auth.absPath, session.sessionId);
     return {
       sessionId: session.sessionId,
       virtualPath: input.virtualPath,
@@ -74,7 +117,9 @@ export class DocumentService {
   }
 
   close(sessionId: string): { closed: true } {
+    const session = this.broker.sessions.get(sessionId);
     this.broker.closeSession(sessionId);
+    if (session) void noteSessionClosed(session.absPath, sessionId);
     return { closed: true };
   }
 
@@ -166,6 +211,13 @@ export class DocumentService {
         });
         session.revision = committed.revision;
         session.lastSeenAt = new Date();
+        await this.broker.recordCommit(session.absPath, committed.revision, committed.size);
+        this.changed({
+          virtualPath: session.virtualPath,
+          revision: committed.revision,
+          actor: validateActor(input.actor),
+          op: "patch",
+        });
         return {
           revision: committed.revision,
           applied: result.applied,
@@ -193,13 +245,21 @@ export class DocumentService {
   }): Promise<{ revision: string; size: number }> {
     validateActor(input.actor);
     const auth = await authorizeDocumentPath(input.virtualPath, { write: true });
-    return this.broker.withPathLock(auth.absPath, () =>
+    const committed = await this.broker.withPathLock(auth.absPath, () =>
       commitBytes({
         absPath: auth.absPath,
         tempPath: input.tempPath,
         expectedRevision: input.baseRevision,
       }),
     );
+    await this.broker.recordCommit(auth.absPath, committed.revision, committed.size);
+    this.changed({
+      virtualPath: input.virtualPath,
+      revision: committed.revision,
+      actor: validateActor(input.actor),
+      op: "save",
+    });
+    return committed;
   }
 
   async saveCopy(input: SaveCopyRequest): Promise<SaveCopyResult> {
@@ -215,6 +275,13 @@ export class DocumentService {
     const committed = await this.broker.withPathLock(dest.absPath, () =>
       commitBytes({ absPath: dest.absPath, bytes, expectedRevision: null }),
     );
+    await this.broker.recordCommit(dest.absPath, committed.revision, committed.size);
+    this.changed({
+      virtualPath: dest.virtualPath,
+      revision: committed.revision,
+      actor: validateActor(input.actor),
+      op: "save-copy",
+    });
     return { virtualPath: dest.virtualPath, revision: committed.revision, size: committed.size };
   }
 
@@ -238,7 +305,7 @@ export class DocumentService {
   // ── convert job ─────────────────────────────────────────────────────────
 
   async convert(input: ConvertRequest): Promise<{ jobId: string }> {
-    validateActor(input.actor);
+    const actor = validateActor(input.actor);
     const src = await authorizeDocumentPath(input.virtualPath, { write: false });
     if (src.format !== "pdf") {
       throw new DocumentError("unsupported", "Only PDF sources can be converted to DOCX");
@@ -255,7 +322,8 @@ export class DocumentService {
 
     const outputPath = this.broker.tempPathFor(dest.absPath);
     const job = this.broker.createJob("convert-pdf-docx", [outputPath]);
-    void this.runConvertJob(job.jobId, src.absPath, outputPath, dest);
+    this.broker.onJobChange?.(job); // queued
+    void this.runConvertJob(job.jobId, src.absPath, outputPath, dest, actor);
     return { jobId: job.jobId };
   }
 
@@ -264,6 +332,7 @@ export class DocumentService {
     inputPath: string,
     outputPath: string,
     dest: { virtualPath: string; absPath: string },
+    actor: DocumentActor,
   ): Promise<void> {
     const job = this.broker.jobs.get(jobId)!;
     try {
@@ -295,12 +364,21 @@ export class DocumentService {
           mutationRecorded: false,
         };
         job.status = "done";
+        await this.broker.recordCommit(target.absPath, committed.revision, committed.size);
+        this.changed({
+          virtualPath: target.virtualPath,
+          revision: committed.revision,
+          actor,
+          op: "convert",
+        });
+        this.broker.onJobChange?.(job);
       });
     } catch (err) {
       if (job.status === "cancelled") return;
       job.status = "failed";
       const e = err instanceof DocumentError ? err : new DocumentError("worker-failed", String(err));
       job.error = { code: e.code, message: e.message };
+      this.broker.onJobChange?.(job);
       await fs.rm(outputPath, { force: true }).catch(() => {});
     }
   }
@@ -308,6 +386,76 @@ export class DocumentService {
   jobStatus(jobId: string): JobInfo {
     return this.broker.jobInfo(jobId);
   }
+
+  // ── revision refresh ──────────────────────────────────────────────────
+
+  async revision(virtualPath: string): Promise<{ revision: string; size: number; mtimeMs: number }> {
+    const auth = await authorizeDocumentPath(virtualPath, { write: false });
+    return this.broker.revisionFor(auth.absPath);
+  }
+
+  // ── recovery copies & drafts ──────────────────────────────────────────
+
+  async listRecovery(virtualPath: string) {
+    const auth = await authorizeDocumentPath(virtualPath, { write: false });
+    return listRecovery(auth.absPath);
+  }
+
+  async restoreRecovery(input: {
+    virtualPath: string;
+    revision: string;
+    baseRevision: string;
+    actor?: DocumentActor;
+  }): Promise<{ revision: string; size: number }> {
+    const actor = validateActor(input.actor);
+    const auth = await authorizeDocumentPath(input.virtualPath, { write: true });
+    const bytes = await readRecoveryBlob(auth.absPath, input.revision);
+    const committed = await this.broker.withPathLock(auth.absPath, () =>
+      commitBytes({
+        absPath: auth.absPath,
+        bytes,
+        expectedRevision: input.baseRevision,
+      }),
+    );
+    await this.broker.recordCommit(auth.absPath, committed.revision, committed.size);
+    this.changed({
+      virtualPath: input.virtualPath,
+      revision: committed.revision,
+      actor,
+      op: "restore",
+    });
+    return committed;
+  }
+
+  /** Stage a draft body (caller streams to tempPath, then calls saveDraft). */
+  async prepareDraftTarget(virtualPath: string): Promise<{ absPath: string; tempPath: string }> {
+    const auth = await authorizeDocumentPath(virtualPath, { write: false });
+    return { absPath: auth.absPath, tempPath: stageTempPathFor(auth.absPath) };
+  }
+
+  async saveDraft(input: {
+    virtualPath: string;
+    tempPath: string;
+    sessionId?: string;
+    baseRevision?: string;
+  }): Promise<{ revision: string; size: number }> {
+    const auth = await authorizeDocumentPath(input.virtualPath, { write: false });
+    return saveDraft({
+      absPath: auth.absPath,
+      virtualPath: input.virtualPath,
+      tempPath: input.tempPath,
+      sessionId: input.sessionId,
+      baseRevision: input.baseRevision,
+    });
+  }
+
+  async clearDraft(virtualPath: string): Promise<{ cleared: true }> {
+    const auth = await authorizeDocumentPath(virtualPath, { write: false });
+    await clearDraft(auth.absPath);
+    return { cleared: true };
+  }
+
+
 
   markJobRecorded(jobId: string): JobInfo {
     return this.broker.markJobRecorded(jobId);
@@ -322,8 +470,16 @@ export class DocumentService {
     return this.broker.run(op, args);
   }
 
-  health(): { workers: number; sessions: number; jobs: number; queue: number } {
-    return this.broker.stats();
+  async health(): Promise<{
+    workers: number;
+    sessions: number;
+    jobs: number;
+    queue: number;
+    recoveryBytes: number;
+    recoveryDocuments: number;
+  }> {
+    const usage = await recoveryUsage();
+    return { ...this.broker.stats(), recoveryBytes: usage.bytes, recoveryDocuments: usage.documents };
   }
 
   async shutdown(): Promise<void> {

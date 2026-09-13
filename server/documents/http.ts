@@ -63,7 +63,55 @@ export async function handleDocumentsRequest(
     const parts = url.pathname.split("/").filter(Boolean); // ["documents", ...]
 
     if (req.method === "GET" && parts[1] === "health") {
-      sendJson(res, 200, service.health());
+      sendJson(res, 200, await service.health());
+      return true;
+    }
+
+    if (req.method === "GET" && parts[1] === "recovery" && !parts[2]) {
+      sendJson(res, 200, await service.listRecovery(url.searchParams.get("path") ?? ""));
+      return true;
+    }
+
+    if (req.method === "DELETE" && parts[1] === "draft") {
+      sendJson(res, 200, await service.clearDraft(url.searchParams.get("path") ?? ""));
+      return true;
+    }
+
+    if (req.method === "PUT" && parts[1] === "draft") {
+      const virtualPath = url.searchParams.get("path") ?? "";
+      const sessionId = url.searchParams.get("sessionId") ?? undefined;
+      const { tempPath } = await service.prepareDraftTarget(virtualPath);
+      const cap = maxDocumentBytes();
+      const stream = fs.createWriteStream(tempPath);
+      let total = 0;
+      let oversized = false;
+      try {
+        for await (const chunk of req) {
+          total += (chunk as Buffer).byteLength;
+          if (total > cap) {
+            oversized = true;
+            continue;
+          }
+          if (oversized) continue;
+          if (!stream.write(chunk)) {
+            await new Promise<void>((r) => stream.once("drain", r));
+          }
+        }
+      } finally {
+        stream.end();
+        await new Promise<void>((r) => stream.once("close", r));
+      }
+      if (oversized) {
+        await fsp.rm(tempPath, { force: true });
+        sendJson(res, 413, { error: `Draft exceeds the ${cap}-byte limit`, code: "too-large" });
+        return true;
+      }
+      sendJson(res, 200, await service.saveDraft({
+        virtualPath,
+        tempPath,
+        sessionId,
+        baseRevision: url.searchParams.get("baseRevision") ?? undefined,
+      }));
       return true;
     }
 
@@ -154,6 +202,16 @@ export async function handleDocumentsRequest(
         return true;
       case "convert":
         sendJson(res, 200, await service.convert(body as never));
+        return true;
+      case "revision":
+        sendJson(res, 200, await service.revision(String(body.virtualPath ?? "")));
+        return true;
+      case "recovery":
+        if (parts[2] === "restore") {
+          sendJson(res, 200, await service.restoreRecovery(body as never));
+          return true;
+        }
+        sendJson(res, 404, { error: "Unknown recovery route", code: "not-found" });
         return true;
       case "close":
         sendJson(res, 200, service.close(String(body.sessionId ?? "")));

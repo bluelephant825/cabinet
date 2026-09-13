@@ -125,9 +125,23 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         const contentType = MIME_TYPES[ext] || "application/octet-stream";
         // Mounted Drive content is private; editable text still needs
         // revalidation so in-app edits/replacements aren't served stale.
-        const cacheControl = NO_CACHE_EXTS.has(ext)
-          ? "private, no-cache, must-revalidate"
-          : "private, max-age=60";
+        // Binary documents (docx/pdf) get no-cache + a weak ETag so editors
+        // can cheaply detect external changes.
+        const isDocAsset = ext === ".docx" || ext === ".pdf";
+        const cacheControl = isDocAsset
+          ? "private, no-cache"
+          : NO_CACHE_EXTS.has(ext)
+            ? "private, no-cache, must-revalidate"
+            : "private, max-age=60";
+        const etag = isDocAsset
+          ? `W/"${totalSize}-${Math.round(stat.mtimeMs)}"`
+          : null;
+        if (etag && req.headers.get("if-none-match") === etag) {
+          return new NextResponse(null, {
+            status: 304,
+            headers: { ETag: etag, "Cache-Control": cacheControl },
+          });
+        }
 
         const rangeHeader = req.headers.get("range");
         if (rangeHeader) {
@@ -157,6 +171,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                     "Content-Range": `bytes ${start}-${end}/${totalSize}`,
                     "Accept-Ranges": "bytes",
                     "Cache-Control": cacheControl,
+                    ...(etag ? { ETag: etag } : {}),
                   },
                 });
               } finally {
@@ -177,6 +192,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             "Content-Length": String(totalSize),
             "Accept-Ranges": "bytes",
             "Cache-Control": cacheControl,
+            ...(etag ? { ETag: etag } : {}),
           },
         });
       } catch {
@@ -213,9 +229,19 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // until the cache expired. Force revalidation on every fetch for the
     // editable text types (see NO_CACHE_EXTS) — the payload is small and the
     // win on developer/UX feedback is large. Binary assets keep the long cache.
-    const cacheControl = NO_CACHE_EXTS.has(ext)
-      ? "no-cache, must-revalidate"
-      : "public, max-age=3600";
+    const isDocAsset = ext === ".docx" || ext === ".pdf";
+    const cacheControl = isDocAsset
+      ? "private, no-cache"
+      : NO_CACHE_EXTS.has(ext)
+        ? "no-cache, must-revalidate"
+        : "public, max-age=3600";
+    const etag = isDocAsset ? `W/"${totalSize}-${Math.round(stat.mtimeMs)}"` : null;
+    if (etag && req.headers.get("if-none-match") === etag) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: { ETag: etag, "Cache-Control": cacheControl },
+      });
+    }
 
     const rangeHeader = req.headers.get("range");
     if (rangeHeader) {
@@ -245,6 +271,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                 "Content-Range": `bytes ${start}-${end}/${totalSize}`,
                 "Accept-Ranges": "bytes",
                 "Cache-Control": cacheControl,
+                ...(etag ? { ETag: etag } : {}),
                 ...(contentDisposition ? { "Content-Disposition": contentDisposition } : {}),
               },
             });
@@ -266,6 +293,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         "Content-Length": String(totalSize),
         "Accept-Ranges": "bytes",
         "Cache-Control": cacheControl,
+        ...(etag ? { ETag: etag } : {}),
         ...(contentDisposition ? { "Content-Disposition": contentDisposition } : {}),
       },
     });

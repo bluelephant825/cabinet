@@ -34,9 +34,15 @@ export type BeforeCommitHook = (info: {
 }) => Promise<void>;
 
 let beforeCommitHook: BeforeCommitHook = async () => {};
+let commitFailedHook: (info: { absPath: string }) => Promise<void> = async () => {};
 
 export function setBeforeCommitHook(hook: BeforeCommitHook): void {
   beforeCommitHook = hook;
+}
+
+/** Invoked when the commit fails AFTER beforeCommit ran (e.g. rename threw). */
+export function setCommitFailedHook(hook: (info: { absPath: string }) => Promise<void>): void {
+  commitFailedHook = hook;
 }
 
 export interface CommitBytesInput {
@@ -181,12 +187,19 @@ export async function commitBytes(input: CommitBytesInput): Promise<CommitResult
     } finally {
       await handle.close();
     }
-    await beforeCommitHook({
-      absPath,
-      tempPath,
-      currentBytesPath: exists ? absPath : undefined,
-    });
-    await fs.rename(tempPath, absPath);
+    let beforeCommitRan = false;
+    try {
+      await beforeCommitHook({
+        absPath,
+        tempPath,
+        currentBytesPath: exists ? absPath : undefined,
+      });
+      beforeCommitRan = true;
+      await fs.rename(tempPath, absPath);
+    } catch (err) {
+      if (beforeCommitRan) await commitFailedHook({ absPath }).catch(() => {});
+      throw err;
+    }
   } catch (err) {
     await Promise.all(cleanup.map(removeQuiet));
     throw err;
