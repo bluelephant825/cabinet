@@ -53,6 +53,9 @@ function promptFor(task: AgentTask): string {
       "Read the summary (and raw if needed) and the current wiki (`wiki/index.md`, `wiki/concept-table.md`). Perform SCHEMA.md Ingest steps 4-6 " +
       "(ripple updates: create/update entity and concept pages, comparisons or synthesis when warranted, flag contradictions in both pages, " +
       "turn the summary's Entities/Concepts lists into [[wikilinks]]). " +
+      "Be selective: create pages only for entities and concepts that are central to this source or likely to recur across sources; leave incidental mentions " +
+      "(people or places named once, publishers, authors, minor products) as plain text. Prefer updating an existing page over creating a new one. " +
+      "Aim for roughly 10 new pages or fewer per source, so the pass finishes within its time budget. " +
       (task.batch ? "This is part of a batch; do NOT edit concept-table.md or overview.md now. "
         : "Then update wiki/concept-table.md rows for every concept touched and revise wiki/overview.md if the big picture changed. ") +
       "Do not edit wiki/index.md or wiki/log.md (Cabinet maintains them). Write content in the source's language; structural elements stay English. " +
@@ -427,7 +430,7 @@ export class WikiAgentRunner {
       if (drift) warnings.push("Concept table is missing rows for existing concept pages or lacks the required columns; run a consolidate or lint pass");
     }
 
-    const committed = [...new Set([...created, ...updated, ...deleted, indexRelative, logRelative])];
+    const committed = [...new Set([...created, ...updated, ...deleted, indexRelative, logRelative, `${wikiRoot}/SCHEMA.md`])];
     await commitWikiPublication(this.root, wikiRoot, committed, jobId);
     return { created, updated, deleted, warnings };
   }

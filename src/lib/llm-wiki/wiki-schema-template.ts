@@ -76,7 +76,7 @@ Protocol:
 1. Read the source summary completely; read the raw evidence file only if needed (it is read-only)
 2. Read \`wiki/index.md\` and \`wiki/concept-table.md\` for the current map
 3. Update existing entity and concept pages that the source touches
-4. Create new entity/concept pages if the source introduces them
+4. Create new entity/concept pages if the source introduces them; skip incidental mentions (people or places named once, publishers, authors, minor products) and prefer updating an existing page over creating a new one
 5. Check for contradictions with existing wiki content, flag in both pages
 6. Turn the summary's Entities/Concepts candidate lists into \`[[wikilinks]]\` and cite the new or existing pages
 7. Update \`wiki/concept-table.md\` for every concept created, renamed, merged, split, deleted, or materially revised (skipped during batch ingests; Cabinet runs a consolidate pass afterwards)
