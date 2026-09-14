@@ -71,7 +71,8 @@ export class WikiInferenceModel implements SourceSummaryModel, SemanticExtractio
         config: { inferenceOnly: true, ...(status.model ? { model: status.model } : {}), ...(status.provider === "gemini-cli" ? { inferencePolicyPath } : {}), systemPrompt },
         prompt, signal, timeoutMs: WIKI_INFERENCE_TIMEOUT_MS, onLog: async () => {} });
       signal.throwIfAborted();
-      if (result.exitCode !== 0 || result.timedOut) throw new Error(result.errorMessage?.slice(0, 1000) || "Wiki model run failed. Check your provider connection.");
+      if (result.timedOut) throw new Error(`Wiki model run timed out after ${Math.round(WIKI_INFERENCE_TIMEOUT_MS / 1000)}s. Choose a faster model or retry.`);
+      if (result.exitCode !== 0) throw new Error(result.errorMessage?.slice(0, 1000) || "Wiki model run failed. Check your provider connection.");
       const output = result.output?.trim() ?? "";
       if (output.length > 128 * 1024) throw new Error("Wiki model response exceeds limit");
       return parseJsonTolerant(output);

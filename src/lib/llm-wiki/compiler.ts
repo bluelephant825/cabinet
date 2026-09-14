@@ -78,11 +78,15 @@ function wikiPath(root: string, candidate: string) {
 function exactKeys(value: Record<string, unknown>, keys: string[]) {
   if (Object.keys(value).sort().join() !== [...keys].sort().join()) throw new Error("Invalid compiler proposal fields");
 }
-function validateMarkdown(markdown: string) {
+/** The executable-content rule shared by proposal validation and the Wiki
+ * agent's post-run enforcement. Throws on the first violation. */
+export function validateWikiMarkdown(markdown: string, options: { allowComments?: boolean } = {}) {
   if (/^\s*(?:import|export)\s/m.test(markdown)) throw new Error("Executable Wiki content is not permitted");
   const tree = unified().use(remarkParse).parse(markdown);
   const visit = (node: Root | RootContent) => {
-    if ((node.type === "html" && !isWikiMaintenanceMarker(node.value)) || (node.type === "code" && /\blive\b/.test(node.meta ?? ""))) throw new Error("Executable Wiki content is not permitted");
+    if ((node.type === "html" && !isWikiMaintenanceMarker(node.value)
+        && !(options.allowComments && /^<!--[\s\S]*?-->$/.test(node.value.trim())))
+        || (node.type === "code" && /\blive\b/.test(node.meta ?? ""))) throw new Error("Executable Wiki content is not permitted");
     if ("url" in node && /^(?!https?:)[a-z][a-z0-9+.-]*:/i.test(node.url)) throw new Error("Unsafe Wiki URL scheme");
     if ("children" in node) for (const child of node.children) visit(child as RootContent);
   };
@@ -249,7 +253,7 @@ export class PlanningWikiCompiler implements WikiCompiler {
       if (change.kind !== "write" || typeof change.markdown !== "string" || !Array.isArray(change.supports) || change.supports.length > 1000) throw new Error("Invalid Wiki write proposal");
       bytes += Buffer.byteLength(change.markdown);
       if (Buffer.byteLength(change.markdown) > 512 * 1024 || bytes > 32 * 1024 * 1024) throw new Error("Wiki proposal exceeds size limit");
-      validateMarkdown(change.markdown);
+      validateWikiMarkdown(change.markdown);
       const supports = change.supports.map((item): WikiSupport => {
         const support = record(item); exactKeys(support, ["sourceId", "versionId"]);
         if (!(request.operation !== "delete" && support.sourceId === request.source.id && request.evidence.some((item) => item.version.id === support.versionId) || request.supportingEvidence?.some((item) => item.source.status === "active" && item.source.id === support.sourceId && item.evidence.version.id === support.versionId))) throw new Error("Unsupported evidence reference");

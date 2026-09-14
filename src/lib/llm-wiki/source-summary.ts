@@ -1,11 +1,9 @@
 import path from "node:path";
-import { resolveOptionalIdentities, type IdentityOptions, type IdentityResolution } from "./external-identity";
 import { buildWikiProvenance } from "./wiki-provenance";
 import yaml from "js-yaml";
 import { record } from "./filesystem";
-import { matchExistingWikiPages } from "./wiki-linking";
-import { assessCandidateDurability, type DurabilityOptions } from "./durability";
 import { extractSemanticCandidates, type SemanticExtractionModel } from "./semantic-extraction";
+import { sourcePageSlug } from "./wiki-index";
 import type { WikiCompilationPlanner, WikiCompilationRequest } from "./compiler";
 import { validatedInference } from "./validated-inference";
 
@@ -29,11 +27,13 @@ function fields(value: Record<string, unknown>, names: string[]) {
 const literal = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   .replace(/([\\`*_{}[\]()#+.!|~-])/g, "\\$1").replace(/[\r\n]+/g, " ");
 const url = (relative: string) => relative.split("/").map((part) => encodeURIComponent(part).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)).join("/");
+const today = () => new Date().toISOString().slice(0, 10);
 
 /** Compose with PlanningWikiCompiler to verify inputs and validate the returned
- * single-page proposal. Publication and reconciliation remain separate services. */
+ * page proposal. The tool-enabled Wiki agent enriches and links pages after
+ * publication; this planner only produces the checked source summary. */
 export class SourceSummaryPlanner implements WikiCompilationPlanner {
-  constructor(private readonly model: SourceSummaryModel, private readonly semanticModel?: SemanticExtractionModel, private readonly durability: DurabilityOptions = {}, private readonly identity?: IdentityOptions) {}
+  constructor(private readonly model: SourceSummaryModel, private readonly semanticModel?: SemanticExtractionModel) {}
   async propose(request: WikiCompilationRequest, signal: AbortSignal) {
     if (request.operation === "delete" || request.source.status !== "active") throw new Error("Source summary generation requires an active Source; deletion reconciliation is separate");
     const current = request.evidence.find((item) => item.version.id === request.source.currentVersionId);
@@ -49,8 +49,16 @@ export class SourceSummaryPlanner implements WikiCompilationPlanner {
       return true;
     });
     if (matching.length > 1) throw new Error("Multiple summaries identify this Source; review before compiling");
-    const target = matching[0]?.path ?? `${prefix}source-${request.source.id}.md`;
-    if (!matching.length && request.pages.some((page) => page.path.normalize("NFC").toLowerCase() === target.normalize("NFC").toLowerCase())) throw new Error("Source summary path is occupied by another page");
+    const existing = matching[0];
+    const existingEnd = existing ? existing.markdown.indexOf("\n---\n", 4) : -1;
+    const existingCreated = existing && existingEnd > 0 ? record(yaml.load(existing.markdown.slice(4, existingEnd), { schema: yaml.JSON_SCHEMA })).created : undefined;
+    // Readable slug target; collisions with a different source_id take an
+    // identity suffix. A same-source page at an old path is renamed by a
+    // delete + write pair.
+    let slug = sourcePageSlug(request.source.title, request.source.id);
+    // A page already at the slug with a different source_id forces a suffix.
+    if (request.pages.some((page) => page.path === `${prefix}${slug}.md` && page.path !== existing?.path)) slug = `${slug}-${request.source.id.slice(0, 8)}`;
+    const target = `${prefix}${slug}.md`;
     signal.throwIfAborted();
     const parse = (value: unknown, min: number, max: number): SummaryStatement[] => {
       if (!Array.isArray(value) || value.length < min || value.length > max) throw new Error("Invalid source summary item count");
@@ -79,61 +87,33 @@ export class SourceSummaryPlanner implements WikiCompilationPlanner {
       }, signal);
     const statements = [...summary, ...claims, ...qualifications];
     const extraction = this.semanticModel ? await extractSemanticCandidates(request, this.semanticModel, signal) : undefined;
-    const matches = extraction ? matchExistingWikiPages(request, extraction, this.durability.context?.existingPages) : [];
-    const existingPages = matches.filter((match) => match.status === "linked").map((match) => ({ candidateId: match.candidateId,
-      path: match.targets[0].path, sha256: match.targets[0].sha256 }));
-    const assessment = extraction ? await assessCandidateDurability(request, extraction, { ...this.durability,
-      context: { ...this.durability.context, existingPages } }, signal) : undefined;
-    const identities = new Map<string, IdentityResolution>();
-    if (this.identity && extraction && assessment) {
-      const selected = extraction.candidates.filter((candidate) => assessment.decisions.some((decision) => decision.candidateId === candidate.id && decision.disposition === "durable"));
-      if (selected.length > 20) throw new Error("External identity resolution exceeds candidate limit");
-      for (const result of await resolveOptionalIdentities(selected, this.identity, signal)) identities.set(result.candidateId, result);
-    }
-    const identityNote = (id: string) => {
-      const result = identities.get(id);
-      if (!result) return "";
-      if (result.status === "unavailable") return " External identity lookup unavailable; retry separately.";
-      if (result.status !== "resolved" || !result.selected) return result.status === "review" ? " External identity requires review." : " No external identity found.";
-      const chosen = result.selected;
-      const wikipedia = chosen.wikipedia ? `; [Wikipedia](${chosen.wikipedia.replace(/[()]/g, (char) => char === "(" ? "%28" : "%29")})` : "";
-      return ` Identity: [${chosen.qid}](https://www.wikidata.org/wiki/${chosen.qid})${wikipedia}.`;
-    };
-    const wikiLink = (title: string, destination: string) => `[${literal(title)}](${url(path.posix.relative(path.posix.dirname(target), destination))})`;
-    const related = [...new Map(matches.filter((match) => match.status === "linked").map((match) => [match.targets[0].path, match.targets[0]])).values()]
-      .sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-    const relatedMarkdown = extraction ? (related.map((page) => `- ${wikiLink(page.title, page.path)}`).join("\n") || "No confirmed local Wiki matches.") +
-      (matches.some((match) => match.status === "review") ? "\n\nSome candidate matches require identity review." : "") : "Not yet linked.";
-    const quotes = [...new Set([...statements.map((item) => item.quote), ...(extraction?.candidates.map((item) => item.evidence.quote) ?? []),
-      ...(assessment?.decisions.flatMap((decision) => decision.reasons.flatMap((reason) => reason.quote ? [reason.quote] : [])) ?? [])])];
+    const quotes = [...new Set([...statements.map((item) => item.quote), ...(extraction?.candidates.map((item) => item.evidence.quote) ?? [])])];
     const renderCandidates = (kind: "entity" | "concept") => {
       if (!extraction) return "Not yet extracted.";
       const candidates = extraction.candidates.filter((item) => item.kind === kind);
       if (!candidates.length) return kind === "entity" ? "No entity candidates identified." : "No concept candidates identified.";
-      return "Candidates from this Source; durability assessed, Wiki publication pending.\n\n" + candidates.map((item) => {
-        const decision = assessment!.decisions.find((entry) => entry.candidateId === item.id)!;
-        const match = matches.find((entry) => entry.candidateId === item.id)!;
-        const status = match.status === "linked" ? "Existing Wiki page" : decision.disposition === "durable" ? "Eligible for a Wiki page" : "Mention only";
-        const name = match.status === "linked" ? wikiLink(item.name, match.targets[0].path) : literal(item.name);
-        const rationale = decision.reasons.length ? decision.reasons.map((reason) =>
-          `${literal(reason.explanation)}${reason.quote ? ` [E${quotes.indexOf(reason.quote) + 1}]` : ""}`).join("; ") : "No supported durability criterion.";
-        return `- **${name}** (${item.category}): ${literal(item.description)} [E${quotes.indexOf(item.evidence.quote) + 1}] ${status}. ${rationale}${match.status === "review" ? " Identity match requires review." : ""}${identityNote(item.id)}`;
-      }).join("\n");
+      return candidates.map((item) => `- **${literal(item.name)}** (${literal(item.category)}): ${literal(item.description)} [E${quotes.indexOf(item.evidence.quote) + 1}]`).join("\n");
     };
     const render = (items: SummaryStatement[]) => items.map((item) => `- ${literal(item.text)} [E${quotes.indexOf(item.quote) + 1}]`).join("\n");
     const evidencePath = url(path.posix.relative(path.posix.dirname(target), current.version.markdownPath));
     const originalPath = url(path.posix.relative(path.posix.dirname(target), current.version.originalPath));
+    const date = today();
     const metadata = yaml.dump({ title: request.source.title, type: "source-summary", source_id: request.source.id,
       cabinet_id: request.cabinetId, current_version: current.version.version, current_version_id: current.version.id,
-      source_status: request.source.status }, { noRefs: true, lineWidth: -1 });
-    const markdown = `---\n${metadata}---\n\n# ${literal(request.source.title)}\n\n## Summary\n\n${render(summary)}\n\n## Key claims\n\n${render(claims) || "No key claims identified."}\n\n## Evidence\n\n${quotes.map((quote, i) => `- E${i + 1}: “${literal(quote)}” ([Raw v${current.version.version}](${evidencePath}))`).join("\n")}\n\n## Entities\n\n${renderCandidates("entity")}\n\n## Concepts\n\n${renderCandidates("concept")}\n\n## Relationships\n\nNot yet extracted.\n\n## Changes from previous version\n\n${current.version.version === 1 ? "Initial source summary." : "This summary describes the current evidence. Comparison with earlier versions has not been compiled."}\n\n## Contradictions / qualifications\n\n${render(qualifications) || "No qualifications identified in this summary; this is not a claim that none exist."}\n\n## Related Wiki pages\n\n${relatedMarkdown}\n\n## Source provenance\n\n- Source: ${request.source.id}\n- Current evidence: [Raw v${current.version.version}](${evidencePath})\n- Captured original: [Original](${originalPath})\n- Version ID: ${current.version.id}\n- Content SHA-256: ${current.version.contentHash}\n`;
+      source_status: request.source.status,
+      created: typeof existingCreated === "string" && existingCreated ? existingCreated : date, updated: date,
+      sources: [], tags: [] }, { noRefs: true, lineWidth: -1 });
+    const markdown = `---\n${metadata}---\n\n# ${literal(request.source.title)}\n\n## Summary\n\n${render(summary)}\n\n## Key claims\n\n${render(claims) || "No key claims identified."}\n\n## Evidence\n\n${quotes.map((quote, i) => `- E${i + 1}: “${literal(quote)}” ([Raw v${current.version.version}](${evidencePath}))`).join("\n")}\n\n## Entities\n\n${renderCandidates("entity")}\n\n## Concepts\n\n${renderCandidates("concept")}\n\n## Contradictions / qualifications\n\n${render(qualifications) || "No qualifications identified in this summary; this is not a claim that none exist."}\n\n## Limitations\n\nSingle source; not yet cross-checked.\n\nThis summary describes the current evidence. Comparison with earlier versions has not been compiled.\n\n## Source provenance\n\n- Source: ${request.source.id}\n- Current evidence: [Raw v${current.version.version}](${evidencePath})\n- Captured original: [Original](${originalPath})\n- Version ID: ${current.version.id}\n- Content SHA-256: ${current.version.contentHash}\n`;
     const provenance = buildWikiProvenance(request, target, [
       ...summary.map((item) => ({ ...item, kind: "summary-statement" as const })),
       ...claims.map((item) => ({ ...item, kind: "claim" as const })),
       ...qualifications.map((item) => ({ ...item, kind: "qualification" as const })),
       ...(extraction?.candidates.map((item) => ({ kind: item.kind, text: `${item.name}: ${item.description}`, quote: item.evidence.quote })) ?? []),
     ]);
-    return { changes: [{ kind: "write" as const, path: target, markdown, provenance,
-      supports: [{ sourceId: request.source.id, versionId: current.version.id }] }] };
+    const changes: { kind: "write" | "delete"; path: string; markdown?: string; provenance?: ReturnType<typeof buildWikiProvenance>; supports?: { sourceId: typeof request.source.id; versionId: typeof current.version.id }[] }[] = [];
+    if (existing && existing.path !== target) changes.push({ kind: "delete", path: existing.path });
+    changes.push({ kind: "write", path: target, markdown, provenance,
+      supports: [{ sourceId: request.source.id, versionId: current.version.id }] });
+    return { changes };
   }
 }

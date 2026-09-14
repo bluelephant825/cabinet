@@ -24,14 +24,24 @@ const antigravityStream = (value: unknown) => [
 const quote = "Spaced repetition improves recall.";
 const summary = { summary: [{ text: "The note discusses a study method.", quote }], claims: [], qualifications: [] };
 const concepts = { candidates: [{ kind: "concept", category: "method", name: "Spaced repetition", description: "A method discussed for recall.", quote }] };
+const entityPage = "---\ntitle: Test Entity\ntype: entity\ncreated: 2026-01-01\nupdated: 2026-01-01\nsources: [apple-study]\ntags: [fixture]\n---\n\n# Test Entity\n\nA fixture entity linked to [[apple-study]].\n";
 const files = ["Notes/Apple Notes/Apple study.md", "Notes/Eureka/Eureka study.md"];
+const streamFor = (value: unknown) => useCodex
+  ? [JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: JSON.stringify(value) } })]
+  : useGemini ? geminiStream(value) : useAntigravity ? antigravityStream(value) : claudeStream({ text: JSON.stringify(value), cabinet: null });
 test.beforeAll(async () => {
   cabinet = await bootCabinet({ files: {
     "Cabinet/.agents/.config/providers.json": JSON.stringify({ defaultProvider: "claude-code", disabledProviderIds: [] }),
     "Cabinet/.agents/wiki-helper/persona.md": `---\nname: Wiki Helper\nslug: wiki-helper\nrole: Wiki editor\nprovider: ${agentProvider}\n${agentModel ? `model: ${agentModel}\n` : ""}active: false\nheartbeatEnabled: false\n---\n\nYou are the Wiki Helper fixture agent.\n`,
     "Cabinet/.agents/.runtime/daemon-token": randomUUID(),
     ...Object.fromEntries(files.map((name) => [`Cabinet/${name}`, `# Study\n\n${quote}\n\nA separate personal observation.\n`])),
-  }, fakeAgents: [{ name: agentName, steps: Array.from({ length: 12 }, (_, index) => ({ stdout: useCodex ? [JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: JSON.stringify(index % 2 ? concepts : summary) } })] : useGemini ? geminiStream(index % 2 ? concepts : summary) : useAntigravity ? antigravityStream(index % 2 ? concepts : summary) : claudeStream({ text: JSON.stringify(index % 2 ? concepts : summary), cabinet: null }) })) }] });
+  }, fakeAgents: [{ name: agentName, steps: [
+    // Stage 2 tool-enabled pass: the prompt carries "Source summary:"; it writes a real wiki page.
+    { match: "Source summary:", files: { "wiki/entities/test-entity.md": entityPage }, stdout: streamFor("Created wiki/entities/test-entity.md") },
+    // Stage 1 restricted inference calls, told apart by their instructions.
+    { match: "summary, claims and qualifications", stdout: streamFor(summary) },
+    { match: "Identify candidate entities", stdout: streamFor(concepts) },
+  ] }] });
 });
 test.afterAll(async () => {
   if (!cabinet) return;
@@ -131,8 +141,9 @@ test("select notes in settings, publish Wiki, open all reader views and capture 
   await wiki.getByRole("checkbox").nth(0).check(); await wiki.getByRole("checkbox").nth(1).check();
   await wiki.getByRole("button", { name: "Build Wiki from 2 selected notes" }).click();
   const status = async () => (await request.get(`${cabinet.appUrl}/api/llm-wiki/workflow`)).json();
-  await expect.poll(async () => (await status()).jobs.filter((job: { status: string }) => job.status === "complete").length, { timeout: 60_000 }).toBe(2);
-  await expect(wiki).toContainText("2 of 2 operations completed.");
+  // Two source jobs plus the auto-enqueued consolidate pass after the batch drains.
+  await expect.poll(async () => (await status()).jobs.filter((job: { status: string }) => job.status === "complete").length, { timeout: 60_000 }).toBe(3);
+  await expect(wiki).toContainText("3 of 3 operations completed.");
   const state = await status();
   expect(state.sources.every((source: { compiled: boolean }) => source.compiled)).toBe(true);
   const appleSource = state.sources.find((source: { path: string }) => source.path === files[0]);
@@ -149,9 +160,10 @@ test("select notes in settings, publish Wiki, open all reader views and capture 
   }
   await page.getByRole("button", { name: "capture.json", exact: true }).click();
   await expect(page.getByRole("region", { name: "Captured file" })).toContainText('"original":"original.md"');
-  await page.goto(`${cabinet.appUrl}/room/wiki/sources/source-${state.sources.find((source: { path: string }) => source.path === files[0]).id}`);
+  await page.goto(`${cabinet.appUrl}/room/wiki/sources/apple-study`);
   await page.getByRole("link", { name: "Raw v1", exact: true }).first().click();
   await expect(page.getByRole("region", { name: "Captured source" })).toBeVisible();
+  expect(await cabinet.read("Cabinet/wiki/index.md")).toContain("entities/test-entity.md");
   await page.goto(`${cabinet.appUrl}/room/${files[0].replace(/\.md$/, "").split("/").map(encodeURIComponent).join("/")}`);
   await page.getByRole("link", { name: "Read captured source (Reader / Original / Markdown)" }).click();
   const viewer = page.getByRole("region", { name: "Captured source" });
@@ -169,6 +181,10 @@ test("select notes in settings, publish Wiki, open all reader views and capture 
   await viewer.getByRole("combobox", { name: "Source version" }).selectOption((await options.nth(1).getAttribute("value"))!);
   await expect(viewer.getByRole("tabpanel")).not.toContainText("A later observation.");
   const calls = (await cabinet.agent(agentName).invocations()).filter((call) => call.has(useCodex ? "exec" : "-p"));
-  expect(calls.length).toBeGreaterThanOrEqual(4);
-  expect(calls.every((call) => useCodex ? call.flag("--sandbox") === "read-only" && call.has("--ignore-user-config") : useGemini ? !!call.flag("--admin-policy") && call.flag("--extensions") === "none" && !call.has("--yolo") && call.flag("-m") === "gemini-2.5-pro" : useAntigravity ? call.has("--sandbox") && !call.has("--dangerously-skip-permissions") && call.flag("--model") === "gemini-3.8-flash-medium" : call.flag("--tools") === "" && call.has("--strict-mcp-config"))).toBe(true);
+  const callText = (call: { stdin: string; args: string[] }) => `${call.stdin}\n${call.args.join("\n")}`;
+  const inferenceCalls = calls.filter((call) => callText(call).includes("untrusted source data"));
+  const agentCalls = calls.filter((call) => !callText(call).includes("untrusted source data"));
+  expect(agentCalls.filter((call) => callText(call).includes("Source summary:")).length).toBeGreaterThanOrEqual(2);
+  expect(inferenceCalls.length).toBeGreaterThanOrEqual(4);
+  expect(inferenceCalls.every((call) => useCodex ? call.flag("--sandbox") === "read-only" && call.has("--ignore-user-config") : useGemini ? !!call.flag("--admin-policy") && call.flag("--extensions") === "none" && !call.has("--yolo") && call.flag("-m") === "gemini-2.5-pro" : useAntigravity ? call.has("--sandbox") && !call.has("--dangerously-skip-permissions") && call.flag("--model") === "gemini-3.8-flash-medium" : call.flag("--tools") === "" && call.has("--strict-mcp-config"))).toBe(true);
 });

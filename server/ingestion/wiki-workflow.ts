@@ -9,14 +9,14 @@ import { RawPublicationStore } from "../../src/lib/llm-wiki/raw-publication";
 import { SourceSummaryPlanner, type SourceSummaryModel } from "../../src/lib/llm-wiki/source-summary";
 import type { SemanticExtractionModel } from "../../src/lib/llm-wiki/semantic-extraction";
 import { PlanningWikiCompiler } from "../../src/lib/llm-wiki/compiler";
-import { ConnectedWikiPlanner } from "../../src/lib/llm-wiki/connected-planner";
-import { withWikiMaintenance } from "../../src/lib/llm-wiki/wiki-maintenance";
+import { createDeletionReconciliationCompiler } from "../../src/lib/llm-wiki/deletion-reconciliation";
 import { WikiPublicationStore, durableText, readWikiInventory, textHash } from "../../src/lib/llm-wiki/wiki-publication";
 import { captureNote } from "../../src/lib/llm-wiki/capture-note";
 import { SourceNormalizationService } from "../../src/lib/llm-wiki/normalizers";
-import type { IngestionQueue, JobLease } from "../../src/lib/llm-wiki/queue";
-import type { IngestionJobId, IngestionStatus, SourceVersionId } from "../../src/lib/llm-wiki/types";
+import { ingestionRoutes, type IngestionQueue, type JobLease } from "../../src/lib/llm-wiki/queue";
+import type { IngestionJobId, IngestionStatus, SourceId, SourceVersionId } from "../../src/lib/llm-wiki/types";
 import { WikiInferenceModel } from "./wiki-model";
+import { WikiAgentRunner, type AgentPassResult, type AgentTask } from "./wiki-agent";
 import { XbergAdapter } from "./xberg";
 import { commitWikiPublication } from "../../src/lib/history/engine";
 import { listPersonas } from "../../src/lib/agents/persona-manager";
@@ -35,7 +35,9 @@ export class WikiWorkflow {
   private dependencyChecked = 0;
   constructor(private readonly root: string, private readonly openQueue: () => Promise<IngestionQueue | null>,
     private readonly model: SourceSummaryModel & SemanticExtractionModel = new WikiInferenceModel(),
-    private readonly stale: () => boolean = () => false) {}
+    private readonly stale: () => boolean = () => false,
+    private readonly agent?: WikiAgentRunner) {}
+  private agentRunner(): WikiAgentRunner { return this.agent ?? new WikiAgentRunner(this.root); }
   private async settings(): Promise<Settings> {
     const file = await ownedPath(this.root, settingsPath);
     if (!await statOrNull(file)) return { folders: [], running: false };
@@ -48,8 +50,13 @@ export class WikiWorkflow {
     const sources = cabinet ? await new SourceStore(this.root).list() : [];
     const provider = this.model instanceof WikiInferenceModel ? await this.inference(settings).status() : { available: true, provider: "test", message: "Test provider" };
     const agents = this.model instanceof WikiInferenceModel ? (await listPersonas()).map((persona) => ({ slug: persona.slug, name: persona.displayName || persona.name, provider: persona.provider, model: persona.model ?? null, active: persona.active })) : [];
+    const jobs = await Promise.all((queue?.list() ?? []).map(async (job) => {
+      const file = await ownedPath(this.root, `${WIKI_STATE_PATH}/operations/${job.id}.json`);
+      const record = await statOrNull(file) ? JSON.parse(await fs.readFile(file, "utf8")) : {};
+      return { ...job, agentWarnings: Array.isArray(record.agentWarnings) ? record.agentWarnings : [] };
+    }));
     return { enabled: cabinet?.config.enabled ?? false, cabinetName: path.basename(this.root), folders: settings.folders, running: settings.running,
-      busy: !!this.active, error: this.error, provider, jobs: queue?.list() ?? [],
+      busy: !!this.active, error: this.error, provider, jobs,
       agents, selectedAgent: settings.agentSlug ?? null, sources: await Promise.all(sources.map(async ({ source, versions }) => ({ id: source.id, title: source.title, path: source.mode === "managed" ? source.managedLocation.path : null,
         rawPath: source.rawPath, version: versions.find((item) => item.id === source.currentVersionId)?.version ?? null,
         warnings: await this.sourceWarnings(source.id),
@@ -132,6 +139,51 @@ export class WikiWorkflow {
       await queue.resumeReviewed(id, job.updatedAt);
       this.wake(); return this.status();
     }
+    if (input.action === "consolidate" || input.action === "lint") {
+      const queue = await this.openQueue(); if (!queue) throw new Error("Queue unavailable");
+      if (!settings.agentSlug) throw new Error("Choose a Wiki agent first");
+      if (queue.list().some((job) => job.operation === input.action && !["complete", "failed", "needs-review"].includes(job.status))) {
+        throw new Error(`A ${input.action} operation is already queued or running`);
+      }
+      await queue.enqueue({ operation: input.action as "consolidate" | "lint", sourceId: null, roomPath: null, generation: `${input.action}:${Date.now()}` });
+      await this.save({ ...settings, running: true });
+      this.wake(); return this.status();
+    }
+    if (input.action === "reprocess-all") {
+      const queue = await this.openQueue(); if (!queue) throw new Error("Queue unavailable");
+      if (queue.list().some((job) => job.operation === "reprocess" && !["complete", "failed", "needs-review"].includes(job.status))) {
+        throw new Error("A Wiki rebuild is already queued or running");
+      }
+      const requested = Array.isArray(input.sourceIds) ? input.sourceIds.filter((id): id is string => typeof id === "string") : null;
+      if (requested && requested.length > 500) throw new Error("Too many sources for one rebuild (max 500)");
+      const sources = (await new SourceStore(this.root).list()).map((entry) => entry.source);
+      let selected: typeof sources;
+      if (requested) {
+        const byId = new Map(sources.map((source) => [source.id, source]));
+        selected = requested.map((id) => {
+          const source = byId.get(id as SourceId);
+          if (!source || source.status !== "active" || !source.currentVersionId) throw new Error("Unknown source");
+          return source;
+        });
+      } else {
+        selected = sources.filter((source) => source.status === "active" && source.currentVersionId);
+      }
+      if (input.legacyOnly) {
+        const wikiRoot = (await readWikiCabinet(this.root))?.config.paths.wiki ?? "wiki";
+        const keep: typeof selected = [];
+        for (const source of selected) {
+          if (await statOrNull(await ownedPath(this.root, `${wikiRoot}/sources/source-${source.id}.md`))) keep.push(source);
+        }
+        selected = keep;
+      }
+      const day = new Date().toISOString().slice(0, 10);
+      for (const source of selected) {
+        await queue.enqueue({ operation: "reprocess", sourceId: source.id, sourceVersionId: source.currentVersionId!,
+          roomPath: source.roomPath, generation: `rebuild:${source.id}:${source.currentVersionId}:${day}` });
+      }
+      await this.save({ ...settings, running: true });
+      this.wake(); return this.status();
+    }
     throw new Error("Unknown Wiki action");
   }
   start() { this.closed = false; this.wake(); }
@@ -180,21 +232,76 @@ export class WikiWorkflow {
     } catch (error) { this.error = error instanceof Error ? error.message : String(error); }
     finally { this.ticking = false; }
   }
+  private batchMarker = `${WIKI_STATE_PATH}/batch-pending.json`;
+  private async recordAgentResult(jobId: string, result: AgentPassResult) {
+    const recordPath = `${WIKI_STATE_PATH}/operations/${jobId}.json`;
+    const file = await ownedPath(this.root, recordPath);
+    const existing = await statOrNull(file) ? JSON.parse(await fs.readFile(file, "utf8")) : {};
+    existing.agentWarnings = result.warnings;
+    existing.agentReport = result.report;
+    existing.agentChanges = { created: result.created, updated: result.updated, deleted: result.deleted };
+    await durableText(this.root, recordPath, JSON.stringify(existing));
+  }
+  /** Auto-consolidate once a batch drain finishes; the marker survives restarts. */
+  private async maybeConsolidate(queue: IngestionQueue) {
+    const marker = await ownedPath(this.root, this.batchMarker);
+    if (!await statOrNull(marker)) return;
+    if (queue.list().some((job) => ["queued", "discovered"].includes(job.status))) return;
+    await fs.rm(marker, { force: true });
+    if (queue.list().some((job) => job.operation === "consolidate" && !["complete", "failed", "needs-review"].includes(job.status))) return;
+    await queue.enqueue({ operation: "consolidate", sourceId: null, roomPath: null, generation: `consolidate:auto:${Date.now()}` });
+  }
+  /** Stage 2: the tool-enabled agent pass runs while the job holds the
+   * "linking" stage, after Cabinet's checked publication commit. */
+  private async linkingStage(queue: IngestionQueue, lease: JobLease, settings: Settings, manifest: { source: { id: SourceId; title: string } } | null,
+    sourcePage: string | null, rawMarkdownPath: string | null, signal: AbortSignal) {
+    const { job, token } = lease;
+    const route = ingestionRoutes[job.operation];
+    for (let status = queue.get(job.id).status; status !== "linking"; status = queue.get(job.id).status) {
+      queue.advance(job.id, token, route[route.indexOf(status) + 1]);
+    }
+    const runner = this.agentRunner();
+    if (!runner.hasAgent(settings)) return;
+    let task: AgentTask;
+    if (job.operation === "consolidate" || job.operation === "lint") task = { kind: job.operation };
+    else if (job.operation === "delete") task = { kind: "delete", sourceId: manifest!.source.id, sourcePage, title: manifest!.source.title };
+    else {
+      if (!sourcePage || !rawMarkdownPath || !manifest) throw new Error("Missing source page for Wiki page building");
+      const batch = queue.list().some((item) => item.id !== job.id && ["queued", "discovered"].includes(item.status))
+        || !!(await statOrNull(await ownedPath(this.root, this.batchMarker)));
+      if (batch) await durableText(this.root, this.batchMarker, JSON.stringify({ pending: true, jobId: job.id }));
+      task = { kind: "ingest", sourceId: manifest.source.id, sourcePage, rawMarkdownPath, title: manifest.source.title, batch };
+    }
+    const result = await runner.run(task, settings, job.id, signal);
+    await this.recordAgentResult(job.id, result);
+  }
   private async process(queue: IngestionQueue, lease: JobLease, settings: Settings, signal: AbortSignal) {
     const { job, token } = lease;
     const advance = (stage: IngestionStatus) => queue.advance(job.id, token, stage);
-    const finishStages = () => {
-      const routes: Record<string, IngestionStatus[]> = { create: ["classifying", "promoting", "compiling", "complete"], update: ["promoting", "reconciling", "complete"], reprocess: ["promoting", "reconciling", "complete"], delete: ["complete"] };
-      for (const stage of routes[job.operation]) advance(stage);
-    };
     const publisher = new WikiPublicationStore(this.root);
+    const store = new SourceStore(this.root);
     if (await publisher.recover(job.id)) {
       const published = await publisher.publishedPaths(job.id);
       if (published) await commitWikiPublication(this.root, published.wikiRoot, published.paths, job.id);
-      finishStages(); return;
+      const manifest = job.sourceId ? await store.get(job.sourceId) : null;
+      // A rename publishes a delete+write pair; prefer the /sources/ path that
+      // still exists on disk.
+      let sourcePage: string | null = null;
+      for (const candidate of published?.paths.filter((item) => item.includes("/sources/")) ?? []) {
+        if (await statOrNull(await ownedPath(this.root, candidate))) sourcePage = candidate;
+      }
+      const current = manifest?.versions.find((item) => item.id === manifest.source.currentVersionId);
+      await this.linkingStage(queue, lease, settings, manifest, sourcePage, current?.markdownPath ?? null, signal);
+      advance("complete");
+      await this.maybeConsolidate(queue);
+      return;
     }
-    const store = new SourceStore(this.root);
     let manifest = job.sourceId ? await store.get(job.sourceId) : null;
+    if (job.operation === "consolidate" || job.operation === "lint") {
+      await this.linkingStage(queue, lease, settings, null, null, null, signal);
+      advance("complete");
+      return;
+    }
     if (job.operation === "delete") {
       if (!manifest) throw new Error("Source is missing");
       if (manifest.source.status === "active") manifest = await new SourceLifecycleStore(this.root).remove(manifest.source.id, manifest.source.lifecycle?.revision ?? 0, "missing");
@@ -247,10 +354,15 @@ export class WikiWorkflow {
       summarize: (input, inner) => selectedModel.summarize(input, AbortSignal.any([signal, inner])),
       extract: (input, inner) => selectedModel.extract(input, AbortSignal.any([signal, inner])),
     };
-    const planner = withWikiMaintenance(new ConnectedWikiPlanner(new SourceSummaryPlanner(guardedModel, guardedModel), inventory));
-    const compiler = new PlanningWikiCompiler(this.root, planner, WIKI_COMPILATION_TIMEOUT_MS, references, true);
+    const planner = new SourceSummaryPlanner(guardedModel, guardedModel);
     const current = manifest.versions.find((item) => item.id === manifest!.source.currentVersionId);
     const previous = manifest.versions.find((item) => item.id === manifest!.source.lastCompiledVersionId);
+    // Deletion is deterministic reconciliation over the provenance inventory —
+    // no inference — so it keeps its own compiler rather than the summary
+    // planner. The Stage 2 agent pass does the linking afterwards.
+    const compiler = job.operation === "delete"
+      ? createDeletionReconciliationCompiler(this.root, inventory.filter((item) => item.provenance.roomPath === manifest!.source.roomPath), WIKI_COMPILATION_TIMEOUT_MS)
+      : new PlanningWikiCompiler(this.root, planner, WIKI_COMPILATION_TIMEOUT_MS, references, true);
     const plan = job.operation === "delete" ? await compiler.reconcileDeletion(manifest.source) : previous && current && previous.version < current.version
       ? await compiler.reconcileUpdate(manifest.source, previous, current) : await compiler.ingest(manifest.source, current!);
     signal.throwIfAborted();
@@ -258,6 +370,9 @@ export class WikiWorkflow {
     queue.heartbeat(job.id, token, WIKI_WORKER_LEASE_MS);
     await publisher.publish(job.id, plan, compiler);
     await commitWikiPublication(this.root, plan.wikiRoot, plan.changes.map((change) => change.path), job.id);
+    const sourcePage = plan.changes.find((change) => change.path.includes("/sources/") && change.kind === "write")?.path ?? null;
+    await this.linkingStage(queue, lease, settings, manifest, sourcePage, current?.markdownPath ?? null, signal);
     advance("complete");
+    await this.maybeConsolidate(queue);
   }
 }

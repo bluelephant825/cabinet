@@ -43,6 +43,30 @@ export async function readWikiInventory(root: string): Promise<ProvenancePageSna
   return values.map((value) => ({ markdownHash: value.markdownHash, provenance: parseWikiProvenance(value.provenance) }));
 }
 
+/** After the tool-enabled Wiki agent edits Cabinet-published pages, refresh the
+ * stored markdown hashes so later Cabinet operations see the accepted content
+ * as current rather than as a foreign human edit. Returns the page paths whose
+ * inventory entries could not be refreshed because the file is gone. */
+export async function refreshWikiInventoryHashes(root: string, changedPaths: readonly string[]): Promise<string[]> {
+  const text = await read(root, inventoryPath);
+  if (text === null || !changedPaths.length) return [];
+  const values = JSON.parse(text);
+  if (!Array.isArray(values)) throw new Error("Invalid Wiki inventory");
+  const changed = new Set(changedPaths);
+  const missing: string[] = [];
+  let touched = false;
+  for (const value of values) {
+    const pagePath = value?.provenance?.pagePath;
+    if (typeof pagePath !== "string" || !changed.has(pagePath)) continue;
+    const current = await read(root, pagePath);
+    if (current === null) { missing.push(pagePath); continue; }
+    value.markdownHash = textHash(current);
+    touched = true;
+  }
+  if (touched) await durableText(root, inventoryPath, JSON.stringify(values));
+  return missing;
+}
+
 /** Journaled roll-forward: all preconditions are checked before any page changes.
  * Readers may see partial files during recovery, but no completion marker, pointer
  * or job acknowledgment precedes the full page + provenance publication. */
