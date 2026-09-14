@@ -60,8 +60,10 @@ export interface CommitBytesInput {
   /**
    * `"json"` replaces the binary signature gate with a JSON-parse check — used
    * for `.pdf.source.json` composition sources committed through the daemon.
+   * `"utf8"` requires valid UTF-8 and rejects NUL bytes — used for `.md`/`.mdx`
+   * markdown conversion outputs, which have no binary signature to check.
    */
-  signatureCheck?: "json";
+  signatureCheck?: "json" | "utf8";
 }
 
 export interface CommitResult {
@@ -155,6 +157,17 @@ export async function commitBytes(input: CommitBytesInput): Promise<CommitResult
     } catch {
       if (input.tempPath) await removeQuiet(input.tempPath);
       throw new DocumentError("invalid", "File is not valid JSON");
+    }
+  } else if (input.signatureCheck === "utf8") {
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      if (input.tempPath) await removeQuiet(input.tempPath);
+      throw new DocumentError("invalid", "File is not valid UTF-8");
+    }
+    if (bytes.includes(0)) {
+      if (input.tempPath) await removeQuiet(input.tempPath);
+      throw new DocumentError("invalid", "File contains NUL bytes — not a text document");
     }
   } else {
     await validateSignature(absPath, bytes);

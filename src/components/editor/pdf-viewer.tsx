@@ -7,7 +7,7 @@ import { ViewerLayout } from "@/components/layout/viewer-layout";
 import { ToolbarButton } from "@/components/layout/toolbar-button";
 import { useLocale } from "@/i18n/use-locale";
 import { PdfEditorHost } from "@/components/editor/documents/pdf-editor-host";
-import { ConvertToWordButton } from "@/components/editor/documents/convert-to-word";
+import { ConvertDocumentButton, openConvertedDocument } from "@/components/editor/documents/convert-document";
 import { useTreeStore } from "@/stores/tree-store";
 
 /**
@@ -94,13 +94,10 @@ export function PdfViewer({ path, title }: PdfViewerProps) {
           actions={
             <>
             <EditSourceButton path={path} />
-            <ConvertToWordButton
+            <ConvertDocumentButton
               path={path}
-              onNavigate={async (p) => {
-                const { loadTree, focusPath } = useTreeStore.getState();
-                await loadTree();
-                focusPath(p);
-              }}
+              sourceFormat="pdf"
+              onNavigate={(p) => void openConvertedDocument(p)}
             />
             </>
           }

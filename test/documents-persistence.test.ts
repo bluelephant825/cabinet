@@ -113,6 +113,37 @@ test("simulated rename crash: original intact, temp removed", async () => {
   assert.deepEqual(tmpFiles(), []);
 });
 
+test("signatureCheck utf8: valid text commits; NUL bytes and bad UTF-8 → invalid", async () => {
+  const target = path.join(dir, "note.md");
+  const ok = await commitBytes({
+    absPath: target,
+    bytes: Buffer.from("# hi\n", "utf8"),
+    expectedRevision: null,
+    signatureCheck: "utf8",
+  });
+  assert.ok(ok.revision.startsWith("sha256:"));
+
+  await assert.rejects(
+    commitBytes({
+      absPath: path.join(dir, "nul.md"),
+      bytes: Buffer.from([0x23, 0x00, 0x0a]),
+      expectedRevision: null,
+      signatureCheck: "utf8",
+    }),
+    (e) => e instanceof DocumentError && e.code === "invalid",
+  );
+  await assert.rejects(
+    commitBytes({
+      absPath: path.join(dir, "bad.md"),
+      bytes: new Uint8Array([0xff, 0xfe, 0xfd]),
+      expectedRevision: null,
+      signatureCheck: "utf8",
+    }),
+    (e) => e instanceof DocumentError && e.code === "invalid",
+  );
+  assert.deepEqual(tmpFiles(), []);
+});
+
 test("readWithRevision → not-found for missing file", async () => {
   await assert.rejects(readWithRevision(path.join(dir, "nope.docx")), (e) => {
     return e instanceof DocumentError && e.code === "not-found";

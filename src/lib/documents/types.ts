@@ -292,9 +292,13 @@ export interface SaveCopyResult {
   size: number;
 }
 
+export type ConvertTarget = "docx" | "md" | "mdx";
+
 export interface ConvertRequest {
   virtualPath: string;
   baseRevision: string;
+  /** Output format — defaults to "docx" so existing callers stay unchanged. */
+  target?: ConvertTarget;
   destinationVirtualPath?: string;
   actor?: DocumentActor;
   /** BCP-47 OCR language hints passed to the selected provider. */
@@ -315,6 +319,10 @@ export interface ConvertPageResult {
 /** What `POST /documents/convert/plan` returns — destination preview + scan info. */
 export interface ConvertPlanResult {
   destinationVirtualPath: string;
+  target: ConvertTarget;
+  sourceFormat: DocumentFormat;
+  /** Planned sibling image folder (markdown targets only). */
+  assetsVirtualPath?: string;
   pageCount: number;
   /** 1-based page numbers detected as scans (no usable text layer). */
   scannedPages: number[];
@@ -324,7 +332,7 @@ export interface ConvertPlanResult {
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 export interface JobProgress {
-  phase: "scan" | "ocr" | "convert" | "write";
+  phase: "scan" | "ocr" | "convert" | "write" | "markdown";
   page: number;
   pageCount: number;
 }
@@ -333,6 +341,10 @@ export interface JobResult {
   virtualPath?: string;
   revision?: string;
   size?: number;
+  /** Every file the job created (the main output plus each extracted image). */
+  createdPaths?: string[];
+  /** Virtual path of the image assets folder (markdown targets, images only). */
+  assetsVirtualPath?: string;
   pageCount?: number;
   pageResults?: ConvertPageResult[];
   scannedDocument?: boolean;

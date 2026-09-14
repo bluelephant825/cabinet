@@ -11,6 +11,7 @@ import {
   isDaemonTokenValid,
 } from "../../src/lib/agents/daemon-auth";
 import { DocumentError } from "../../src/lib/documents/errors";
+import type { ConvertTarget } from "../../src/lib/documents/types";
 import { maxDocumentBytes } from "./persistence";
 import type { DocumentService } from "./service";
 
@@ -232,7 +233,10 @@ export async function handleDocumentsRequest(
           sendJson(
             res,
             200,
-            await service.convertPlan(String(body.virtualPath ?? "")),
+            await service.convertPlan(
+              String(body.virtualPath ?? ""),
+              (body as { target?: ConvertTarget }).target ?? "docx",
+            ),
           );
           return true;
         }

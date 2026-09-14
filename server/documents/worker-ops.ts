@@ -31,10 +31,15 @@ import {
   extractIrDocument,
   isScannedDocument,
   type ConvertOptions,
+  type IrDocument,
 } from "../../src/vendor/genoffice/packages/pdf2docx/src/pipeline";
 import { rebuild } from "../../src/vendor/genoffice/packages/pdf2docx/src/index";
 import type { OcrRecognition } from "../../src/vendor/genoffice/packages/pdf2docx/src/ocr";
 import { selectOcrProvider } from "./ocr/registry";
+import { createAssetSink } from "./markdown/assets";
+import { frontmatterBlock } from "./markdown/frontmatter";
+import { docxToMarkdown } from "./markdown/from-docx";
+import { irToMarkdown } from "./markdown/from-ir";
 import type { JobProgress } from "../../src/lib/documents/types";
 import type {
   SavePdfRequest,
@@ -745,25 +750,27 @@ async function applyPatchOp(args: {
  * Pass 3 is skipped when no page was recognized (the pass-1 result is already
  * the correct output).
  */
-async function convertOp(
+/**
+ * PDF → `IrDocument` with replaceable OCR, shared by the DOCX and Markdown
+ * converters. Runs the three passes documented on `convertOp` below and
+ * applies the degraded rule, so callers only differ in how they render the
+ * resulting IR.
+ */
+async function extractPdfWithOcr(
   args: {
     inputPath: string;
-    outputPath: string;
     languageHints?: string[];
     acknowledgeDegraded?: boolean;
     /** CABINET_DOC_TEST_OPS only: drop fallback renders to simulate failures. */
     dropRenders?: boolean;
   },
-  progress?: (p: JobProgress) => void,
+  emit: (p: JobProgress) => void,
 ): Promise<{
-  pageCount: number;
-  scannedDocument: boolean;
+  doc: IrDocument;
   warnings: string[];
-  pageResults: unknown[];
-  ocr: { provider: string; version: string } | null;
-  degraded?: boolean;
+  ocrMeta: { provider: string; version: string } | null;
+  dropped: number[];
 }> {
-  const emit = progress ?? (() => {});
   const pdf = new Uint8Array(await readFile(args.inputPath));
   const pdfiumModule = (await pdfium()) as unknown as ConvertOptions["pdfium"];
   const provider = selectOcrProvider();
@@ -895,7 +902,29 @@ async function convertOp(
       { pages: dropped },
     );
   }
+  return { doc, warnings, ocrMeta, dropped };
+}
 
+async function convertOp(
+  args: {
+    inputPath: string;
+    outputPath: string;
+    languageHints?: string[];
+    acknowledgeDegraded?: boolean;
+    /** CABINET_DOC_TEST_OPS only: drop fallback renders to simulate failures. */
+    dropRenders?: boolean;
+  },
+  progress?: (p: JobProgress) => void,
+): Promise<{
+  pageCount: number;
+  scannedDocument: boolean;
+  warnings: string[];
+  pageResults: unknown[];
+  ocr: { provider: string; version: string } | null;
+  degraded?: boolean;
+}> {
+  const emit = progress ?? (() => {});
+  const { doc, warnings, ocrMeta, dropped } = await extractPdfWithOcr(args, emit);
   emit({ phase: "write", page: 0, pageCount: doc.irPages.length });
   const docx = await rebuild.rebuildDocx(doc.irPages, { furnitureHf: doc.furnitureHf });
   await writeFile(args.outputPath, docx);
@@ -906,6 +935,91 @@ async function convertOp(
     pageResults: doc.pageResults,
     ocr: ocrMeta,
     ...(dropped.length > 0 ? { degraded: true } : {}),
+  };
+}
+
+/**
+ * PDF|DOCX → Markdown/MDX. PDF sources run the shared extract+OCR passes,
+ * then `irToMarkdown`; DOCX sources `parseDocx` then `docxToMarkdown`. Images
+ * go through an AssetSink rooted at `assetsTempDir` (created lazily — absent
+ * means no images), referenced from the document as `<assetsRelPrefix><file>`.
+ */
+async function convertMarkdownOp(
+  args: {
+    inputPath: string;
+    sourceFormat: "pdf" | "docx";
+    target: "md" | "mdx";
+    outputPath: string;
+    assetsTempDir: string;
+    assetsRelPrefix: string;
+    /** Virtual path of the source document, for the `source:` frontmatter key. */
+    sourceVirtualPath?: string;
+    languageHints?: string[];
+    acknowledgeDegraded?: boolean;
+    dropRenders?: boolean;
+  },
+  progress?: (p: JobProgress) => void,
+): Promise<{
+  warnings: string[];
+  imageFiles: string[];
+  title?: string;
+  pageCount?: number;
+  pageResults?: unknown[];
+  scannedDocument?: boolean;
+  ocr?: { provider: string; version: string } | null;
+  degraded?: boolean;
+}> {
+  const emit = progress ?? (() => {});
+  const assets = createAssetSink(args.assetsTempDir, args.assetsRelPrefix);
+
+  let markdown: string;
+  let warnings: string[] = [];
+  let title: string | undefined;
+  let pdfMeta:
+    | {
+        pageCount: number;
+        pageResults: unknown[];
+        scannedDocument: boolean;
+        ocr: { provider: string; version: string } | null;
+        degraded?: boolean;
+      }
+    | undefined;
+
+  if (args.sourceFormat === "pdf") {
+    const { doc, warnings: w, ocrMeta, dropped } = await extractPdfWithOcr(args, emit);
+    emit({ phase: "markdown", page: 0, pageCount: doc.irPages.length });
+    const result = await irToMarkdown(doc, { target: args.target, assets });
+    markdown = result.markdown;
+    warnings = [...w, ...result.warnings];
+    title = result.title;
+    pdfMeta = {
+      pageCount: doc.irPages.length,
+      pageResults: doc.pageResults,
+      scannedDocument: isScannedDocument(doc.pageResults, doc.irPages.length),
+      ocr: ocrMeta,
+      ...(dropped.length > 0 ? { degraded: true } : {}),
+    };
+  } else {
+    emit({ phase: "markdown", page: 0, pageCount: 0 });
+    const parsed = await parseDocx(new Uint8Array(await readFile(args.inputPath)));
+    const result = await docxToMarkdown(parsed, { target: args.target, assets });
+    markdown = result.markdown;
+    warnings = result.warnings;
+    title = result.title;
+  }
+
+  const stem =
+    path.basename(args.inputPath).replace(/\.[^.]+$/, "") || "document";
+  const frontmatter = frontmatterBlock({
+    title: title ?? stem,
+    sourceVirtualPath: args.sourceVirtualPath ?? stem,
+  });
+  await writeFile(args.outputPath, frontmatter + markdown, "utf8");
+  return {
+    warnings,
+    imageFiles: assets.files,
+    title,
+    ...pdfMeta,
   };
 }
 
@@ -1015,6 +1129,8 @@ export async function runOp(
       return applyPatchOp(args as never);
     case "convert":
       return convertOp(args as never, progress);
+    case "convertMarkdown":
+      return convertMarkdownOp(args as never, progress);
     case "pdfConvertPlan":
       return pdfConvertPlanOp(args as never);
     case "docxLoad":

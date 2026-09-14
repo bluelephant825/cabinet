@@ -291,7 +291,7 @@ function buildDocumentToolInstructions(): string[] {
     "For .docx and .pdf files use the `cabinet-documents` command (run `cabinet-documents --help` first for the exact flags).",
     "Always `cabinet-documents inspect` or `read` a document before editing it — never rewrite document bytes by hand.",
     "Edits go through `cabinet-documents patch` / `docx-save`; they are revision-checked and all-or-nothing. If an operation reports unsupported, say so instead of working around it.",
-    "`cabinet-documents convert --wait` turns a PDF into a new .docx and reports per-page outcomes (including OCR-recovered pages).",
+    "`cabinet-documents convert --wait` turns a PDF into a new .docx and reports per-page outcomes (including OCR-recovered pages). `convert --to md` (or `--to mdx`) turns a PDF or DOCX into a Cabinet Markdown page — images land in a sibling `-assets` folder and the page's `source` frontmatter points back at the original; report every created path to the user.",
     "Report every document path you created or changed in the ARTIFACT/SUMMARY block.",
   ];
 }

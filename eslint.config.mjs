@@ -22,7 +22,8 @@ const eslintConfig = defineConfig([
     },
   },
   // Vendored GenOffice document engines are worker-only: nothing outside
-  // server/documents/worker*.ts (and tests) may import them — except the
+  // server/documents/worker*.ts + server/documents/markdown/** (worker-side
+  // converters, and tests) may import them — except the
   // embedded document-editor frame, which may import the vendored RENDERER
   // (apps/docs/src/renderer/**) but never the engines (packages/**, pdf main).
   {
@@ -31,6 +32,7 @@ const eslintConfig = defineConfig([
       "src/vendor/**",
       "server/documents/worker.ts",
       "server/documents/worker-ops.ts",
+      "server/documents/markdown/**",
       "server/documents/pdf-generation.tsx",
       "test/fixtures/pdfcn-gate-render.tsx",
       "test/pdf-generation-gate.test.ts",

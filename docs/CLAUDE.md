@@ -155,6 +155,10 @@ Agents → `cabinet-documents` CLI (scripts/document-tool.ts → shim in <data-p
 - Client code may not import `src/vendor/genoffice/**` or `src/vendor/pdfcn/**` (lint-enforced; allowed only in `server/documents/pdf-generation.tsx`, `worker-ops.ts`, tests).
 - `.pdf.source.json` compositions are data-only: validated against `pdf-component-catalog.ts` (`validateComposition`); node types map through a fixed registry — never dynamic import by user string.
 - The composer preview is always the REAL worker-rendered PDF (never a React approximation).
+- Conversion targets: `convert` accepts `target` `docx` (PDF only) or `md`/`mdx` (PDF and DOCX). Markdown outputs commit through `commitBytes` with `signatureCheck:"utf8"` (valid UTF-8, no NUL).
+- Markdown conversions extract images into a sibling `<stem>-assets/` folder referenced as `./<stem>-assets/<file>`; the folder is picked collision-free together with the document name (`<stem>-1`, …).
+- `.mdx` output is CommonMark/GFM plus exactly one Cabinet component: `<Callout>…</Callout>` for textboxes/card regions (`.md` uses blockquotes instead).
+- Generated pages carry a `source:` frontmatter key pointing at the source document's virtual path; `createdPaths`/`assetsVirtualPath` in the job result list every file written.
 
 ### Runtime asset inventory
 

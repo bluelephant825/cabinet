@@ -206,6 +206,23 @@ test("convert --wait produces a docx with page results", async () => {
   assert.equal((stat.json as { format: string }).format, "docx");
 });
 
+test("convert --to md --wait produces a markdown page with frontmatter", async () => {
+  await writeFixture("tool/mdsrc.pdf", await pdfBytes());
+  const result = (await runTool([
+    "convert",
+    "--path",
+    "tool/mdsrc.pdf",
+    "--to",
+    "md",
+    "--wait",
+  ])).json as { virtualPath: string; createdPaths?: string[] };
+  assert.ok(result.virtualPath.endsWith(".md"));
+  assert.ok((result.createdPaths ?? []).includes(result.virtualPath));
+  const md = await fs.readFile(path.join(DATA_DIR, result.virtualPath), "utf8");
+  assert.ok(md.startsWith("---"), md.slice(0, 120));
+  assert.ok(md.includes('source: "tool/mdsrc.pdf"'), md.slice(0, 400));
+});
+
 test("--help exits 0 and documents every command", async () => {
   const { stdout } = await runTool(["--help"]);
   for (const cmd of [

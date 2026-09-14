@@ -5,6 +5,7 @@ import { OfficeChrome } from "./office-chrome";
 import { ViewerLayout } from "@/components/layout/viewer-layout";
 import { useLocale } from "@/i18n/use-locale";
 import { DocxEditorHost } from "@/components/editor/documents/docx-editor-host";
+import { ConvertDocumentButton, openConvertedDocument } from "@/components/editor/documents/convert-document";
 import { Loader2 } from "lucide-react";
 
 interface Props {
@@ -113,7 +114,19 @@ export function DocxViewer({ path, title }: Props) {
   return (
     <ViewerLayout
       toolbar={
-        <OfficeChrome path={path} title={title} extLabel="DOCX" status={statusBadge} />
+        <OfficeChrome
+          path={path}
+          title={title}
+          extLabel="DOCX"
+          status={statusBadge}
+          actions={
+            <ConvertDocumentButton
+              path={path}
+              sourceFormat="docx"
+              onNavigate={(p) => void openConvertedDocument(p)}
+            />
+          }
+        />
       }
     >
       <div className="flex-1 min-h-0 flex flex-col relative">

@@ -278,11 +278,16 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         const job = JSON.parse(text) as JobInfo;
         if (
           job.status === "done" &&
-          (job.kind === "convert-pdf-docx" || job.kind === "pdf-render") &&
+          (job.kind.startsWith("convert-") || job.kind === "pdf-render") &&
           job.result?.virtualPath &&
           !job.result.mutationRecorded
         ) {
-          recordDocMutation("create", job.result.virtualPath);
+          const paths = new Set(
+            [job.result.virtualPath, ...(job.result.createdPaths ?? [])].filter(
+              (p): p is string => typeof p === "string" && p.length > 0,
+            ),
+          );
+          for (const p of paths) recordDocMutation("create", p);
           void documentsDaemonFetch(`/documents/jobs/${op[1]}/mark-recorded`, { method: "POST" });
         }
       } catch {

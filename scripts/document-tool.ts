@@ -233,8 +233,9 @@ Commands:
   docx-load  --path                          Full structured DOCX model (blocks/sections/styles)
   docx-save  --path --plan <json|@file> [--base-revision R]
                                              Save a structured save plan (from docx-load / edit host)
-  convert    --path [--dest path] [--lang en,fr] [--acknowledge-degraded] [--wait]
-                                             PDF -> DOCX as a job; --wait polls to completion
+  convert    --path [--to docx|md|mdx] [--dest path] [--lang en,fr] [--acknowledge-degraded] [--wait]
+                                             PDF -> DOCX (default) or PDF/DOCX -> Markdown/MDX as a
+                                             job; --wait polls to completion
   job        --id JOB                        Job status/result
   cancel     --id JOB                        Cancel a running job
   ocr-capabilities                           OCR provider availability + languages on this host
@@ -261,8 +262,12 @@ Patch ops (--ops is a JSON array; one example per kind):
 Notes:
   - Paragraph/line/image ids come from inspect/geometry on the CURRENT revision.
   - Edits are revision-checked: a "conflict" error means re-inspect and retry.
-  - convert creates a NEW .docx next to the PDF (or under --dest); per-page
-    results report ok / ocr / scanned / degraded.
+  - convert creates a NEW file next to the source (or under --dest): .docx for
+    --to docx, .md/.mdx for --to md/mdx. Markdown outputs carry a "source"
+    frontmatter key pointing back at the source document; extracted images go
+    to a sibling "<stem>-assets/" folder referenced as "./<stem>-assets/<file>".
+    Per-page results report ok / ocr / scanned / degraded (PDF sources).
+    Report every path in createdPaths to the user.
 `;
 
 // ── main ─────────────────────────────────────────────────────────────────
@@ -364,6 +369,11 @@ async function main(): Promise<void> {
         baseRevision: flags.get("base-revision") ?? revision,
         actor: actor(),
       };
+      const to = flags.get("to") ?? "docx";
+      if (!["docx", "md", "mdx"].includes(to)) {
+        throw new ToolError("invalid", `--to must be one of docx|md|mdx (got '${to}')`);
+      }
+      body.target = to;
       if (flags.get("dest")) body.destinationVirtualPath = resolveVirtualPath(flags.get("dest")!);
       if (flags.get("lang")) {
         body.languageHints = flags.get("lang")!.split(",").map((s) => s.trim()).filter(Boolean);

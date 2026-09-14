@@ -47,6 +47,7 @@ import { selectOcrProvider } from "./ocr/registry";
 import type {
   ConvertPlanResult,
   ConvertRequest,
+  ConvertTarget,
   InspectResult,
   JobInfo,
   JobResult,
@@ -429,54 +430,169 @@ export class DocumentService {
 
   // ── convert job ─────────────────────────────────────────────────────────
 
+  /** pdf→docx|md|mdx, docx→md|mdx — everything else is unsupported. */
+  private static assertConvertible(sourceFormat: string, target: ConvertTarget): void {
+    const ok =
+      (sourceFormat === "pdf" && (target === "docx" || target === "md" || target === "mdx")) ||
+      (sourceFormat === "docx" && (target === "md" || target === "mdx"));
+    if (!ok) {
+      throw new DocumentError(
+        "unsupported",
+        `Cannot convert ${sourceFormat} to ${target} — supported: pdf→docx, pdf→md, pdf→mdx, docx→md, docx→mdx`,
+      );
+    }
+  }
+
   async convert(input: ConvertRequest): Promise<{ jobId: string }> {
     const actor = validateActor(input.actor);
+    const target: ConvertTarget = input.target ?? "docx";
     const src = await authorizeDocumentPath(input.virtualPath, { write: false });
-    if (src.format !== "pdf") {
-      throw new DocumentError("unsupported", "Only PDF sources can be converted to DOCX");
-    }
+    DocumentService.assertConvertible(src.format, target);
     const { revision } = await readWithRevision(src.absPath);
     if (input.baseRevision !== revision) {
       throw new DocumentError("conflict", "Document changed since baseRevision", {
         currentRevision: revision,
       });
     }
-    const ext = path.posix.extname(input.virtualPath);
-    const stem = input.virtualPath.slice(0, input.virtualPath.length - ext.length);
+    const srcExt = path.posix.extname(input.virtualPath);
+    const stem = input.virtualPath.slice(0, input.virtualPath.length - srcExt.length);
     // Read-only source (gdrive:/read-only mount): the sibling can't be written,
     // so the destination defaults to a Converted/ folder at the cabinet root.
-    const defaultDest = src.readOnlyReason ? `Converted/${stem.split("/").pop()}.docx` : `${stem}.docx`;
-    const dest = await this.collisionFreePath(input.destinationVirtualPath ?? defaultDest);
+    const roStem = `Converted/${stem.split("/").pop()}`;
 
-    const outputPath = this.broker.tempPathFor(dest.absPath);
-    const job = this.broker.createJob("convert-pdf-docx", [outputPath]);
+    if (target === "docx") {
+      const defaultDest = src.readOnlyReason ? `${roStem}.docx` : `${stem}.docx`;
+      const dest = await this.collisionFreePath(input.destinationVirtualPath ?? defaultDest);
+      const outputPath = this.broker.tempPathFor(dest.absPath);
+      const job = this.broker.createJob("convert-pdf-docx", [outputPath]);
+      this.broker.onJobChange?.(job); // queued
+      void this.runConvertJob(job.jobId, src.absPath, outputPath, dest, actor, {
+        languageHints: input.languageHints,
+        acknowledgeDegraded: input.acknowledgeDegraded,
+      });
+      return { jobId: job.jobId };
+    }
+
+    // Markdown targets: the .md/.mdx plus a sibling `<stem>-assets/` folder are
+    // picked as a pair (`<stem>-1`, `<stem>-2`, … on collision) because the
+    // document embeds the folder name in its image refs.
+    const baseStem = src.readOnlyReason ? roStem : stem;
+    const pair = await this.pickMarkdownDest(baseStem, target, input.destinationVirtualPath);
+    const outputPath = this.broker.tempPathFor(pair.dest.absPath);
+    const assetsTempDir = this.broker.tempPathFor(pair.assets.absPath);
+    const job = this.broker.createJob(
+      src.format === "pdf" ? "convert-pdf-markdown" : "convert-docx-markdown",
+      [outputPath, assetsTempDir],
+    );
     this.broker.onJobChange?.(job); // queued
-    void this.runConvertJob(job.jobId, src.absPath, outputPath, dest, actor, {
-      languageHints: input.languageHints,
-      acknowledgeDegraded: input.acknowledgeDegraded,
-    });
+    void this.runMarkdownConvertJob(
+      job.jobId,
+      { absPath: src.absPath, format: src.format, virtualPath: input.virtualPath },
+      target,
+      outputPath,
+      pair,
+      assetsTempDir,
+      actor,
+      {
+        languageHints: input.languageHints,
+        acknowledgeDegraded: input.acknowledgeDegraded,
+      },
+    );
     return { jobId: job.jobId };
   }
 
   /** Destination + scan preview for the convert dialog. */
-  async convertPlan(virtualPath: string): Promise<ConvertPlanResult> {
+  async convertPlan(virtualPath: string, target: ConvertTarget = "docx"): Promise<ConvertPlanResult> {
     const src = await authorizeDocumentPath(virtualPath, { write: false });
-    if (src.format !== "pdf") {
-      throw new DocumentError("unsupported", "Only PDF sources can be converted to DOCX");
+    DocumentService.assertConvertible(src.format, target);
+    const srcExt = path.posix.extname(virtualPath);
+    const stem = virtualPath.slice(0, virtualPath.length - srcExt.length);
+    const roStem = `Converted/${stem.split("/").pop()}`;
+    const ocr = await this.ocrCapabilities();
+
+    if (target === "docx") {
+      const wanted = src.readOnlyReason ? `${roStem}.docx` : `${stem}.docx`;
+      const dest = await this.collisionFreePath(wanted);
+      const scan = (await this.broker.run("pdfConvertPlan", {
+        inputPath: src.absPath,
+      })) as { pageCount: number; scannedPages: number[] };
+      return {
+        destinationVirtualPath: dest.virtualPath,
+        target,
+        sourceFormat: src.format,
+        pageCount: scan.pageCount,
+        scannedPages: scan.scannedPages,
+        ocr,
+      };
     }
-    const ext = path.posix.extname(virtualPath);
-    const stem = virtualPath.slice(0, virtualPath.length - ext.length);
-    const wanted = src.readOnlyReason ? `Converted/${stem.split("/").pop()}.docx` : `${stem}.docx`;
-    const dest = await this.collisionFreePath(wanted);
+
+    const baseStem = src.readOnlyReason ? roStem : stem;
+    const pair = await this.pickMarkdownDest(baseStem, target);
+    if (src.format !== "pdf") {
+      return {
+        destinationVirtualPath: pair.dest.virtualPath,
+        target,
+        sourceFormat: src.format,
+        assetsVirtualPath: pair.assets.virtualPath,
+        pageCount: 0,
+        scannedPages: [],
+        ocr,
+      };
+    }
     const scan = (await this.broker.run("pdfConvertPlan", {
       inputPath: src.absPath,
     })) as { pageCount: number; scannedPages: number[] };
     return {
-      destinationVirtualPath: dest.virtualPath,
+      destinationVirtualPath: pair.dest.virtualPath,
+      target,
+      sourceFormat: src.format,
+      assetsVirtualPath: pair.assets.virtualPath,
       pageCount: scan.pageCount,
       scannedPages: scan.scannedPages,
-      ocr: await this.ocrCapabilities(),
+      ocr,
     };
+  }
+
+  /**
+   * Collision-free `<stem>.<ext>` + `<stem>-assets/` pair for markdown
+   * targets. Both names advance together (`stem-1`, `stem-2`, …) so the
+   * assets folder always matches the document stem. Not format-gated: md
+   * destinations go through the same path authorizer as other non-document
+   * files.
+   */
+  private async pickMarkdownDest(
+    stem: string,
+    ext: "md" | "mdx",
+    explicit?: string,
+  ): Promise<{
+    dest: { virtualPath: string; absPath: string };
+    assets: { virtualPath: string; absPath: string };
+  }> {
+    if (explicit) {
+      const explicitExt = path.posix.extname(explicit);
+      const explicitStem = explicit.slice(0, explicit.length - explicitExt.length);
+      const destAuth = await authorizeCompositionPath(explicit, { write: true });
+      const assetsAuth = await authorizeCompositionPath(`${explicitStem}-assets`, { write: true });
+      if ((await fileExists(destAuth.absPath)) || (await fileExists(assetsAuth.absPath))) {
+        return this.pickMarkdownDest(explicitStem, ext);
+      }
+      return {
+        dest: { virtualPath: explicit, absPath: destAuth.absPath },
+        assets: { virtualPath: `${explicitStem}-assets`, absPath: assetsAuth.absPath },
+      };
+    }
+    for (let i = 0; i < 1000; i++) {
+      const candidate = i === 0 ? stem : `${stem}-${i}`;
+      const destAuth = await authorizeCompositionPath(`${candidate}.${ext}`, { write: true });
+      const assetsAuth = await authorizeCompositionPath(`${candidate}-assets`, { write: true });
+      if (!(await fileExists(destAuth.absPath)) && !(await fileExists(assetsAuth.absPath))) {
+        return {
+          dest: { virtualPath: `${candidate}.${ext}`, absPath: destAuth.absPath },
+          assets: { virtualPath: `${candidate}-assets`, absPath: assetsAuth.absPath },
+        };
+      }
+    }
+    throw new DocumentError("invalid", "Could not find a free destination name");
   }
 
   async ocrCapabilities() {
@@ -554,6 +670,145 @@ export class DocumentService {
       job.error = { code: e.code, message: e.message, details: e.details };
       this.broker.onJobChange?.(job);
       await fs.rm(outputPath, { force: true }).catch(() => {});
+    }
+  }
+
+  /**
+   * Markdown conversion: the worker writes the .md/.mdx to `outputPath` and
+   * images into `assetsTempDir` (only when ≥1 image). The document references
+   * images as `./<assets-folder-name>/<file>` — that token is the only place
+   * the folder name appears, so a late collision renames are a string rewrite.
+   */
+  private async runMarkdownConvertJob(
+    jobId: string,
+    src: { absPath: string; format: string; virtualPath: string },
+    target: "md" | "mdx",
+    outputPath: string,
+    planned: {
+      dest: { virtualPath: string; absPath: string };
+      assets: { virtualPath: string; absPath: string };
+    },
+    assetsTempDir: string,
+    actor: DocumentActor,
+    opts: { languageHints?: string[]; acknowledgeDegraded?: boolean } = {},
+  ): Promise<void> {
+    const job = this.broker.jobs.get(jobId)!;
+    try {
+      const meta = (await this.broker.run(
+        "convertMarkdown",
+        {
+          inputPath: src.absPath,
+          sourceFormat: src.format,
+          target,
+          outputPath,
+          assetsTempDir,
+          assetsRelPrefix: `./${path.basename(planned.assets.absPath)}/`,
+          sourceVirtualPath: src.virtualPath,
+          languageHints: opts.languageHints,
+          acknowledgeDegraded: opts.acknowledgeDegraded,
+        },
+        job,
+      )) as {
+        warnings: string[];
+        imageFiles?: string[];
+        pageCount?: number;
+        pageResults?: unknown[];
+        scannedDocument?: boolean;
+        ocr?: { provider: string; version: string } | null;
+        degraded?: boolean;
+      };
+      if (job.status === "cancelled") return;
+
+      await this.broker.withPathLock(planned.dest.absPath, async () => {
+        // Late collision: re-pick the name pair and rewrite the folder token.
+        let pair = planned;
+        if (
+          (await fileExists(planned.dest.absPath)) ||
+          (await fileExists(planned.assets.absPath))
+        ) {
+          const ext = path.posix.extname(planned.dest.virtualPath);
+          const stem = planned.dest.virtualPath.slice(
+            0,
+            planned.dest.virtualPath.length - ext.length,
+          );
+          pair = await this.pickMarkdownDest(stem, target);
+          const oldPrefix = `./${path.basename(planned.assets.absPath)}/`;
+          const newPrefix = `./${path.basename(pair.assets.absPath)}/`;
+          const md = await fs.readFile(outputPath);
+          const rewritten = Buffer.from(
+            md.toString("utf8").split(oldPrefix).join(newPrefix),
+            "utf8",
+          );
+          await fs.writeFile(outputPath, rewritten);
+        }
+        const committed = await commitBytes({
+          absPath: pair.dest.absPath,
+          tempPath: outputPath,
+          expectedRevision: null,
+          signatureCheck: "utf8",
+        });
+
+        // Move the extracted images into the final sibling folder. The worker
+        // only creates assetsTempDir when there is at least one image.
+        const createdPaths: string[] = [pair.dest.virtualPath];
+        const created: { virtualPath: string; absPath: string }[] = [
+          { virtualPath: pair.dest.virtualPath, absPath: pair.dest.absPath },
+        ];
+        let assetsVirtualPath: string | undefined;
+        if (await fileExists(assetsTempDir)) {
+          await fs.mkdir(path.dirname(pair.assets.absPath), { recursive: true });
+          await fs.rename(assetsTempDir, pair.assets.absPath);
+          assetsVirtualPath = pair.assets.virtualPath;
+          const files = (meta.imageFiles ?? (await fs.readdir(pair.assets.absPath))).sort();
+          for (const file of files) {
+            const assetAbs = path.join(pair.assets.absPath, file);
+            const assetVirtual = `${pair.assets.virtualPath}/${file}`;
+            createdPaths.push(assetVirtual);
+            created.push({ virtualPath: assetVirtual, absPath: assetAbs });
+          }
+        }
+
+        job.result = {
+          virtualPath: pair.dest.virtualPath,
+          revision: committed.revision,
+          size: committed.size,
+          createdPaths,
+          ...(assetsVirtualPath ? { assetsVirtualPath } : {}),
+          warnings: meta.warnings,
+          ...(src.format === "pdf"
+            ? {
+                pageCount: meta.pageCount,
+                pageResults: meta.pageResults as JobResult["pageResults"],
+                scannedDocument: meta.scannedDocument,
+                ocr: meta.ocr ?? null,
+                degraded: meta.degraded,
+              }
+            : {}),
+          // Agent-actor converts are recorded daemon-side via onAgentMutation —
+          // mark them so a Next job poll doesn't record a second mutation.
+          mutationRecorded: actor.kind === "agent",
+        };
+        job.status = "done";
+        for (const file of created) {
+          const { bytes, revision } = await readWithRevision(file.absPath);
+          await this.broker.recordCommit(file.absPath, revision, bytes.byteLength);
+          this.changed({
+            virtualPath: file.virtualPath,
+            revision,
+            actor,
+            op: "convert",
+          });
+        }
+        this.broker.onJobChange?.(job);
+      });
+    } catch (err) {
+      if (job.status === "cancelled") return;
+      job.status = "failed";
+      const e = err instanceof DocumentError ? err : new DocumentError("worker-failed", String(err));
+      job.error = { code: e.code, message: e.message, details: e.details };
+      this.broker.onJobChange?.(job);
+      await fs.rm(outputPath, { force: true }).catch(() => {});
+      await fs.rm(assetsTempDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 

@@ -300,6 +300,132 @@ test("convert job → done, <stem>.docx created; stale revision → conflict", a
   );
 });
 
+test("convert pdf → md: frontmatter + text, no assets dir without images", async () => {
+  const svc = makeService();
+  const fx = await pdfBytes();
+  await writeFixture("docs/mdpdf.pdf", fx.bytes);
+  const opened = await svc.open({ virtualPath: "docs/mdpdf.pdf" });
+  const { jobId } = await svc.convert({
+    virtualPath: "docs/mdpdf.pdf",
+    baseRevision: opened.revision,
+    target: "md",
+  });
+  const info = await waitJob(svc, jobId);
+  assert.equal(info.status, "done", JSON.stringify(info.error));
+  assert.equal(info.result?.virtualPath, "docs/mdpdf.md");
+  const md = await fs.readFile(path.join(DATA_DIR, "docs/mdpdf.md"), "utf8");
+  assert.ok(md.startsWith("---"), md.slice(0, 200));
+  assert.ok(md.includes('source: "docs/mdpdf.pdf"'), md.slice(0, 400));
+  assert.ok(md.includes("First pdf line"), md);
+  assert.equal(info.result?.assetsVirtualPath, undefined);
+  assert.equal(await exists(path.join(DATA_DIR, "docs/mdpdf-assets")), false);
+  assert.deepEqual(info.result?.createdPaths, ["docs/mdpdf.md"]);
+});
+
+test("convert pdf with image → md + docs/a-assets/img-01.png in createdPaths", async () => {
+  const svc = makeService();
+  const doc = await PDFDocument.create();
+  const pg = doc.addPage([595, 842]);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  pg.drawText("Page with picture", { x: 50, y: 700, size: 14, font });
+  const png = new PNG({ width: 32, height: 32 });
+  for (let i = 0; i < png.data.length; i += 4) {
+    png.data[i] = 10; png.data[i + 1] = 120; png.data[i + 2] = 200; png.data[i + 3] = 255;
+  }
+  const embedded = await doc.embedPng(PNG.sync.write(png));
+  pg.drawImage(embedded, { x: 50, y: 400, width: 100, height: 100 });
+  const bytes = await doc.save({ useObjectStreams: false });
+  await writeFixture("docs/a.pdf", bytes);
+  const opened = await svc.open({ virtualPath: "docs/a.pdf" });
+  const { jobId } = await svc.convert({
+    virtualPath: "docs/a.pdf",
+    baseRevision: opened.revision,
+    target: "md",
+  });
+  const info = await waitJob(svc, jobId);
+  assert.equal(info.status, "done", JSON.stringify(info.error));
+  assert.equal(info.result?.virtualPath, "docs/a.md");
+  assert.equal(info.result?.assetsVirtualPath, "docs/a-assets");
+  const created = info.result?.createdPaths ?? [];
+  assert.ok(created.includes("docs/a.md"), JSON.stringify(created));
+  assert.ok(
+    created.some((p) => /^docs\/a-assets\/(img|page)-\d+\.(png|jpg)$/.test(p)),
+    JSON.stringify(created),
+  );
+  assert.equal(await exists(path.join(DATA_DIR, created[1]!)), true);
+  const md = await fs.readFile(path.join(DATA_DIR, "docs/a.md"), "utf8");
+  assert.ok(md.includes("./a-assets/"), md);
+});
+
+test("convert docx → md and docx → mdx", async () => {
+  const svc = makeService();
+  await writeFixture("docs/srcmd.docx", await docxBytes());
+  const opened = await svc.open({ virtualPath: "docs/srcmd.docx" });
+  const { jobId } = await svc.convert({
+    virtualPath: "docs/srcmd.docx",
+    baseRevision: opened.revision,
+    target: "md",
+  });
+  const info = await waitJob(svc, jobId);
+  assert.equal(info.status, "done", JSON.stringify(info.error));
+  assert.equal(info.result?.virtualPath, "docs/srcmd.md");
+  const md = await fs.readFile(path.join(DATA_DIR, "docs/srcmd.md"), "utf8");
+  assert.ok(md.includes("Alpha first line"), md);
+
+  const reopened = await svc.open({ virtualPath: "docs/srcmd.docx" });
+  const { jobId: j2 } = await svc.convert({
+    virtualPath: "docs/srcmd.docx",
+    baseRevision: reopened.revision,
+    target: "mdx",
+  });
+  const info2 = await waitJob(svc, j2);
+  assert.equal(info2.status, "done", JSON.stringify(info2.error));
+  assert.equal(info2.result?.virtualPath, "docs/srcmd.mdx");
+});
+
+test("convert: unsupported pairs rejected; plan reports target + assets", async () => {
+  const svc = makeService();
+  await writeFixture("docs/nop.docx", await docxBytes());
+  const opened = await svc.open({ virtualPath: "docs/nop.docx" });
+  await assert.rejects(
+    svc.convert({
+      virtualPath: "docs/nop.docx",
+      baseRevision: opened.revision,
+      target: "docx",
+    }),
+    (e) => e instanceof DocumentError && e.code === "unsupported",
+  );
+  await assert.rejects(
+    svc.convertPlan("docs/nop.docx", "docx"),
+    (e) => e instanceof DocumentError && e.code === "unsupported",
+  );
+  const plan = await svc.convertPlan("docs/nop.docx", "md");
+  assert.equal(plan.target, "md");
+  assert.equal(plan.sourceFormat, "docx");
+  assert.equal(plan.destinationVirtualPath, "docs/nop.md");
+  assert.equal(plan.assetsVirtualPath, "docs/nop-assets");
+  assert.equal(plan.pageCount, 0);
+  assert.deepEqual(plan.scannedPages, []);
+});
+
+test("convert markdown: name collision re-picks -1 for both md and assets", async () => {
+  const svc = makeService();
+  await writeFixture("docs/coll.docx", await docxBytes());
+  await writeFixture("docs/coll.md", Buffer.from("taken", "utf8"));
+  const opened = await svc.open({ virtualPath: "docs/coll.docx" });
+  const plan = await svc.convertPlan("docs/coll.docx", "md");
+  assert.equal(plan.destinationVirtualPath, "docs/coll-1.md");
+  assert.equal(plan.assetsVirtualPath, "docs/coll-1-assets");
+  const { jobId } = await svc.convert({
+    virtualPath: "docs/coll.docx",
+    baseRevision: opened.revision,
+    target: "md",
+  });
+  const info = await waitJob(svc, jobId);
+  assert.equal(info.status, "done", JSON.stringify(info.error));
+  assert.equal(info.result?.virtualPath, "docs/coll-1.md");
+});
+
 test("cancel a queued job → cancelled, no output file", async () => {
   const svc = makeService(1); // one worker → second convert queues behind first
   const fx = await pdfBytes();
