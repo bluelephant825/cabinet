@@ -72,21 +72,25 @@ export class SourceSummaryPlanner implements WikiCompilationPlanner {
         return { text: data.text.trim(), quote: data.quote };
       });
     };
-    const { summary, claims, qualifications } = await validatedInference(
-      (feedback) => this.model.summarize({ title: request.source.title, body: current.body,
-        instructions: instructions + " Quotes must preserve the literal body including Markdown markers and backslashes; do not quote a cleaned or rendered version." + feedback }, signal),
-      (value) => {
-        const output = record(value);
-        fields(output, ["summary", "claims", "qualifications"]);
-        const summary = parse(output.summary, 1, 3), claims = parse(output.claims, 0, 8), qualifications = parse(output.qualifications, 0, 5);
-        // Reject wholesale copying even for short inputs. Semantic compression
-        // still depends on the model adapter.
-        const compact = (text: string) => text.replace(/\s+/g, " ").trim();
-        if (compact(current.body) && [...summary, ...claims, ...qualifications].some((item) => compact(item.text).includes(compact(current.body)))) throw new Error("Summary must not duplicate the entire source");
-        return { summary, claims, qualifications };
-      }, signal);
+    // The two model calls are independent: run them concurrently.
+    const [summarized, extraction] = await Promise.all([
+      validatedInference(
+        (feedback) => this.model.summarize({ title: request.source.title, body: current.body,
+          instructions: instructions + " Quotes must preserve the literal body including Markdown markers and backslashes; do not quote a cleaned or rendered version." + feedback }, signal),
+        (value) => {
+          const output = record(value);
+          fields(output, ["summary", "claims", "qualifications"]);
+          const summary = parse(output.summary, 1, 3), claims = parse(output.claims, 0, 8), qualifications = parse(output.qualifications, 0, 5);
+          // Reject wholesale copying even for short inputs. Semantic compression
+          // still depends on the model adapter.
+          const compact = (text: string) => text.replace(/\s+/g, " ").trim();
+          if (compact(current.body) && [...summary, ...claims, ...qualifications].some((item) => compact(item.text).includes(compact(current.body)))) throw new Error("Summary must not duplicate the entire source");
+          return { summary, claims, qualifications };
+        }, signal),
+      this.semanticModel ? extractSemanticCandidates(request, this.semanticModel, signal) : Promise.resolve(undefined),
+    ]);
+    const { summary, claims, qualifications } = summarized;
     const statements = [...summary, ...claims, ...qualifications];
-    const extraction = this.semanticModel ? await extractSemanticCandidates(request, this.semanticModel, signal) : undefined;
     const quotes = [...new Set([...statements.map((item) => item.quote), ...(extraction?.candidates.map((item) => item.evidence.quote) ?? [])])];
     const renderCandidates = (kind: "entity" | "concept") => {
       if (!extraction) return "Not yet extracted.";

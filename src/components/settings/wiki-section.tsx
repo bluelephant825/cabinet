@@ -7,6 +7,7 @@ interface Status {
   enabled: boolean; cabinetName: string; running: boolean; busy: boolean; error: string | null; folders: string[]; wikiPath: string; selectedAgent?: string | null;
   agents?: { slug: string; name: string; provider: string; model: string | null; active?: boolean }[];
   provider: { available: boolean; message: string; provider: string; model?: string | null; hardened?: boolean };
+  agentModel?: string | null;
   jobs: { id: string; status: string; operation: string; sourceId: string | null; input?: { path: string } | null; error: string | null; updatedAt: string; agentWarnings?: string[] }[];
   sources: { id: string; title: string; path: string | null; rawPath: string; version: number | null; compiled: boolean; status: string; warnings?: { message: string }[] }[];
 }
@@ -66,6 +67,17 @@ export function WikiSection() {
   };
   const selectedFolders = folders.split("\n").map((item) => item.trim()).filter(Boolean);
   const agents = status?.agents ?? [];
+  const agentProvider = agents.find((agent) => agent.slug === status?.selectedAgent)?.provider ?? null;
+  const [agentModels, setAgentModels] = useState<{ provider: string; models: { id: string; name: string }[] } | null>(null);
+  useEffect(() => {
+    if (!agentProvider) { setAgentModels(null); return; }
+    const controller = new AbortController();
+    fetch(`/api/agents/providers/${encodeURIComponent(agentProvider)}/models`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : { models: [] }))
+      .then((data) => setAgentModels({ provider: agentProvider, models: Array.isArray(data.models) ? data.models : [] }))
+      .catch(() => setAgentModels({ provider: agentProvider, models: [] }));
+    return () => controller.abort();
+  }, [agentProvider]);
   const outdatedWikiService = !!status && !Array.isArray(status.agents);
   const registeredPaths = new Set(status?.sources.map((source) => source.path).filter((path): path is string => path !== null));
   const nonIngestedPaths = inventory?.notes.filter((note) => !registeredPaths.has(note.path)).map((note) => note.path) ?? [];
@@ -85,6 +97,11 @@ export function WikiSection() {
     {!status ? <p role="status" className="text-sm">Connecting to the Wiki service…</p> : !status.enabled ? <Button disabled={busy} onClick={() => void act({ action: "enable" })}>Enable LLM Wiki</Button> : <>
       <p className={status.provider.available && status.provider.hardened === false ? "text-xs text-amber-600 dark:text-amber-400" : "text-sm text-muted-foreground"}>{status.provider.message} Wiki pages are built by the selected agent with its normal tools inside this Cabinet&apos;s wiki folder.</p>
       <label className="flex items-center gap-2 text-sm">Wiki agent<select aria-label="Wiki agent" className="rounded-md border border-border bg-background p-2" value={status.selectedAgent ?? ""} disabled={busy || status.busy || !agents.length} onChange={(event) => void act({ action: "agent", agentSlug: event.target.value })}><option value="">Choose a Cabinet agent</option>{agents.map((agent) => <option key={agent.slug} value={agent.slug}>{agent.name} ({agent.provider}{agent.active === false ? ", inactive for team runs" : ""})</option>)}</select></label>
+      {status.selectedAgent && <label className="block text-sm">Page-building model (optional)
+        {agentModels && agentModels.provider === agentProvider && agentModels.models.length ? <select aria-label="Page-building model" className="mt-2 block rounded-md border border-border bg-background p-2" value={status.agentModel ?? ""} disabled={busy} onChange={(event) => void act({ action: "agent-model", model: event.target.value })}><option value="">Same as agent</option>{agentModels.models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select>
+        : <input aria-label="Page-building model" className="mt-2 block rounded-md border border-border bg-background p-2" placeholder="Same as agent" defaultValue={status.agentModel ?? ""} disabled={busy} onBlur={(event) => { if (event.target.value !== (status.agentModel ?? "")) void act({ action: "agent-model", model: event.target.value }); }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />}
+        <span className="mt-1 block text-xs text-muted-foreground">Stage 1 (checked summary) keeps the agent&apos;s model. A faster model here speeds up page building; effort tiers like flash-medium are usually enough.</span>
+      </label>}
       {outdatedWikiService ? <p role="alert" className="text-xs text-destructive">Restart Cabinet’s background service to load the Wiki agent selector. Your current Wiki status remains available.</p> : !agents.length && <p className="text-xs text-destructive">No Cabinet agents are available. Add an agent before building the Wiki.</p>}
       {!!agents.length && agents.some((agent) => agent.active === false) && <p className="text-xs text-muted-foreground">You can use an inactive team agent for the Wiki. This does not activate its team runs.</p>}
       {status.provider.model && <p className="text-xs text-muted-foreground">Model: {status.provider.model}</p>}

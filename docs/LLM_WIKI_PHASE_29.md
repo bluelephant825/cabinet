@@ -28,3 +28,11 @@ Source renames are a verified `delete` + `write` pair: the planner detects an ex
 ## Verification
 
 Unit: `test/wiki-agent.test.ts` (accept/repair/index/log, raw restore, out-of-scope report-only, executable content and protected-section reverts, timeout), `src/lib/llm-wiki/wiki-index.test.ts` (slugify, fallback, frontmatter, deterministic index), updated `queue.test.ts`, `compiler.test.ts` and `workflow.test.ts` (slugged paths, delete+write rename, auto-consolidate drain). E2E: the fake agent gains a stdin/argv `match` step; the tool-enabled pass writes `wiki/entities/test-entity.md` and the spec asserts it lands in `wiki/index.md` while every restricted inference call keeps its hardened flags.
+
+## Performance
+
+Measured on the live pilot, a healthy agent pass spent roughly 45 of ~70 model round-trips per source on ListDir/ViewFile/GrepSearch orientation, and stage 1 ran its two model calls sequentially (~3 min). Three changes cut that down:
+
+- **Context up front.** `WikiAgentRunner` embeds the files the task needs directly in the prompt under `=== ... ===` delimiters: ingest gets the source summary (24 KB cap), `wiki/index.md` (48 KB) and, unless batched, `wiki/concept-table.md`; consolidate gets index + table + a grouped page list; lint gets index + the page list; delete gets the index. The preamble also directs the agent to navigate by listing `wiki/` and reading `index.md` instead of recursive Cabinet-wide searches.
+- **Parallel stage 1.** `SourceSummaryPlanner.propose()` runs the checked `summarize` call and semantic-candidate extraction concurrently via `Promise.all`; each adapter invocation uses its own temp directory, so there is no shared per-run state.
+- **Separate stage-2 model.** `workflow.json` gains `agentModel` (action `agent-model`, empty clears it). When set, the agent pass uses it as `config.model` and drops the persona `effort` (Antigravity encodes effort tiers in the model slug). Settings UI exposes a "Page-building model (optional)" select populated from `GET /api/agents/providers/<id>/models` for the selected agent's provider, with a text-input fallback.

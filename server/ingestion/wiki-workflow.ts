@@ -24,7 +24,7 @@ import { providerRegistry } from "../../src/lib/agents/provider-registry";
 import { WIKI_COMPILATION_TIMEOUT_MS, WIKI_WORKER_LEASE_MS, WIKI_WORKER_HEARTBEAT_MS } from "../../src/lib/llm-wiki/execution-limits";
 
 const settingsPath = `${WIKI_STATE_PATH}/workflow.json`;
-interface Settings { folders: string[]; running: boolean; agentSlug?: string; provider?: string; model?: string }
+interface Settings { folders: string[]; running: boolean; agentSlug?: string; agentModel?: string; provider?: string; model?: string }
 interface CaptureRecord { predecessor: SourceVersionId | null; fingerprint: string; warnings: readonly unknown[]; versionId?: SourceVersionId }
 export class WikiWorkflow {
   private active: AbortController | null = null;
@@ -57,7 +57,7 @@ export class WikiWorkflow {
     }));
     return { enabled: cabinet?.config.enabled ?? false, cabinetName: path.basename(this.root), folders: settings.folders, running: settings.running,
       busy: !!this.active, error: this.error, provider, jobs,
-      agents, selectedAgent: settings.agentSlug ?? null, sources: await Promise.all(sources.map(async ({ source, versions }) => ({ id: source.id, title: source.title, path: source.mode === "managed" ? source.managedLocation.path : null,
+      agents, selectedAgent: settings.agentSlug ?? null, agentModel: settings.agentModel ?? null, sources: await Promise.all(sources.map(async ({ source, versions }) => ({ id: source.id, title: source.title, path: source.mode === "managed" ? source.managedLocation.path : null,
         rawPath: source.rawPath, version: versions.find((item) => item.id === source.currentVersionId)?.version ?? null,
         warnings: await this.sourceWarnings(source.id),
         compiled: !!source.currentVersionId && source.currentVersionId === source.lastCompiledVersionId && source.lifecycle?.reconciliation !== "pending", status: source.status }))),
@@ -88,6 +88,15 @@ export class WikiWorkflow {
       const selected = agents.find((persona) => persona.slug === input.agentSlug);
       if (!selected) throw new Error("Choose a Cabinet agent");
       await this.save({ ...settings, agentSlug: selected.slug, provider: undefined, model: undefined });
+      return this.status();
+    }
+    if (input.action === "agent-model") {
+      if (this.active) throw new Error("Pause the current run before changing the page-building model");
+      if (input.model !== undefined && (typeof input.model !== "string" || input.model.length > 120)) throw new Error("Invalid model");
+      const model = typeof input.model === "string" && input.model.trim() ? input.model.trim() : undefined;
+      const next = { ...settings, agentModel: model };
+      if (!model) delete next.agentModel;
+      await this.save(next);
       return this.status();
     }
     if (input.action === "provider") {

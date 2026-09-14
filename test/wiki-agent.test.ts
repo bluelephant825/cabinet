@@ -183,6 +183,38 @@ test("concept-table rows linked by wikilink or relative markdown link are not dr
   assert.ok(!result.warnings.some((warning) => warning.includes("Concept table")), result.warnings.join("; "));
 });
 
+test("the ingest prompt embeds the summary, index and concept table unless batched", async (t) => {
+  const f = await fixture(t);
+  await fs.writeFile(path.join(f.root, "wiki/index.md"), "# Index\n\n- sources/my-note.md\n");
+  let prompt = "";
+  const runner = new WikiAgentRunner(f.root, {
+    persona,
+    async execute(ctx) { prompt = ctx.prompt; return ok(); },
+  });
+  await runner.run(f.task, {}, "job-7", new AbortController().signal);
+  assert.match(prompt, /=== Source summary \(wiki\/sources\/my-note\.md\) ===\n[\s\S]*A checked statement \[E1\]/);
+  assert.match(prompt, /=== wiki\/index\.md ===\n/);
+  assert.match(prompt, /=== wiki\/concept-table\.md ===\n/);
+  assert.match(prompt, /do not re-read them/);
+  await runner.run({ ...f.task, batch: true }, {}, "job-8", new AbortController().signal);
+  assert.doesNotMatch(prompt, /=== wiki\/concept-table\.md ===/);
+});
+
+test("settings.agentModel overrides the persona model and drops persona effort", async (t) => {
+  const f = await fixture(t);
+  let config: Record<string, unknown> = {};
+  const runner = new WikiAgentRunner(f.root, {
+    persona: { slug: "wiki-stub", provider: "claude-code", model: "persona-model", effort: "high" } as unknown as AgentPersona,
+    async execute(ctx) { config = ctx.config as Record<string, unknown>; return ok(); },
+  });
+  await runner.run(f.task, {}, "job-9", new AbortController().signal);
+  assert.equal(config.model, "persona-model");
+  assert.equal(config.effort, "high");
+  await runner.run(f.task, { agentModel: "gemini-3.8-flash-medium" }, "job-10", new AbortController().signal);
+  assert.equal(config.model, "gemini-3.8-flash-medium");
+  assert.equal(config.effort, undefined);
+});
+
 test("the report drops tool transcript lines and keeps the final message", async (t) => {
   const f = await fixture(t);
   const runner = new WikiAgentRunner(f.root, {
