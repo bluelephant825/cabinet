@@ -2230,6 +2230,7 @@
     "nonEditable": "",
     "overflow": "",
     "pendingEdit": "",
+    "redoPending": "",
     "replaceImage": "",
     "save": "",
     "signedWarning": "",
@@ -2238,7 +2239,8 @@
     "toolImages": "",
     "toolInsertText": "",
     "toolSelect": "",
-    "typeHere": ""
+    "typeHere": "",
+    "undoPending": ""
   },
   "pdfConvert": {
     "button": "",

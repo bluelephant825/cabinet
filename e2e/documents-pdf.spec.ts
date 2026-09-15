@@ -112,6 +112,37 @@ test("pdf editor renders pages, edits a text line, saves and persists", async ({
   });
 });
 
+test("pending edits support undo/redo and clear history on save", async ({ page }) => {
+  const res = await putDocument("undo.pdf", await makePdf("Undo base line"));
+  expect(res.ok).toBe(true);
+
+  const frame = await openPdf(page, "undo.pdf");
+  await enableEditText(frame, page);
+  await clickFirstTextLine(frame, page);
+  const input = frame.locator(".pdf-textedit-input").first();
+  await expect(input).toBeVisible({ timeout: 10_000 });
+  await input.fill("Undo EDITED line");
+  await frame.locator(".pdf-frame-toolbar").click();
+  await expect(frame.locator(".pdf-textedit-preview")).toHaveCount(1);
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+  // Undo removes the pending edit and clears the host badge.
+  await frame.locator('[data-testid="pdf-tb-undo"]').click();
+  await expect(frame.locator(".pdf-textedit-preview")).toHaveCount(0);
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 10_000 });
+  await expect(frame.locator('[data-testid="pdf-tb-undo"]')).toBeDisabled();
+
+  // Redo restores it.
+  await frame.locator('[data-testid="pdf-tb-redo"]').click();
+  await expect(frame.locator(".pdf-textedit-preview")).toHaveCount(1);
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+  // Save bakes the edit — history is for unsaved edits only.
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 30_000 });
+  await expect(frame.locator('[data-testid="pdf-tb-undo"]')).toBeDisabled();
+});
+
 test("external edit while dirty shows a conflict banner without reloading", async ({
   page,
   request,

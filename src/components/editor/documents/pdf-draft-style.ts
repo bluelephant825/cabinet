@@ -59,6 +59,21 @@ export function hasStyleChanges(fields: EditStyleFields): boolean {
   return Object.values(fields).some((v) => v !== undefined);
 }
 
+/**
+ * Only the color changed — the engine repaints the matched objects in place,
+ * so the frame emits the minimal edit (unchanged text, no layout overrides)
+ * and the original embedded font survives.
+ */
+export function isColorOnlyEdit(fields: EditStyleFields): boolean {
+  return (
+    fields.newColor !== undefined &&
+    fields.newFontSize === undefined &&
+    fields.newFont === undefined &&
+    !fields.newBold &&
+    !fields.newItalic
+  );
+}
+
 /** Rebuild line leading scales with the size change; unchanged size keeps the block's. */
 export function scaledLineLeading(
   lineHeight: number,

@@ -2148,6 +2148,23 @@ async function applyTextEditsInner(
             applied++
             continue
           }
+          // Pure repaint: unchanged text plus a color override with no font/size/
+          // style mutation — recolor the matched objects in place so the original
+          // embedded font survives untouched (rebuildRun would re-resolve it)
+          if (
+            edit.newColor !== undefined &&
+            edit.newFontSize === undefined &&
+            edit.newFont === undefined &&
+            !edit.newBold &&
+            !edit.newItalic &&
+            !editStyleRuns(edit)?.length &&
+            norm(edit.oldText) === norm(edit.newText)
+          ) {
+            const [r, g, b] = edit.newColor
+            for (const t of matches) m._FPDFPageObj_SetFillColor(t.obj, r, g, b, 255)
+            applied++
+            continue
+          }
           // A fragment match rewrites its whole container run; the paragraph position
           // overrides would drag the container's surrounding text to the block corner
           const eff = whole

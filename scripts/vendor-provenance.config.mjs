@@ -31,6 +31,8 @@ export const VENDORS = {
         'dropped @genoffice/i18n + @genoffice/ai-provider type imports and the shell-facing AI_CHANNELS/ImageSearchResponse/PdfApi tail; document-domain types unchanged',
       'apps/pdf/main/font-locate.ts':
         'workspace import @genoffice/font-metrics rewritten to a relative path',
+      'apps/pdf/main/text-edit.ts':
+        'color-only edits with unchanged text set the fill color in place instead of rebuilding the run (keeps the original font)',
       'apps/pdf/main/image-edit.ts':
         "electron nativeImage import replaced with the host codec adapter '../../../host/image-codec'",
       'apps/pdf/main/wasm-path.ts':

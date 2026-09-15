@@ -11,6 +11,7 @@
  * save as one atomic `patch` op — PDFium never runs in the browser.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Redo2, Undo2 } from "lucide-react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 
@@ -30,6 +31,7 @@ import {
   defaultInsertFont,
   draftStyleToEditFields,
   hasStyleChanges,
+  isColorOnlyEdit,
   resolveInsertFont,
   rgbCss,
   scaledLineLeading,
@@ -110,6 +112,14 @@ interface InsertDraft {
   rotate: number;
   value: string;
   style: DraftStyle;
+}
+
+/** Undo/redo history covers the pending-edit collections only — saved edits
+    are baked into the file and not undoable. */
+interface EditSnapshot {
+  textEdits: LocalTextEdit[];
+  textInserts: LocalTextInsert[];
+  imageEdits: LocalImageEdit[];
 }
 
 interface PendingImage {
@@ -257,6 +267,73 @@ export default function PdfEditorFrame() {
     s.draftTimer = setTimeout(() => void pushDraftRef.current(), 5000);
   }, [sendState]);
 
+  // ── pending-edit history (undo/redo; unsaved edits only) ────────────────
+
+  const historyRef = useRef<{ past: EditSnapshot[]; future: EditSnapshot[] }>({
+    past: [],
+    future: [],
+  });
+  const [historyDepth, setHistoryDepth] = useState({ past: 0, future: 0 });
+
+  const snapshotEdits = (): EditSnapshot => {
+    const e = editsRef.current;
+    return {
+      textEdits: e.textEdits.map((x) => ({ ...x })),
+      textInserts: e.textInserts.map((x) => ({ ...x })),
+      imageEdits: e.imageEdits.map((x) => ({ ...x })),
+    };
+  };
+
+  /** Call before every mutation of the pending-edit collections. */
+  const pushHistory = useCallback(() => {
+    const h = historyRef.current;
+    h.past.push(snapshotEdits());
+    if (h.past.length > 100) h.past.shift();
+    h.future = [];
+    setHistoryDepth({ past: h.past.length, future: 0 });
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    historyRef.current = { past: [], future: [] };
+    setHistoryDepth({ past: 0, future: 0 });
+  }, []);
+
+  const undo = useCallback(() => {
+    const h = historyRef.current;
+    const snap = h.past.pop();
+    if (!snap) return;
+    h.future.push(snapshotEdits());
+    setTextEdits(snap.textEdits);
+    setTextInserts(snap.textInserts);
+    setImageEdits(snap.imageEdits);
+    setHistoryDepth({ past: h.past.length, future: h.future.length });
+    if (snap.textEdits.length + snap.textInserts.length + snap.imageEdits.length > 0) {
+      markDirty();
+    } else {
+      st.current.dirty = false;
+      st.current.dirtyGeneration++;
+      sendState();
+    }
+  }, [markDirty, sendState]);
+
+  const redo = useCallback(() => {
+    const h = historyRef.current;
+    const snap = h.future.pop();
+    if (!snap) return;
+    h.past.push(snapshotEdits());
+    setTextEdits(snap.textEdits);
+    setTextInserts(snap.textInserts);
+    setImageEdits(snap.imageEdits);
+    setHistoryDepth({ past: h.past.length, future: h.future.length });
+    if (snap.textEdits.length + snap.textInserts.length + snap.imageEdits.length > 0) {
+      markDirty();
+    } else {
+      st.current.dirty = false;
+      st.current.dirtyGeneration++;
+      sendState();
+    }
+  }, [markDirty, sendState]);
+
   // ── geometry-derived per-page state ──────────────────────────────────────
 
   const pageGeom = useCallback(
@@ -346,7 +423,8 @@ export default function PdfEditorFrame() {
     setDraft(null);
     setInsertDraft(null);
     setSelImage(null);
-  }, []);
+    clearHistory();
+  }, [clearHistory]);
 
   const pendingOps = useCallback((): DocumentPatchOp[] => {
     const e = editsRef.current;
@@ -413,6 +491,8 @@ export default function PdfEditorFrame() {
         setTextEdits((prev) => prev.filter((e) => !sentText.has(e.id)));
         setTextInserts((prev) => prev.filter((e) => !sentInserts.has(e.id)));
         setImageEdits((prev) => prev.filter((e) => !sentImages.has(e.id)));
+        // Saved edits are baked into the file — history is for unsaved edits.
+        clearHistory();
         if (s.dirtyGeneration === generation) {
           s.dirty = false;
           setConflict(null);
@@ -456,7 +536,7 @@ export default function PdfEditorFrame() {
         }
       }
     },
-    [handleIncomingRevision, loadDocument, pendingOps, sendState],
+    [clearHistory, handleIncomingRevision, loadDocument, pendingOps, sendState],
   );
 
   const pushDraft = useCallback(async () => {
@@ -482,9 +562,15 @@ export default function PdfEditorFrame() {
   const doSaveRef = useRef(doSave);
   const pushDraftRef = useRef(pushDraft);
   const markDirtyRef = useRef(markDirty);
+  const pushHistoryRef = useRef(pushHistory);
+  const undoRef = useRef(undo);
+  const redoRef = useRef(redo);
   doSaveRef.current = doSave;
   pushDraftRef.current = pushDraft;
   markDirtyRef.current = markDirty;
+  pushHistoryRef.current = pushHistory;
+  undoRef.current = undo;
+  redoRef.current = redo;
 
   // ── edit interactions ───────────────────────────────────────────────────
 
@@ -544,15 +630,39 @@ export default function PdfEditorFrame() {
     // Blur can fire before React flushes the last onChange — trust the DOM.
     const value = domValue ?? d.value;
     const styleFields = draftStyleToEditFields(d.style, d.fontSize);
-    if (
-      (value.trim() === d.oldText.trim() || value === d.oldText) &&
-      !hasStyleChanges(styleFields)
-    ) {
-      setDraft(null);
-      return;
+    if (value.trim() === d.oldText.trim() || value === d.oldText) {
+      if (!hasStyleChanges(styleFields)) {
+        setDraft(null);
+        return;
+      }
+      if (isColorOnlyEdit(styleFields)) {
+        // Unchanged text + color only: emit the minimal edit — same text, no
+        // layout overrides — so the engine repaints the matched runs in place
+        // and the original embedded font survives.
+        pushHistory();
+        setTextEdits((prev) => [
+          ...prev.filter((e) => e.id !== d.editId),
+          {
+            id: d.editId ?? newId(),
+            input: {
+              pageIndex: d.pageIndex,
+              rect: d.rect,
+              oldText: d.oldText,
+              newText: d.oldText,
+              fontSize: d.fontSize,
+              newColor: styleFields.newColor,
+              blockSource: value,
+            },
+          },
+        ]);
+        setDraft(null);
+        markDirty();
+        return;
+      }
     }
     if (value.trim() === "") {
       // Empty = delete the block's runs.
+      pushHistory();
       setTextEdits((prev) => [
         ...prev.filter((e) => e.id !== d.editId),
         {
@@ -610,6 +720,7 @@ export default function PdfEditorFrame() {
       align: d.block.align !== "left" ? d.block.align : undefined,
       blockSource: value,
     };
+    pushHistory();
     setTextEdits((prev) => {
       const next = prev.filter((e) => e.id !== d.editId);
       return [...next, { id: d.editId ?? newId(), input }];
@@ -617,7 +728,7 @@ export default function PdfEditorFrame() {
     setDraft(null);
     markDirty();
     void s;
-  }, [draft, markDirty, pageBlocks, t]);
+  }, [draft, markDirty, pageBlocks, pushHistory, t]);
 
   const commitInsert = useCallback((domValue?: string) => {
     const d = insertDraft;
@@ -640,9 +751,10 @@ export default function PdfEditorFrame() {
       lineLeading: d.style.fontSize * 1.2,
       rotate: d.rotate,
     };
+    pushHistory();
     setTextInserts((prev) => [...prev, { id: newId(), input }]);
     markDirty();
-  }, [editFonts, insertDraft, markDirty]);
+  }, [editFonts, insertDraft, markDirty, pushHistory]);
 
   const onPageMouseMove = useCallback(
     (pageIndex: number, e: React.MouseEvent<HTMLElement>) => {
@@ -694,6 +806,7 @@ export default function PdfEditorFrame() {
           layer: "aboveText",
           rotate: ((geom.rot % 360) + 360) % 360,
         };
+        pushHistory();
         setImageEdits((prev) => [...prev, { id: newId(), input: input as LocalImageEdit["input"] }]);
         setPendingImage(null);
         markDirty();
@@ -722,7 +835,7 @@ export default function PdfEditorFrame() {
         );
       }
     },
-    [blockAt, blockEditable, draft, insertDraft, markDirty, openBlockDraft, pageCrop, pageGeom, pagePointToPdf, pendingImage, t, textEdits, tool],
+    [blockAt, blockEditable, draft, insertDraft, markDirty, openBlockDraft, pageCrop, pageGeom, pagePointToPdf, pendingImage, pushHistory, t, textEdits, tool],
   );
 
   // ── image ops ───────────────────────────────────────────────────────────
@@ -752,6 +865,7 @@ export default function PdfEditorFrame() {
 
   const onExistingRect = useCallback(
     (ref: PageImageRef, rect: Rect4) => {
+      pushHistory();
       setImageEdits((prev) => {
         const rest = prev.filter(
           (e) => !(e.input.pageIndex === ref.pageIndex && rectKey(oldRectOf(e.input) ?? []) === rectKey(ref.rect)),
@@ -772,11 +886,12 @@ export default function PdfEditorFrame() {
       setSelImage({ pageIndex: ref.pageIndex, rect });
       markDirty();
     },
-    [markDirty],
+    [markDirty, pushHistory],
   );
 
   const onPendingImageRect = useCallback(
     (id: string, rect: Rect4) => {
+      pushHistory();
       setImageEdits((prev) =>
         prev.map((e) =>
           e.id === id && "rect" in e.input ? { ...e, input: { ...e.input, rect } } : e,
@@ -784,7 +899,7 @@ export default function PdfEditorFrame() {
       );
       markDirty();
     },
-    [markDirty],
+    [markDirty, pushHistory],
   );
 
   const deleteImage = useCallback(() => {
@@ -795,6 +910,7 @@ export default function PdfEditorFrame() {
         e.input.pageIndex === sel.pageIndex &&
         rectKey(oldRectOf(e.input) ?? []) === rectKey(sel.rect),
     );
+    pushHistory();
     if (pending && pending.input.kind === "transformImage") {
       // Fold move/resize into the delete — only the delete reaches the file.
       setImageEdits((prev) => [
@@ -812,7 +928,7 @@ export default function PdfEditorFrame() {
     }
     setSelImage(null);
     markDirty();
-  }, [imageEdits, markDirty, selImage]);
+  }, [imageEdits, markDirty, pushHistory, selImage]);
 
   const onReplacePicked = useCallback(
     async (file: File | undefined) => {
@@ -831,6 +947,7 @@ export default function PdfEditorFrame() {
               rectKey(oldRectOf(e.input) ?? []) === rectKey(sel.rect),
           )?.input ?? { kind: "deleteImage", pageIndex: 0, oldRect: sel.rect },
         ) ?? sel.rect;
+      pushHistory();
       setImageEdits((prev) => [
         ...prev.filter(
           (e) =>
@@ -850,7 +967,7 @@ export default function PdfEditorFrame() {
       setSelImage(null);
       markDirty();
     },
-    [imageEdits, markDirty, readImageFile, selImage, t],
+    [imageEdits, markDirty, pushHistory, readImageFile, selImage, t],
   );
 
   // ── bridge ──────────────────────────────────────────────────────────────
@@ -922,6 +1039,7 @@ export default function PdfEditorFrame() {
     if (navigator.webdriver) {
       (window as unknown as { __cabinetPdf?: unknown }).__cabinetPdf = {
         injectEdit: (input: PdfTextEdit) => {
+          pushHistoryRef.current();
           setTextEdits((prev) => [...prev, { id: newId(), input }]);
           markDirtyRef.current();
         },
@@ -932,6 +1050,16 @@ export default function PdfEditorFrame() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         void doSaveRef.current("manual");
+        return;
+      }
+      // Cmd/Ctrl+Z / Cmd+Shift+Z — pending-edit undo/redo. Drafts keep their
+      // native textarea/input undo.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        const el = e.target;
+        if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) return;
+        e.preventDefault();
+        if (e.shiftKey) redoRef.current();
+        else undoRef.current();
       }
     };
     const unloadHandler = (e: BeforeUnloadEvent) => {
@@ -949,8 +1077,11 @@ export default function PdfEditorFrame() {
   // Dirty mirrors the pending-edit state: removing the last pending edit (e.g.
   // by clicking its preview away) leaves nothing to save.
   useEffect(() => {
-    if (!dirtyEdits) st.current.dirty = false;
-  }, [dirtyEdits]);
+    if (!dirtyEdits && st.current.dirty) {
+      st.current.dirty = false;
+      sendState();
+    }
+  }, [dirtyEdits, sendState]);
 
   // ── render ──────────────────────────────────────────────────────────────
 
@@ -1034,6 +1165,26 @@ export default function PdfEditorFrame() {
             disabled={ro}
           >
             {t("pdfEditor:insertImage")}
+          </button>
+          <button
+            type="button"
+            data-testid="pdf-tb-undo"
+            title={t("pdfEditor:undoPending")}
+            aria-label={t("pdfEditor:undoPending")}
+            onClick={undo}
+            disabled={ro || historyDepth.past === 0}
+          >
+            <Undo2 size={14} />
+          </button>
+          <button
+            type="button"
+            data-testid="pdf-tb-redo"
+            title={t("pdfEditor:redoPending")}
+            aria-label={t("pdfEditor:redoPending")}
+            onClick={redo}
+            disabled={ro || historyDepth.future === 0}
+          >
+            <Redo2 size={14} />
           </button>
         </div>
         <div className="pdf-frame-zoom">
@@ -1151,6 +1302,7 @@ export default function PdfEditorFrame() {
                               te.input,
                             );
                           } else {
+                            pushHistory();
                             setTextEdits((prev) => prev.filter((x) => x.id !== te.id));
                           }
                         }}
@@ -1178,6 +1330,7 @@ export default function PdfEditorFrame() {
                     title={t("pdfEditor:pendingEdit")}
                     onClick={(e) => {
                       e.stopPropagation();
+                      pushHistory();
                       setTextInserts((prev) => prev.filter((x) => x.id !== ti.id));
                     }}
                   >

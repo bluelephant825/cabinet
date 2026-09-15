@@ -2263,6 +2263,7 @@
     "nonEditable": "This text cannot be edited",
     "overflow": "The edited text does not fit inside its original block.",
     "pendingEdit": "Pending edit — click to remove",
+    "redoPending": "Redo pending edit",
     "replaceImage": "Replace…",
     "save": "Save",
     "signedWarning": "Saving will invalidate the document’s digital signature",
@@ -2271,7 +2272,8 @@
     "toolImages": "Images",
     "toolInsertText": "Insert text",
     "toolSelect": "Select",
-    "typeHere": "Type here…"
+    "typeHere": "Type here…",
+    "undoPending": "Undo pending edit"
   },
   "pdfConvert": {
     "button": "Convert to Word",
