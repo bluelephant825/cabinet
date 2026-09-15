@@ -39,6 +39,7 @@ import {
   DEFAULT_INSERT_STYLE,
   type DraftStyle,
 } from "./pdf-draft-style";
+import { draftMeasureFont, widthCalibration } from "./pdf-reflow-metrics";
 import { useLocale } from "@/i18n/use-locale";
 
 import { PdfPage } from "../../../vendor/genoffice/apps/pdf/renderer/PdfPage";
@@ -104,6 +105,9 @@ interface BlockDraft {
     lineHeight: number;
     align: "left" | "center" | "right";
     bottomPt: number;
+    /** Original lines' true PDF widths — calibrates measurement when the
+        draft is measured in a font other than the block's real font. */
+    lines: { text: string; widthPt: number; fontSize: number }[];
   };
 }
 
@@ -621,6 +625,11 @@ export default function PdfEditorFrame() {
           lineHeight: block.lineHeight,
           align: block.align,
           bottomPt: block.rect[1],
+          lines: block.lines.map((l) => ({
+            text: l.text,
+            widthPt: l.rect[2] - l.rect[0],
+            fontSize: l.fontSize,
+          })),
         },
       });
     },
@@ -686,14 +695,24 @@ export default function PdfEditorFrame() {
       markDirty();
       return;
     }
-    const css = getComputedStyle(document.body).fontFamily;
+    // Measure in the font the engine will actually embed; keep-original edits
+    // are measured in the UI font then calibrated back onto the block's true
+    // line widths. A chosen installed family the browser can't render falls
+    // back to sans-serif — acceptable estimate.
+    const mf = draftMeasureFont(d.style, getComputedStyle(document.body).fontFamily);
+    const factor = mf.exact
+      ? 1
+      : // The block's original lines are regular-weight — calibrate them as
+        // such so a bold/italic toggle still widens the estimate.
+        widthCalibration(d.block.lines, (tx, sz) => measurePt(tx, sz, mf.cssFamily));
     // Reflow and overflow checks must use the *new* size or a grown block
     // would overflow silently at save time.
     const effSize = d.style.fontSize;
     const lineLeading = scaledLineLeading(d.block.lineHeight, d.fontSize, effSize);
     const wrapped = value
       .split("\n")
-      .flatMap((p) => (p.trim() ? wrapText(p, d.block.widthPt, effSize, css) : []));
+      .flatMap((p) =>
+        p.trim() ? wrapText(p, d.block.widthPt / factor, effSize, mf.cssFamily, mf.cssStyle) : []);
     const overflowed = reflowOverflows(
       d.block,
       wrapped.length,
@@ -710,7 +729,8 @@ export default function PdfEditorFrame() {
       d.block.align === "left"
         ? undefined
         : wrapped.map((l) => {
-            const slack = d.block.widthPt - measurePt(l, effSize, css);
+            const slack =
+              d.block.widthPt - measurePt(l, effSize, mf.cssFamily, mf.cssStyle) * factor;
             return Math.max(0, d.block.align === "center" ? slack / 2 : slack);
           });
     const input: PdfTextEdit = {
