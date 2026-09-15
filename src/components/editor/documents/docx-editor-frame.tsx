@@ -23,6 +23,14 @@ import {
 import { setModuleLang } from "../../../vendor/genoffice/apps/docs/src/renderer/i18n/locale";
 import { strings as editorStrings } from "../../../vendor/genoffice/apps/docs/src/renderer/i18n/strings";
 import { setDocFontTable } from "../../../vendor/genoffice/apps/docs/src/renderer/line-metrics";
+import { DocxToolbar } from "./docx-toolbar";
+import {
+  makePendingNumberingDef,
+  nextNumId,
+  readFormatState,
+  type DocxFormatState,
+  type ListKind,
+} from "./docx-toolbar-commands";
 import { useLocale } from "@/i18n/use-locale";
 import "../../../vendor/genoffice/apps/docs/src/renderer/styles.css";
 import "../../../app/document-editor/document-editor.css";
@@ -83,6 +91,9 @@ export default function DocxEditorFrame() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorText, setErrorText] = useState<string | null>(null);
   const [conflict, setConflict] = useState<{ currentRevision?: string } | null>(null);
+  const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
+  const [formatState, setFormatState] = useState<DocxFormatState | null>(null);
+  const [uiState, setUiState] = useState({ dirty: false, saving: false, readOnly: false });
 
   // Mutable editor state, kept in a ref so bridge handlers never go stale.
   const st = useRef({
@@ -99,6 +110,11 @@ export default function DocxEditorFrame() {
     autosaveTimer: null as ReturnType<typeof setTimeout> | null,
     draftTimer: null as ReturnType<typeof setTimeout> | null,
     disposed: false,
+    /** numId keys of the last loaded model (numbering.xml). */
+    numberingKeys: [] as string[],
+    /** Brand-new list definitions not yet written to numbering.xml. */
+    pendingNumbering: { newDefs: [] as { numId: string; kind: ListKind }[] },
+    numIdFloor: 0,
   });
 
   const sendState = useCallback((extra?: Record<string, unknown>) => {
@@ -108,6 +124,7 @@ export default function DocxEditorFrame() {
       saving: s.saving,
       ...extra,
     });
+    setUiState({ dirty: s.dirty, saving: s.saving, readOnly: s.readOnly });
   }, []);
 
   const markDirty = useCallback(() => {
@@ -129,6 +146,11 @@ export default function DocxEditorFrame() {
       sessionId: init.sessionId,
     });
     s.blocks = model.blocks;
+    // A reload re-parses numbering.xml — pending definitions are either saved
+    // (and now part of the model) or discarded with the doc state.
+    s.numberingKeys = model.numbering.map(([numId]) => numId);
+    s.pendingNumbering.newDefs = [];
+    s.numIdFloor = 0;
     // fontTable/docDefaults must be in place before setContent — marks bake
     // fontTable-driven factors and numbering defaults into the DOM (mirrors
     // upstream file-actions.ts open path).
@@ -160,9 +182,18 @@ export default function DocxEditorFrame() {
     };
     s.editor?.destroy();
     s.editor = editor;
+    setEditorInstance(editor);
     editor.on("update", () => {
       if (!s.disposed) markDirty();
     });
+    editor.on("transaction", () => {
+      if (s.disposed) return;
+      setFormatState((prev) => {
+        const next = readFormatState(editor);
+        return prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+      });
+    });
+    setFormatState(readFormatState(editor));
     // First heading → title hint for the host chrome.
     const firstHeading = (model.blocks as { type?: string; runs?: { text?: string }[] }[]).find(
       (b) => b.type === "heading",
@@ -170,6 +201,29 @@ export default function DocxEditorFrame() {
     const titleText = (firstHeading?.runs ?? []).map((r) => r.text ?? "").join("").trim();
     if (titleText) s.bridge?.send("title", { text: titleText });
   }, [markDirty]);
+
+  /**
+   * Allocate a brand-new numbering id for a first-of-kind list (upstream
+   * createNumberingDef): queued into pendingNumbering for the next save and
+   * overlaid into listNumbering storage so markers render immediately.
+   */
+  const allocateNumId = useCallback((kind: ListKind): string | null => {
+    const s = st.current;
+    const editor = s.editor;
+    if (!editor) return null;
+    const numId = nextNumId(
+      s.numberingKeys,
+      s.pendingNumbering.newDefs.map((d) => d.numId),
+      s.numIdFloor,
+    );
+    s.numIdFloor = parseInt(numId, 10) || s.numIdFloor;
+    s.pendingNumbering.newDefs.push({ numId, kind });
+    const store = editor.storage.listNumbering as {
+      defs: Map<string, unknown>;
+    };
+    store.defs = new Map(store.defs).set(numId, makePendingNumberingDef(numId, kind));
+    return numId;
+  }, []);
 
   const doSave = useCallback(
     async (reason: "manual" | "autosave" | "flush"): Promise<void> => {
@@ -183,6 +237,11 @@ export default function DocxEditorFrame() {
           s.editor.getJSON() as unknown as PmNode,
           s.blocks as never,
         ) as unknown as { saveBlocks: unknown[]; chartPatches?: unknown[]; changedCount: number };
+        // Snapshot pending list definitions: the worker appends them to
+        // numbering.xml via SaveOptions.numbering. On success only these are
+        // retired — defs allocated during the in-flight save stay pending.
+        const sentDefs = s.pendingNumbering.newDefs.map((d) => ({ ...d }));
+        const sentIds = new Set(sentDefs.map((d) => d.numId));
         const body: { sessionId: string; baseRevision: string; plan: DocxSavePlan } = {
           sessionId: s.init!.sessionId,
           baseRevision: s.revision,
@@ -191,10 +250,16 @@ export default function DocxEditorFrame() {
             ...(plan.chartPatches?.length
               ? { chartPatches: plan.chartPatches as DocxSavePlan["chartPatches"] }
               : {}),
+            ...(sentDefs.length
+              ? { options: { numbering: { newDefs: sentDefs } } }
+              : {}),
           },
         };
         const res = await apiPost<{ revision: string }>("docx/save", body);
         s.revision = res.revision;
+        s.pendingNumbering.newDefs = s.pendingNumbering.newDefs.filter(
+          (d) => !sentIds.has(d.numId),
+        );
         s.savedGeneration = Math.max(s.savedGeneration, generation);
         if (s.dirtyGeneration === generation) {
           s.dirty = false;
@@ -378,6 +443,17 @@ export default function DocxEditorFrame() {
       )}
       {status === "error" && (
         <div className="doc-editor-frame-status">{errorText ?? t("docxEditor:loadFailed")}</div>
+      )}
+      {status === "ready" && (
+        <DocxToolbar
+          editor={editorInstance}
+          readOnly={uiState.readOnly}
+          formatState={formatState}
+          onSave={() => void doSaveRef.current("manual")}
+          dirty={uiState.dirty}
+          saving={uiState.saving}
+          allocateNumId={allocateNumId}
+        />
       )}
       <div ref={scrollRef} className="doc-editor-scroll" />
     </div>

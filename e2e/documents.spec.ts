@@ -89,6 +89,35 @@ test("docx editor opens, edits, saves and persists across reload", async ({ page
   });
 });
 
+test("docx toolbar formats text and lists; save persists across reload", async ({ page }) => {
+  // Fixture has no lists — the bullet toggle exercises the pending
+  // numbering.xml newDefs path end to end.
+  const res = await putDocument("toolbar.docx", await makeDocx("Toolbar target"));
+  expect(res.ok).toBe(true);
+
+  const frame = await openDocx(page, "toolbar.docx");
+  const editor = frame.locator(".ProseMirror").first();
+  await expect(frame.locator('[data-testid="docx-toolbar"]')).toBeVisible();
+
+  // Select the paragraph text, bold it, then bullet it.
+  await editor.locator("p").first().click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
+  await frame.locator('[data-testid="docx-tb-bold"]').click();
+  await expect(editor.locator("strong").first()).toBeVisible();
+
+  await frame.locator('[data-testid="docx-tb-bullets"]').click();
+  await expect(editor.locator(".doc-li").first()).toBeVisible();
+
+  await frame.locator('[data-testid="docx-tb-save"]').click();
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 15_000 });
+
+  // Bold + list survive the saveDocx round-trip (numbering.xml included).
+  const frame2 = await openDocx(page, "toolbar.docx");
+  const editor2 = frame2.locator(".ProseMirror").first();
+  await expect(editor2.locator("strong").first()).toBeVisible({ timeout: 30_000 });
+  await expect(editor2.locator(".doc-li").first()).toBeVisible();
+});
+
 test("external edit while dirty shows a conflict banner without reloading", async ({
   page,
   request,

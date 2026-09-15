@@ -9,10 +9,123 @@ body {
   background: var(--surface, #f3f4f6);
 }
 
-.doc-editor-scroll {
+.doc-editor-frame {
+  display: flex;
+  flex-direction: column;
   height: 100vh;
+}
+
+.doc-editor-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 24px 0 120px;
+}
+
+/* ── DOCX editor frame toolbar ─────────────────────────────────────────── */
+
+.doc-frame-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px 10px;
+  background: var(--surface, #f3f4f6);
+  border-bottom: 1px solid var(--border-strong, #e1e4e8);
+  font: 12px/1.4 system-ui, sans-serif;
+  color: var(--text, #1f2937);
+}
+
+.doc-frame-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.doc-frame-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border-strong, #e1e4e8);
+}
+
+.doc-frame-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  padding: 3px 6px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text, #1f2937);
+  cursor: pointer;
+}
+
+.doc-frame-btn:hover:not(:disabled) {
+  background: var(--hover, rgba(0, 0, 0, 0.06));
+}
+
+.doc-frame-btn.active {
+  background: var(--accent-soft, #fbeae5);
+  border-color: var(--accent, #c43e1c);
+}
+
+.doc-frame-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.doc-frame-select {
+  font: inherit;
+  max-width: 150px;
+  padding: 2px 4px;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong, #e1e4e8);
+  background: var(--surface-subtle, #fff);
+  color: var(--text, #1f2937);
+}
+
+.doc-frame-select-narrow {
+  max-width: 70px;
+}
+
+.doc-frame-select:disabled {
+  opacity: 0.4;
+}
+
+.doc-frame-color {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-strong, #e1e4e8);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.doc-frame-color:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.doc-frame-save {
+  margin-left: auto;
+}
+
+.doc-frame-save-btn {
+  border-color: var(--border-strong, #e1e4e8);
+  background: var(--surface-subtle, #fff);
+}
+
+.doc-frame-dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #c43e1c);
 }
 
 .doc-editor-frame-status {
@@ -51,7 +164,7 @@ body {
   padding: 4px 10px;
   border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.15);
-  background: var(--surface-2, #fff);
+  background: var(--surface-subtle, #fff);
   color: var(--text, #1f2937);
   cursor: pointer;
 }
@@ -87,7 +200,7 @@ body {
   padding: 3px 10px;
   border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.15);
-  background: var(--surface-2, #fff);
+  background: var(--surface-subtle, #fff);
   color: var(--text, #1f2937);
   cursor: pointer;
 }
@@ -144,7 +257,7 @@ body {
   display: flex;
   gap: 4px;
   padding: 3px;
-  background: var(--surface-2, #fff);
+  background: var(--surface-subtle, #fff);
   border: 1px solid var(--border-strong, #e1e4e8);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
