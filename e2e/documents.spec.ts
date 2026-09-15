@@ -108,6 +108,13 @@ test("docx toolbar formats text and lists; save persists across reload", async (
   await frame.locator('[data-testid="docx-tb-bullets"]').click();
   await expect(editor.locator(".doc-li").first()).toBeVisible();
 
+  // The font select lists the curated entries plus the daemon's installed
+  // families in an "Installed fonts" group.
+  const fontSelect = frame.locator('[data-testid="docx-tb-font"]');
+  const installedGroup = fontSelect.locator('optgroup[label="Installed fonts"]');
+  await expect(installedGroup).toBeAttached();
+  expect(await installedGroup.locator("option").count()).toBeGreaterThan(0);
+
   await frame.locator('[data-testid="docx-tb-save"]').click();
   await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 15_000 });
 

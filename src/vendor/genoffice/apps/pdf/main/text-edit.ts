@@ -295,6 +295,15 @@ function loadEditFont(id: string, style: EditFontStyle = 'regular'): Buffer | nu
         /* try next */
       }
     }
+    // Adapted: ids may also be installed family names — resolve through the
+    // system index the way keep-original rebuilds do; faceBytes() extracts a
+    // single face out of .ttc members, so the subsetter always sees a
+    // standalone sfnt. The style word on the query picks the variant face.
+    if (!cached && !(id in EDIT_FONT_PATHS)) {
+      cached =
+        findSystemFont(style === 'regular' ? id : `${id}-${style}`, id) ??
+        findSystemFont(id, id)
+    }
     editFontCache.set(key, cached)
   }
   return cached
@@ -957,7 +966,15 @@ async function rebuildFontBytes(
     // Style variant first, base face as the degrade (never fail the edit over style)
     for (const s of style === 'regular' ? (['regular'] as const) : ([style, 'regular'] as const)) {
       const chosen = loadEditFont(edit.newFont, s)
-      if (chosen && fontCoversText(chosen, drawn)) return subsetTtf(chosen, drawn)
+      if (chosen && fontCoversText(chosen, drawn)) {
+        // Family-name choices can resolve to CFF faces — same charset rewrite
+        // the system-face path applies
+        try {
+          return identityCffCharset(await subsetTtf(chosen, drawn))
+        } catch {
+          /* charset not rewritable: try the degrade style or fall through */
+        }
+      }
     }
   } else if (font) {
     if (style !== 'regular') {

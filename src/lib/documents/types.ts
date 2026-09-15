@@ -122,8 +122,16 @@ export interface PdfGeometryResult {
   encrypted: boolean;
   /** True when a /Sig signature field was found — saving invalidates it. */
   signed: boolean;
-  /** EDIT_FONTS ids whose files are usable on this machine (worker-reported). */
-  editFonts: string[];
+}
+
+/** Installed-font inventory reported by the worker `listFonts` op. */
+export interface FontListResult {
+  /** Every distinct installed family name, sorted — usable by the DOCX engine. */
+  docxFamilies: string[];
+  /** Families with at least one embeddable face (glyf/CFF, no color tables). */
+  pdfFamilies: string[];
+  /** Curated EDIT_FONTS ids whose files are usable on this machine. */
+  editFontIds: string[];
 }
 
 export interface PdfGeometryRequest {

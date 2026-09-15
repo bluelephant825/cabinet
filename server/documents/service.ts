@@ -47,6 +47,7 @@ import { selectOcrProvider } from "./ocr/registry";
 import type {
   ConvertPlanResult,
   ConvertRequest,
+  FontListResult,
   ConvertTarget,
   InspectResult,
   JobInfo,
@@ -240,6 +241,11 @@ export class DocumentService {
     return this.broker.withPathLock(t.absPath, () =>
       this.broker.run("pdfPageGeometry", { inputPath: t.absPath, pages: input.pages }),
     ) as Promise<PdfGeometryResult>;
+  }
+
+  /** Installed-font inventory for the editor font pickers — sessionless. */
+  async listFonts(): Promise<FontListResult> {
+    return this.broker.run("listFonts", {}) as Promise<FontListResult>;
   }
 
   async search(input: {

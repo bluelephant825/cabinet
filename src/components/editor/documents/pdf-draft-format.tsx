@@ -15,8 +15,10 @@ import {
 interface Props {
   style: DraftStyle;
   onStyle: (patch: Partial<DraftStyle>) => void;
-  /** EDIT_FONTS ids usable on this machine (from the geometry result). */
+  /** EDIT_FONTS ids usable on this machine (from the fonts/list op). */
   editFonts: readonly string[];
+  /** Installed family names the PDF engine can embed (fonts/list op). */
+  installedFonts?: readonly string[];
   /** Insert drafts have no "keep original" — color/font are always explicit. */
   isInsert: boolean;
   /** Render under the textarea instead of above it (block at the page top). */
@@ -29,6 +31,7 @@ export function PdfDraftFormatBar({
   style,
   onStyle,
   editFonts,
+  installedFonts = [],
   isInsert,
   below,
   onDone,
@@ -36,7 +39,10 @@ export function PdfDraftFormatBar({
 }: Props) {
   const { t } = useLocale();
   const fonts = EDIT_FONTS.filter((f) => editFonts.includes(f.id));
-  const fontValue = style.font ?? (isInsert ? defaultInsertFont(editFonts) : null) ?? "";
+  const fontValue =
+    style.font ??
+    (isInsert ? defaultInsertFont([...editFonts, ...installedFonts]) : null) ??
+    "";
   return (
     <div
       className={`pdf-draft-format${below ? " pdf-draft-format-below" : ""}`}
@@ -60,6 +66,15 @@ export function PdfDraftFormatBar({
             {f.label}
           </option>
         ))}
+        {installedFonts.length > 0 && (
+          <optgroup label={t("pdfEditor:installedFonts")}>
+            {installedFonts.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
       <input
         className="pdf-draft-size"

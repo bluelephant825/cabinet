@@ -242,6 +242,13 @@ export async function handleDocumentsRequest(
         }
         sendJson(res, 200, await service.convert(body as never));
         return true;
+      case "fonts":
+        if (parts[2] === "list") {
+          sendJson(res, 200, await service.listFonts());
+          return true;
+        }
+        sendJson(res, 404, { error: "Unknown fonts route", code: "not-found" });
+        return true;
       case "revision":
         sendJson(res, 200, await service.revision(String(body.virtualPath ?? "")));
         return true;

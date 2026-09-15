@@ -23,6 +23,7 @@ import type {
   PdfTextEdit,
   PdfTextInsert,
   PdfImageEdit,
+  FontListResult,
   Rect4,
 } from "@/lib/documents/types";
 import { PdfDraftFormatBar } from "./pdf-draft-format";
@@ -215,8 +216,13 @@ export default function PdfEditorFrame() {
   const [scale, setScale] = useState(1.25);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [geometry, setGeometry] = useState<PdfGeometryResult | null>(null);
-  /** EDIT_FONTS ids usable on this machine — reported by the geometry op. */
-  const editFonts = useMemo(() => geometry?.editFonts ?? [], [geometry]);
+  /** Installed-font inventory — fetched once from the worker fonts/list op. */
+  const [fontList, setFontList] = useState<FontListResult | null>(null);
+  const { editFonts, installedFonts, fontChoices } = useMemo(() => {
+    const ids = fontList?.editFontIds ?? [];
+    const fams = fontList?.pdfFamilies ?? [];
+    return { editFonts: ids, installedFonts: fams, fontChoices: [...ids, ...fams] };
+  }, [fontList]);
   const [pageSizes, setPageSizes] = useState<{ width: number; height: number }[]>([]);
   const [baseRots, setBaseRots] = useState<number[]>([]);
   const [pageBlocks, setPageBlocks] = useState<Map<number, TextBlock[]>>(new Map());
@@ -738,7 +744,7 @@ export default function PdfEditorFrame() {
     setInsertDraft(null);
     if (!text) return;
     lastInsertStyle.current = d.style;
-    const font = resolveInsertFont(d.style, editFonts);
+    const font = resolveInsertFont(d.style, fontChoices);
     const input: PdfTextInsert = {
       pageIndex: d.pageIndex,
       origin: d.origin,
@@ -754,7 +760,7 @@ export default function PdfEditorFrame() {
     pushHistory();
     setTextInserts((prev) => [...prev, { id: newId(), input }]);
     markDirty();
-  }, [editFonts, insertDraft, markDirty, pushHistory]);
+  }, [fontChoices, insertDraft, markDirty, pushHistory]);
 
   const onPageMouseMove = useCallback(
     (pageIndex: number, e: React.MouseEvent<HTMLElement>) => {
@@ -988,6 +994,11 @@ export default function PdfEditorFrame() {
               s.bridge?.send("ready", { virtualPath: s.init!.virtualPath });
               sendState();
             })
+            .then(() =>
+              apiPost<FontListResult>("fonts/list", {})
+                .then(setFontList)
+                .catch(() => {}),
+            )
             .catch((e: Error) => {
               setStatus("error");
               setErrorText(e.message);
@@ -1367,6 +1378,7 @@ export default function PdfEditorFrame() {
                           setDraft((d) => (d ? { ...d, style: { ...d.style, ...patch } } : d))
                         }
                         editFonts={editFonts}
+                        installedFonts={installedFonts}
                         isInsert={false}
                         below={nearTop}
                         onDone={() => commitDraft()}
@@ -1382,7 +1394,11 @@ export default function PdfEditorFrame() {
                           fontSize: draft.style.fontSize * scale * 0.92,
                           lineHeight: `${scaledLineLeading(draft.block.lineHeight, draft.fontSize, draft.style.fontSize) * scale}px`,
                           ...(draft.style.color ? { color: rgbCss(draft.style.color) } : {}),
-                          ...(chosenFont ? { fontFamily: chosenFont.css } : {}),
+                          ...(chosenFont
+                            ? { fontFamily: chosenFont.css }
+                            : draft.style.font
+                              ? { fontFamily: draft.style.font }
+                              : {}),
                           ...(draft.style.bold ? { fontWeight: 700 } : {}),
                           ...(draft.style.italic ? { fontStyle: "italic" } : {}),
                         }}
@@ -1399,9 +1415,8 @@ export default function PdfEditorFrame() {
                 {insertDraft && insertDraft.pageIndex === page.index && (() => {
                   const [vx, vy] = pdfToView(geom, insertDraft.origin[0] - crop[0], insertDraft.origin[1] - crop[1]);
                   const nearTop = (vy - insertDraft.style.fontSize) * scale < 40;
-                  const insertFont = EDIT_FONTS.find(
-                    (f) => f.id === (insertDraft.style.font ?? defaultInsertFont(editFonts)),
-                  );
+                  const insertFontName = insertDraft.style.font ?? defaultInsertFont(fontChoices);
+                  const insertFont = EDIT_FONTS.find((f) => f.id === insertFontName);
                   return (
                     <div
                       className="pdf-insert-draft-wrap"
@@ -1418,6 +1433,7 @@ export default function PdfEditorFrame() {
                           setInsertDraft((d) => (d ? { ...d, style: { ...d.style, ...patch } } : d))
                         }
                         editFonts={editFonts}
+                        installedFonts={installedFonts}
                         isInsert
                         below={nearTop}
                         onDone={() => commitInsert()}
@@ -1431,7 +1447,11 @@ export default function PdfEditorFrame() {
                         style={{
                           fontSize: insertDraft.style.fontSize * scale * 0.92,
                           color: rgbCss(insertDraft.style.color ?? [0, 0, 0]),
-                          ...(insertFont ? { fontFamily: insertFont.css } : {}),
+                          ...(insertFont
+                            ? { fontFamily: insertFont.css }
+                            : insertFontName
+                              ? { fontFamily: insertFontName }
+                              : {}),
                           ...(insertDraft.style.bold ? { fontWeight: 700 } : {}),
                           ...(insertDraft.style.italic ? { fontStyle: "italic" } : {}),
                         }}

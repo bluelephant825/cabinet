@@ -32,7 +32,7 @@ export const VENDORS = {
       'apps/pdf/main/font-locate.ts':
         'workspace import @genoffice/font-metrics rewritten to a relative path',
       'apps/pdf/main/text-edit.ts':
-        'color-only edits with unchanged text set the fill color in place instead of rebuilding the run (keeps the original font)',
+        'color-only edits with unchanged text set the fill color in place instead of rebuilding the run (keeps the original font); edit font ids may be installed family names resolved through the font index, and the newFont branch wraps subsets in identityCffCharset',
       'apps/pdf/main/image-edit.ts':
         "electron nativeImage import replaced with the host codec adapter '../../../host/image-codec'",
       'apps/pdf/main/wasm-path.ts':

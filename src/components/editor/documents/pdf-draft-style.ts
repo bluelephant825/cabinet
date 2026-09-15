@@ -99,10 +99,12 @@ export function resolveInsertFont(
   return defaultInsertFont(editFonts) ?? undefined;
 }
 
-/** Displayed/default face for inserts — arial when usable, else the first. */
-export function defaultInsertFont(editFonts: readonly string[]): string | null {
-  if (editFonts.includes("arial")) return "arial";
-  return editFonts[0] ?? null;
+/** Displayed/default face for inserts — arial (id or family) when usable,
+    else the first entry. The list mixes EDIT_FONTS ids and family names. */
+export function defaultInsertFont(choices: readonly string[]): string | null {
+  if (choices.includes("arial")) return "arial";
+  if (choices.includes("Arial")) return "Arial";
+  return choices[0] ?? null;
 }
 
 export function hexToRgb(hex: string): Rgb {

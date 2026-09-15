@@ -550,9 +550,9 @@
     {
       "path": "apps/pdf/main/text-edit.ts",
       "upstreamPath": "apps/pdf/src/main/text-edit.ts",
-      "sha256": "f2f56f100fbdd2e39277d3d0450e0328c05d1f86a01d3b22bd9b4c020c53bc62",
+      "sha256": "737072c2d3fd84e029504a53a5d7b663dd1982da654f9748ca678d7897204c2b",
       "adapted": true,
-      "adaptationNote": "color-only edits with unchanged text set the fill color in place instead of rebuilding the run (keeps the original font)"
+      "adaptationNote": "color-only edits with unchanged text set the fill color in place instead of rebuilding the run (keeps the original font); edit font ids may be installed family names resolved through the font index, and the newFont branch wraps subsets in identityCffCharset"
     },
     {
       "path": "apps/pdf/main/wasm-path.ts",

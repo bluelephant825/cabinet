@@ -193,6 +193,14 @@ test("pdf draft format bar restyles an edit and an insert end to end", async ({
   // The format bar floats with the draft; interact with it without blur-committing.
   const bar = frame.locator('[data-testid="pdf-draft-format"]');
   await expect(bar).toBeVisible();
+  // The font select lists curated ids plus the installed-families optgroup —
+  // fonts/list resolves asynchronously, so wait for the group to appear.
+  await expect(
+    bar.locator('[data-testid="pdf-draft-font"] optgroup[label="Installed fonts"]'),
+  ).toBeAttached();
+  expect(
+    await bar.locator('[data-testid="pdf-draft-font"] option').count(),
+  ).toBeGreaterThan(3);
   // Smaller than the block's 16pt — a grown size would hit the overflow guard.
   await bar.locator('[data-testid="pdf-draft-size"]').fill("12");
   await bar.locator('[data-testid="pdf-draft-color"]').fill("#ff0000");

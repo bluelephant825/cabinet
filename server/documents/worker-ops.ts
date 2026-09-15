@@ -11,6 +11,7 @@
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { closeSync, openSync } from "node:fs";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import {
   parseDocx,
@@ -28,6 +29,13 @@ import {
   type Pdfium,
 } from "../../src/vendor/genoffice/apps/pdf/main/text-edit";
 import { savePdfToPath } from "../../src/vendor/genoffice/apps/pdf/main/save-pdf";
+import {
+  getFontIndex,
+  norm as normFamily,
+  readFaceNames,
+  readTableDir,
+  styleScore,
+} from "../../src/vendor/genoffice/packages/font-metrics/src/sfnt";
 import {
   extractIrDocument,
   isScannedDocument,
@@ -55,10 +63,14 @@ import type {
   DocxDocumentModel,
   DocxInspectResult,
   DocxSavePlan,
+  FontListResult,
   PdfInspectResult,
   PatchDiagnostic,
   PdfGeometryResult,
 } from "../../src/lib/documents/types";
+
+/** Faces carrying only color bitmaps cannot embed as PDF text objects. */
+const COLOR_FONT_TABLES = ["sbix", "COLR", "CBDT", "CBLC"];
 
 const INSPECT_LINE_CAP = 5000;
 const SEARCH_MATCH_CAP = 500;
@@ -241,6 +253,53 @@ async function inspectPdf(inputPath: string): Promise<PdfInspectResult> {
       return result;
     }),
   );
+}
+
+/**
+ * Installed-font inventory for the document editors. Family display names are
+ * re-read from each family's best-ranked regular face (the index stores only
+ * normalized keys); PDF-embeddable means a glyf/CFF face with no color tables —
+ * .ttc members qualify since findSystemFont extracts single faces at resolve
+ * time. Cached for the worker lifetime (the index itself already is).
+ */
+let fontListCache: FontListResult | null = null;
+function listFontsOp(): FontListResult {
+  if (fontListCache) return fontListCache;
+  const docxFamilies = new Set<string>();
+  const pdfFamilies = new Set<string>();
+  for (const [key, faces] of getFontIndex().byFamily) {
+    const face = [...faces].sort((a, b) => styleScore(b, []) - styleScore(a, []))[0]!;
+    let fd: number;
+    try {
+      fd = openSync(face.path, "r");
+    } catch {
+      continue;
+    }
+    try {
+      const names = readFaceNames(fd, face.offset);
+      const display = names?.families.find((f) => normFamily(f) === key) ?? names?.families[0];
+      if (!display) continue;
+      docxFamilies.add(display);
+      const tables = readTableDir(fd, face.offset);
+      if (
+        tables &&
+        (tables.has("glyf") || tables.has("CFF ")) &&
+        !COLOR_FONT_TABLES.some((t) => tables.has(t))
+      ) {
+        pdfFamilies.add(display);
+      }
+    } catch {
+      /* unreadable face — skip */
+    } finally {
+      closeSync(fd);
+    }
+  }
+  fontListCache = {
+    docxFamilies: [...docxFamilies].sort((a, b) => a.localeCompare(b)),
+    pdfFamilies: [...pdfFamilies].sort((a, b) => a.localeCompare(b)),
+    editFontIds: listEditFonts(),
+  };
+  return fontListCache;
 }
 
 // ── pdf page geometry (Step 5 editor overlay) ──────────────────────────────
@@ -468,9 +527,6 @@ async function pdfPageGeometryOp(args: {
           pages,
           encrypted,
           signed: false,
-          // Machine-dependent subset of EDIT_FONTS — the renderer needs it
-          // to populate the draft format bar's font select.
-          editFonts: listEditFonts(),
         };
       }),
     );
@@ -1143,6 +1199,8 @@ export async function runOp(
       return docxSaveOp(args as never);
     case "pdfPageGeometry":
       return pdfPageGeometryOp(args as never);
+    case "listFonts":
+      return listFontsOp();
     case "pdfCompositionRender": {
       const { renderComposition } = await import("./pdf-generation");
       const { bytes, ...result } = await renderComposition(args as never);

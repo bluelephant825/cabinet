@@ -2174,8 +2174,6 @@
     "rendering": "",
     "saveACopy": "",
     "saving": "",
-    "tryExternal": "",
-    "unsaved": "",
     "tbAddCol": "",
     "tbAddRow": "",
     "tbAlignCenter": "",
@@ -2196,6 +2194,7 @@
     "tbHighlightNone": "",
     "tbIndent": "",
     "tbInsertTable": "",
+    "tbInstalledFonts": "",
     "tbItalic": "",
     "tbLink": "",
     "tbLinkPrompt": "",
@@ -2212,7 +2211,9 @@
     "tbStyleHeading": "",
     "tbStyleNormal": "",
     "tbUnderline": "",
-    "tbUndo": ""
+    "tbUndo": "",
+    "tryExternal": "",
+    "unsaved": ""
   },
   "pdfEditor": {
     "bold": "",
@@ -2224,6 +2225,7 @@
     "fontSize": "",
     "imageInvalid": "",
     "insertImage": "",
+    "installedFonts": "",
     "italic": "",
     "keepOriginalColor": "",
     "keepOriginalFont": "",

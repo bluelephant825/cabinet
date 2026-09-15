@@ -13,7 +13,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Editor } from "@tiptap/core";
 
 import { createFrameBridge, type BridgeMessage } from "@/lib/documents/frame-bridge";
-import type { DocxDocumentModel, DocxSavePlan } from "@/lib/documents/types";
+import type {
+  DocxDocumentModel,
+  DocxSavePlan,
+  FontListResult,
+} from "@/lib/documents/types";
 import { editorExtensions } from "../../../vendor/genoffice/apps/docs/src/renderer/editor/extensions";
 import {
   blocksToPmDoc,
@@ -94,6 +98,7 @@ export default function DocxEditorFrame() {
   const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
   const [formatState, setFormatState] = useState<DocxFormatState | null>(null);
   const [uiState, setUiState] = useState({ dirty: false, saving: false, readOnly: false });
+  const [installedFonts, setInstalledFonts] = useState<string[]>([]);
 
   // Mutable editor state, kept in a ref so bridge handlers never go stale.
   const st = useRef({
@@ -369,6 +374,11 @@ export default function DocxEditorFrame() {
               s.bridge?.send("ready", { virtualPath: s.init!.virtualPath });
               sendState();
             })
+            .then(() =>
+              apiPost<FontListResult>("fonts/list", {})
+                .then((r) => setInstalledFonts(r.docxFamilies))
+                .catch(() => {}),
+            )
             .catch((e: Error) => {
               setStatus("error");
               setErrorText(e.message);
@@ -487,6 +497,7 @@ export default function DocxEditorFrame() {
           dirty={uiState.dirty}
           saving={uiState.saving}
           allocateNumId={allocateNumId}
+          installedFonts={installedFonts}
         />
       )}
       <div ref={scrollRef} className="doc-editor-scroll" />

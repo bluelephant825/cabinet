@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 
 import { useLocale } from "@/i18n/use-locale";
+import { useLocalFonts } from "./use-local-fonts";
 import { fontFamiliesFor } from "../../../vendor/genoffice/apps/docs/src/renderer/font-list";
 import { HIGHLIGHT_CSS } from "../../../vendor/genoffice/apps/docs/src/renderer/editor/marks";
 import {
@@ -110,6 +111,7 @@ export function DocxToolbar({
   dirty,
   saving,
   allocateNumId,
+  installedFonts,
 }: {
   editor: Editor | null;
   readOnly: boolean;
@@ -118,6 +120,8 @@ export function DocxToolbar({
   dirty: boolean;
   saving: boolean;
   allocateNumId: (kind: ListKind) => string | null;
+  /** Daemon fonts/list inventory; empty → Local Font Access fallback. */
+  installedFonts?: readonly string[];
 }) {
   const { t, locale } = useLocale();
   const fs = formatState;
@@ -134,6 +138,15 @@ export function DocxToolbar({
   };
   const fonts = fontFamiliesFor(upstreamLang(locale));
   const fontOptions = fs?.font && !fonts.includes(fs.font) ? [fs.font, ...fonts] : fonts;
+  const local = useLocalFonts();
+  // Daemon inventory preferred; queryLocalFonts is the fallback (loaded on the
+  // select's first interaction — the API needs user activation).
+  const installed = (installedFonts?.length ? installedFonts : local.families).filter(
+    (f) => !fonts.includes(f) && f !== fs?.font,
+  );
+  const loadLocalFonts = () => {
+    if (!installedFonts?.length) local.load();
+  };
   const sizePt = fs?.sizeHalfPoints ? fs.sizeHalfPoints / 2 : null;
   const sizeOptions =
     sizePt != null && !FONT_SIZES_PT.includes(sizePt)
@@ -196,6 +209,11 @@ export function DocxToolbar({
           aria-label={t("docxEditor:tbFont")}
           disabled={disabled}
           value={fs?.font ?? ""}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            loadLocalFonts();
+          }}
+          onFocus={loadLocalFonts}
           onChange={(e) => {
             if (editor) setTextStyle(editor, { font: e.target.value || null });
           }}
@@ -206,6 +224,15 @@ export function DocxToolbar({
               {f}
             </option>
           ))}
+          {installed.length > 0 && (
+            <optgroup label={t("docxEditor:tbInstalledFonts")}>
+              {installed.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
         <select
           data-testid="docx-tb-size"
