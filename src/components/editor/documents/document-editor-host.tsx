@@ -110,6 +110,11 @@ export function DocumentEditorHost({ path, format, fallback, onStatus, onNavigat
         case "saved":
           settleFlush(pendingFlushRef, true);
           store.patch({ dirty: false, saving: false });
+          // Track the committed revision so the daemon-channel forwarder
+          // below stops re-sending our own saves as `revision-changed`.
+          if (sessionRef.current && typeof msg.revision === "string") {
+            sessionRef.current.revision = msg.revision;
+          }
           break;
         case "conflict":
           settleFlush(pendingFlushRef, false);

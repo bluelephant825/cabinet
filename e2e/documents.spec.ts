@@ -118,6 +118,41 @@ test("docx toolbar formats text and lists; save persists across reload", async (
   await expect(editor2.locator(".doc-li").first()).toBeVisible();
 });
 
+test("docx save clears the dirty badge — including a second edit+save cycle", async ({
+  page,
+}) => {
+  const res = await putDocument("badge.docx", await makeDocx("Badge target"));
+  expect(res.ok).toBe(true);
+
+  const frame = await openDocx(page, "badge.docx");
+  const editor = frame.locator(".ProseMirror").first();
+  const badge = page.getByText("Unsaved changes");
+
+  // Two cycles: a stale-revision bug surfaces on the second save, when the
+  // daemon's echo of the first commit must not read as an external change.
+  for (const text of [" one", " two"]) {
+    await editor.locator("p").first().click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(text);
+    await expect(badge).toBeVisible();
+    await frame.locator('[data-testid="docx-tb-save"]').click();
+    await expect(badge).toBeHidden({ timeout: 5_000 });
+    // The daemon echoes our own commit — it must not flag a conflict.
+    await expect(frame.locator(".doc-conflict-banner")).toHaveCount(0);
+    // Let any deferred revision-changed evaluation settle before cycling.
+    await page.waitForTimeout(500);
+    await expect(badge).toBeHidden();
+    await expect(frame.locator(".doc-conflict-banner")).toHaveCount(0);
+  }
+
+  // And the content survived both saves.
+  const frame2 = await openDocx(page, "badge.docx");
+  await expect(frame2.locator(".ProseMirror").first()).toContainText(
+    "Badge target one two",
+    { timeout: 30_000 },
+  );
+});
+
 test("external edit while dirty shows a conflict banner without reloading", async ({
   page,
   request,

@@ -216,6 +216,8 @@ export default function PdfEditorFrame() {
     autosaveTimer: null as ReturnType<typeof setTimeout> | null,
     draftTimer: null as ReturnType<typeof setTimeout> | null,
     disposed: false,
+    /** A revision-changed notice received while a save was in flight. */
+    deferredRevision: null as string | null,
   });
   // Latest edit lists for the async save path.
   const editsRef = useRef({ textEdits, textInserts, imageEdits });
@@ -340,6 +342,27 @@ export default function PdfEditorFrame() {
 
   // ── save ────────────────────────────────────────────────────────────────
 
+  /**
+   * Apply a revision-changed notice: reload a clean document, flag a
+   * conflict when local edits would be overwritten. Callers must defer
+   * while a save is in flight — the daemon echoes our own commits and the
+   * comparison is only meaningful against the post-save revision.
+   */
+  const handleIncomingRevision = useCallback(
+    (incoming: string) => {
+      const s = st.current;
+      if (!s.dirty && incoming !== s.revision) {
+        s.revision = incoming;
+        resetEdits();
+        void loadDocument().then(() => setConflict(null)).catch(() => {});
+      } else if (incoming !== s.revision) {
+        setConflict({ currentRevision: incoming });
+        s.bridge?.send("conflict", { currentRevision: incoming });
+      }
+    },
+    [loadDocument, resetEdits],
+  );
+
   const doSave = useCallback(
     async (reason: "manual" | "autosave" | "flush"): Promise<void> => {
       const s = st.current;
@@ -348,6 +371,9 @@ export default function PdfEditorFrame() {
       if (ops.length === 0) {
         s.dirty = false;
         sendState();
+        // A host flush still needs a `saved` reply when there is nothing
+        // to write, or the 30s timeout in document-editor-host fires.
+        if (reason === "flush") s.bridge?.send("saved", { revision: s.revision });
         return;
       }
       const generation = s.dirtyGeneration;
@@ -404,9 +430,16 @@ export default function PdfEditorFrame() {
       } finally {
         s.saving = false;
         sendState();
+        // A revision-changed notice that arrived mid-save: re-evaluate now
+        // that s.revision reflects whatever this save committed.
+        if (s.deferredRevision != null) {
+          const rev = s.deferredRevision;
+          s.deferredRevision = null;
+          handleIncomingRevision(rev);
+        }
       }
     },
-    [loadDocument, pendingOps, sendState],
+    [handleIncomingRevision, loadDocument, pendingOps, sendState],
   );
 
   const pushDraft = useCallback(async () => {
@@ -813,14 +846,13 @@ export default function PdfEditorFrame() {
           break;
         case "revision-changed": {
           const incoming = String(msg.revision ?? "");
-          if (!s.dirty && incoming !== s.revision) {
-            s.revision = incoming;
-            resetEdits();
-            void loadDocument().then(() => setConflict(null)).catch(() => {});
-          } else if (incoming !== s.revision) {
-            setConflict({ currentRevision: incoming });
-            s.bridge?.send("conflict", { currentRevision: incoming });
+          if (s.saving) {
+            // Defer until the save settles — the daemon echoes our own
+            // commits and the comparison needs the post-save revision.
+            s.deferredRevision = incoming;
+            break;
           }
+          handleIncomingRevision(incoming);
           break;
         }
         case "theme":
@@ -831,7 +863,7 @@ export default function PdfEditorFrame() {
           break;
       }
     },
-    [loadDocument, resetEdits, sendState],
+    [handleIncomingRevision, loadDocument, sendState],
   );
 
   useEffect(() => {

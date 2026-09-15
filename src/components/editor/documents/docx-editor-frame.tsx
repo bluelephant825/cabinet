@@ -115,6 +115,8 @@ export default function DocxEditorFrame() {
     /** Brand-new list definitions not yet written to numbering.xml. */
     pendingNumbering: { newDefs: [] as { numId: string; kind: ListKind }[] },
     numIdFloor: 0,
+    /** A revision-changed notice received while a save was in flight. */
+    deferredRevision: null as string | null,
   });
 
   const sendState = useCallback((extra?: Record<string, unknown>) => {
@@ -225,10 +227,36 @@ export default function DocxEditorFrame() {
     return numId;
   }, []);
 
+  /**
+   * Apply a revision-changed notice: reload a clean document, flag a
+   * conflict when local edits would be overwritten. Callers must defer
+   * while a save is in flight — the daemon echoes our own commits and the
+   * comparison is only meaningful against the post-save revision.
+   */
+  const handleIncomingRevision = useCallback(
+    (incoming: string) => {
+      const s = st.current;
+      if (!s.dirty && incoming !== s.revision) {
+        // Clean document: reload against the new bytes.
+        s.revision = incoming;
+        void loadModel().then(() => setConflict(null)).catch(() => {});
+      } else if (incoming !== s.revision) {
+        setConflict({ currentRevision: incoming });
+        s.bridge?.send("conflict", { currentRevision: incoming });
+      }
+    },
+    [loadModel],
+  );
+
   const doSave = useCallback(
     async (reason: "manual" | "autosave" | "flush"): Promise<void> => {
       const s = st.current;
       if (!s.editor || s.saving || s.disposed || s.readOnly) return;
+      if (!s.dirty) {
+        // Nothing to write — but a host flush still needs a `saved` reply.
+        if (reason === "flush") s.bridge?.send("saved", { revision: s.revision });
+        return;
+      }
       const generation = s.dirtyGeneration;
       s.saving = true;
       sendState();
@@ -282,9 +310,16 @@ export default function DocxEditorFrame() {
       } finally {
         s.saving = false;
         sendState();
+        // A revision-changed notice that arrived mid-save: re-evaluate now
+        // that s.revision reflects whatever this save committed.
+        if (s.deferredRevision != null) {
+          const rev = s.deferredRevision;
+          s.deferredRevision = null;
+          handleIncomingRevision(rev);
+        }
       }
     },
-    [sendState],
+    [handleIncomingRevision, sendState],
   );
 
   const pushDraft = useCallback(async () => {
@@ -347,14 +382,13 @@ export default function DocxEditorFrame() {
           break;
         case "revision-changed": {
           const incoming = String(msg.revision ?? "");
-          if (!s.dirty && incoming !== s.revision) {
-            // Clean document: reload against the new bytes.
-            s.revision = incoming;
-            void loadModel().then(() => setConflict(null)).catch(() => {});
-          } else if (incoming !== s.revision) {
-            setConflict({ currentRevision: incoming });
-            s.bridge?.send("conflict", { currentRevision: incoming });
+          if (s.saving) {
+            // Defer until the save settles — the daemon echoes our own
+            // commits and the comparison needs the post-save revision.
+            s.deferredRevision = incoming;
+            break;
           }
+          handleIncomingRevision(incoming);
           break;
         }
         case "theme":
@@ -366,7 +400,7 @@ export default function DocxEditorFrame() {
           break;
       }
     },
-    [loadModel, sendState],
+    [handleIncomingRevision, loadModel, sendState],
   );
 
   useEffect(() => {
