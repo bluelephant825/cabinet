@@ -37,7 +37,7 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
   return { root, db, queue, connect, clock, tick: (ms: number) => { now += ms; }, migrations };
 }
 
-function create(file = "article.html", generation = "initial"): EnqueueInput {
+function create(file = "article.html", generation = "initial"): EnqueueInput & { operation: "create" } {
   return {
     operation: "create", sourceId: null, roomPath: null,
     input: { kind: "cabinet", path: `Inbox/${file}` }, contentHash: "a".repeat(64), generation,
@@ -54,6 +54,27 @@ test("queue migration is repeatable and preserves unrelated database records", a
   runSqlMigrations(db, migrations);
   assert.equal((db.prepare("SELECT count(*) AS n FROM sessions").get() as { n: number }).n, 1);
   assert.equal((db.prepare("SELECT count(*) AS n FROM schema_version WHERE version=5").get() as { n: number }).n, 1);
+});
+
+test("agent-ops migration preserves attempts rows without foreign-key violations", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "cabinet-migration-006-"));
+  t.after(async () => fs.rm(root, { recursive: true, force: true }));
+  const onlyFive = path.join(root, "migrations-005");
+  await fs.mkdir(onlyFive);
+  await fs.copyFile(path.resolve("server/migrations/005_llm_wiki_queue.sql"), path.join(onlyFive, "005_llm_wiki_queue.sql"));
+  const db = new Database(path.join(root, ".cabinet.db"));
+  t.after(async () => { if (db.open) db.close(); });
+  db.pragma("foreign_keys = ON");
+  runSqlMigrations(db, onlyFive);
+  db.prepare(`INSERT INTO llm_wiki_jobs(id,cabinet_id,operation,input_json,content_hash,dedup_key,generation,stream_key,status,max_attempts,available_at,created_at,updated_at)
+    VALUES ('job-1','cab','create','{}','${"a".repeat(64)}','dedup-1','gen','stream','queued',3,0,'2026-01-01','2026-01-01')`).run();
+  db.prepare(`INSERT INTO llm_wiki_attempts(job_id,attempt,worker,token,started_at,stage)
+    VALUES ('job-1',1,'worker','token','2026-01-01','queued')`).run();
+  runSqlMigrations(db, path.resolve("server/migrations"));
+  assert.equal((db.prepare("SELECT count(*) AS n FROM llm_wiki_jobs").get() as { n: number }).n, 1);
+  assert.equal((db.prepare("SELECT count(*) AS n FROM llm_wiki_attempts").get() as { n: number }).n, 1);
+  assert.match((db.prepare("SELECT sql FROM sqlite_master WHERE name='llm_wiki_attempts'").get() as { sql: string }).sql, /REFERENCES "llm_wiki_jobs"/);
+  assert.deepEqual(db.pragma("foreign_key_check"), []);
 });
 
 test("migration rechecks a stale pending list after another connection commits", async (t) => {
@@ -183,7 +204,7 @@ test("complete follows the operation stages and records a durable completion", a
   const row = await f.queue.enqueue({ ...create(), sourceId: source.source.id });
   const lease = (await f.queue.claim("one"))!;
   assert.throws(() => f.queue.advance(row.id, lease.token, "complete"), /transition/);
-  for (const stage of ["classifying", "promoting", "compiling", "complete"] as const) f.queue.advance(row.id, lease.token, stage);
+  for (const stage of ["classifying", "promoting", "compiling", "linking", "complete"] as const) f.queue.advance(row.id, lease.token, stage);
   assert.equal(f.queue.get(row.id).status, "complete");
   assert.throws(() => f.queue.advance(row.id, lease.token, "complete"), /lease/);
   assert.equal((await f.queue.enqueue({ ...create(), sourceId: source.source.id })).id, row.id);
@@ -200,6 +221,34 @@ test("failure blocks later same-source operations but unrelated sources can proc
   f.queue.fail(first.id, lease.token, "invalid input", false);
   assert.equal((await f.queue.claim("two"))?.job.id, independent.id);
   assert.equal(f.queue.get(later.id).status, "queued");
+});
+
+test("consolidate and lint need no Source identity and route through linking", async (t) => {
+  const f = await fixture(t);
+  for (const operation of ["consolidate", "lint"] as const) {
+    const row = await f.queue.enqueue({ operation, sourceId: null, roomPath: null, generation: `${operation}-1` });
+    assert.equal(row.sourceId, null);
+    assert.equal(row.input, null);
+    const lease = (await f.queue.claim("one"))!;
+    assert.equal(lease.job.status, "linking");
+    f.queue.advance(row.id, lease.token, "complete");
+    assert.equal(f.queue.get(row.id).status, "complete");
+  }
+  await assert.rejects(f.queue.enqueue({ operation: "consolidate", sourceId: null, roomPath: null, generation: "x",
+    input: { kind: "cabinet", path: "a.md" } } as unknown as EnqueueInput), /file input/);
+  await assert.rejects(f.queue.enqueue({ operation: "consolidate", sourceId: null, roomPath: null, generation: "x",
+    contentHash: "a".repeat(64) } as unknown as EnqueueInput), /file input/);
+});
+
+test("a needs-review consolidate does not block a new consolidate", async (t) => {
+  const f = await fixture(t);
+  const first = await f.queue.enqueue({ operation: "consolidate", sourceId: null, roomPath: null, generation: "c1" });
+  await assert.rejects(f.queue.enqueue({ operation: "consolidate", sourceId: null, roomPath: null, generation: "c2" }), /already queued or running/);
+  const lease = (await f.queue.claim("one"))!;
+  f.queue.fail(first.id, lease.token, "agent failed");
+  assert.equal(f.queue.get(first.id).status, "needs-review");
+  const second = await f.queue.enqueue({ operation: "consolidate", sourceId: null, roomPath: null, generation: "c2" });
+  assert.equal(second.status, "queued");
 });
 
 test("deletion needs no working file and any interrupted reconciliation needs review", async (t) => {

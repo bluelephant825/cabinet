@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { ownedPath, statOrNull, withRootLock } from "./filesystem";
+import { WIKI_MAX_PAGES } from "./execution-limits";
 import { opaqueId, readWikiCabinet, WIKI_STATE_PATH } from "./config";
 import { SourceStore } from "./source-store";
 import { encodeSourceManifest } from "./manifest";
@@ -41,6 +42,30 @@ export async function readWikiInventory(root: string): Promise<ProvenancePageSna
   const values = JSON.parse(text);
   if (!Array.isArray(values) || values.length > 1000) throw new Error("Invalid Wiki inventory");
   return values.map((value) => ({ markdownHash: value.markdownHash, provenance: parseWikiProvenance(value.provenance) }));
+}
+
+/** After the tool-enabled Wiki agent edits Cabinet-published pages, refresh the
+ * stored markdown hashes so later Cabinet operations see the accepted content
+ * as current rather than as a foreign human edit. Returns the page paths whose
+ * inventory entries could not be refreshed because the file is gone. */
+export async function refreshWikiInventoryHashes(root: string, changedPaths: readonly string[]): Promise<string[]> {
+  const text = await read(root, inventoryPath);
+  if (text === null || !changedPaths.length) return [];
+  const values = JSON.parse(text);
+  if (!Array.isArray(values)) throw new Error("Invalid Wiki inventory");
+  const changed = new Set(changedPaths);
+  const missing: string[] = [];
+  let touched = false;
+  for (const value of values) {
+    const pagePath = value?.provenance?.pagePath;
+    if (typeof pagePath !== "string" || !changed.has(pagePath)) continue;
+    const current = await read(root, pagePath);
+    if (current === null) { missing.push(pagePath); continue; }
+    value.markdownHash = textHash(current);
+    touched = true;
+  }
+  if (touched) await durableText(root, inventoryPath, JSON.stringify(values));
+  return missing;
 }
 
 /** Journaled roll-forward: all preconditions are checked before any page changes.
@@ -123,7 +148,7 @@ export class WikiPublicationStore {
         if (item.isSymbolicLink()) throw new Error("Symlink appeared during Wiki recovery");
         if (item.isDirectory()) await scan(child);
         else if (item.name.endsWith(".md") && (relative !== receipt.wikiRoot || ["index.md", "overview.md", "log.md", "concept-table.md"].includes(item.name))) currentPaths.push(child);
-        if (currentPaths.length > 1000) throw new Error("Wiki recovery scope exceeds limit");
+        if (currentPaths.length > WIKI_MAX_PAGES) throw new Error("Wiki recovery scope exceeds limit");
       }
     };
     await scan(receipt.wikiRoot);

@@ -193,6 +193,15 @@ Agents → `cabinet-documents` CLI (scripts/document-tool.ts → shim in <data-p
 2. Apply any local adaptations (kept minimal — e.g. `@/`→`@/vendor/pdfcn/` rewrites, AsyncLocalStorage theme state) and mark them `adapted` in the provenance entry.
 3. `node scripts/vendor-provenance.mjs --check` must pass; record the upstream commit + adaptation notes in `PROVENANCE.json`.
 
+## LLM Wiki
+
+The LLM Wiki (`src/lib/llm-wiki/`, daemon workflow in `server/ingestion/wiki-workflow.ts`) turns imported note folders into a `wiki/` knowledge base. It runs in two stages per queue job:
+
+1. **Checked source summary** — normalize → immutable `raw/` capture → `SourceSummaryPlanner` produces a quote-grounded summary page at `wiki/sources/<slug>.md` through `PlanningWikiCompiler` + `WikiPublicationStore` (restricted inference only, `inferenceOnly` adapters).
+2. **Agent pass (`linking` stage)** — `WikiAgentRunner` (`server/ingestion/wiki-agent.ts`) runs the selected Cabinet persona through its normal tool-enabled adapter inside `wiki/`, following `wiki/SCHEMA.md` (bootstrapped from `wiki-schema-template.ts`). Enforcement: raw restored, outside-`wiki/` report-only, allowed areas only, executable Markdown rejected via `validateWikiMarkdown`, protected source-summary frontmatter/sections reverted, frontmatter repaired, `index.md` regenerated deterministically, `log.md` appended, inventory hashes refreshed, then `commitWikiPublication`. Warnings persist to `operations/<jobId>.json` and surface in status.
+
+Queue: `IngestionOperation` includes `consolidate`/`lint` (no source, route `linking → complete`); whole-wiki actions `consolidate`, `lint`, `reprocess-all` live on the workflow action handler. A drained batch auto-enqueues `consolidate` via the `batch-pending.json` marker. Phase docs: `docs/LLM_WIKI_PHASE_*.md` (latest: 29).
+
 ## Progress Tracking
 
 After every change you make to this project, append an entry to `PROGRESS.md` using this format:

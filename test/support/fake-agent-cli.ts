@@ -62,6 +62,16 @@ export interface FakeInvocation {
 
 /** What the fake does for a single invocation. */
 export interface FakeStep {
+  /**
+   * Regex tested against the invocation's stdin plus its argv (adapters pass
+   * the prompt via stdin for some providers and via `-p` argv for others). A step with `match` is chosen
+   * for ANY invocation whose prompt matches, regardless of invocation index —
+   * for programs where different call kinds interleave (e.g. restricted Wiki
+   * inference vs the tool-enabled agent pass) and position alone cannot tell
+   * them apart. Matched steps are not consumed; index-based steps still run by
+   * position for unmatched invocations.
+   */
+  match?: string;
   /** Lines printed to stdout, verbatim, one per line. Usually stream-JSON. */
   stdout?: string[];
   /** Printed to stderr. Cabinet feeds this to classifyError() on failure. */
@@ -225,7 +235,11 @@ async function main() {
   );
 
   const program = JSON.parse(fs.readFileSync(PROGRAM, "utf8"));
-  const step = program.steps[index] ?? program.fallback ?? {};
+  const haystack = stdin + "\n" + args.join("\n");
+  const matched = (program.steps ?? []).find(
+    (s) => typeof s.match === "string" && new RegExp(s.match).test(haystack)
+  );
+  const step = matched ?? program.steps[index] ?? program.fallback ?? {};
 
   if (step.delayMs) await sleep(step.delayMs);
 

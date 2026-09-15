@@ -17,6 +17,8 @@ import { PlanningWikiCompiler } from "./compiler";
 import { captureNote } from "./capture-note";
 import { readRawSource } from "./raw-reader";
 import { ManagedSourceWatcher } from "../../../server/ingestion/managed";
+import { WikiAgentRunner } from "../../../server/ingestion/wiki-agent";
+import type { AgentPersona } from "../agents/persona-manager";
 import { WIKI_WORKER_HEARTBEAT_MS } from "./execution-limits";
 
 const folders = ["Notes/Apple Notes", "Notes/Eureka"];
@@ -36,13 +38,20 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }, customMo
   const db = new Database(path.join(root, ".cabinet.db"));
   runSqlMigrations(db, path.resolve("server/migrations"));
   const queue = await IngestionQueue.open(db, root);
-  const workflow = new WikiWorkflow(root, async () => queue, customModel);
+  const agent = new WikiAgentRunner(root, {
+    persona: { slug: "wiki-stub", provider: "claude-code" } as unknown as AgentPersona,
+    async execute() { return { exitCode: 0, signal: null, timedOut: false, output: "Wiki updated." }; },
+  });
+  const workflow = new WikiWorkflow(root, async () => queue, customModel, () => false, agent);
   t.after(async () => { await workflow.close(); db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const enqueue = async (paths = names) => {
     const inventory = await workflow.action({ action: "inspect", folders }) as { fingerprint: string };
     await workflow.action({ action: "import", folders, paths, fingerprint: inventory.fingerprint });
   };
-  return { root, db, queue, workflow, enqueue };
+  const drain = async () => {
+    for (let i = 0; i < 20 && queue.list().some((job) => ["queued", "discovered"].includes(job.status)); i++) await workflow.tick();
+  };
+  return { root, db, queue, workflow, enqueue, drain };
 }
 
 test("summary and candidate evidence auto-correct before one Wiki publication", async (t) => {
@@ -89,12 +98,11 @@ test("persistent invalid summaries stop after bounded corrections without publis
 test("folder onboarding publishes cross-folder Wiki, captures and reader links without changing originals", async (t) => {
   const f = await fixture(t);
   const before = await Promise.all(names.map((name) => fs.readFile(path.join(f.root, name), "utf8")));
-  await f.enqueue(); await f.workflow.tick(); await f.workflow.tick();
-  assert.deepEqual(f.queue.list().map((job) => [job.status, job.error]), [["complete", null], ["complete", null]]);
+  await f.enqueue(); await f.drain();
+  assert.deepEqual(f.queue.list().map((job) => [job.status, job.error]), [["complete", null], ["complete", null], ["complete", null]]);
   const inventory = await readWikiInventory(f.root);
-  const concepts = inventory.filter((item) => item.provenance.pagePath.includes("/concepts/"));
-  assert.equal(concepts.length, 1);
-  assert.equal(new Set(concepts[0].provenance.knowledge.flatMap((node) => node.supports.map((edge) => edge.sourceId))).size, 2);
+  const sourcesPages = inventory.filter((item) => item.provenance.pagePath.includes("/sources/"));
+  assert.equal(sourcesPages.length, 2);
   const sources = await new SourceStore(f.root).list();
   for (const { source } of sources) {
     assert.equal(source.currentVersionId, source.lastCompiledVersionId);
@@ -102,30 +110,31 @@ test("folder onboarding publishes cross-folder Wiki, captures and reader links w
     if (source.mode === "managed") assert.equal((await readRawSource(f.root, source.managedLocation.path)).kind, "ordinary");
   }
   assert.deepEqual(await Promise.all(names.map((name) => fs.readFile(path.join(f.root, name), "utf8"))), before);
-  await f.enqueue(); assert.equal(f.queue.list().length, 2);
+  await f.enqueue(); assert.equal(f.queue.list().filter((job) => job.operation !== "consolidate").length, 2);
   assert.match(await fs.readFile(path.join(f.root, "wiki/index.md"), "utf8"), /Learning/);
 });
 
 test("connected watcher handles changes, deletion and restoration while preserving independent support", async (t) => {
-  const f = await fixture(t); await f.enqueue(); await f.workflow.tick(); await f.workflow.tick();
+  const f = await fixture(t); await f.enqueue(); await f.drain();
   const watcher = new ManagedSourceWatcher(f.root, async () => f.queue, { stabilityMs: 20 });
   t.after(() => watcher.close());
   const settle = async () => { await watcher.refresh(); await new Promise((resolve) => setTimeout(resolve, 35)); await watcher.refresh(); };
   await settle();
   await fs.appendFile(path.join(f.root, names[0]), "\nAdditional observations.\n");
-  await settle(); await f.workflow.tick();
+  await settle(); await f.drain();
   assert.equal(f.queue.list().at(-1)?.status, "complete", f.queue.list().at(-1)?.error ?? "");
   const source = await new SourceStore(f.root).findManaged({ kind: "cabinet", path: names[0] });
   assert.equal((await new SourceStore(f.root).get(source!.id))!.versions.length, 2);
   const saved = await fs.readFile(path.join(f.root, names[0]));
-  await fs.unlink(path.join(f.root, names[0])); await settle(); await f.workflow.tick();
+  await fs.unlink(path.join(f.root, names[0])); await settle(); await f.drain();
   assert.equal(f.queue.list().at(-1)?.status, "complete", f.queue.list().at(-1)?.error ?? "");
   assert.equal((await new SourceStore(f.root).get(source!.id))!.source.lifecycle?.reconciliation, "complete");
-  assert.equal((await readWikiInventory(f.root)).filter((item) => item.provenance.pagePath.includes("/concepts/")).length, 0);
-  await fs.writeFile(path.join(f.root, names[0]), saved); await settle(); await f.workflow.tick();
+  const sourcePages = async () => (await readWikiInventory(f.root)).filter((item) => item.provenance.pagePath.includes("/sources/"));
+  assert.equal((await sourcePages()).length, 2);
+  await fs.writeFile(path.join(f.root, names[0]), saved); await settle(); await f.drain();
   assert.equal(f.queue.list().at(-1)?.status, "complete", f.queue.list().at(-1)?.error ?? "");
   assert.equal((await new SourceStore(f.root).get(source!.id))!.source.status, "active");
-  assert.equal((await readWikiInventory(f.root)).filter((item) => item.provenance.pagePath.includes("/concepts/")).length, 1);
+  assert.equal((await sourcePages()).length, 2);
 });
 
 test("failed inference leaves Raw captured, then explicit retry publishes once", async (t) => {
@@ -275,4 +284,24 @@ test("an unsupported imported filename is reported without blocking preview or t
   assert.equal(inventory.notes.length, 2);
   assert.ok(inventory.skipped.some((item) => item.path.endsWith("Question?.md") && item.reason.includes("Filename")));
   assert.equal((await readRawSource(f.root, `${folders[0]}/Question?`)).kind, "ordinary");
+});
+
+test("reprocess-all honors sourceIds and legacyOnly filters", async (t) => {
+  const f = await fixture(t);
+  await f.enqueue(); await f.drain();
+  const sources = (await new SourceStore(f.root).list()).map((entry) => entry.source)
+    .filter((source) => source.status === "active" && source.currentVersionId);
+  assert.ok(sources.length >= 2);
+  await assert.rejects(f.workflow.action({ action: "reprocess-all", sourceIds: ["missing-id"] }), /Unknown source/);
+  // legacyOnly selects only sources still at the old source-<id>.md path.
+  await fs.mkdir(path.join(f.root, "wiki/sources"), { recursive: true });
+  await fs.writeFile(path.join(f.root, `wiki/sources/source-${sources[1].id}.md`), "legacy page\n");
+  await f.workflow.action({ action: "reprocess-all", legacyOnly: true });
+  let jobs = f.queue.list().filter((job) => job.operation === "reprocess" && job.status === "queued");
+  assert.deepEqual(jobs.map((job) => job.sourceId), [sources[1].id]);
+  await assert.rejects(f.workflow.action({ action: "reprocess-all" }), /already queued or running/);
+  await f.drain();
+  await f.workflow.action({ action: "reprocess-all", sourceIds: [sources[0].id] });
+  jobs = f.queue.list().filter((job) => job.operation === "reprocess" && job.status === "queued");
+  assert.deepEqual(jobs.map((job) => job.sourceId), [sources[0].id]);
 });

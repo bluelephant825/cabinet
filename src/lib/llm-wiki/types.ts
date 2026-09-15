@@ -126,11 +126,12 @@ export type IngestionStatus =
   | "promoting"
   | "compiling"
   | "reconciling"
+  | "linking"
   | "complete"
   | "failed"
   | "needs-review";
 
-export type IngestionOperation = "create" | "update" | "delete" | "reprocess";
+export type IngestionOperation = "create" | "update" | "delete" | "reprocess" | "consolidate" | "lint";
 
 interface IngestionJobBase {
   readonly id: IngestionJobId;
@@ -172,6 +173,13 @@ export type IngestionJob = IngestionJobBase & (
       sourceId: SourceId;
       /** Previously committed input version; independent of working-file state. */
       sourceVersionId: SourceVersionId;
+      input?: never;
+      contentHash?: never;
+    }
+  | {
+      /** Whole-wiki maintenance; no Source identity or captured input. */
+      operation: "consolidate" | "lint";
+      sourceId: null;
       input?: never;
       contentHash?: never;
     }

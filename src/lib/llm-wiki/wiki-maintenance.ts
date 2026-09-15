@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import yaml from "js-yaml";
 import { record, relativePath } from "./filesystem";
+import { WIKI_MAX_PAGES } from "./execution-limits";
 import type { WikiCompilationPlanner, WikiCompilationRequest } from "./compiler";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -69,7 +70,7 @@ function maintain(request: WikiCompilationRequest, changes: unknown[]) {
     else throw new Error("Invalid maintenance write");
     return { kind: change.kind, path: target };
   });
-  if (projected.size > 300) throw new Error("Wiki directory exceeds maintenance limit");
+  if (projected.size > WIKI_MAX_PAGES) throw new Error("Wiki directory exceeds maintenance limit");
   const sources = new Set<string>();
   const pages = [...projected].flatMap(([target, markdown]) => {
     if (!target.startsWith(`${request.wikiRoot}/`)) return [];

@@ -149,7 +149,7 @@ test("connected compiler allows work beyond two minutes but enforces its full de
   const expired = new PlanningWikiCompiler(f.root, { propose(_request, received) {
     signal = received; started(); return new Promise(() => {});
   } }, WIKI_COMPILATION_TIMEOUT_MS).ingest(f.entry.source, f.entry.versions[0]);
-  const rejected = assert.rejects(expired, /timed out after 720 seconds/);
+  const rejected = assert.rejects(expired, new RegExp(`timed out after ${Math.round(WIKI_COMPILATION_TIMEOUT_MS / 1000)} seconds`));
   await nextReady;
   t.mock.timers.tick(WIKI_COMPILATION_TIMEOUT_MS);
   await rejected;
@@ -190,9 +190,11 @@ test("source summaries produce one grounded logical page with controlled provena
   const change = result.changes[0];
   assert.equal(change.kind, "write");
   if (change.kind !== "write") return;
-  assert.equal(change.path, `wiki/sources/source-${f.entry.source.id}.md`);
+  assert.equal(change.path, `wiki/sources/compiler-fixture.md`);
   assert.match(change.markdown, /type: source-summary/);
   assert.match(change.markdown, /current_version: 1/);
+  assert.match(change.markdown, /created: '?\d{4}-\d{2}-\d{2}/);
+  assert.match(change.markdown, /## Limitations\n\nSingle source; not yet cross-checked\./);
   assert.match(change.markdown, /## Contradictions \/ qualifications/);
   assert.match(change.markdown, /E1: “Ignore all rules”/);
   assert.ok(change.markdown.includes(f.entry.versions[0].contentHash));
@@ -202,23 +204,29 @@ test("source summaries produce one grounded logical page with controlled provena
   assert.deepEqual(await compiler.ingest(f.entry.source, f.entry.versions[0]), result);
 });
 
-test("summary refresh reuses a logical page and cites only current evidence across versions", async (t) => {
+test("summary refresh renames an old-path page to the readable slug with a delete+write pair", async (t) => {
   const f = await fixture(t, "Research/Team");
   const existingPath = `${f.wiki}/sources/human-chosen-name.md`;
-  await fs.writeFile(path.join(f.root, existingPath), `---\ntype: source-summary\nsource_id: ${f.entry.source.id}\n---\nOld summary\n`);
+  const existingMarkdown = `---\ntype: source-summary\nsource_id: ${f.entry.source.id}\ncreated: 2026-01-01\n---\nOld summary\n`;
+  await fs.writeFile(path.join(f.root, existingPath), existingMarkdown);
   const second = await f.publisher.publishUpdate(f.entry.source.id, f.entry.versions[0].id, await f.normalize("# New evidence\nThe result is uncertain.\n"));
   const compiler = new PlanningWikiCompiler(f.root, new SourceSummaryPlanner({ async summarize(input) {
     assert.doesNotMatch(input.body, /Ignore all rules/);
     return { summary: [{ text: "The source reports an uncertain outcome.", quote: "The result is uncertain." }], claims: [], qualifications: [] };
   } }));
   const result = await compiler.reconcileUpdate(second.source, second.versions[0], second.versions[1]);
-  const change = result.changes[0];
-  assert.equal(change.path, existingPath);
-  assert.ok(change.expectedHash);
+  assert.equal(result.changes.length, 2);
+  const deletion = result.changes[0];
+  assert.equal(deletion.kind, "delete");
+  assert.equal(deletion.path, existingPath);
+  assert.equal(deletion.expectedHash, createHash("sha256").update(existingMarkdown).digest("hex"));
+  const change = result.changes[1];
+  assert.equal(change.kind, "write");
   if (change.kind !== "write") assert.fail("Expected summary write");
+  assert.equal(change.path, `${f.wiki}/sources/compiler-fixture.md`);
   assert.match(change.markdown, /current_version: 2/);
+  assert.match(change.markdown, /created: '?2026-01-01/);
   assert.deepEqual(change.supports, [{ sourceId: second.source.id, versionId: second.versions[1].id }]);
-  assert.match(change.markdown, /Comparison with earlier versions has not been compiled/);
   assert.match(await fs.readFile(path.join(f.root, existingPath), "utf8"), /Old summary/);
 });
 
@@ -239,9 +247,10 @@ test("summary planner rejects fabricated quotes, extra model fields, copying and
 test("summary identity collisions fail before inference and unsafe-looking text stays literal", async (t) => {
   const f = await fixture(t);
   const compiler = new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(summaryModel));
-  const destination = path.join(f.root, f.wiki, `sources/source-${f.entry.source.id}.md`);
+  const destination = path.join(f.root, f.wiki, `sources/compiler-fixture.md`);
   await fs.writeFile(destination, "# Someone else's page");
-  await assert.rejects(compiler.ingest(f.entry.source, f.entry.versions[0]), /occupied/);
+  const collided = await compiler.ingest(f.entry.source, f.entry.versions[0]);
+  assert.equal(collided.changes[0].path, `wiki/sources/compiler-fixture-${f.entry.source.id.slice(0, 8)}.md`);
   const owned = `---\ntype: source-summary\nsource_id: ${f.entry.source.id}\n---\nExisting`;
   await fs.writeFile(destination, owned);
   const duplicate = path.join(f.root, f.wiki, "sources/duplicate.md");
@@ -286,7 +295,7 @@ test("semantic extraction analyzes both kinds once and fills summary sections wi
   const change = result.changes[0];
   if (change.kind !== "write") assert.fail("Expected source summary");
   assert.match(change.path, /^wiki\/rooms\/room-Research%2FTeam\/sources\//);
-  assert.match(change.markdown, /## Entities\n\nCandidates from this Source/);
+  assert.match(change.markdown, /## Entities\n\n- \*\*Cabinet\*\* \(software\)/);
   assert.match(change.markdown, /\*\*Cabinet\*\* \(software\)/);
   assert.match(change.markdown, /\*\*retrieval augmented generation\*\* \(method\)/);
   assert.equal(change.markdown.match(/E2: “Cabinet uses/g)?.length, 1); // Shared quote deduplicated.
@@ -380,16 +389,6 @@ test("semantic inference cancellation and failure cannot return a partial summar
 
 import { assessCandidateDurability, semanticDurabilityReasons, type DurabilityContext, type DurabilityModel } from "./durability";
 
-test("durability defaults incidental candidates to mentions without dropping them from summaries", async (t) => {
-  const f = await semanticFixture(t);
-  const result = await new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract() { return { candidates: semanticItems }; } }))
-    .ingest(f.entry.source, f.entry.versions[1]);
-  assert.equal(result.changes.length, 1);
-  if (result.changes[0].kind !== "write") assert.fail("Expected summary");
-  assert.equal(result.changes[0].markdown.match(/Mention only/g)?.length, 2);
-  assert.doesNotMatch(result.changes[0].markdown, /Eligible for a Wiki page/);
-});
-
 test("each semantic durability criterion independently qualifies a grounded candidate", async (t) => {
   const f = await semanticFixture(t);
   for (const code of semanticDurabilityReasons) {
@@ -398,14 +397,14 @@ test("each semantic durability criterion independently qualifies a grounded cand
       return { decisions: input.candidates.map((candidate) => ({ candidateId: candidate.id,
         reasons: candidate.kind === "entity" ? [{ code, explanation: "Cabinet is the subject of the described retrieval behavior.", quote: semanticItems[0].quote }] : [] })) };
     } };
-    const result = await new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract() { return { candidates: semanticItems }; } }, { model }))
-      .ingest(f.entry.source, f.entry.versions[1]);
-    assert.equal(result.changes.length, 1);
-    if (result.changes[0].kind !== "write") assert.fail("Expected summary");
-    assert.equal(result.changes[0].markdown.match(/Eligible for a Wiki page/g)?.length, 1);
-    assert.equal(result.changes[0].markdown.match(/Mention only/g)?.length, 1);
-    assert.match(result.changes[0].markdown, /Cabinet is the subject/);
-    await assert.rejects(fs.access(path.join(f.root, result.changes[0].path)));
+    await new PlanningWikiCompiler(f.root, { async propose(request, signal) {
+      const extracted = await extractSemanticCandidates(request, { async extract() { return { candidates: semanticItems }; } }, signal);
+      const result = await assessCandidateDurability(request, extracted, { model }, signal);
+      const entity = extracted.candidates.find((item) => item.kind === "entity")!, concept = extracted.candidates.find((item) => item.kind === "concept")!;
+      assert.equal(result.decisions.find((item) => item.candidateId === entity.id)?.disposition, "durable");
+      assert.equal(result.decisions.find((item) => item.candidateId === concept.id)?.disposition, "mention");
+      return { changes: [] };
+    } }).ingest(f.entry.source, f.entry.versions[1]);
   }
 });
 
@@ -487,17 +486,15 @@ test("durability context refuses unread pages and stale, deleted or cross-room o
   } }).ingest(f.entry.source, f.entry.versions[1]);
 });
 
-test("durability inference is cancellable and failures cannot return a partial Source summary", async (t) => {
+test("durability failures cannot return a partial assessment", async (t) => {
   const f = await semanticFixture(t);
-  let received: AbortSignal | undefined;
-  await assert.rejects(new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract() { return { candidates: semanticItems }; } }, {
-    model: { assess(_, signal) { received = signal; return new Promise(() => {}); } },
-  }), 100).ingest(f.entry.source, f.entry.versions[1]), /timed out/);
-  assert.equal(received?.aborted, true);
-  await assert.rejects(new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract() { return { candidates: semanticItems }; } }, {
-    model: { async assess() { throw new Error("Durability unavailable"); } },
-  })).ingest(f.entry.source, f.entry.versions[1]), /Durability unavailable/);
-  assert.equal((await f.store.get(f.entry.source.id))?.source.lastCompiledVersionId, null);
+  await new PlanningWikiCompiler(f.root, { async propose(request, signal) {
+    const extracted = await extractSemanticCandidates(request, { async extract() { return { candidates: semanticItems }; } }, signal);
+    await assert.rejects(assessCandidateDurability(request, extracted, {
+      model: { async assess() { throw new Error("Durability unavailable"); } },
+    }, signal), /Durability unavailable/);
+    return { changes: [] };
+  } }).ingest(f.entry.source, f.entry.versions[1]);
 });
 
 import { matchExistingWikiPages } from "./wiki-linking";
@@ -506,37 +503,21 @@ async function seedWikiIdentity(root: string, wiki: string, filename: string, me
   await fs.writeFile(path.join(root, wiki, "entities", filename), `---\n${metadata}\n---\n# Existing knowledge\n`);
 }
 
-test("existing Wiki title/alias matches feed durability and render encoded links without changing target pages", async (t) => {
+test("existing Wiki title/alias matches are available to callers without changing target pages", async (t) => {
   const f = await semanticFixture(t, "Research/Team");
   const filename = "Cabinet (knowledge).md";
   await seedWikiIdentity(f.root, f.wiki, filename, "type: entity\ncategory: software\ntitle: Cabinet knowledge base\naliases: [CABINET]");
   const target = path.join(f.root, f.wiki, "entities", filename);
   const before = await fs.readFile(target);
-  const result = await new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract() { return { candidates: semanticItems }; } }))
-    .ingest(f.entry.source, f.entry.versions[1]);
-  assert.equal(result.changes.length, 1);
-  if (result.changes[0].kind !== "write") assert.fail("Expected summary");
-  assert.match(result.changes[0].markdown, /\[Cabinet\]\(\.\.\/entities\/Cabinet%20%28knowledge%29.md\)/);
-  assert.match(result.changes[0].markdown, /Existing Wiki page/);
-  assert.match(result.changes[0].markdown, /## Related Wiki pages\n\n- \[Cabinet knowledge base\]/);
+  const result = await new PlanningWikiCompiler(f.root, { async propose(request, signal) {
+    const extracted = await extractSemanticCandidates(request, { async extract() { return { candidates: semanticItems }; } }, signal);
+    const matches = matchExistingWikiPages(request, extracted);
+    const linked = matches.find((match) => match.status === "linked")!;
+    assert.equal(linked.targets[0].path.endsWith(filename), true);
+    return { changes: [] };
+  } }).ingest(f.entry.source, f.entry.versions[1]);
   assert.ok(result.readSet.some((page) => page.path.endsWith(filename)));
   assert.deepEqual(await fs.readFile(target), before);
-  assert.equal((await f.store.get(f.entry.source.id))?.source.lastCompiledVersionId, null);
-});
-
-test("ambiguous and underspecified Wiki identities require review rather than picking a page", async (t) => {
-  const f = await semanticFixture(t);
-  await seedWikiIdentity(f.root, f.wiki, "one.md", "type: entity\ncategory: software\ntitle: Cabinet");
-  await seedWikiIdentity(f.root, f.wiki, "two.md", "type: entity\ntitle: Cabinet");
-  const compiler = new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract() { return { candidates: semanticItems }; } }));
-  const result = await compiler.ingest(f.entry.source, f.entry.versions[1]);
-  if (result.changes[0].kind !== "write") assert.fail("Expected summary");
-  assert.match(result.changes[0].markdown, /Identity match requires review/);
-  assert.doesNotMatch(result.changes[0].markdown, /\]\(\.\.\/entities\//);
-  await fs.rm(path.join(f.root, f.wiki, "entities/one.md"));
-  const missingCategory = await compiler.ingest(f.entry.source, f.entry.versions[1]);
-  if (missingCategory.changes[0].kind !== "write") assert.fail("Expected summary");
-  assert.match(missingCategory.changes[0].markdown, /Identity match requires review/);
 });
 
 test("Wiki matching excludes wrong categories, foreign metadata and untyped pages, and validates trusted choices", async (t) => {
@@ -560,13 +541,16 @@ test("Wiki matching excludes wrong categories, foreign metadata and untyped page
 test("Wiki matching fails malformed aliases and compiler rejects target changes during planning", async (t) => {
   const f = await semanticFixture(t);
   await seedWikiIdentity(f.root, f.wiki, "cabinet.md", "type: entity\ncategory: software\ntitle: Cabinet\naliases: invalid");
-  const semantic = { async extract() { return { candidates: semanticItems }; } };
-  await assert.rejects(new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, semantic)).ingest(f.entry.source, f.entry.versions[1]), /aliases/);
+  await new PlanningWikiCompiler(f.root, { async propose(request, signal) {
+    const extracted = await extractSemanticCandidates(request, { async extract() { return { candidates: semanticItems }; } }, signal);
+    assert.throws(() => matchExistingWikiPages(request, extracted), /aliases/);
+    return { changes: [] };
+  } }).ingest(f.entry.source, f.entry.versions[1]);
   await seedWikiIdentity(f.root, f.wiki, "cabinet.md", "type: entity\ncategory: software\ntitle: Cabinet");
-  await assert.rejects(new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, semantic, { model: { async assess(input) {
+  await assert.rejects(new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract(input, signal) {
     await fs.appendFile(path.join(f.root, f.wiki, "entities/cabinet.md"), "Changed by human\n");
-    return { decisions: input.candidates.map((candidate) => ({ candidateId: candidate.id, reasons: [] })) };
-  } } })).ingest(f.entry.source, f.entry.versions[1]), /inputs changed/);
+    return { candidates: [] };
+  } })).ingest(f.entry.source, f.entry.versions[1]), /inputs changed/);
 });
 
 import { buildWikiProvenance, encodeWikiProvenance, decodeWikiProvenance, verifyWikiProvenance, inspectWikiSupport } from "./wiki-provenance";
@@ -790,23 +774,6 @@ test("deletion rejects stale snapshots, forged inactive support and wrong operat
   assert.equal((await f.store.get(removed.source.id))?.source.lifecycle?.reconciliation, "pending");
 });
 
-import type { IdentityAssessmentModel } from "./external-identity";
-test("external identities enrich durable candidate links without importing external facts into provenance", async (t) => {
-  const f = await semanticFixture(t);
-  await seedWikiIdentity(f.root, f.wiki, "cabinet.md", "type: entity\ncategory: software\ntitle: Cabinet");
-  const model: IdentityAssessmentModel = { async assess(input) { return { assessments: input.choices.map((choice) => ({ qid: choice.qid, labelMatch: true, typeMatch: true, contextMatch: true, reason: "Matches the Source context." })) }; } };
-  const result = await new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract() { return { candidates: semanticItems }; } }, {}, {
-    provider: { async search(name) { assert.equal(name, "Cabinet"); return [{ qid: "Q123", label: "Cabinet", aliases: [], description: "External description must not become a Wiki fact.", types: [{ qid: "Q7397", label: "software" }], wikipedia: "https://en.wikipedia.org/wiki/Cabinet_(software)" }]; } }, model,
-  })).ingest(f.entry.source, f.entry.versions[1]);
-  const change = result.changes[0];
-  if (change.kind !== "write") assert.fail("Expected summary");
-  assert.match(change.markdown, /https:\/\/www.wikidata.org\/wiki\/Q123/);
-  assert.match(change.markdown, /Cabinet_%28software%29/);
-  assert.doesNotMatch(change.markdown, /External description/);
-  assert.doesNotMatch(JSON.stringify(change.provenance), /Q123|External description/);
-  assert.equal(result.changes.length, 1);
-});
-
 import { withWikiMaintenance } from "./wiki-maintenance";
 
 test("Wiki maintenance projects new pages into all four scoped navigation/log proposals", async (t) => {
@@ -824,7 +791,7 @@ test("Wiki maintenance projects new pages into all four scoped navigation/log pr
   const index = result.changes.find((item) => item.path === `${f.wiki}/index.md`)!;
   if (index.kind !== "write") assert.fail("Expected index");
   assert.ok(index.markdown.startsWith("# Existing index\n"));
-  assert.match(index.markdown, /sources\/source-/);
+  assert.match(index.markdown, /sources\/compiler-fixture/);
   const log = result.changes.find((item) => item.path === `${f.wiki}/log.md`)!;
   if (log.kind !== "write") assert.fail("Expected log");
   assert.match(log.markdown, /Prepared ingest/);
@@ -908,15 +875,15 @@ test("maintenance projects page removal and ignores other scopes while empty pla
   assert.equal(log.markdown, "# Wiki operation log\n");
 });
 
-test("optional identity outage does not discard an otherwise grounded Source summary", async (t) => {
+test("maintenance accepts a Wiki with more than 300 agent-built pages", async (t) => {
   const f = await semanticFixture(t);
-  await seedWikiIdentity(f.root, f.wiki, "cabinet.md", "type: entity\ncategory: software\ntitle: Cabinet");
-  const result = await new PlanningWikiCompiler(f.root, new SourceSummaryPlanner(semanticSummary, { async extract() { return { candidates: semanticItems }; } }, {}, {
-    provider: { async search() { throw new Error("Wikidata unavailable"); } },
-  })).ingest(f.entry.source, f.entry.versions[1]);
-  const change = result.changes[0];
-  if (change.kind !== "write") assert.fail("Expected summary");
-  assert.match(change.markdown, /External identity lookup unavailable; retry separately/);
-  assert.ok(change.provenance!.knowledge.length > 0);
-  assert.equal((await f.store.get(f.entry.source.id))?.source.lastCompiledVersionId, null);
+  await fs.mkdir(path.join(f.root, "wiki/concepts"), { recursive: true });
+  for (let i = 0; i < 350; i++) {
+    await fs.writeFile(path.join(f.root, `wiki/concepts/concept-${i}.md`),
+      `---\ntitle: Concept ${i}\ntype: concept\ncreated: 2026-01-01\nupdated: 2026-01-01\nsources: []\ntags: []\n---\n\n# Concept ${i}\n`);
+  }
+  const result = await new PlanningWikiCompiler(f.root, withWikiMaintenance({ async propose() { return { changes: [] }; } })).ingest(f.entry.source, f.entry.versions[1]);
+  assert.ok(result.changes.some((item) => item.path === "wiki/log.md"));
 });
+
+

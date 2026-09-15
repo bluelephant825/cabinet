@@ -11,7 +11,8 @@ type Intent =
   | { operation: "create"; sourceId: SourceId | null; input: SourceLocation; contentHash: string }
   | { operation: "update"; sourceId: SourceId; input: SourceLocation; contentHash: string }
   | { operation: "delete"; sourceId: SourceId; input?: never; contentHash?: never }
-  | { operation: "reprocess"; sourceId: SourceId; sourceVersionId: SourceVersionId; input?: never; contentHash?: never };
+  | { operation: "reprocess"; sourceId: SourceId; sourceVersionId: SourceVersionId; input?: never; contentHash?: never }
+  | { operation: "consolidate" | "lint"; sourceId?: null; input?: never; contentHash?: never };
 
 export type EnqueueInput = Intent & {
   roomPath: string | null;
@@ -87,12 +88,14 @@ function locationKey(value: SourceLocation): string {
 
 // Source registration happens after entering classifying and before binding its
 // ID to the job. A crash in that gap also needs manifest reconciliation.
-const writeStages = new Set<IngestionStatus>(["classifying", "promoting", "compiling", "reconciling"]);
-const routes: Record<IngestionOperation, IngestionStatus[]> = {
-  create: ["normalizing", "classifying", "promoting", "compiling", "complete"],
-  update: ["normalizing", "promoting", "reconciling", "complete"],
-  reprocess: ["normalizing", "promoting", "reconciling", "complete"],
-  delete: ["reconciling", "complete"],
+const writeStages = new Set<IngestionStatus>(["classifying", "promoting", "compiling", "reconciling", "linking"]);
+export const ingestionRoutes: Record<IngestionOperation, IngestionStatus[]> = {
+  create: ["normalizing", "classifying", "promoting", "compiling", "linking", "complete"],
+  update: ["normalizing", "promoting", "reconciling", "linking", "complete"],
+  reprocess: ["normalizing", "promoting", "reconciling", "linking", "complete"],
+  delete: ["reconciling", "linking", "complete"],
+  consolidate: ["linking", "complete"],
+  lint: ["linking", "complete"],
 };
 
 /**
@@ -142,13 +145,13 @@ export class IngestionQueue {
 
   async enqueue(input: EnqueueInput): Promise<QueuedJob> {
     await this.enabled();
-    if (!Object.hasOwn(routes, input.operation)) throw new Error("Invalid ingestion operation");
+    if (!Object.hasOwn(ingestionRoutes, input.operation)) throw new Error("Invalid ingestion operation");
     const room = input.roomPath === null ? null : relativePath(input.roomPath);
     const generation = nonempty(input.generation);
     const limit = bounded(input.maxAttempts ?? 3, 1, 100);
     const store = new SourceStore(this.root);
-    if (input.sourceId !== null) opaqueId(input.sourceId);
-    if (input.operation !== "create" && !input.sourceId) throw new Error("Source identity required");
+    if (input.sourceId) opaqueId(input.sourceId);
+    if (!["create", "consolidate", "lint"].includes(input.operation) && !input.sourceId) throw new Error("Source identity required");
     const source = input.sourceId ? await store.get(input.sourceId) : null;
     if (input.sourceId && (!source || source.source.roomPath !== room)) throw new Error("Unknown or differently scoped Source");
     let location: SourceLocation | null = null;
@@ -179,7 +182,7 @@ export class IngestionQueue {
         if (!source?.versions.some((item) => item.id === version)) throw new Error("Unknown SourceVersion");
       }
     }
-    const stream = input.sourceId ? `source:${input.sourceId}` : `input:${locationKey(location!)}`;
+    const stream = input.sourceId ? `source:${input.sourceId}` : location ? `input:${locationKey(location)}` : `wiki:${input.operation}`;
     const dedup = createHash("sha256").update(JSON.stringify([room, stream, input.operation, hash, version, generation])).digest("hex");
     const now = this.clock();
     const iso = new Date(now).toISOString();
@@ -187,6 +190,10 @@ export class IngestionQueue {
       const prior = this.db.prepare("SELECT * FROM llm_wiki_jobs WHERE cabinet_id = ? AND dedup_key = ?").get(this.cabinetId, dedup) as Row | undefined;
       if (prior) return job(prior);
       if (source && input.operation === "create" && source.versions.length) throw new Error("Source already has evidence; use update or reprocess");
+      if ((input.operation === "consolidate" || input.operation === "lint")
+          && this.db.prepare(`SELECT id FROM llm_wiki_jobs WHERE cabinet_id=? AND operation=? AND status NOT IN ('complete','failed','needs-review')`).get(this.cabinetId, input.operation)) {
+        throw new Error(`A ${input.operation} job is already queued or running`);
+      }
       const id = randomUUID() as IngestionJobId;
       this.db.prepare(`INSERT INTO llm_wiki_jobs
         (id,cabinet_id,room_path,source_id,operation,input_json,content_hash,source_version_id,dedup_key,generation,stream_key,status,max_attempts,available_at,created_at,updated_at)
@@ -220,7 +227,7 @@ export class IngestionQueue {
           AND previous.sequence < j.sequence AND previous.status != 'complete') ORDER BY j.sequence LIMIT 1`).get(this.cabinetId, now) as Row | undefined;
       if (!row) return null;
       const token = randomUUID();
-      const stage = routes[row.operation][0];
+      const stage = ingestionRoutes[row.operation][0];
       const iso = new Date(now).toISOString();
       this.db.prepare("UPDATE llm_wiki_jobs SET status=?,attempts=attempts+1,lease_token=?,lease_expires_at=?,updated_at=?,error=NULL WHERE id=?").run(stage, token, now + leaseMs, iso, row.id);
       this.db.prepare("INSERT INTO llm_wiki_attempts(job_id,attempt,worker,token,started_at,stage) VALUES (?,?,?,?,?,?)").run(row.id, row.attempts + 1, worker, token, iso, stage);
@@ -247,7 +254,7 @@ export class IngestionQueue {
   advance(id: IngestionJobId, token: string, next: IngestionStatus): QueuedJob {
     return this.db.transaction(() => {
       const row = this.leased(id, token);
-      const stages = routes[row.operation];
+      const stages = ingestionRoutes[row.operation];
       if (stages[stages.indexOf(row.status) + 1] !== next) throw new Error("Invalid ingestion stage transition");
       if (next === "promoting" && !row.source_id) throw new Error("Bind a Source before promotion");
       const iso = new Date(this.clock()).toISOString();
