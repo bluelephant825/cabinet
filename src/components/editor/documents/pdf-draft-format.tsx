@@ -50,7 +50,11 @@ export function PdfDraftFormatBar({
       // Keep clicks inside the draft container: the container's blur handler
       // decides commit-vs-stay via relatedTarget.
       onMouseDown={(e) => {
-        if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
+        // Inputs and selects need the default action (focus / open the option
+        // list); they sit inside the container so relatedTarget still matches.
+        if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) {
+          e.preventDefault();
+        }
       }}
     >
       <select

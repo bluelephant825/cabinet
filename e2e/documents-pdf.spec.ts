@@ -201,6 +201,22 @@ test("pdf draft format bar restyles an edit and an insert end to end", async ({
   expect(
     await bar.locator('[data-testid="pdf-draft-font"] option').count(),
   ).toBeGreaterThan(3);
+  // Real user-style pick: mousedown on the select must not be prevented (the
+  // option list has to open). Prefer the curated "times" id, else the first
+  // non-empty option value ("" is the "Keep original font" entry).
+  const fontSel = bar.locator('[data-testid="pdf-draft-font"]');
+  const optionValues = await fontSel
+    .locator("option")
+    .evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value));
+  const fontPick =
+    (optionValues.includes("times")
+      ? "times"
+      : optionValues.find((v) => v !== "")) ?? "";
+  expect(fontPick).not.toBe("");
+  await fontSel.click();
+  await fontSel.selectOption(fontPick);
+  // Focusing the select must not blur-commit the draft.
+  await expect(input).toBeVisible();
   // Smaller than the block's 16pt — a grown size would hit the overflow guard.
   await bar.locator('[data-testid="pdf-draft-size"]').fill("12");
   await bar.locator('[data-testid="pdf-draft-color"]').fill("#ff0000");
@@ -225,6 +241,7 @@ test("pdf draft format bar restyles an edit and an insert end to end", async ({
   expect(edit!.newFontSize).toBe(12);
   expect(edit!.newColor).toEqual([255, 0, 0]);
   expect(edit!.newBold).toBe(true);
+  expect(edit!.newFont).toBe(fontPick);
 
   // The styled text is still in the saved file.
   const inspected = await (
