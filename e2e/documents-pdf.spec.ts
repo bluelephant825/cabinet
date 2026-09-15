@@ -145,6 +145,94 @@ test("external edit while dirty shows a conflict banner without reloading", asyn
   await page.screenshot({ path: `${SHOTS}/documents-pdf-conflict.png` });
 });
 
+test("pdf draft format bar restyles an edit and an insert end to end", async ({
+  page,
+  request,
+}) => {
+  const res = await putDocument("styled.pdf", await makePdf("Styled base line"));
+  expect(res.ok).toBe(true);
+
+  const frame = await openPdf(page, "styled.pdf");
+  await enableEditText(frame, page);
+  await clickFirstTextLine(frame, page);
+
+  const input = frame.locator(".pdf-textedit-input").first();
+  await expect(input).toBeVisible({ timeout: 10_000 });
+
+  // The format bar floats with the draft; interact with it without blur-committing.
+  const bar = frame.locator('[data-testid="pdf-draft-format"]');
+  await expect(bar).toBeVisible();
+  // Smaller than the block's 16pt — a grown size would hit the overflow guard.
+  await bar.locator('[data-testid="pdf-draft-size"]').fill("12");
+  await bar.locator('[data-testid="pdf-draft-color"]').fill("#ff0000");
+  await bar.locator('[data-testid="pdf-draft-bold"]').click();
+  await bar.locator('[data-testid="pdf-draft-done"]').click();
+
+  // Committed to a pending edit — the draft is gone, a preview chip appears.
+  await expect(frame.locator(".pdf-textedit-preview").first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+  // Intercept the patch request — the op must carry the style overrides.
+  const saveReq = page.waitForRequest(
+    (r) => r.url().includes("/api/documents/patch") && r.method() === "POST",
+  );
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
+  const patchBody = (await saveReq).postDataJSON() as {
+    ops: { kind: string; edit?: Record<string, unknown> }[];
+  };
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 30_000 });
+  const edit = patchBody.ops.find((o) => o.kind === "pdfTextEdit")?.edit;
+  expect(edit).toBeTruthy();
+  expect(edit!.newFontSize).toBe(12);
+  expect(edit!.newColor).toEqual([255, 0, 0]);
+  expect(edit!.newBold).toBe(true);
+
+  // The styled text is still in the saved file.
+  const inspected = await (
+    await request.post(`${cabinet.appUrl}/api/documents/inspect`, {
+      data: { virtualPath: "styled.pdf" },
+    })
+  ).json();
+  const allText = inspected.pages
+    .flatMap((p: { textLines: { text: string }[] }) => p.textLines)
+    .map((l: { text: string }) => l.text)
+    .join("\n");
+  expect(allText).toContain("Styled base line");
+
+  // Insert flow: type on empty page space, style via the bar, save.
+  const res2 = await putDocument("inserted.pdf", await makePdf("Insert base"));
+  expect(res2.ok).toBe(true);
+  const frame2 = await openPdf(page, "inserted.pdf");
+  await frame2.getByRole("button", { name: "Insert text" }).click();
+  await page.waitForTimeout(150);
+  const pageEl = frame2.locator(".pdf-page").first();
+  const box = await pageEl.boundingBox();
+  if (!box) throw new Error("pdf page element has no box");
+  await page.mouse.click(box.x + 300, box.y + 500);
+
+  const ins = frame2.locator(".pdf-insert-draft-wrap textarea");
+  await expect(ins).toBeVisible({ timeout: 10_000 });
+  await ins.fill("Inserted styled text");
+  const bar2 = frame2.locator('[data-testid="pdf-draft-format"]');
+  await bar2.locator('[data-testid="pdf-draft-size"]').fill("20");
+  await bar2.locator('[data-testid="pdf-draft-color"]').fill("#0000ff");
+  await bar2.locator('[data-testid="pdf-draft-done"]').click();
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+  const saveReq2 = page.waitForRequest(
+    (r) => r.url().includes("/api/documents/patch") && r.method() === "POST",
+  );
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
+  const patchBody2 = (await saveReq2).postDataJSON() as {
+    ops: { kind: string; insert?: Record<string, unknown> }[];
+  };
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 30_000 });
+  const insert = patchBody2.ops.find((o) => o.kind === "pdfTextInsert")?.insert;
+  expect(insert).toBeTruthy();
+  expect(insert!.fontSize).toBe(20);
+  expect(insert!.color).toEqual([0, 0, 255]);
+});
+
 test("unmatchable pending edit surfaces diagnostics and keeps edits pending", async ({
   page,
   request,

@@ -122,6 +122,8 @@ export interface PdfGeometryResult {
   encrypted: boolean;
   /** True when a /Sig signature field was found — saving invalidates it. */
   signed: boolean;
+  /** EDIT_FONTS ids whose files are usable on this machine (worker-reported). */
+  editFonts: string[];
 }
 
 export interface PdfGeometryRequest {

@@ -24,6 +24,18 @@ import type {
   PdfImageEdit,
   Rect4,
 } from "@/lib/documents/types";
+import { PdfDraftFormatBar } from "./pdf-draft-format";
+import {
+  blockDraftStyle,
+  defaultInsertFont,
+  draftStyleToEditFields,
+  hasStyleChanges,
+  resolveInsertFont,
+  rgbCss,
+  scaledLineLeading,
+  DEFAULT_INSERT_STYLE,
+  type DraftStyle,
+} from "./pdf-draft-style";
 import { useLocale } from "@/i18n/use-locale";
 
 import { PdfPage } from "../../../vendor/genoffice/apps/pdf/renderer/PdfPage";
@@ -56,7 +68,7 @@ import {
   type LocalTextInsert,
 } from "../../../vendor/genoffice/apps/pdf/renderer/text-edit-preview";
 import { DOC_OPTS } from "../../../vendor/genoffice/apps/pdf/renderer/view-config";
-import type { PageImageRef } from "../../../vendor/genoffice/apps/pdf/shared/ipc";
+import { EDIT_FONTS, type PageImageRef } from "../../../vendor/genoffice/apps/pdf/shared/ipc";
 import "../../../vendor/genoffice/apps/pdf/renderer/styles.css";
 import "../../../app/document-editor/document-editor.css";
 
@@ -79,6 +91,8 @@ interface BlockDraft {
   oldText: string;
   fontSize: number;
   value: string;
+  /** Format-bar state — new* fields on commit come from this. */
+  style: DraftStyle;
   editId?: string;
   block: {
     leftPt: number;
@@ -95,6 +109,7 @@ interface InsertDraft {
   origin: [number, number];
   rotate: number;
   value: string;
+  style: DraftStyle;
 }
 
 interface PendingImage {
@@ -190,6 +205,8 @@ export default function PdfEditorFrame() {
   const [scale, setScale] = useState(1.25);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [geometry, setGeometry] = useState<PdfGeometryResult | null>(null);
+  /** EDIT_FONTS ids usable on this machine — reported by the geometry op. */
+  const editFonts = useMemo(() => geometry?.editFonts ?? [], [geometry]);
   const [pageSizes, setPageSizes] = useState<{ width: number; height: number }[]>([]);
   const [baseRots, setBaseRots] = useState<number[]>([]);
   const [pageBlocks, setPageBlocks] = useState<Map<number, TextBlock[]>>(new Map());
@@ -491,8 +508,11 @@ export default function PdfEditorFrame() {
     [pageBlocks],
   );
 
+  /** Last committed insert style — consecutive inserts keep it. */
+  const lastInsertStyle = useRef<DraftStyle | null>(null);
+
   const openBlockDraft = useCallback(
-    (pageIndex: number, block: TextBlock, editId?: string, value?: string) => {
+    (pageIndex: number, block: TextBlock, editId?: string, value?: string, existing?: PdfTextEdit) => {
       const firstLine = block.lines[0]!;
       setDraft({
         pageIndex,
@@ -500,6 +520,7 @@ export default function PdfEditorFrame() {
         oldText: joinBlockLines(block.lines.map((l) => l.text)),
         fontSize: block.fontSize,
         value: value ?? joinBlockLines(block.lines.map((l) => l.text)),
+        style: blockDraftStyle(block.fontSize, existing),
         editId,
         block: {
           leftPt: block.rect[0],
@@ -522,7 +543,11 @@ export default function PdfEditorFrame() {
     const s = st.current;
     // Blur can fire before React flushes the last onChange — trust the DOM.
     const value = domValue ?? d.value;
-    if (value.trim() === d.oldText.trim() || value === d.oldText) {
+    const styleFields = draftStyleToEditFields(d.style, d.fontSize);
+    if (
+      (value.trim() === d.oldText.trim() || value === d.oldText) &&
+      !hasStyleChanges(styleFields)
+    ) {
       setDraft(null);
       return;
     }
@@ -546,15 +571,18 @@ export default function PdfEditorFrame() {
       return;
     }
     const css = getComputedStyle(document.body).fontFamily;
-    const lineLeading = d.block.lineHeight;
+    // Reflow and overflow checks must use the *new* size or a grown block
+    // would overflow silently at save time.
+    const effSize = d.style.fontSize;
+    const lineLeading = scaledLineLeading(d.block.lineHeight, d.fontSize, effSize);
     const wrapped = value
       .split("\n")
-      .flatMap((p) => (p.trim() ? wrapText(p, d.block.widthPt, d.fontSize, css) : []));
+      .flatMap((p) => (p.trim() ? wrapText(p, d.block.widthPt, effSize, css) : []));
     const overflowed = reflowOverflows(
       d.block,
       wrapped.length,
       lineLeading,
-      d.fontSize,
+      effSize,
       (pageBlocks.get(d.pageIndex) ?? []).map((b) => ({ rect: b.rect })),
       d.rect,
     );
@@ -566,7 +594,7 @@ export default function PdfEditorFrame() {
       d.block.align === "left"
         ? undefined
         : wrapped.map((l) => {
-            const slack = d.block.widthPt - measurePt(l, d.fontSize, css);
+            const slack = d.block.widthPt - measurePt(l, effSize, css);
             return Math.max(0, d.block.align === "center" ? slack / 2 : slack);
           });
     const input: PdfTextEdit = {
@@ -575,6 +603,7 @@ export default function PdfEditorFrame() {
       oldText: d.oldText,
       newText: wrapped.join("\n"),
       fontSize: d.fontSize,
+      ...styleFields,
       origin: [d.block.leftPt, d.block.firstBaseline],
       lineLeading,
       lineXOffsets,
@@ -597,18 +626,23 @@ export default function PdfEditorFrame() {
     const text = value.trim();
     setInsertDraft(null);
     if (!text) return;
+    lastInsertStyle.current = d.style;
+    const font = resolveInsertFont(d.style, editFonts);
     const input: PdfTextInsert = {
       pageIndex: d.pageIndex,
       origin: d.origin,
       text: value.replace(/\s+$/, ""),
-      fontSize: 14,
-      color: [0, 0, 0],
-      lineLeading: 14 * 1.2,
+      fontSize: d.style.fontSize,
+      color: d.style.color ?? [0, 0, 0],
+      ...(font ? { font } : {}),
+      ...(d.style.bold ? { bold: true } : {}),
+      ...(d.style.italic ? { italic: true } : {}),
+      lineLeading: d.style.fontSize * 1.2,
       rotate: d.rotate,
     };
     setTextInserts((prev) => [...prev, { id: newId(), input }]);
     markDirty();
-  }, [insertDraft, markDirty]);
+  }, [editFonts, insertDraft, markDirty]);
 
   const onPageMouseMove = useCallback(
     (pageIndex: number, e: React.MouseEvent<HTMLElement>) => {
@@ -637,6 +671,7 @@ export default function PdfEditorFrame() {
           origin: [x, y],
           rotate: ((pageGeom(pageIndex).rot % 360) + 360) % 360,
           value: "",
+          style: lastInsertStyle.current ?? { ...DEFAULT_INSERT_STYLE },
         });
         return;
       }
@@ -683,6 +718,7 @@ export default function PdfEditorFrame() {
           block,
           existing?.id,
           existing ? (existing.input.blockSource ?? existing.input.newText.split("\n").join(" ")) : undefined,
+          existing?.input,
         );
       }
     },
@@ -1112,6 +1148,7 @@ export default function PdfEditorFrame() {
                               block,
                               te.id,
                               te.input.blockSource ?? te.input.newText.split("\n").join(" "),
+                              te.input,
                             );
                           } else {
                             setTextEdits((prev) => prev.filter((x) => x.id !== te.id));
@@ -1156,51 +1193,102 @@ export default function PdfEditorFrame() {
                   />
                 )}
                 {/* block draft editor */}
-                {draft && draft.pageIndex === page.index && (
-                  <div
-                    className="pdf-textedit-editor"
-                    style={pdfRectToCss(geom, cropRect(draft.rect, crop), scale)}
-                  >
-                    <textarea
-                      className="pdf-textedit-input pdf-textedit-block"
-                      autoFocus
-                      value={draft.value}
-                      style={{
-                        width: "100%",
-                        minHeight: "100%",
-                        fontSize: draft.fontSize * scale * 0.92,
-                        lineHeight: `${draft.block.lineHeight * scale}px`,
+                {draft && draft.pageIndex === page.index && (() => {
+                  const pos = pdfRectToCss(geom, cropRect(draft.rect, crop), scale);
+                  // Bar floats above the textarea; near the page top it drops below.
+                  const nearTop = (pos.top ?? 0) < 40;
+                  const chosenFont = EDIT_FONTS.find((f) => f.id === draft.style.font);
+                  return (
+                    <div
+                      className="pdf-textedit-editor"
+                      style={pos}
+                      onBlur={(e) => {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                          commitDraft(e.currentTarget.querySelector("textarea")?.value);
+                        }
                       }}
-                      onChange={(e) => setDraft({ ...draft, value: e.target.value })}
-                      onBlur={(e) => commitDraft(e.currentTarget.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") setDraft(null);
-                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitDraft();
-                      }}
-                    />
-                  </div>
-                )}
+                    >
+                      <PdfDraftFormatBar
+                        style={draft.style}
+                        onStyle={(patch) =>
+                          setDraft((d) => (d ? { ...d, style: { ...d.style, ...patch } } : d))
+                        }
+                        editFonts={editFonts}
+                        isInsert={false}
+                        below={nearTop}
+                        onDone={() => commitDraft()}
+                        onCancel={() => setDraft(null)}
+                      />
+                      <textarea
+                        className="pdf-textedit-input pdf-textedit-block"
+                        autoFocus
+                        value={draft.value}
+                        style={{
+                          width: "100%",
+                          minHeight: "100%",
+                          fontSize: draft.style.fontSize * scale * 0.92,
+                          lineHeight: `${scaledLineLeading(draft.block.lineHeight, draft.fontSize, draft.style.fontSize) * scale}px`,
+                          ...(draft.style.color ? { color: rgbCss(draft.style.color) } : {}),
+                          ...(chosenFont ? { fontFamily: chosenFont.css } : {}),
+                          ...(draft.style.bold ? { fontWeight: 700 } : {}),
+                          ...(draft.style.italic ? { fontStyle: "italic" } : {}),
+                        }}
+                        onChange={(e) => setDraft({ ...draft, value: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") setDraft(null);
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitDraft();
+                        }}
+                      />
+                    </div>
+                  );
+                })()}
                 {/* insert-text draft editor */}
                 {insertDraft && insertDraft.pageIndex === page.index && (() => {
                   const [vx, vy] = pdfToView(geom, insertDraft.origin[0] - crop[0], insertDraft.origin[1] - crop[1]);
+                  const nearTop = (vy - insertDraft.style.fontSize) * scale < 40;
+                  const insertFont = EDIT_FONTS.find(
+                    (f) => f.id === (insertDraft.style.font ?? defaultInsertFont(editFonts)),
+                  );
                   return (
-                    <textarea
-                      className="pdf-textedit-input pdf-insert-draft"
-                      autoFocus
-                      value={insertDraft.value}
-                      placeholder={t("pdfEditor:typeHere")}
-                      style={{
-                        left: vx * scale,
-                        top: (vy - 14) * scale,
-                        fontSize: 14 * scale * 0.92,
+                    <div
+                      className="pdf-insert-draft-wrap"
+                      style={{ left: vx * scale, top: (vy - 14) * scale }}
+                      onBlur={(e) => {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                          commitInsert(e.currentTarget.querySelector("textarea")?.value);
+                        }
                       }}
-                      onChange={(e) => setInsertDraft({ ...insertDraft, value: e.target.value })}
-                      onBlur={(e) => commitInsert(e.currentTarget.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") setInsertDraft(null);
-                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitInsert();
-                      }}
-                    />
+                    >
+                      <PdfDraftFormatBar
+                        style={insertDraft.style}
+                        onStyle={(patch) =>
+                          setInsertDraft((d) => (d ? { ...d, style: { ...d.style, ...patch } } : d))
+                        }
+                        editFonts={editFonts}
+                        isInsert
+                        below={nearTop}
+                        onDone={() => commitInsert()}
+                        onCancel={() => setInsertDraft(null)}
+                      />
+                      <textarea
+                        className="pdf-textedit-input pdf-insert-draft"
+                        autoFocus
+                        value={insertDraft.value}
+                        placeholder={t("pdfEditor:typeHere")}
+                        style={{
+                          fontSize: insertDraft.style.fontSize * scale * 0.92,
+                          color: rgbCss(insertDraft.style.color ?? [0, 0, 0]),
+                          ...(insertFont ? { fontFamily: insertFont.css } : {}),
+                          ...(insertDraft.style.bold ? { fontWeight: 700 } : {}),
+                          ...(insertDraft.style.italic ? { fontStyle: "italic" } : {}),
+                        }}
+                        onChange={(e) => setInsertDraft({ ...insertDraft, value: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") setInsertDraft(null);
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitInsert();
+                        }}
+                      />
+                    </div>
                   );
                 })()}
                 {/* image edit layer (select/move/resize handles) */}

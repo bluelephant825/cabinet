@@ -237,6 +237,16 @@ body {
   cursor: not-allowed;
 }
 
+/* Insert draft: the positioned box is the wrapper (format bar + textarea). */
+.pdf-insert-draft-wrap {
+  position: absolute;
+  z-index: 7;
+}
+
+.pdf-insert-draft-wrap .pdf-insert-draft {
+  position: static;
+}
+
 .pdf-insert-draft {
   position: absolute;
   z-index: 7;
@@ -249,6 +259,86 @@ body {
   resize: none;
   white-space: pre;
   overflow: hidden;
+}
+
+/* Draft format bar: floats above the draft textarea (below near page top). */
+.pdf-draft-format {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  background: var(--surface, #f3f4f6);
+  border: 1px solid var(--border-strong, #e1e4e8);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  font: 12px/1.4 system-ui, sans-serif;
+  color: var(--text, #1f2937);
+  white-space: nowrap;
+}
+
+.pdf-draft-format-below {
+  bottom: auto;
+  top: calc(100% + 4px);
+}
+
+.pdf-draft-select,
+.pdf-draft-size {
+  font: inherit;
+  color: inherit;
+  background: var(--surface-subtle, #fff);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.pdf-draft-size {
+  width: 52px;
+}
+
+.pdf-draft-btn {
+  font: inherit;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--surface-subtle, #fff);
+  color: inherit;
+  cursor: pointer;
+}
+
+.pdf-draft-btn[aria-pressed="true"] {
+  background: var(--accent-soft, #fbeae5);
+  border-color: var(--accent, #c43e1c);
+}
+
+.pdf-draft-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pdf-draft-bold {
+  font-weight: 700;
+}
+
+.pdf-draft-italic {
+  font-style: italic;
+}
+
+.pdf-draft-color {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  background: var(--surface-subtle, #fff);
+  cursor: pointer;
+}
+
+.pdf-draft-done {
+  border-color: var(--accent, #c43e1c);
 }
 
 .pdf-imgmenu {

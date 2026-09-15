@@ -24,6 +24,7 @@ import {
   loadPdfium,
   withDocument,
   chainPdfium,
+  listEditFonts,
   type Pdfium,
 } from "../../src/vendor/genoffice/apps/pdf/main/text-edit";
 import { savePdfToPath } from "../../src/vendor/genoffice/apps/pdf/main/save-pdf";
@@ -467,6 +468,9 @@ async function pdfPageGeometryOp(args: {
           pages,
           encrypted,
           signed: false,
+          // Machine-dependent subset of EDIT_FONTS — the renderer needs it
+          // to populate the draft format bar's font select.
+          editFonts: listEditFonts(),
         };
       }),
     );
