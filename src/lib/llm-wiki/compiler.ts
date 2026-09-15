@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { WIKI_COMPILATION_TIMEOUT_MS } from "./execution-limits";
+import { WIKI_COMPILATION_TIMEOUT_MS, WIKI_MAX_PAGES, WIKI_MAX_PAGE_BYTES } from "./execution-limits";
 import { isWikiMaintenanceMarker } from "./wiki-maintenance";
 import { verifyWikiProvenance, type WikiProvenance } from "./wiki-provenance";
 import { createHash } from "node:crypto";
@@ -195,7 +195,7 @@ export class PlanningWikiCompiler implements WikiCompiler {
           const markdown = captured.toString("utf8");
           if (captured.length > 512 * 1024 || !Buffer.from(markdown).equals(captured)) throw new Error("Invalid or oversized Wiki text");
           bytes += Buffer.byteLength(markdown);
-          if (bytes > 32 * 1024 * 1024 || pages.length >= 1000) throw new Error("Wiki scope exceeds compiler context limit");
+          if (bytes > WIKI_MAX_PAGE_BYTES || pages.length >= WIKI_MAX_PAGES) throw new Error("Wiki scope exceeds compiler context limit");
           pages.push({ path: child, markdown, sha256: digest(markdown) });
         }
       }

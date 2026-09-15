@@ -875,4 +875,15 @@ test("maintenance projects page removal and ignores other scopes while empty pla
   assert.equal(log.markdown, "# Wiki operation log\n");
 });
 
+test("maintenance accepts a Wiki with more than 300 agent-built pages", async (t) => {
+  const f = await semanticFixture(t);
+  await fs.mkdir(path.join(f.root, "wiki/concepts"), { recursive: true });
+  for (let i = 0; i < 350; i++) {
+    await fs.writeFile(path.join(f.root, `wiki/concepts/concept-${i}.md`),
+      `---\ntitle: Concept ${i}\ntype: concept\ncreated: 2026-01-01\nupdated: 2026-01-01\nsources: []\ntags: []\n---\n\n# Concept ${i}\n`);
+  }
+  const result = await new PlanningWikiCompiler(f.root, withWikiMaintenance({ async propose() { return { changes: [] }; } })).ingest(f.entry.source, f.entry.versions[1]);
+  assert.ok(result.changes.some((item) => item.path === "wiki/log.md"));
+});
+
 

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { ownedPath, statOrNull, withRootLock } from "./filesystem";
+import { WIKI_MAX_PAGES } from "./execution-limits";
 import { opaqueId, readWikiCabinet, WIKI_STATE_PATH } from "./config";
 import { SourceStore } from "./source-store";
 import { encodeSourceManifest } from "./manifest";
@@ -147,7 +148,7 @@ export class WikiPublicationStore {
         if (item.isSymbolicLink()) throw new Error("Symlink appeared during Wiki recovery");
         if (item.isDirectory()) await scan(child);
         else if (item.name.endsWith(".md") && (relative !== receipt.wikiRoot || ["index.md", "overview.md", "log.md", "concept-table.md"].includes(item.name))) currentPaths.push(child);
-        if (currentPaths.length > 1000) throw new Error("Wiki recovery scope exceeds limit");
+        if (currentPaths.length > WIKI_MAX_PAGES) throw new Error("Wiki recovery scope exceeds limit");
       }
     };
     await scan(receipt.wikiRoot);
