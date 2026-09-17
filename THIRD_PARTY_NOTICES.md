@@ -30,6 +30,17 @@ GenOffice NOTICE text:
 | `pdf-lib` | MIT | PDF inspection in tests/tools |
 | `jszip` | MIT OR GPL-3.0-or-later (MIT used) | DOCX container handling |
 
+## Knowledge graph packages
+
+| Package | License | Role |
+| --- | --- | --- |
+| `graphology` | MIT | graph data structure for the Wiki knowledge graph |
+| `graphology-communities-louvain` | MIT | deterministic Louvain community detection |
+| `graphology-types` | MIT | shared graphology typings |
+| `graphology-layout-forceatlas2` | MIT | ForceAtlas2 layout for the Wiki graph viewer |
+| `sigma` | MIT | WebGL renderer for the Wiki graph viewer |
+| `@react-sigma/core` | MIT | React bindings for sigma (installed; viewer uses sigma directly) |
+
 ## Fonts
 
 | Family | License | File |

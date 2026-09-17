@@ -7,6 +7,7 @@ import { providerRegistry } from "../../src/lib/agents/provider-registry";
 import { readProviderSettings } from "../../src/lib/agents/provider-settings";
 import type { SourceSummaryModel } from "../../src/lib/llm-wiki/source-summary";
 import type { SemanticExtractionModel } from "../../src/lib/llm-wiki/semantic-extraction";
+import type { GraphAnalysisModel } from "../../src/lib/llm-wiki/graph/analyze";
 import { WIKI_INFERENCE_TIMEOUT_MS } from "../../src/lib/llm-wiki/execution-limits";
 import { readPersona } from "../../src/lib/agents/persona-manager";
 
@@ -27,7 +28,7 @@ function parseJsonTolerant(output: string): unknown {
   }
 }
 
-export class WikiInferenceModel implements SourceSummaryModel, SemanticExtractionModel {
+export class WikiInferenceModel implements SourceSummaryModel, SemanticExtractionModel, GraphAnalysisModel {
   constructor(private readonly selection?: { provider?: string; model?: string; agentSlug?: string }) {}
   async status() {
     const settings = await readProviderSettings();
@@ -51,6 +52,7 @@ export class WikiInferenceModel implements SourceSummaryModel, SemanticExtractio
   }
   summarize(input: { title: string; body: string; instructions: string }, signal: AbortSignal) { return this.infer(input, signal); }
   extract(input: { title: string; body: string; instructions: string }, signal: AbortSignal) { return this.infer(input, signal); }
+  analyze(input: { pages: readonly unknown[]; existingIds: readonly string[]; instructions: string }, signal: AbortSignal) { return this.infer(input, signal); }
   private async infer(input: { instructions: string; [key: string]: unknown }, signal: AbortSignal): Promise<unknown> {
     signal.throwIfAborted();
     const status = await this.status();

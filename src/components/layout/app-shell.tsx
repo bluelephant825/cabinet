@@ -44,6 +44,10 @@ const PdfCompositionEditor = dynamic(
     ),
   { ssr: false }
 );
+const KnowledgeGraphViewer = dynamic(
+  () => import("@/components/wiki/knowledge-graph-viewer"),
+  { ssr: false }
+);
 import { HomeScreen } from "@/components/home/home-screen";
 import type { ConversationMeta } from "@/types/conversations";
 import { TerminalTabs } from "@/components/terminal/terminal-tabs";
@@ -617,6 +621,7 @@ export function AppShell() {
   // Tour-finish task composer. Opened from the tour's "Write your first task"
   // CTA. We mount the dialog at AppShell level so the user can land on the
   // composer popup wherever they were — no jarring section change to /tasks.
+  const [graphFallback, setGraphFallback] = useState<Set<string>>(new Set());
   const [tourTaskOpen, setTourTaskOpen] = useState(false);
   const [tourTaskAgents, setTourTaskAgents] = useState<CabinetAgentSummary[]>([]);
 
@@ -791,6 +796,9 @@ export function AppShell() {
   // them to the PDF composition editor BEFORE the generic source viewer.
   const compositionPath = selectedNode?.path || selectedPath || "";
   const isPdfComposition = compositionPath.toLowerCase().endsWith(".pdf.source.json");
+  // Wiki knowledge graphs render in the Sigma viewer unless the file turned
+  // out not to be a graph (the route answers 404/409 and we fall back once).
+  const isWikiGraph = /(^|\/)graph\.json$/i.test(compositionPath) && !graphFallback.has(compositionPath);
   const isWebsite = nodeType === "website";
   const isApp = nodeType === "app";
   const prevIsApp = useRef(false);
@@ -1081,6 +1089,11 @@ export function AppShell() {
       const t = selectedNode?.frontmatter?.title || selectedNode?.name || p.split("/").pop() || "PDF";
       return <PdfCompositionEditor path={p} title={t} />;
     }
+    if (isWikiGraph && (selectedNode || selectedPath)) {
+      const p = selectedNode?.path || selectedPath!;
+      const t = selectedNode?.frontmatter?.title || selectedNode?.name || p.split("/").pop() || "Knowledge graph";
+      return <KnowledgeGraphViewer path={p} title={t} onNotGraph={() => setGraphFallback((prev) => new Set(prev).add(p))} />;
+    }
 
     if (isCode && (selectedNode || selectedPath)) {
       const codePath = selectedNode?.path || selectedPath!;
@@ -1208,7 +1221,7 @@ export function AppShell() {
   // the app-shell sheet (otherwise the toolbar sits back on a double sheet).
   const isSelfSheetedViewer =
     isCsv || isCode || isImage || isMermaid ||
-    isPdf || isVideo || isAudio || isUnknown || isLatex ||
+    isPdf || isVideo || isAudio || isUnknown || isLatex || isWikiGraph ||
     isWebsite || isApp || isDocx || isXlsx || isPptx || isNotebook ||
     isModel3d || !!googleFrontmatter?.url;
 

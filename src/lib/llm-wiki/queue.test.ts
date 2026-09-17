@@ -240,6 +240,42 @@ test("consolidate and lint need no Source identity and route through linking", a
     contentHash: "a".repeat(64) } as unknown as EnqueueInput), /file input/);
 });
 
+test("graph jobs need no Source identity, route through linking and dedupe", async (t) => {
+  const f = await fixture(t);
+  const row = await f.queue.enqueue({ operation: "graph", sourceId: null, roomPath: null, generation: "graph-1" });
+  assert.equal(row.sourceId, null);
+  const lease = (await f.queue.claim("one"))!;
+  assert.equal(lease.job.status, "linking");
+  f.queue.advance(row.id, lease.token, "complete");
+  assert.equal(f.queue.get(row.id).status, "complete");
+  const active = await f.queue.enqueue({ operation: "graph", sourceId: null, roomPath: null, generation: "graph-2" });
+  await assert.rejects(f.queue.enqueue({ operation: "graph", sourceId: null, roomPath: null, generation: "graph-3" }), /already queued or running/);
+  await assert.rejects(f.queue.enqueue({ operation: "graph", sourceId: null, roomPath: null, generation: "x",
+    input: { kind: "cabinet", path: "a.md" } } as unknown as EnqueueInput), /file input/);
+  assert.equal(active.status, "queued");
+});
+
+test("a 006-shaped database upgrades to accept graph jobs", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "cabinet-migration-007-"));
+  t.after(async () => fs.rm(root, { recursive: true, force: true }));
+  const throughSix = path.join(root, "migrations-006");
+  await fs.mkdir(throughSix);
+  for (const file of ["001_initial.sql", "005_llm_wiki_queue.sql", "006_llm_wiki_agent_ops.sql"]) {
+    await fs.copyFile(path.resolve("server/migrations", file), path.join(throughSix, file));
+  }
+  const db = new Database(path.join(root, ".cabinet.db"));
+  t.after(async () => { if (db.open) db.close(); });
+  db.pragma("foreign_keys = ON");
+  runSqlMigrations(db, throughSix);
+  db.prepare(`INSERT INTO llm_wiki_jobs(id,cabinet_id,operation,dedup_key,generation,stream_key,status,max_attempts,available_at,created_at,updated_at)
+    VALUES ('job-1','cab','consolidate','dedup-1','gen','stream','complete',3,0,'2026-01-01','2026-01-01')`).run();
+  runSqlMigrations(db, path.resolve("server/migrations"));
+  db.prepare(`INSERT INTO llm_wiki_jobs(id,cabinet_id,operation,dedup_key,generation,stream_key,status,max_attempts,available_at,created_at,updated_at)
+    VALUES ('job-2','cab','graph','dedup-2','gen','stream','queued',3,0,'2026-01-01','2026-01-01')`).run();
+  assert.equal((db.prepare("SELECT count(*) AS n FROM llm_wiki_jobs").get() as { n: number }).n, 2);
+  assert.deepEqual(db.pragma("foreign_key_check"), []);
+});
+
 test("a needs-review consolidate does not block a new consolidate", async (t) => {
   const f = await fixture(t);
   const first = await f.queue.enqueue({ operation: "consolidate", sourceId: null, roomPath: null, generation: "c1" });

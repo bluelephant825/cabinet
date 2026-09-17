@@ -16,7 +16,10 @@ import { SourceNormalizationService } from "../../src/lib/llm-wiki/normalizers";
 import { ingestionRoutes, type IngestionQueue, type JobLease } from "../../src/lib/llm-wiki/queue";
 import type { IngestionJobId, IngestionStatus, SourceId, SourceVersionId } from "../../src/lib/llm-wiki/types";
 import { WikiInferenceModel } from "./wiki-model";
-import { WikiAgentRunner, type AgentPassResult, type AgentTask } from "./wiki-agent";
+import { WikiAgentRunner, appendWikiLog, type AgentPassResult, type AgentTask } from "./wiki-agent";
+import { WikiGraphBuilder, type GraphRefreshResult } from "./wiki-graph";
+import type { GraphAnalysisModel } from "../../src/lib/llm-wiki/graph/analyze";
+import { readWikiGraphHeader } from "../../src/lib/llm-wiki/graph/store";
 import { XbergAdapter } from "./xberg";
 import { commitWikiPublication } from "../../src/lib/history/engine";
 import { listPersonas } from "../../src/lib/agents/persona-manager";
@@ -34,7 +37,7 @@ export class WikiWorkflow {
   private error: string | null = null;
   private dependencyChecked = 0;
   constructor(private readonly root: string, private readonly openQueue: () => Promise<IngestionQueue | null>,
-    private readonly model: SourceSummaryModel & SemanticExtractionModel = new WikiInferenceModel(),
+    private readonly model: SourceSummaryModel & SemanticExtractionModel & Partial<GraphAnalysisModel> = new WikiInferenceModel(),
     private readonly stale: () => boolean = () => false,
     private readonly agent?: WikiAgentRunner) {}
   private agentRunner(): WikiAgentRunner { return this.agent ?? new WikiAgentRunner(this.root); }
@@ -53,10 +56,16 @@ export class WikiWorkflow {
     const jobs = await Promise.all((queue?.list() ?? []).map(async (job) => {
       const file = await ownedPath(this.root, `${WIKI_STATE_PATH}/operations/${job.id}.json`);
       const record = await statOrNull(file) ? JSON.parse(await fs.readFile(file, "utf8")) : {};
-      return { ...job, agentWarnings: Array.isArray(record.agentWarnings) ? record.agentWarnings : [] };
+      return { ...job, agentWarnings: Array.isArray(record.agentWarnings) ? record.agentWarnings : [],
+        graphWarnings: Array.isArray(record.graphWarnings) ? record.graphWarnings : [],
+        graph: record.graph && typeof record.graph === "object" ? record.graph : null };
     }));
+    const graph = await (async () => {
+      try { return cabinet?.config.enabled ? await readWikiGraphHeader(this.root, cabinet.config.paths.wiki) : null; }
+      catch { return null; }
+    })();
     return { enabled: cabinet?.config.enabled ?? false, cabinetName: path.basename(this.root), folders: settings.folders, running: settings.running,
-      busy: !!this.active, error: this.error, provider, jobs,
+      busy: !!this.active, error: this.error, provider, jobs, graph,
       agents, selectedAgent: settings.agentSlug ?? null, agentModel: settings.agentModel ?? null, sources: await Promise.all(sources.map(async ({ source, versions }) => ({ id: source.id, title: source.title, path: source.mode === "managed" ? source.managedLocation.path : null,
         rawPath: source.rawPath, version: versions.find((item) => item.id === source.currentVersionId)?.version ?? null,
         warnings: await this.sourceWarnings(source.id),
@@ -146,6 +155,17 @@ export class WikiWorkflow {
       const id = input.id as IngestionJobId, job = queue.get(id);
       if (input.updatedAt !== job.updatedAt) throw new Error("Job changed. Refresh before retrying.");
       await queue.resumeReviewed(id, job.updatedAt);
+      this.wake(); return this.status();
+    }
+    if (input.action === "graph") {
+      const queue = await this.openQueue(); if (!queue) throw new Error("Queue unavailable");
+      if (queue.list().some((job) => job.operation === "graph" && !["complete", "failed", "needs-review"].includes(job.status))) {
+        throw new Error("A graph operation is already queued or running");
+      }
+      const available = this.model instanceof WikiInferenceModel ? (await this.inference(settings).status()).available : true;
+      if (!available) throw new Error("Choose a Cabinet AI provider first");
+      await queue.enqueue({ operation: "graph", sourceId: null, roomPath: null, generation: `graph:${Date.now()}` });
+      await this.save({ ...settings, running: true });
       this.wake(); return this.status();
     }
     if (input.action === "consolidate" || input.action === "lint") {
@@ -251,6 +271,54 @@ export class WikiWorkflow {
     existing.agentChanges = { created: result.created, updated: result.updated, deleted: result.deleted };
     await durableText(this.root, recordPath, JSON.stringify(existing));
   }
+  /** Deterministic graph rebuild after each pass; failures are warnings in the
+   * operations record and never fail the job. */
+  private async recordGraphResult(jobId: string, options?: { analyze?: { model: GraphAnalysisModel; modelName: string; signal: AbortSignal }; extraWarnings?: string[] }): Promise<GraphRefreshResult | null> {
+    try {
+      const result = await new WikiGraphBuilder(this.root).refresh(jobId, { analyze: options?.analyze });
+      const warnings = [...(options?.extraWarnings ?? []), ...result.warnings];
+      const recordPath = `${WIKI_STATE_PATH}/operations/${jobId}.json`;
+      const file = await ownedPath(this.root, recordPath);
+      const existing = await statOrNull(file) ? JSON.parse(await fs.readFile(file, "utf8")) : {};
+      existing.graphWarnings = warnings;
+      existing.graph = { path: result.path, stats: result.stats,
+        analyzed: result.analyzed, cached: result.cached, failedBatches: result.failedBatches };
+      await durableText(this.root, recordPath, JSON.stringify(existing));
+      return { ...result, warnings };
+    } catch { /* A graph recording failure must not fail the job. */ return null; }
+  }
+  /** A dedicated graph job: advance to "linking", analyze into the cache, merge,
+   * then complete. No agent pass. */
+  private async graphStage(queue: IngestionQueue, lease: JobLease, settings: Settings, signal: AbortSignal) {
+    const { job, token } = lease;
+    const route = ingestionRoutes[job.operation];
+    for (let status = queue.get(job.id).status; status !== "linking"; status = queue.get(job.id).status) {
+      queue.advance(job.id, token, route[route.indexOf(status) + 1]);
+    }
+    let analyze: { model: GraphAnalysisModel; modelName: string; signal: AbortSignal } | undefined;
+    if (this.model instanceof WikiInferenceModel) {
+      const inference = this.inference(settings);
+      const status = await inference.status();
+      if (status.available) analyze = { model: inference, modelName: `${status.provider}${status.model ? `/${status.model}` : ""}`, signal };
+    } else if (this.model.analyze) {
+      analyze = { model: this.model as GraphAnalysisModel, modelName: "test", signal };
+    }
+    const result = await this.recordGraphResult(job.id,
+      { analyze, extraWarnings: analyze ? [] : ["No analysis model available; deterministic graph only"] });
+    queue.advance(job.id, token, "complete");
+    try {
+      const wikiRoot = (await readWikiCabinet(this.root))?.config.paths.wiki ?? "wiki";
+      const stats = result?.stats;
+      await appendWikiLog(this.root, wikiRoot, job.id, "graph | Knowledge graph", [
+        `- Job: ${job.id}`,
+        stats ? `- Graph: ${stats.nodes} nodes, ${stats.edges} edges (${stats.inferredEdges} inferred)` : "- Graph: rebuild failed",
+        `- Pages analyzed: ${result?.analyzed ?? 0} (${result?.cached ?? 0} cached)`,
+        ...(result?.failedBatches ? [`- Failed batches: ${result.failedBatches}`] : []),
+        ...(result?.warnings.length ? [`- Warnings: ${result.warnings.slice(0, 10).join("; ")}`] : []),
+      ]);
+      await commitWikiPublication(this.root, wikiRoot, [`${wikiRoot}/log.md`], job.id);
+    } catch { /* The log entry is best-effort; the job already completed. */ }
+  }
   /** Auto-consolidate once a batch drain finishes; the marker survives restarts. */
   private async maybeConsolidate(queue: IngestionQueue) {
     const marker = await ownedPath(this.root, this.batchMarker);
@@ -259,6 +327,11 @@ export class WikiWorkflow {
     await fs.rm(marker, { force: true });
     if (queue.list().some((job) => job.operation === "consolidate" && !["complete", "failed", "needs-review"].includes(job.status))) return;
     await queue.enqueue({ operation: "consolidate", sourceId: null, roomPath: null, generation: `consolidate:auto:${Date.now()}` });
+  }
+  /** Enqueue graph enrichment after a consolidate pass, unless one is active. */
+  private async maybeGraph(queue: IngestionQueue) {
+    if (queue.list().some((job) => job.operation === "graph" && !["complete", "failed", "needs-review"].includes(job.status))) return;
+    await queue.enqueue({ operation: "graph", sourceId: null, roomPath: null, generation: `graph:auto:${Date.now()}` });
   }
   /** Stage 2: the tool-enabled agent pass runs while the job holds the
    * "linking" stage, after Cabinet's checked publication commit. */
@@ -301,14 +374,22 @@ export class WikiWorkflow {
       }
       const current = manifest?.versions.find((item) => item.id === manifest.source.currentVersionId);
       await this.linkingStage(queue, lease, settings, manifest, sourcePage, current?.markdownPath ?? null, signal);
+      await this.recordGraphResult(job.id);
       advance("complete");
+      if (job.operation === "consolidate") await this.maybeGraph(queue);
       await this.maybeConsolidate(queue);
       return;
     }
     let manifest = job.sourceId ? await store.get(job.sourceId) : null;
+    if (job.operation === "graph") {
+      await this.graphStage(queue, lease, settings, signal);
+      return;
+    }
     if (job.operation === "consolidate" || job.operation === "lint") {
       await this.linkingStage(queue, lease, settings, null, null, null, signal);
+      await this.recordGraphResult(job.id);
       advance("complete");
+      if (job.operation === "consolidate") await this.maybeGraph(queue);
       return;
     }
     if (job.operation === "delete") {
@@ -381,6 +462,7 @@ export class WikiWorkflow {
     await commitWikiPublication(this.root, plan.wikiRoot, plan.changes.map((change) => change.path), job.id);
     const sourcePage = plan.changes.find((change) => change.path.includes("/sources/") && change.kind === "write")?.path ?? null;
     await this.linkingStage(queue, lease, settings, manifest, sourcePage, current?.markdownPath ?? null, signal);
+    await this.recordGraphResult(job.id);
     advance("complete");
     await this.maybeConsolidate(queue);
   }

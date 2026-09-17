@@ -239,7 +239,11 @@ async function main() {
   const matched = (program.steps ?? []).find(
     (s) => typeof s.match === "string" && new RegExp(s.match).test(haystack)
   );
-  const step = matched ?? program.steps[index] ?? program.fallback ?? {};
+  // Positional consumption covers only match-less steps: a step with "match"
+  // exists solely for prompts that match it, and probes (e.g. "--version")
+  // spawned without a cabinet cwd must never run its file writes here.
+  const positional = (program.steps ?? []).filter((s) => typeof s.match !== "string");
+  const step = matched ?? positional[index] ?? program.fallback ?? {};
 
   if (step.delayMs) await sleep(step.delayMs);
 

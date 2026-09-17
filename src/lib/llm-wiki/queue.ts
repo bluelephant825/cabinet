@@ -12,7 +12,7 @@ type Intent =
   | { operation: "update"; sourceId: SourceId; input: SourceLocation; contentHash: string }
   | { operation: "delete"; sourceId: SourceId; input?: never; contentHash?: never }
   | { operation: "reprocess"; sourceId: SourceId; sourceVersionId: SourceVersionId; input?: never; contentHash?: never }
-  | { operation: "consolidate" | "lint"; sourceId?: null; input?: never; contentHash?: never };
+  | { operation: "consolidate" | "lint" | "graph"; sourceId?: null; input?: never; contentHash?: never };
 
 export type EnqueueInput = Intent & {
   roomPath: string | null;
@@ -96,6 +96,7 @@ export const ingestionRoutes: Record<IngestionOperation, IngestionStatus[]> = {
   delete: ["reconciling", "linking", "complete"],
   consolidate: ["linking", "complete"],
   lint: ["linking", "complete"],
+  graph: ["linking", "complete"],
 };
 
 /**
@@ -151,7 +152,7 @@ export class IngestionQueue {
     const limit = bounded(input.maxAttempts ?? 3, 1, 100);
     const store = new SourceStore(this.root);
     if (input.sourceId) opaqueId(input.sourceId);
-    if (!["create", "consolidate", "lint"].includes(input.operation) && !input.sourceId) throw new Error("Source identity required");
+    if (!["create", "consolidate", "lint", "graph"].includes(input.operation) && !input.sourceId) throw new Error("Source identity required");
     const source = input.sourceId ? await store.get(input.sourceId) : null;
     if (input.sourceId && (!source || source.source.roomPath !== room)) throw new Error("Unknown or differently scoped Source");
     let location: SourceLocation | null = null;
@@ -190,7 +191,7 @@ export class IngestionQueue {
       const prior = this.db.prepare("SELECT * FROM llm_wiki_jobs WHERE cabinet_id = ? AND dedup_key = ?").get(this.cabinetId, dedup) as Row | undefined;
       if (prior) return job(prior);
       if (source && input.operation === "create" && source.versions.length) throw new Error("Source already has evidence; use update or reprocess");
-      if ((input.operation === "consolidate" || input.operation === "lint")
+      if ((input.operation === "consolidate" || input.operation === "lint" || input.operation === "graph")
           && this.db.prepare(`SELECT id FROM llm_wiki_jobs WHERE cabinet_id=? AND operation=? AND status NOT IN ('complete','failed','needs-review')`).get(this.cabinetId, input.operation)) {
         throw new Error(`A ${input.operation} job is already queued or running`);
       }

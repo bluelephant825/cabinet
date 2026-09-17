@@ -131,7 +131,7 @@ export type IngestionStatus =
   | "failed"
   | "needs-review";
 
-export type IngestionOperation = "create" | "update" | "delete" | "reprocess" | "consolidate" | "lint";
+export type IngestionOperation = "create" | "update" | "delete" | "reprocess" | "consolidate" | "lint" | "graph";
 
 interface IngestionJobBase {
   readonly id: IngestionJobId;
@@ -178,7 +178,7 @@ export type IngestionJob = IngestionJobBase & (
     }
   | {
       /** Whole-wiki maintenance; no Source identity or captured input. */
-      operation: "consolidate" | "lint";
+      operation: "consolidate" | "lint" | "graph";
       sourceId: null;
       input?: never;
       contentHash?: never;

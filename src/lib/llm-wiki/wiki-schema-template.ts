@@ -22,6 +22,7 @@ wiki/           # Your pages (read-write)
 wiki/index.md   # Content catalog. Cabinet regenerates it after every change
 wiki/concept-table.md # Maintained concept map. Update on every concept change
 wiki/log.md     # Append-only operation log. Cabinet appends entries
+wiki/graph.json # Knowledge graph (Cabinet-maintained, regenerated after each pass; do not edit)
 wiki/overview.md # High-level synthesis. Revise as understanding deepens
 \`\`\`
 

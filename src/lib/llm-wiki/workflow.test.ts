@@ -99,7 +99,7 @@ test("folder onboarding publishes cross-folder Wiki, captures and reader links w
   const f = await fixture(t);
   const before = await Promise.all(names.map((name) => fs.readFile(path.join(f.root, name), "utf8")));
   await f.enqueue(); await f.drain();
-  assert.deepEqual(f.queue.list().map((job) => [job.status, job.error]), [["complete", null], ["complete", null], ["complete", null]]);
+  assert.deepEqual(f.queue.list().map((job) => [job.status, job.error]), [["complete", null], ["complete", null], ["complete", null], ["complete", null]]);
   const inventory = await readWikiInventory(f.root);
   const sourcesPages = inventory.filter((item) => item.provenance.pagePath.includes("/sources/"));
   assert.equal(sourcesPages.length, 2);
@@ -110,7 +110,7 @@ test("folder onboarding publishes cross-folder Wiki, captures and reader links w
     if (source.mode === "managed") assert.equal((await readRawSource(f.root, source.managedLocation.path)).kind, "ordinary");
   }
   assert.deepEqual(await Promise.all(names.map((name) => fs.readFile(path.join(f.root, name), "utf8"))), before);
-  await f.enqueue(); assert.equal(f.queue.list().filter((job) => job.operation !== "consolidate").length, 2);
+  await f.enqueue(); assert.equal(f.queue.list().filter((job) => !["consolidate", "graph"].includes(job.operation)).length, 2);
   assert.match(await fs.readFile(path.join(f.root, "wiki/index.md"), "utf8"), /Learning/);
 });
 
@@ -284,6 +284,45 @@ test("an unsupported imported filename is reported without blocking preview or t
   assert.equal(inventory.notes.length, 2);
   assert.ok(inventory.skipped.some((item) => item.path.endsWith("Question?.md") && item.reason.includes("Filename")));
   assert.equal((await readRawSource(f.root, `${folders[0]}/Question?`)).kind, "ordinary");
+});
+
+const graphModel = {
+  ...model,
+  async analyze(input: { pages: { path: string; body: string }[] }) {
+    const nodes = input.pages.map((page, index) => {
+      const quote = (page.body.split("\n").map((line) => line.trim()).find((line) => line && !line.startsWith("#")) ?? "content").slice(0, 200);
+      return { id: `entity:g${index}`, type: "entity", name: quote.split(/\s+/).slice(0, 3).join(" "), summary: "Found by analysis.", pagePath: page.path, quote };
+    });
+    const edges = input.pages.map((page, index) => ({ source: `entity:g${index}`, target: page.path.replace(/^wiki\/|\.md$/g, "").replace(/^/, "page:"), type: "related", pagePath: page.path, quote: nodes[index].quote }));
+    return { nodes, edges };
+  },
+};
+
+test("a consolidate completion auto-enqueues a graph job which analyzes pages", async (t) => {
+  const f = await fixture(t, graphModel);
+  await f.enqueue(); await f.drain();
+  const jobs = f.queue.list();
+  const graphJob = jobs.find((job) => job.operation === "graph");
+  assert.ok(graphJob, "consolidate should enqueue a graph job");
+  assert.equal(graphJob!.status, "complete", graphJob!.error ?? "");
+  const record = JSON.parse(await fs.readFile(path.join(f.root, ".cabinet-state/llm-wiki/operations", `${graphJob!.id}.json`), "utf8"));
+  assert.ok(record.graph.analyzed >= 2);
+  const graph = JSON.parse(await fs.readFile(path.join(f.root, "wiki/graph.json"), "utf8"));
+  assert.ok(graph.edges.some((edge: { provenance: string; extractor: string }) => edge.provenance === "inferred" && edge.extractor === "llm:test"));
+  assert.match(await fs.readFile(path.join(f.root, "wiki/log.md"), "utf8"), /## \[\d{4}-\d{2}-\d{2}\] graph \| Knowledge graph/);
+});
+
+test("a graph job without an analysis model completes with a warning", async (t) => {
+  const f = await fixture(t);
+  await f.enqueue(); await f.drain();
+  await f.workflow.action({ action: "graph" });
+  const active = f.queue.list().filter((job) => job.operation === "graph" && job.status !== "complete");
+  assert.ok(active.length <= 1);
+  await f.drain();
+  const graphJob = f.queue.list().filter((job) => job.operation === "graph").at(-1)!;
+  assert.equal(graphJob.status, "complete", graphJob.error ?? "");
+  const record = JSON.parse(await fs.readFile(path.join(f.root, ".cabinet-state/llm-wiki/operations", `${graphJob.id}.json`), "utf8"));
+  assert.ok(record.graphWarnings.some((warning: string) => warning.includes("No analysis model available")));
 });
 
 test("reprocess-all honors sourceIds and legacyOnly filters", async (t) => {

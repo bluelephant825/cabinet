@@ -41,6 +41,8 @@ test.beforeAll(async () => {
     // Stage 1 restricted inference calls, told apart by their instructions.
     { match: "summary, claims and qualifications", stdout: streamFor(summary) },
     { match: "Identify candidate entities", stdout: streamFor(concepts) },
+    // Knowledge-graph analysis batches (Phase B "graph" job).
+    { match: "Analyze this batch of Wiki pages", stdout: streamFor({ nodes: [], edges: [] }) },
   ] }] });
 });
 test.afterAll(async () => {
@@ -141,9 +143,9 @@ test("select notes in settings, publish Wiki, open all reader views and capture 
   await wiki.getByRole("checkbox").nth(0).check(); await wiki.getByRole("checkbox").nth(1).check();
   await wiki.getByRole("button", { name: "Build Wiki from 2 selected notes" }).click();
   const status = async () => (await request.get(`${cabinet.appUrl}/api/llm-wiki/workflow`)).json();
-  // Two source jobs plus the auto-enqueued consolidate pass after the batch drains.
-  await expect.poll(async () => (await status()).jobs.filter((job: { status: string }) => job.status === "complete").length, { timeout: 60_000 }).toBe(3);
-  await expect(wiki).toContainText("3 of 3 operations completed.");
+  // Two source jobs plus the auto-enqueued consolidate and graph passes after the batch drains.
+  await expect.poll(async () => (await status()).jobs.filter((job: { status: string }) => job.status === "complete").length, { timeout: 60_000 }).toBe(4);
+  await expect(wiki).toContainText("4 of 4 operations completed.");
   const state = await status();
   expect(state.sources.every((source: { compiled: boolean }) => source.compiled)).toBe(true);
   const appleSource = state.sources.find((source: { path: string }) => source.path === files[0]);
@@ -164,6 +166,9 @@ test("select notes in settings, publish Wiki, open all reader views and capture 
   await page.getByRole("link", { name: "Raw v1", exact: true }).first().click();
   await expect(page.getByRole("region", { name: "Captured source" })).toBeVisible();
   expect(await cabinet.read("Cabinet/wiki/index.md")).toContain("entities/test-entity.md");
+  const graph = JSON.parse(await cabinet.read("Cabinet/wiki/graph.json"));
+  expect(graph.kind).toBe("cabinet-wiki-graph");
+  expect(graph.nodes.some((node: { id: string }) => node.id === "page:entities/test-entity")).toBe(true);
   await page.goto(`${cabinet.appUrl}/room/${files[0].replace(/\.md$/, "").split("/").map(encodeURIComponent).join("/")}`);
   await page.getByRole("link", { name: "Read captured source (Reader / Original / Markdown)" }).click();
   const viewer = page.getByRole("region", { name: "Captured source" });

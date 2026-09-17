@@ -230,6 +230,21 @@ test("the report drops tool transcript lines and keeps the final message", async
   assert.doesNotMatch(log, /tool failed|\$ find/);
 });
 
+test("agent edits to wiki/graph.json are restored with a warning", async (t) => {
+  const f = await fixture(t);
+  await fs.writeFile(path.join(f.root, "wiki/graph.json"), "{\"kind\":\"cabinet-wiki-graph\"}\n");
+  const runner = new WikiAgentRunner(f.root, {
+    persona,
+    async execute() {
+      await fs.writeFile(path.join(f.root, "wiki/graph.json"), "{\"kind\":\"forged\"}\n");
+      return ok();
+    },
+  });
+  const result = await runner.run(f.task, {}, "job-6", new AbortController().signal);
+  assert.equal(await fs.readFile(path.join(f.root, "wiki/graph.json"), "utf8"), "{\"kind\":\"cabinet-wiki-graph\"}\n");
+  assert.ok(result.warnings.some((warning) => warning.includes("Cabinet-maintained graph.json")));
+});
+
 test("a missing agent fails clearly and a timed-out run fails", async (t) => {
   const f = await fixture(t);
   assert.equal(new WikiAgentRunner(f.root).hasAgent({}), false);
