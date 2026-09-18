@@ -31,7 +31,7 @@ import fs from "fs";
 import os from "os";
 import net from "net";
 import path from "path";
-import { spawn, spawnSync } from "child_process";
+import { execFileSync, spawn, spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { runChecks } from "./smoke-checks.mjs";
 
@@ -281,6 +281,7 @@ const DOC_REQUIRED = [
   path.join("server", "cabinet-daemon.cjs"),
   path.join("server", "document-worker.mjs"),
   path.join("server", "document-tool.mjs"),
+  path.join("server", "browser-tool.mjs"),
   path.join("documents", "pdf-fonts", "LiberationSans-Regular.ttf"),
   path.join("node_modules", "takumi-pdf", "pkg", "takumi_pdf_wasm_bg.wasm"),
   path.join("node_modules", "@embedpdf", "pdfium", "dist", "pdfium.wasm"),
@@ -380,6 +381,47 @@ const patched = docTool(
   "patch"
 );
 ok(`inspect (${pdfInspect.pageCount} page) + patch ok${patched?.warnings?.length ? ` (${patched.warnings.length} warnings)` : ""}`);
+
+// cabinet-browser: the tool is staged and reaches the daemon /browser routes
+// (no Chromium download needed — status answers regardless).
+step("browser: cabinet-browser status...");
+{
+  // The tool resolves its own data dir, which can differ from the isolated
+  // daemon's (active-cabinet lookup reads ~/.cabinet). Pin the token the
+  // daemon actually wrote so the request is authenticated either way.
+  let isoToken = "";
+  try {
+    const found = execFileSync(
+      "find",
+      [ISO_DATA, "-name", "daemon-token", "-maxdepth", "5"],
+      { encoding: "utf8" }
+    ).trim().split("\n").filter(Boolean)[0];
+    if (found) isoToken = fs.readFileSync(found, "utf8").trim();
+  } catch { /* token stays empty; the tool falls back to its own lookup */ }
+  const r = spawnSync(
+    isoNode,
+    [path.join(ISO_APP, "server", "browser-tool.mjs"), "status"],
+    {
+      encoding: "utf8",
+      timeout: 30_000,
+      env: {
+        HOME: os.homedir(),
+        CABINET_DATA_DIR: ISO_DATA,
+        CABINET_DAEMON_URL: `http://127.0.0.1:${isoDaemonPort}`,
+        ...(isoToken ? { CABINET_DAEMON_TOKEN: isoToken } : {}),
+      },
+    }
+  );
+  let parsed = null;
+  try { parsed = JSON.parse(r.stdout); } catch { /* handled below */ }
+  if (r.status !== 0 || typeof parsed?.status !== "string") {
+    fail(
+      `cabinet-browser status failed (exit=${r.status} signal=${r.signal} ` +
+        `error=${r.error ? r.error.message : "none"}):\n${r.stdout}\n${r.stderr}`
+    );
+  }
+  ok(`cabinet-browser status ok (status=${parsed.status})`);
+}
 
 step("documents: convert pdf → docx (worker pipeline)...");
 const conv = docTool(["convert", "--path", "smoke.pdf", "--wait"], "convert --wait");

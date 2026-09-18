@@ -1,0 +1,258 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import JSZip from "jszip";
+
+import {
+  ExtensionManager,
+  crxZipOffset,
+  extractExtensionId,
+  resolveI18nMessage,
+} from "../server/browser/extension-manager";
+import type { CDPClient } from "../server/browser/cdp-client";
+
+const EXT_ID = "bcmnckabbmlnklolblobnobnlioneebd"; // 32 chars in [a-p]
+
+function crx3(zipBytes: Buffer): Buffer {
+  const headerSize = 4; // minimal fake header payload
+  const out = Buffer.alloc(12 + headerSize);
+  out.writeUInt32LE(0x34327243, 0); // Cr24
+  out.writeUInt32LE(3, 4);
+  out.writeUInt32LE(headerSize, 8);
+  return Buffer.concat([out, zipBytes]);
+}
+
+function crx2(zipBytes: Buffer): Buffer {
+  const pubKeyLen = 8;
+  const sigLen = 4;
+  const out = Buffer.alloc(16 + pubKeyLen + sigLen);
+  out.writeUInt32LE(0x34327243, 0);
+  out.writeUInt32LE(2, 4);
+  out.writeUInt32LE(pubKeyLen, 8);
+  out.writeUInt32LE(sigLen, 12);
+  return Buffer.concat([out, zipBytes]);
+}
+
+async function extensionZip(): Promise<Buffer> {
+  const zip = new JSZip();
+  zip.file(
+    "manifest.json",
+    JSON.stringify({
+      manifest_version: 3,
+      name: "__MSG_appName__",
+      version: "1.2.3",
+      description: "__MSG_appDesc__",
+      default_locale: "en",
+      icons: { "48": "icon.png" },
+      content_scripts: [{ matches: ["https://example.com/*"] }],
+      options_ui: { page: "options.html" },
+      action: { default_popup: "popup.html" },
+    }),
+  );
+  zip.file(
+    "_locales/en/messages.json",
+    JSON.stringify({
+      AppName: { message: "Transcribed" },
+      appDesc: { message: "Transcribe stuff" },
+    }),
+  );
+  zip.file("icon.png", Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  zip.file("popup.html", "<html></html>");
+  zip.file("options.html", "<html></html>");
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
+type CdpCall = { method: string; params?: Record<string, unknown> };
+function fakeCdp(calls: CdpCall[]): CDPClient {
+  return {
+    send: async (method: string, params?: Record<string, unknown>) => {
+      calls.push({ method, params });
+      if (method === "Extensions.loadUnpacked") return { id: `runtime-${(params?.path as string)?.split("/").pop()}` };
+      return {};
+    },
+  } as unknown as CDPClient;
+}
+
+function fakeFetch(zipBytes: Buffer): typeof fetch {
+  return (async () =>
+    new Response(new Uint8Array(crx3(zipBytes)), { status: 200 })) as unknown as typeof fetch;
+}
+
+function tmpUserData(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-ext-"));
+  process.env.CABINET_USER_DATA = dir;
+  return dir;
+}
+
+test("extractExtensionId accepts bare ids and web-store URLs", () => {
+  assert.equal(extractExtensionId(EXT_ID), EXT_ID);
+  assert.equal(
+    extractExtensionId(`https://chromewebstore.google.com/detail/transcribed/${EXT_ID}?hl=en`),
+    EXT_ID,
+  );
+  assert.equal(extractExtensionId("not-an-id"), null);
+});
+
+test("crxZipOffset handles crx2, crx3 and raw zip", () => {
+  const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.equal(crxZipOffset(zip), 0);
+  const v3 = crx3(zip);
+  assert.equal(crxZipOffset(v3), 16); // 12 + headerSize(4)
+  const v2 = crx2(zip);
+  assert.equal(crxZipOffset(v2), 28); // 16 + 8 + 4
+  assert.throws(() => crxZipOffset(Buffer.alloc(4)), /no CRX data/i);
+});
+
+test("resolveI18nMessage resolves __MSG_ keys case-insensitively", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-i18n-"));
+  fs.mkdirSync(path.join(dir, "_locales", "en"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "_locales", "en", "messages.json"),
+    JSON.stringify({ AppName: { message: "Transcribed" } }),
+  );
+  const manifest = { default_locale: "en" };
+  assert.equal(resolveI18nMessage("__MSG_appName__", dir, manifest), "Transcribed");
+  assert.equal(resolveI18nMessage("__MSG_APPNAME__", dir, manifest), "Transcribed");
+  assert.equal(resolveI18nMessage("__MSG_missing__", dir, manifest), "__MSG_missing__");
+  assert.equal(resolveI18nMessage("plain", dir, manifest), "plain");
+});
+
+test("install unpacks, resolves i18n, loads unpacked and records runtimeId", async () => {
+  const userData = tmpUserData();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  const rec = await mgr.install(`https://chromewebstore.google.com/detail/x/${EXT_ID}`);
+  assert.equal(rec.id, EXT_ID);
+  assert.equal(rec.name, "Transcribed");
+  assert.equal(rec.version, "1.2.3");
+  assert.equal(rec.runtimeId, `runtime-${EXT_ID}`);
+  assert.equal(rec.enabled, true);
+  assert.deepEqual(rec.contentScriptMatches, ["https://example.com/*"]);
+  assert.equal(rec.popupHtml, "popup.html");
+  assert.equal(rec.optionsPage, "options.html");
+  assert.ok(rec.iconDataUrl?.startsWith("data:image/png;base64,"));
+  assert.ok(fs.existsSync(path.join(userData, "Browser", "Extensions", EXT_ID, "manifest.json")));
+  assert.ok(calls.some((c) => c.method === "Extensions.loadUnpacked"));
+  // State file written
+  const state = JSON.parse(
+    fs.readFileSync(path.join(userData, "Browser", "extensions.json"), "utf8"),
+  );
+  assert.equal(state.length, 1);
+});
+
+test("disable then enable issues Extensions.uninstall then loadUnpacked", async () => {
+  tmpUserData();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  await mgr.install(EXT_ID);
+  calls.length = 0;
+
+  const disabled = await mgr.disable(EXT_ID);
+  assert.equal(disabled.enabled, false);
+  assert.equal(disabled.runtimeId, null);
+  assert.deepEqual(calls.map((c) => c.method), ["Extensions.uninstall"]);
+
+  calls.length = 0;
+  const enabled = await mgr.enable(EXT_ID);
+  assert.equal(enabled.enabled, true);
+  assert.equal(enabled.runtimeId, `runtime-${EXT_ID}`);
+  assert.deepEqual(calls.map((c) => c.method), ["Extensions.loadUnpacked"]);
+});
+
+test("migrateLegacyRecords re-installs from cabinet-config.json and strips the key", async () => {
+  const userData = tmpUserData();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  // Legacy state: config lists the extension, old patched dir exists.
+  fs.writeFileSync(
+    path.join(userData, "cabinet-config.json"),
+    JSON.stringify({ dataDir: "/x", extensions: [{ id: EXT_ID, enabled: false, pinned: true }] }),
+  );
+  const legacyDir = path.join(userData, "extensions", EXT_ID);
+  fs.mkdirSync(legacyDir, { recursive: true });
+  fs.writeFileSync(path.join(legacyDir, "patched.js"), "// stub");
+
+  await mgr.migrateLegacyRecords();
+
+  const list = await mgr.list();
+  assert.equal(list.length, 1);
+  assert.equal(list[0].id, EXT_ID);
+  assert.equal(list[0].enabled, false); // preserved
+  assert.equal(list[0].pinned, true);
+  // enabled:false must route through disable() — the record was loaded into
+  // the runtime by install() first, so Extensions.uninstall must follow.
+  const methods = calls.map((c) => c.method);
+  assert.ok(
+    methods.indexOf("Extensions.loadUnpacked") < methods.indexOf("Extensions.uninstall"),
+    `expected loadUnpacked before uninstall, got ${methods.join(",")}`,
+  );
+  assert.equal(list[0].runtimeId, null);
+  assert.ok(!fs.existsSync(legacyDir)); // patched dir deleted
+  const config = JSON.parse(fs.readFileSync(path.join(userData, "cabinet-config.json"), "utf8"));
+  assert.equal(config.extensions, undefined);
+  assert.equal(config.dataDir, "/x"); // other keys preserved
+
+  // Second run is a no-op (extensions.json now exists).
+  calls.length = 0;
+  const mgr2 = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  await mgr2.migrateLegacyRecords();
+  assert.equal((await mgr2.list()).length, 1);
+});
+
+test("crx2 install path works end-to-end", async () => {
+  tmpUserData();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: (async () =>
+      new Response(new Uint8Array(crx2(await extensionZip())), { status: 200 })) as typeof fetch,
+  });
+  const rec = await mgr.install(EXT_ID);
+  assert.equal(rec.name, "Transcribed");
+  assert.ok(calls.some((c) => c.method === "Extensions.loadUnpacked"));
+});
+
+test("re-install of a disabled record skips loadUnpacked", async () => {
+  tmpUserData();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  await mgr.install(EXT_ID);
+  await mgr.disable(EXT_ID);
+  calls.length = 0;
+
+  const rec = await mgr.install(EXT_ID);
+  assert.equal(rec.enabled, false);
+  assert.equal(rec.runtimeId, null);
+  assert.ok(!calls.some((c) => c.method === "Extensions.loadUnpacked"));
+});
+
+test("uninstall removes record and directory", async () => {
+  const userData = tmpUserData();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  await mgr.install(EXT_ID);
+  await mgr.uninstall(EXT_ID);
+  assert.equal((await mgr.list()).length, 0);
+  assert.ok(!fs.existsSync(path.join(userData, "Browser", "Extensions", EXT_ID)));
+  assert.ok(calls.some((c) => c.method === "Extensions.uninstall"));
+});

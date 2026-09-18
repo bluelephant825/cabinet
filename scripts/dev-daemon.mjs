@@ -1,5 +1,6 @@
 import fs from "fs";
 import net from "net";
+import os from "os";
 import path from "path";
 import { spawn } from "child_process";
 
@@ -39,6 +40,19 @@ function getManagedDataDir() {
   const configured = process.env.CABINET_DATA_DIR?.trim();
   if (configured) return path.resolve(configured);
   return path.join(PROJECT_ROOT, "data");
+}
+
+// Electron dev resolves userData to these platform dirs (app name "cabinet");
+// pinning the same path lets the dev daemon share the real Cabinet Browser
+// profile/extensions with `npm run electron:start`.
+function defaultUserDataDir() {
+  if (process.platform === "darwin") {
+    return path.join(os.homedir(), "Library", "Application Support", "cabinet");
+  }
+  if (process.platform === "win32") {
+    return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "cabinet");
+  }
+  return path.join(os.homedir(), ".config", "cabinet");
 }
 
 function getRuntimePortsPath() {
@@ -191,6 +205,9 @@ async function main() {
           CABINET_DAEMON_PORT: String(port),
           CABINET_DAEMON_URL: origin,
           CABINET_PUBLIC_DAEMON_ORIGIN: origin,
+          ...(process.env.CABINET_USER_DATA
+            ? {}
+            : { CABINET_USER_DATA: defaultUserDataDir() }),
         },
       }
     );

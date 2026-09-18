@@ -1,6 +1,7 @@
 /**
  * Bundles the document artifacts that ship outside Next.js tracing:
  *   scripts/document-tool.ts       → dist/document-tool.mjs   (agent helper)
+ *   scripts/browser-tool.ts        → dist/browser-tool.mjs    (agent helper)
  *   server/documents/worker.ts     → dist/document-worker.mjs (doc engine worker)
  *
  * The helper is plain HTTP + path utils — no engines, no sqlite, no vendor
@@ -55,6 +56,13 @@ await bundle({
   outfile: process.env.DOCUMENT_TOOL_OUT || path.join(distDir, "document-tool.mjs"),
 });
 console.log(`[document-tool] bundled → ${process.env.DOCUMENT_TOOL_OUT || path.join(distDir, "document-tool.mjs")}`);
+
+await bundle({
+  ...common,
+  entryPoints: [path.join(projectRoot, "scripts", "browser-tool.ts")],
+  outfile: process.env.BROWSER_TOOL_OUT || path.join(distDir, "browser-tool.mjs"),
+});
+console.log(`[browser-tool] bundled → ${process.env.BROWSER_TOOL_OUT || path.join(distDir, "browser-tool.mjs")}`);
 
 await bundle({
   ...common,

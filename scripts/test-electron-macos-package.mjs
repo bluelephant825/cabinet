@@ -258,6 +258,19 @@ try {
   }
   console.log("document-tool.mjs --help ok under the bundled node");
 
+  // The cabinet-browser helper is staged beside it.
+  const browserToolPath = path.join(
+    appPath, "Contents", "Resources", "app.asar.unpacked",
+    ".next", "standalone", "server", "browser-tool.mjs"
+  );
+  if (!fs.existsSync(browserToolPath)) throw new Error(`browser-tool.mjs not staged: ${browserToolPath}`);
+  const browserHelp = spawnSync(fs.existsSync(nodePath) ? nodePath : process.execPath,
+    [browserToolPath, "--help"], { encoding: "utf8", timeout: 30_000 });
+  if (browserHelp.status !== 0 || !browserHelp.stdout.includes("cabinet-browser")) {
+    throw new Error(`browser-tool.mjs --help failed: ${browserHelp.stderr || browserHelp.stdout}`);
+  }
+  console.log("browser-tool.mjs --help ok under the bundled node");
+
   // Staged document assets must be present in the bundle.
   const standaloneRoot = path.join(
     appPath, "Contents", "Resources", "app.asar.unpacked", ".next", "standalone"

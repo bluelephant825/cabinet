@@ -21,16 +21,17 @@ const PACKAGER_IGNORE = [
   /^\/assets(?:\/|$)/,
   /^\/cli(?:\/|$)/,
   /^\/public(?:\/|$)/,
-  /^\/electron\/(?!main\.cjs$|preload\.cjs$|browser-views\.cjs$|browser-preload\.cjs$|logger\.cjs$).*/,
+  /^\/electron\/(?!main\.cjs$|preload\.cjs$|browser-views\.cjs$|logger\.cjs$).*/,
   /^\/server(?:\/|$)/,
   /^\/src(?:\/|$)/,
   /^\/data(?:\/|$)/,
   /^\/\.next\/(?!standalone(?:\/|$)).*/,
   // Only the runtime closure of electron/*.cjs is packaged: update-electron-app,
-  // electron-squirrel-startup, electron-chrome-extensions, jszip and their
-  // transitive deps. Everything else the app needs at runtime lives inside the
-  // traced .next/standalone tree (unpacked), not the top-level node_modules.
-  /^\/node_modules\/(?!update-electron-app(?:\/|$)|github-url-to-object(?:\/|$)|is-url(?:\/|$)|ms(?:\/|$)|electron-squirrel-startup(?:\/|$)|debug(?:\/|$)|electron-chrome-extensions(?:\/|$)|jszip(?:\/|$)|lie(?:\/|$)|immediate(?:\/|$)|pako(?:\/|$)|readable-stream(?:\/|$)|setimmediate(?:\/|$)|inherits(?:\/|$)|safe-buffer(?:\/|$)|string_decoder(?:\/|$)|util-deprecate(?:\/|$)).*/,
+  // electron-squirrel-startup and their transitive deps. Everything else the
+  // app needs at runtime lives inside the traced .next/standalone tree
+  // (unpacked), not the top-level node_modules. The Chromium sidecar deps
+  // (jszip, @puppeteer/browsers) are esbuild-bundled into cabinet-daemon.cjs.
+  /^\/node_modules\/(?!update-electron-app(?:\/|$)|github-url-to-object(?:\/|$)|is-url(?:\/|$)|ms(?:\/|$)|electron-squirrel-startup(?:\/|$)|debug(?:\/|$)).*/,
   /^\/(?:AI-claude-editor\.md|CLAUDE\.md|PRD\.md|PROGRESS\.md|README\.md|LICENSE\.md|package-lock\.json|eslint\.config\.mjs|forge\.config\.cjs|next\.config\.ts|next-env\.d\.ts|postcss\.config\.mjs|skills-lock\.json|tsconfig\.json|tsconfig\.tsbuildinfo|\.env\.example|\.env\.local|\.dockerignore|\.gitignore|components\.json)$/i,
 ];
 

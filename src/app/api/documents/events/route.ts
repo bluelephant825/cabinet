@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Channels a browser may subscribe to — extend deliberately, not by echo. */
-const ALLOWED_CHANNELS = new Set(["documents"]);
+const ALLOWED_CHANNELS = new Set(["documents", "browser"]);
 const HEARTBEAT_MS = 25_000;
 
 /**

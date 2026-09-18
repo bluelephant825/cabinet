@@ -50,7 +50,10 @@ import { handleWikiRequest } from "./ingestion/wiki-http";
 import { handleInboxRequest } from "./ingestion/inbox-http";
 import { handleDocumentsRequest } from "./documents/http";
 import { DocumentService, type DocumentChangeEvent } from "./documents/service";
+import { handleBrowserRequest } from "./browser/http";
+import { createBrowserDaemon } from "./browser/facade";
 import { ensureDocumentToolShim } from "../src/lib/documents/tool-shim";
+import { ensureBrowserToolShim } from "../src/lib/browser/tool-shim";
 import { cabinetRootForVirtualPath, recordMutation } from "../src/lib/history/engine";
 import { DATA_DIR } from "../src/lib/storage/path-utils";
 import { countWatchableDirs } from "../src/lib/storage/watchable-dirs";
@@ -242,6 +245,36 @@ const searchIndex = new SearchIndex();
 let searchIndexReady = false;
 const wikiWorkflow = new WikiWorkflow(DATA_DIR, openActiveIngestionQueue, undefined, isProcessStale);
 const inboxWatcher = new InboxWatcher(DATA_DIR, openActiveIngestionQueue);
+
+// ===== Cabinet Browser (Chromium sidecar) =====
+// /browser/* HTTP routes plus bus events on the "browser" channel. The sidecar
+// launches lazily on first ensureRunning() — nothing is spawned at boot.
+const browserDaemon = createBrowserDaemon();
+browserDaemon.manager.on("status", (status) =>
+  broadcast("browser", { type: "browser:status", status }),
+);
+browserDaemon.manager.on("download-progress", (progress) =>
+  broadcast("browser", { type: "browser:download", ...progress }),
+);
+for (const [event, action] of [
+  ["tab-created", "created"],
+  ["tab-updated", "updated"],
+  ["tab-closed", "closed"],
+] as const) {
+  browserDaemon.manager.on(event, (tab) =>
+    broadcast("browser", { type: "browser:tab", action, tab }),
+  );
+}
+for (const [event, action] of [
+  ["installed", "installed"],
+  ["removed", "removed"],
+  ["updated", "updated"],
+] as const) {
+  browserDaemon.extensions.on(event, (extension) =>
+    broadcast("browser", { type: "browser:extension", action, extension }),
+  );
+}
+
 const documentService = new DocumentService(undefined, {
   onDocumentChanged: (e) =>
     broadcast("documents", {
@@ -1977,6 +2010,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/browser" || url.pathname.startsWith("/browser/")) {
+    await handleBrowserRequest(req, res, browserDaemon.facade);
+    return;
+  }
+
   if (url.pathname === "/ingestion/wiki") {
     await handleWikiRequest(req, res, wikiWorkflow);
     return;
@@ -2285,6 +2323,7 @@ wssJupyter.on("connection", async (ws, req) => {
 // the whole integration for spawned CLIs.
 try {
   ensureDocumentToolShim();
+  ensureBrowserToolShim();
 } catch (err) {
   console.warn("[documents] failed to write cabinet-documents shim:", err);
 }
@@ -2424,6 +2463,7 @@ async function shutdown(): Promise<void> {
   await managedSourceWatcher.close().catch((error) => console.warn("[managed-source-watcher] shutdown failed:", error));
   await inboxWatcher.close().catch((error) => console.warn("[inbox-watcher] shutdown failed:", error));
   await documentService.shutdown().catch((error) => console.warn("[documents] shutdown failed:", error));
+  await browserDaemon.manager.shutdown().catch((error) => console.warn("[browser] shutdown failed:", error));
   closeDb();
   server.close();
   process.exit(0);

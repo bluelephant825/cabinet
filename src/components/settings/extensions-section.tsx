@@ -1,133 +1,127 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Blocks, Trash2, Loader2, Settings } from "lucide-react";
+import { Blocks, Trash2, Loader2, Settings, Download, Play, RotateCw } from "lucide-react";
 import { showError } from "@/lib/ui/toast";
 import { useAppStore } from "@/stores/app-store";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
-
-interface Extension {
-  id: string;
-  name: string;
-  version: string;
-  path: string;
-  description: string;
-  enabled?: boolean;
-  iconDataUrl?: string | null;
-  popupHtml?: string | null;
-  runtimeId?: string;
-  optionsPage?: string | null;
-}
-
-interface ExtensionResult {
-  ok: boolean;
-  extension?: Extension;
-  error?: string;
-}
-
-interface ExtensionsBridge {
-  getExtensions?: () => Promise<Extension[]>;
-  installExtension?: (urlOrId: string) => Promise<ExtensionResult>;
-  uninstallExtension?: (id: string) => Promise<ExtensionResult>;
-  toggleExtension?: (id: string, enabled: boolean) => Promise<ExtensionResult>;
-  onExtensionInstalled?: (listener: (ext: Extension) => void) => () => void;
-}
-
-function getBridge(): ExtensionsBridge | null {
-  if (typeof window === "undefined") return null;
-  return (
-    (window as unknown as { CabinetDesktop?: ExtensionsBridge })
-      .CabinetDesktop ?? null
-  );
-}
+import { useDaemonChannel } from "@/hooks/use-daemon-channel";
+import {
+  disableExtension,
+  downloadBrowser,
+  enableExtension,
+  getStatus,
+  installExtension,
+  launch,
+  listExtensions,
+  openTab,
+  shutdown,
+  uninstallExtension,
+  type SidecarExtension,
+  type SidecarStatus,
+} from "@/lib/browser/sidecar-client";
 
 function errorMessage(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
+function showToast(kind: string, message: string): void {
+  window.dispatchEvent(new CustomEvent("cabinet:toast", { detail: { kind, message } }));
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  missing: "Not downloaded",
+  downloading: "Downloading",
+  stopped: "Stopped",
+  starting: "Starting",
+  running: "Running",
+  error: "Error",
+};
+
 export function ExtensionsSection() {
-  const [extensions, setExtensions] = useState<Extension[]>([]);
+  const [extensions, setExtensions] = useState<SidecarExtension[]>([]);
+  const [status, setStatus] = useState<SidecarStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState(false);
+  const [launching, setLaunching] = useState(false);
   const [extensionUrlOrId, setExtensionUrlOrId] = useState("");
 
-  const loadExtensions = async () => {
-    try {
-      const desktop = getBridge();
-      if (desktop?.getExtensions) {
-        const list = await desktop.getExtensions();
-        setExtensions(list || []);
-      }
-    } catch (e) {
-      console.error("Failed to load extensions", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const refreshStatus = useCallback(() => {
+    void getStatus()
+      .then(setStatus)
+      .catch(() => {});
+  }, []);
+
+  const refreshExtensions = useCallback(() => {
+    void listExtensions()
+      .then(setExtensions)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
-    loadExtensions();
+    refreshStatus();
+    refreshExtensions();
+  }, [refreshStatus, refreshExtensions]);
 
-    const desktop = getBridge();
-    if (desktop?.onExtensionInstalled) {
-      const unsub = desktop.onExtensionInstalled((ext: Extension) => {
-        setExtensions((prev) => {
-          const index = prev.findIndex((e) => e.id === ext.id);
-          if (index >= 0) {
-            const next = [...prev];
-            next[index] = ext;
-            return next;
-          }
-          return [...prev, ext];
-        });
-        window.dispatchEvent(
-          new CustomEvent("cabinet:toast", {
-            detail: {
-              kind: "success",
-              message: `Extension installed: ${ext.name}`,
-            },
-          })
-        );
-      });
-      return unsub;
+  // Live updates: status transitions, download progress, extension changes.
+  const busEventRef = useRef<(data: Record<string, unknown>) => void>(() => {});
+  busEventRef.current = (data) => {
+    const type = typeof data.type === "string" ? data.type : "";
+    if (type === "browser:status") {
+      // The event only carries the status name; refetch for error/eligible.
+      refreshStatus();
+      return;
     }
-  }, []);
+    if (type === "browser:download") {
+      const downloadedBytes = Number(data.downloadedBytes) || 0;
+      const totalBytes = Number(data.totalBytes) || 0;
+      setStatus((prev) =>
+        prev
+          ? { ...prev, status: "downloading", download: { downloadedBytes, totalBytes } }
+          : prev,
+      );
+      return;
+    }
+    if (type === "browser:extension") {
+      const action = typeof data.action === "string" ? data.action : "";
+      const extension = data.extension as SidecarExtension | undefined;
+      if (!extension?.id) {
+        refreshExtensions();
+        return;
+      }
+      setExtensions((prev) => {
+        if (action === "removed") return prev.filter((ext) => ext.id !== extension.id);
+        const index = prev.findIndex((ext) => ext.id === extension.id);
+        if (index < 0) return [...prev, extension];
+        const next = [...prev];
+        next[index] = extension;
+        return next;
+      });
+    }
+  };
+  const browserChannelHandler = useCallback(
+    (data: Record<string, unknown>) => busEventRef.current(data),
+    [],
+  );
+  useDaemonChannel("browser", browserChannelHandler);
 
   const handleInstall = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = extensionUrlOrId.trim();
     if (!val) return;
-
-    const desktop = getBridge();
-    if (!desktop?.installExtension) {
-      showError(
-        "Extension install is only available in the Cabinet desktop app."
-      );
-      return;
-    }
-
     setInstalling(true);
     try {
-      const res = await desktop.installExtension(val);
-      if (res.ok && res.extension) {
-        setExtensionUrlOrId("");
-        await loadExtensions();
-        window.dispatchEvent(
-          new CustomEvent("cabinet:toast", {
-            detail: {
-              kind: "success",
-              message: `Extension installed: ${res.extension.name}`,
-            },
-          })
-        );
-      } else {
-        showError("Failed to install extension: " + res.error);
-      }
-    } catch (e) {
-      showError(errorMessage(e, "Failed to install extension"));
+      const ext = await installExtension(val);
+      setExtensionUrlOrId("");
+      showToast("success", `Extension installed: ${ext.name}`);
+      refreshExtensions();
+      refreshStatus();
+    } catch (e2) {
+      showError(errorMessage(e2, "Failed to install extension"));
     } finally {
       setInstalling(false);
     }
@@ -135,15 +129,8 @@ export function ExtensionsSection() {
 
   const handleUninstall = async (id: string) => {
     try {
-      const desktop = getBridge();
-      if (desktop?.uninstallExtension) {
-        const res = await desktop.uninstallExtension(id);
-        if (res.ok) {
-          setExtensions((prev) => prev.filter((ext) => ext.id !== id));
-        } else {
-          showError("Failed to uninstall extension: " + res.error);
-        }
-      }
+      await uninstallExtension(id);
+      setExtensions((prev) => prev.filter((ext) => ext.id !== id));
     } catch (e) {
       showError(errorMessage(e, "Failed to uninstall extension"));
     }
@@ -151,43 +138,143 @@ export function ExtensionsSection() {
 
   const handleToggle = async (id: string, enabled: boolean) => {
     try {
-      const desktop = getBridge();
-      if (desktop?.toggleExtension) {
-        const res = await desktop.toggleExtension(id, enabled);
-        if (res.ok) {
-          setExtensions((prev) =>
-            prev.map((ext) => (ext.id === id ? { ...ext, enabled } : ext))
-          );
-        } else {
-          showError("Failed to toggle extension: " + res.error);
-        }
-      }
+      const ext = enabled ? await enableExtension(id) : await disableExtension(id);
+      setExtensions((prev) => prev.map((entry) => (entry.id === id ? ext : entry)));
     } catch (e) {
       showError(errorMessage(e, "Failed to toggle extension"));
     }
   };
 
-  const handleOpenOptions = (ext: Extension) => {
-    if (!ext.optionsPage) return;
-    const runtimeId = ext.runtimeId || ext.id;
-    const url = `chrome-extension://${runtimeId}/${ext.optionsPage}`;
-
-    const setSection = useAppStore.getState().setSection;
-    const setAppMode = useAppStore.getState().setAppMode;
-
-    setSection({ type: "cabinet", cabinetPath: ROOT_CABINET_PATH });
-    setAppMode("browse", url);
+  const handleOpenOptions = async (ext: SidecarExtension) => {
+    if (!ext.optionsPage || !ext.runtimeId) return;
+    try {
+      const url = `chrome-extension://${ext.runtimeId}/${ext.optionsPage}`;
+      await openTab(url);
+      const setSection = useAppStore.getState().setSection;
+      const setAppMode = useAppStore.getState().setAppMode;
+      setSection({ type: "cabinet", cabinetPath: ROOT_CABINET_PATH });
+      setAppMode("browse", url);
+    } catch (e) {
+      showError(errorMessage(e, "Failed to open extension options"));
+    }
   };
+
+  const handleDownload = async () => {
+    setLaunching(true);
+    try {
+      await downloadBrowser();
+      refreshStatus();
+    } catch (e) {
+      showError(errorMessage(e, "Download failed"));
+    } finally {
+      setLaunching(false);
+    }
+  };
+
+  const handleLaunch = async () => {
+    setLaunching(true);
+    try {
+      if (status?.status === "running") {
+        await shutdown();
+      }
+      await launch();
+      refreshStatus();
+    } catch (e) {
+      showError(errorMessage(e, "Launch failed"));
+    } finally {
+      setLaunching(false);
+    }
+  };
+
+  const downloadPercent =
+    status?.download && status.download.totalBytes > 0
+      ? Math.min(100, Math.round((status.download.downloadedBytes / status.download.totalBytes) * 100))
+      : null;
 
   return (
     <div className="space-y-6">
+      <div className="bg-card rounded-xl border p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-[13px] font-semibold flex items-center gap-2">
+            <Blocks className="w-4 h-4" />
+            Cabinet Browser
+          </h3>
+          <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+            {status ? STATUS_LABELS[status.status] ?? status.status : "…"}
+          </span>
+        </div>
+        <p className="text-[12px] text-muted-foreground mb-3">
+          Extensions run in the Cabinet Browser, a real Chrome for Testing window managed by Cabinet.
+          Previously installed extensions are reinstalled automatically the first time the browser starts.
+        </p>
+        <div className="text-[11px] text-muted-foreground space-y-1">
+          <div>
+            Version: <span className="font-mono">{status?.version ?? "…"}</span>
+          </div>
+          {status?.executablePath ? (
+            <div className="font-mono break-all opacity-70">{status.executablePath}</div>
+          ) : null}
+        </div>
+        {status?.status === "downloading" ? (
+          <div className="mt-3">
+            <div className="h-1.5 w-full rounded bg-muted overflow-hidden">
+              <div
+                className="h-full bg-foreground/70 transition-all"
+                style={{ width: `${downloadPercent ?? 10}%` }}
+              />
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              Downloading…
+              {status.download && status.download.totalBytes > 0
+                ? ` ${(status.download.downloadedBytes / 1048576).toFixed(0)} / ${(status.download.totalBytes / 1048576).toFixed(0)} MB`
+                : ""}
+            </div>
+          </div>
+        ) : null}
+        {status?.status === "error" && status.error ? (
+          <p className="mt-2 text-[12px] text-destructive">{status.error}</p>
+        ) : null}
+        <div className="mt-3 flex items-center gap-2">
+          {status?.status === "missing" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={launching}
+              onClick={() => void handleDownload()}
+            >
+              {launching ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-2 h-3.5 w-3.5" />}
+              Download
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={launching || status?.status === "downloading" || status?.status === "starting"}
+              onClick={() => void handleLaunch()}
+            >
+              {launching ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : status?.status === "running" ? (
+                <RotateCw className="mr-2 h-3.5 w-3.5" />
+              ) : (
+                <Play className="mr-2 h-3.5 w-3.5" />
+              )}
+              {status?.status === "running" ? "Restart" : "Launch"}
+            </Button>
+          )}
+        </div>
+        <p className="mt-3 text-[11px] text-muted-foreground/70">
+          Override the binary with CABINET_CHROMIUM_PATH or browser.chromiumPath in cabinet-config.json.
+        </p>
+      </div>
+
       <div className="bg-card rounded-xl border p-5 shadow-sm">
         <h3 className="text-[13px] font-semibold mb-1 flex items-center gap-2">
           <Blocks className="w-4 h-4" />
           Add Chrome Extension
         </h3>
         <p className="text-[12px] text-muted-foreground mb-4">
-          Install an extension from the Chrome Web Store. Paste the extension URL or ID below. You can also install directly by browsing the Chrome Web Store in Cabinet.
+          Install an extension from the Chrome Web Store. Paste the extension URL or ID below. You can also install directly from the Web Store inside the Cabinet Browser.
         </p>
         <form onSubmit={handleInstall} className="flex gap-2">
           <Input
@@ -247,23 +334,27 @@ export function ExtensionsSection() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      disabled={ext.enabled === false}
-                      onClick={() => handleOpenOptions(ext)}
-                      title={ext.enabled === false ? "Enable extension to open options" : "Extension options"}
+                      disabled={!ext.enabled || !ext.runtimeId}
+                      onClick={() => void handleOpenOptions(ext)}
+                      title={
+                        !ext.enabled || !ext.runtimeId
+                          ? "Enable the extension to open its options"
+                          : "Extension options"
+                      }
                     >
                       <Settings className="w-4 h-4" />
                     </Button>
                   )}
                   <Switch
-                    checked={ext.enabled !== false}
-                    onCheckedChange={(checked) => handleToggle(ext.id, checked)}
-                    title={ext.enabled !== false ? "Disable extension" : "Enable extension"}
+                    checked={ext.enabled}
+                    onCheckedChange={(checked) => void handleToggle(ext.id, checked)}
+                    title={ext.enabled ? "Disable extension" : "Enable extension"}
                   />
                   <Button
                     variant="ghost"
                     size="icon"
                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleUninstall(ext.id)}
+                    onClick={() => void handleUninstall(ext.id)}
                     title="Remove extension"
                   >
                     <Trash2 className="w-4 h-4" />

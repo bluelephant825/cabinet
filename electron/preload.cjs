@@ -6,9 +6,10 @@ const { contextBridge, ipcRenderer } = require("electron");
 // onBrowserView* methods, which return an unsubscribe function.
 const browserViewNavigateListeners = new Set();
 const browserViewLoadFailedListeners = new Set();
-const extensionInstalledListeners = new Set();
 const browserViewNavigateRequestListeners = new Set();
 const browserViewClosedListeners = new Set();
+const windowGeometryListeners = new Set();
+let lastWindowGeometry = null;
 
 ipcRenderer.on("cabinet:browser-view-navigated", (_event, payload) => {
   for (const listener of browserViewNavigateListeners) {
@@ -26,14 +27,6 @@ ipcRenderer.on("cabinet:browser-view-load-failed", (_event, payload) => {
   }
 });
 
-ipcRenderer.on("cabinet:extension-installed", (_event, payload) => {
-  for (const listener of extensionInstalledListeners) {
-    try {
-      listener(payload);
-    } catch {}
-  }
-});
-
 ipcRenderer.on("cabinet:browser-view-navigate", (_event, payload) => {
   for (const listener of browserViewNavigateRequestListeners) {
     try {
@@ -44,6 +37,17 @@ ipcRenderer.on("cabinet:browser-view-navigate", (_event, payload) => {
 
 ipcRenderer.on("cabinet:browser-view-closed", (_event, payload) => {
   for (const listener of browserViewClosedListeners) {
+    try {
+      listener(payload);
+    } catch {}
+  }
+});
+
+// Window geometry pushed from main on move/resize/focus/minimize/full-screen
+// so the renderer can bounds-sync the Chromium sidecar window over the pane.
+ipcRenderer.on("cabinet:window-geometry", (_event, payload) => {
+  lastWindowGeometry = payload;
+  for (const listener of windowGeometryListeners) {
     try {
       listener(payload);
     } catch {}
@@ -104,8 +108,6 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
     ipcRenderer.invoke("cabinet:browser-view-reload", { viewId }),
   showBrowserBookmarksMenu: (payload) =>
     ipcRenderer.invoke("cabinet:show-browser-bookmarks-menu", payload),
-  showExtensionsMenu: (payload) =>
-    ipcRenderer.invoke("cabinet:show-extensions-menu", payload),
   destroyBrowserView: (viewId) =>
     ipcRenderer.invoke("cabinet:destroy-browser-view", { viewId }),
   executeBrowserViewJavaScript: (viewId, code) =>
@@ -178,23 +180,24 @@ contextBridge.exposeInMainWorld("CabinetDesktop", {
    * hash route, so two windows can sit in different rooms at once.
    */
   openWindow: (hash) => ipcRenderer.invoke("cabinet:open-window", hash),
-  installExtension: (urlOrId) => ipcRenderer.invoke("cabinet:install-extension", { urlOrId }),
-  uninstallExtension: (id) => ipcRenderer.invoke("cabinet:uninstall-extension", { id }),
-  toggleExtension: (id, enabled) => ipcRenderer.invoke("cabinet:toggle-extension", { id, enabled }),
-  getExtensions: () => ipcRenderer.invoke("cabinet:get-extensions"),
-  updateExtension: (id, updates) => ipcRenderer.invoke("cabinet:update-extension", { id, updates }),
-  showExtensionPopup: (payload) => ipcRenderer.invoke("cabinet:show-extension-popup", payload),
+  getWindowGeometry: () => ipcRenderer.invoke("cabinet:get-window-geometry"),
+  focusAppWindow: () => ipcRenderer.invoke("cabinet:focus-app-window"),
+  onWindowGeometryChanged: (listener) => {
+    if (typeof listener !== "function") return () => {};
+    windowGeometryListeners.add(listener);
+    if (lastWindowGeometry) {
+      try {
+        listener(lastWindowGeometry);
+      } catch {}
+    }
+    return () => {
+      windowGeometryListeners.delete(listener);
+    };
+  },
   showNativeToast: (payload) => ipcRenderer.invoke("cabinet:show-native-toast", payload),
   readFile: (filePath) => ipcRenderer.invoke("cabinet:read-file", { path: filePath }),
   writeFile: (filePath, content) => ipcRenderer.invoke("cabinet:write-file", { path: filePath, content }),
   savePdf: (payload) => ipcRenderer.invoke("cabinet:save-pdf", payload),
-  onExtensionInstalled: (listener) => {
-    if (typeof listener !== "function") return () => {};
-    extensionInstalledListeners.add(listener);
-    return () => {
-      extensionInstalledListeners.delete(listener);
-    };
-  },
   /**
    * Subscribe to native full-screen changes (macOS hides the traffic lights in
    * full-screen). Fires immediately with the current state, then on every

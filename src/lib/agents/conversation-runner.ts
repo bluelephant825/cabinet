@@ -293,6 +293,9 @@ function buildDocumentToolInstructions(): string[] {
     "Edits go through `cabinet-documents patch` / `docx-save`; they are revision-checked and all-or-nothing. If an operation reports unsupported, say so instead of working around it.",
     "`cabinet-documents convert --wait` turns a PDF into a new .docx and reports per-page outcomes (including OCR-recovered pages). `convert --to md` (or `--to mdx`) turns a PDF or DOCX into a Cabinet Markdown page — images land in a sibling `-assets` folder and the page's `source` frontmatter points back at the original; report every created path to the user.",
     "Report every document path you created or changed in the ARTIFACT/SUMMARY block.",
+    "For web pages use the `cabinet-browser` command (run `cabinet-browser --help` first): it drives a real Chrome for Testing window that already has the user's extensions installed.",
+    "Prefer `cabinet-browser text` or `eval` over `screenshot` — they are cheaper and more reliable than reading pixels.",
+    "Browser tabs are shared with the user: do not close tabs you did not open, and reuse `tabs` to find the tab id instead of assuming.",
   ];
 }
 

@@ -201,33 +201,35 @@ async function stageDaemonRuntime() {
   await removeDanglingTracedSymlinks(tracedNodeModulesDir);
 
   await bundleDaemon();
-  // The `cabinet-documents` agent helper: staged next to the daemon bundle —
-  // ensureDocumentToolShim() resolves the sibling document-tool.mjs at runtime.
-  await bundle({
-    entryPoints: [path.join(projectRoot, "scripts", "document-tool.ts")],
-    bundle: true,
-    format: "esm",
-    platform: "node",
-    target: "node20",
-    outfile: path.join(standaloneServerDir, "document-tool.mjs"),
-    plugins: [
-      {
-        name: "at-alias",
-        setup(b) {
-          b.onResolve({ filter: /^@\// }, (args) => {
-            const base = path.join(projectRoot, "src", args.path.slice(2));
-            for (const candidate of [base, `${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")]) {
-              if (existsSync(candidate) && statSync(candidate).isFile()) {
-                return { path: candidate };
-              }
-            }
-            return { path: `${base}.ts` };
-          });
-        },
-      },
-    ],
-    logLevel: "silent",
-  });
+  // The `cabinet-documents` / `cabinet-browser` agent helpers: staged next to
+  // the daemon bundle — the tool-shim modules resolve these siblings at
+  // runtime.
+  const toolAtAlias = {
+    name: "at-alias",
+    setup(b) {
+      b.onResolve({ filter: /^@\// }, (args) => {
+        const base = path.join(projectRoot, "src", args.path.slice(2));
+        for (const candidate of [base, `${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")]) {
+          if (existsSync(candidate) && statSync(candidate).isFile()) {
+            return { path: candidate };
+          }
+        }
+        return { path: `${base}.ts` };
+      });
+    },
+  };
+  for (const tool of ["document-tool", "browser-tool"]) {
+    await bundle({
+      entryPoints: [path.join(projectRoot, "scripts", `${tool}.ts`)],
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      target: "node20",
+      outfile: path.join(standaloneServerDir, `${tool}.mjs`),
+      plugins: [toolAtAlias],
+      logLevel: "silent",
+    });
+  }
   await copyDirectory(path.join(projectRoot, "server", "migrations"), daemonMigrationsDir);
 
   // Document worker bundle (all ops incl. pdfium/takumi renderers). Packages

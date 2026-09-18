@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   Bookmark,
   BookMarked,
@@ -11,11 +11,12 @@ import {
   Folder,
   Globe,
   Icon,
+  Loader2,
   Plus,
   RefreshCw,
   Tags,
   Trash2,
-  Blocks,
+  X,
   Bug,
 } from "lucide-react";
 import type { IconNode } from "lucide-react";
@@ -32,6 +33,23 @@ import { useAppStore } from "@/stores/app-store";
 import { useLocale } from "@/i18n/use-locale";
 import { useTreeStore } from "@/stores/tree-store";
 import { openExternalUrl } from "@/lib/runtime/open-url";
+import { useDaemonChannel } from "@/hooks/use-daemon-channel";
+import {
+  activateTab as activateSidecarTabRequest,
+  backTab as backSidecarTab,
+  closeTab as closeSidecarTab,
+  focusWindow as focusSidecarWindow,
+  forwardTab as forwardSidecarTab,
+  getStatus as getSidecarStatus,
+  isSidecarUrl,
+  listTabs as listSidecarTabs,
+  navigateTab as navigateSidecarTab,
+  openTab as openSidecarTab,
+  reloadTab as reloadSidecarTab,
+  setWindowBounds as setSidecarWindowBounds,
+  type SidecarStatus,
+  type SidecarTab,
+} from "@/lib/browser/sidecar-client";
 
 type BrowserViewBounds = { x: number; y: number; width: number; height: number };
 type BrowserViewNavResult = {
@@ -91,15 +109,21 @@ type BrowserBridge = {
   onBrowserViewClosed?: (
     listener: (payload: { viewId?: string }) => void
   ) => () => void;
-  getExtensions?: () => Promise<BrowserExtension[]>;
-  updateExtension?: (id: string, updates: Partial<BrowserExtension>) => Promise<{ ok: boolean }>;
-  showExtensionPopup?: (payload: { extensionId: string; x: number; y: number }) => Promise<{ ok: boolean; error?: string }>;
   showNativeToast?: (payload: { kind?: string; message: string; durationMs?: number }) => Promise<{ ok: boolean }>;
-  showExtensionsMenu?: (payload: {
-    x: number;
-    y: number;
-    items: { id: string; name: string; iconDataUrl?: string | null; pinned?: boolean }[];
-  }) => Promise<{ ok: boolean; cancelled?: boolean; extensionId?: string; togglePinId?: string }>;
+  getWindowGeometry?: () => Promise<WindowGeometryPayload>;
+  focusAppWindow?: () => Promise<{ ok: boolean }>;
+  onWindowGeometryChanged?: (
+    listener: (payload: WindowGeometryPayload) => void
+  ) => () => void;
+};
+
+type WindowGeometryPayload = {
+  ok?: boolean;
+  contentBounds?: { x: number; y: number; width: number; height: number };
+  focused?: boolean;
+  minimized?: boolean;
+  visible?: boolean;
+  fullscreen?: boolean;
 };
 
 type ThreeJsEditorWindow = Window & {
@@ -110,19 +134,6 @@ type ThreeJsEditorWindow = Window & {
       loadFiles?: (files: File[]) => void;
     };
   };
-};
-
-type BrowserExtension = {
-  id: string;
-  name: string;
-  version: string;
-  path: string;
-  description: string;
-  enabled?: boolean;
-  pinned?: boolean;
-  iconDataUrl?: string | null;
-  popupHtml?: string | null;
-  contentScriptMatches?: string[];
 };
 
 type BrowserSessionState = {
@@ -206,47 +217,6 @@ function toBridgeBookmarkMenuItems(nodes: BookmarkNode[]): BrowserBookmarkMenuIt
 function getBridge(): Partial<BrowserBridge> & { runtime?: "electron" } {
   return (window as unknown as { CabinetDesktop?: Partial<BrowserBridge> & { runtime?: "electron" } })
     .CabinetDesktop ?? {};
-}
-
-function matchPatternToUrl(pattern: string): string | null {
-  // <all_urls> matches every URL — no single target to navigate to.
-  if (pattern === "<all_urls>") return null;
-  // Chrome match patterns: <scheme>://<host>/<path>
-  // e.g. "https://www.youtube.com/*" → "https://www.youtube.com/"
-  try {
-    const match = pattern.match(/^(\*|https?|file|ftp):\/\/(\*|[^/]+)\/(.*)$/);
-    if (!match) return null;
-    const scheme = match[1] === "*" ? "https" : match[1];
-    const host = match[2] === "*" ? "" : match[2];
-    if (!host) return null;
-    return `${scheme}://${host}/`;
-  } catch {
-    return null;
-  }
-}
-
-function urlMatchesPattern(url: string, pattern: string): boolean {
-  // <all_urls> matches any http(s) URL.
-  if (pattern === "<all_urls>") {
-    try {
-      const target = new URL(url);
-      return target.protocol === "http:" || target.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }
-  try {
-    const match = pattern.match(/^(\*|https?|file|ftp):\/\/(\*|[^/]+)\/(.*)$/);
-    if (!match) return false;
-    const [, schemePart, hostPart, pathPart] = match;
-    const target = new URL(url);
-    if (schemePart !== "*" && target.protocol.replace(":", "") !== schemePart) return false;
-    if (hostPart !== "*" && target.hostname !== hostPart) return false;
-    const pathGlob = pathPart.replace(/\*$/, "");
-    return target.pathname.startsWith(pathGlob) || pathPart === "*";
-  } catch {
-    return false;
-  }
 }
 
 const TAG_CLOUD_DATA_URL_PREFIX = "data:text/html;cabinet-tag-cloud=1;charset=utf-8,";
@@ -708,7 +678,6 @@ export function BrowserView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bookmarksMenuRef = useRef<HTMLDivElement | null>(null);
   const bookmarksTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const extensionsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const iframeLoadTokenRef = useRef(0);
   const iframeLoadedTokenRef = useRef(0);
@@ -742,19 +711,51 @@ export function BrowserView() {
   const [bookmarkTags, setBookmarkTags] = useState("");
   const [bookmarkParentId, setBookmarkParentId] = useState("1");
   const bookmarkTitleRequestRef = useRef(0);
-  const [extensions, setExtensions] = useState<BrowserExtension[]>([]);
+
+  // ----- Cabinet Browser sidecar -----
+  const [sidecarStatus, setSidecarStatus] = useState<SidecarStatus | null>(null);
+  const [sidecarStatusLoaded, setSidecarStatusLoaded] = useState(false);
+  const [preferNative, setPreferNative] = useState(false);
+  const [sidecarFailedUrl, setSidecarFailedUrl] = useState<string | null>(null);
+  const [sidecarTabs, setSidecarTabs] = useState<SidecarTab[]>([]);
+  const suppressNextSidecarLoadRef = useRef(false);
+  const sidecarPaneRef = useRef<HTMLDivElement | null>(null);
+  const sidecarStatusRef = useRef<SidecarStatus | null>(null);
+  const sidecarTabsRef = useRef<SidecarTab[]>([]);
+  // True once listTabs() has completed for the current running session; until
+  // then the nav effect must not trust the empty ref and open a duplicate tab.
+  const sidecarTabsLoadedRef = useRef(false);
+  // Last url we sent openTab() for while the browser was not yet running, so a
+  // status flicker cannot fire the lazy launch twice for the same url.
+  const pendingSidecarOpenRef = useRef<string | null>(null);
+  // Pending "park the sidecar window" timeout from the init effect cleanup.
+  // React StrictMode mounts, cleans up, and remounts in dev, and the daemon's
+  // macOS hide is applied seconds late — an unparked hide can then land after
+  // the remount's visible:true and hide Chromium while the user is browsing.
+  // Deferring the park lets a remount cancel it.
+  const sidecarParkTimerRef = useRef<number | null>(null);
+  const windowGeometryRef = useRef<WindowGeometryPayload | null>(null);
+  const boundsThrottleRef = useRef<number | null>(null);
+  const boundsTrailingRef = useRef(false);
+  const isDialogOpenRef = useRef(false);
+  sidecarStatusRef.current = sidecarStatus;
+  sidecarTabsRef.current = sidecarTabs;
+
+  const isDesktopBridge = !!getBridge().getWindowGeometry;
+  const activeEngine: "sidecar" | "native" =
+    isSidecarUrl(url) &&
+    sidecarStatus?.eligible === true &&
+    !preferNative &&
+    sidecarFailedUrl !== url
+      ? "sidecar"
+      : "native";
+  const activeEngineRef = useRef(activeEngine);
+  activeEngineRef.current = activeEngine;
 
   useEffect(() => {
     if (url == null) return;
     setAddressValue(toAddressBarValue(url));
   }, [url]);
-
-  useEffect(() => {
-    const bridge = getBridge();
-    if (bridge.getExtensions) {
-      bridge.getExtensions().then(setExtensions);
-    }
-  }, []);
 
   const fetchBookmarks = async () => {
     setBookmarksLoading(true);
@@ -950,118 +951,6 @@ export function BrowserView() {
     setAddressValue("");
   };
 
-  const handleRunExtension = async (ext: BrowserExtension, rect: { left: number; bottom: number }) => {
-    const bridge = getBridge();
-    if (!bridge.showExtensionPopup) return;
-    const result = await bridge.showExtensionPopup({
-      extensionId: ext.id,
-      x: Math.round(rect.left),
-      y: Math.round(rect.bottom + 8),
-    });
-    if (!result?.ok) {
-      if (result?.error === "No popup defined" && ext.contentScriptMatches?.length) {
-        // Content-script extension: navigate to a supported page so the
-        // extension's content script can inject. If we're already on a
-        // matching page, just inform the user.
-        const currentUrl = addressValue || url || "";
-        const alreadyOnMatch = ext.contentScriptMatches.some((pattern) =>
-          urlMatchesPattern(currentUrl, pattern)
-        );
-        if (alreadyOnMatch) {
-          window.dispatchEvent(
-            new CustomEvent("cabinet:toast", {
-              detail: {
-                kind: "info",
-                message: `${ext.name} is active on this page — look for its UI on the page.`,
-              },
-            })
-          );
-        } else {
-          // Navigate to the first match pattern's origin (e.g. https://www.youtube.com/)
-          const target = matchPatternToUrl(ext.contentScriptMatches[0]);
-          if (target) {
-            setAppMode("browse", target);
-            setAddressValue(toAddressBarValue(target));
-            window.dispatchEvent(
-              new CustomEvent("cabinet:toast", {
-                detail: {
-                  kind: "info",
-                  message: `Opening ${target} — ${ext.name} will activate on supported pages.`,
-                },
-              })
-            );
-          } else {
-            const isAllUrls = ext.contentScriptMatches.some(
-              (p) => p === "<all_urls>" || p === "*://*/*"
-            );
-            window.dispatchEvent(
-              new CustomEvent("cabinet:toast", {
-                detail: {
-                  kind: "info",
-                  message: isAllUrls
-                    ? `${ext.name} works on any web page — open a site in the browser to use it.`
-                    : `${ext.name} runs on supported pages — navigate to a matching site in the browser to use it.`,
-                },
-              })
-            );
-          }
-        }
-      } else {
-        const message =
-          result?.error === "No popup defined"
-            ? `${ext.name} has no popup UI — it runs directly on supported pages (open one in the browser to use it).`
-            : `Couldn't open ${ext.name}: ${result?.error || "unknown error"}`;
-        window.dispatchEvent(
-          new CustomEvent("cabinet:toast", {
-            detail: { kind: "info", message },
-          })
-        );
-      }
-    }
-  };
-
-  const openExtensionsNativeMenu = async () => {
-    const trigger = extensionsTriggerRef.current;
-    if (!trigger) return;
-    const bridge = getBridge();
-    if (!bridge.showExtensionsMenu) return;
-    const enabledExts = extensions.filter(ext => ext.enabled !== false);
-    if (enabledExts.length === 0) return;
-
-    const rect = trigger.getBoundingClientRect();
-    const x = Math.max(0, Math.round(rect.left));
-    const y = Math.max(0, Math.round(rect.bottom + 6));
-
-    const result = await bridge.showExtensionsMenu({
-      x,
-      y,
-      items: enabledExts.map(ext => ({
-        id: ext.id,
-        name: ext.name,
-        iconDataUrl: ext.iconDataUrl,
-        pinned: ext.pinned,
-      })),
-    });
-    if (!result?.ok || result.cancelled) return;
-    if (result.togglePinId) {
-      const ext = extensions.find(e => e.id === result.togglePinId);
-      if (ext) {
-        const newPinned = !ext.pinned;
-        if (bridge.updateExtension) {
-          await bridge.updateExtension(ext.id, { pinned: newPinned });
-          setExtensions(prev => prev.map(e => e.id === ext.id ? { ...e, pinned: newPinned } : e));
-        }
-      }
-      return;
-    }
-    if (result.extensionId) {
-      const ext = extensions.find(e => e.id === result.extensionId);
-      if (ext) {
-        handleRunExtension(ext, { left: rect.left, bottom: rect.bottom });
-      }
-    }
-  };
-
   const createFolder = async () => {
     const response = await fetch("/api/browser/bookmarks", {
       method: "POST",
@@ -1085,6 +974,23 @@ export function BrowserView() {
   };
 
   const navigateBack = () => {
+    if (activeEngine === "sidecar") {
+      const active = sidecarTabsRef.current.find((tab) => tab.active);
+      if (active) {
+        iframeNavActionRef.current = "back";
+        void backSidecarTab(active.id)
+          .then((result) => {
+            if (result?.ok && !result.skipped) return;
+            iframeNavActionRef.current = null;
+            applyAppHistoryBack();
+          })
+          .catch(() => {
+            iframeNavActionRef.current = null;
+            applyAppHistoryBack();
+          });
+        return;
+      }
+    }
     const applyAppHistoryBack = () => {
       const nextIndex = iframeHistoryIndexRef.current - 1;
       if (nextIndex < 0) return;
@@ -1123,6 +1029,23 @@ export function BrowserView() {
   };
 
   const navigateForward = () => {
+    if (activeEngine === "sidecar") {
+      const active = sidecarTabsRef.current.find((tab) => tab.active);
+      if (active) {
+        iframeNavActionRef.current = "forward";
+        void forwardSidecarTab(active.id)
+          .then((result) => {
+            if (result?.ok && !result.skipped) return;
+            iframeNavActionRef.current = null;
+            applyAppHistoryForward();
+          })
+          .catch(() => {
+            iframeNavActionRef.current = null;
+            applyAppHistoryForward();
+          });
+        return;
+      }
+    }
     const applyAppHistoryForward = () => {
       const nextIndex = iframeHistoryIndexRef.current + 1;
       if (nextIndex >= iframeHistoryRef.current.length) return;
@@ -1156,6 +1079,13 @@ export function BrowserView() {
   };
 
   const reloadPage = () => {
+    if (activeEngine === "sidecar") {
+      const active = sidecarTabsRef.current.find((tab) => tab.active);
+      if (active) {
+        void reloadSidecarTab(active.id).catch(() => {});
+        return;
+      }
+    }
     const applyReloadFallback = () => {
       setIframeReloadKey((k) => k + 1);
     };
@@ -1219,6 +1149,10 @@ export function BrowserView() {
   };
 
   useEffect(() => {
+    if (sidecarParkTimerRef.current !== null) {
+      window.clearTimeout(sidecarParkTimerRef.current);
+      sidecarParkTimerRef.current = null;
+    }
     let cancelled = false;
     let retries = 0;
     const maxRetries = 20;
@@ -1271,7 +1205,9 @@ export function BrowserView() {
           viewIdRef.current = result.viewId;
           updateBoundsRef.current();
           const activeUrl = useAppStore.getState().browseUrl || "about:blank";
-          if (loadBrowserViewUrl) {
+          // Sidecar-eligible URLs are routed by the url effect once the
+          // sidecar status is known — skip the initial native load for them.
+          if (loadBrowserViewUrl && !isSidecarUrl(activeUrl)) {
             void loadBrowserViewUrl(result.viewId, activeUrl)
               .then((navResult) => {
                 if (!navResult?.ok) {
@@ -1318,6 +1254,19 @@ export function BrowserView() {
       }
       if (current && destroyBrowserView) {
         void destroyBrowserView(current);
+      }
+      // Leaving browse mode: park the sidecar window if it is up. Deferred so
+      // a dev StrictMode remount (or an initAttempt re-run) cancels it instead
+      // of hiding Chromium mid-browse.
+      if (sidecarStatusRef.current?.status === "running") {
+        sidecarParkTimerRef.current = window.setTimeout(() => {
+          sidecarParkTimerRef.current = null;
+          if (sidecarStatusRef.current?.status !== "running") return;
+          void setSidecarWindowBounds({ visible: false }).catch(() => {});
+          // Hiding Chromium needs Automation permission it may not have;
+          // raising Cabinet above it is permission-free, so do both.
+          void getBridge().focusAppWindow?.().catch(() => {});
+        }, 400);
       }
     };
   }, [initAttempt]);
@@ -1499,6 +1448,63 @@ export function BrowserView() {
     }
   };
 
+  /**
+   * Session-history bookkeeping shared by the Electron WebContentsView
+   * navigation events and the sidecar's browser:tab echoes. Records the URL
+   * in the app-level history (consuming any pending back/forward action),
+   * persists it, and mirrors it into the address bar. Callers decide whether
+   * to also push the URL into the app store.
+   */
+  const recordNavigation = (nextUrl: string) => {
+    const history = iframeHistoryRef.current;
+    const currentIndex = iframeHistoryIndexRef.current;
+    const navAction = iframeNavActionRef.current;
+    if (navAction === "back" || navAction === "forward") {
+      iframeNavActionRef.current = null;
+      let nextIndex = navAction === "back" ? Math.max(0, currentIndex - 1) : Math.min(history.length - 1, currentIndex + 1);
+      if (history[nextIndex] !== nextUrl) {
+        const start = navAction === "back" ? Math.max(0, currentIndex - 1) : Math.min(history.length - 1, currentIndex + 1);
+        const end = navAction === "back" ? 0 : history.length - 1;
+        const step = navAction === "back" ? -1 : 1;
+        let matchedIndex = -1;
+        for (let i = start; navAction === "back" ? i >= end : i <= end; i += step) {
+          if (history[i] === nextUrl) {
+            matchedIndex = i;
+            break;
+          }
+        }
+        if (matchedIndex >= 0) {
+          nextIndex = matchedIndex;
+        } else {
+          const nextHistory = currentIndex >= 0 ? history.slice(0, currentIndex + 1) : [];
+          nextHistory.push(nextUrl);
+          iframeHistoryRef.current = nextHistory;
+          nextIndex = nextHistory.length - 1;
+        }
+      }
+      iframeHistoryIndexRef.current = nextIndex;
+      const nextHistory = iframeHistoryRef.current;
+      persistBrowserSessionState({ history: nextHistory, index: nextIndex, url: nextUrl });
+      setAddressValue(toAddressBarValue(nextUrl));
+      return;
+    }
+    if (currentIndex >= 0 && history[currentIndex] === nextUrl) {
+      persistBrowserSessionState({ history, index: currentIndex, url: nextUrl });
+      setAddressValue(toAddressBarValue(nextUrl));
+      return;
+    }
+    const nextHistory = currentIndex >= 0 ? history.slice(0, currentIndex + 1) : [];
+    nextHistory.push(nextUrl);
+    iframeHistoryRef.current = nextHistory;
+    iframeHistoryIndexRef.current = nextHistory.length - 1;
+    persistBrowserSessionState({
+      history: nextHistory,
+      index: iframeHistoryIndexRef.current,
+      url: nextUrl,
+    });
+    setAddressValue(toAddressBarValue(nextUrl));
+  };
+
   useEffect(() => {
     const bridge = getBridge();
     const subscribe = bridge.onBrowserViewNavigated;
@@ -1513,57 +1519,7 @@ export function BrowserView() {
         handleAutoImportGlb(activeViewId, selectedPath);
       }
 
-      const history = iframeHistoryRef.current;
-      const currentIndex = iframeHistoryIndexRef.current;
-      const navAction = iframeNavActionRef.current;
-      if (navAction === "back" || navAction === "forward") {
-        iframeNavActionRef.current = null;
-        let nextIndex = navAction === "back" ? Math.max(0, currentIndex - 1) : Math.min(history.length - 1, currentIndex + 1);
-        if (history[nextIndex] !== nextUrl) {
-          const start = navAction === "back" ? Math.max(0, currentIndex - 1) : Math.min(history.length - 1, currentIndex + 1);
-          const end = navAction === "back" ? 0 : history.length - 1;
-          const step = navAction === "back" ? -1 : 1;
-          let matchedIndex = -1;
-          for (let i = start; navAction === "back" ? i >= end : i <= end; i += step) {
-            if (history[i] === nextUrl) {
-              matchedIndex = i;
-              break;
-            }
-          }
-          if (matchedIndex >= 0) {
-            nextIndex = matchedIndex;
-          } else {
-            const nextHistory = currentIndex >= 0 ? history.slice(0, currentIndex + 1) : [];
-            nextHistory.push(nextUrl);
-            iframeHistoryRef.current = nextHistory;
-            nextIndex = nextHistory.length - 1;
-          }
-        }
-        iframeHistoryIndexRef.current = nextIndex;
-        const nextHistory = iframeHistoryRef.current;
-        persistBrowserSessionState({ history: nextHistory, index: nextIndex, url: nextUrl });
-        setAddressValue(toAddressBarValue(nextUrl));
-        if (useAppStore.getState().browseUrl !== nextUrl) {
-          suppressNextElectronLoadRef.current = true;
-          setAppMode("browse", nextUrl);
-        }
-        return;
-      }
-      if (currentIndex >= 0 && history[currentIndex] === nextUrl) {
-        persistBrowserSessionState({ history, index: currentIndex, url: nextUrl });
-        setAddressValue(toAddressBarValue(nextUrl));
-        return;
-      }
-      const nextHistory = currentIndex >= 0 ? history.slice(0, currentIndex + 1) : [];
-      nextHistory.push(nextUrl);
-      iframeHistoryRef.current = nextHistory;
-      iframeHistoryIndexRef.current = nextHistory.length - 1;
-      persistBrowserSessionState({
-        history: nextHistory,
-        index: iframeHistoryIndexRef.current,
-        url: nextUrl,
-      });
-      setAddressValue(toAddressBarValue(nextUrl));
+      recordNavigation(nextUrl);
       if (useAppStore.getState().browseUrl !== nextUrl) {
         suppressNextElectronLoadRef.current = true;
         setAppMode("browse", nextUrl);
@@ -1592,12 +1548,321 @@ export function BrowserView() {
     }
   }, [selectedPath, url, browserMode]);
 
+  // ----- Cabinet Browser sidecar wiring -----
+  // Status comes from GET /api/browser/status once and then the "browser"
+  // daemon channel; tab echoes keep the address bar, history and app-mode URL
+  // in sync with what the user does inside the Chromium window.
+
+  const refreshSidecarTabs = useCallback(() => {
+    if (sidecarStatusRef.current?.status !== "running") return;
+    void listSidecarTabs()
+      .then(setSidecarTabs)
+      .catch(() => {});
+  }, []);
+
+  const syncActiveSidecarTab = (tabUrl: string) => {
+    if (activeEngineRef.current !== "sidecar") return;
+    const normalized = normalizeSessionUrl(tabUrl);
+    recordNavigation(normalized);
+    if (
+      isSidecarUrl(normalized) &&
+      useAppStore.getState().browseUrl !== normalized
+    ) {
+      suppressNextSidecarLoadRef.current = true;
+      setAppMode("browse", normalized);
+    }
+  };
+
+  const handleBrowserEventRef = useRef<(data: Record<string, unknown>) => void>(() => {});
+  handleBrowserEventRef.current = (data) => {
+    const type = typeof data.type === "string" ? data.type : "";
+    if (type === "browser:status") {
+      // Refetch rather than patching: the event carries only the status name,
+      // so error text / eligible would go stale.
+      void getSidecarStatus()
+        .then((s) => {
+          setSidecarStatus(s);
+          setSidecarStatusLoaded(true);
+        })
+        .catch(() => setSidecarStatusLoaded(true));
+      return;
+    }
+    if (type === "browser:download") {
+      const downloadedBytes = Number(data.downloadedBytes) || 0;
+      const totalBytes = Number(data.totalBytes) || 0;
+      setSidecarStatus((prev) =>
+        prev
+          ? { ...prev, status: "downloading", download: { downloadedBytes, totalBytes } }
+          : prev,
+      );
+      return;
+    }
+    if (type === "browser:tab") {
+      const tab = data.tab as SidecarTab | undefined;
+      if (tab?.active && typeof tab.url === "string" && tab.url) {
+        syncActiveSidecarTab(tab.url);
+      }
+      refreshSidecarTabs();
+    }
+  };
+  const browserChannelHandler = useCallback(
+    (data: Record<string, unknown>) => handleBrowserEventRef.current(data),
+    [],
+  );
+  useDaemonChannel("browser", browserChannelHandler);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getSidecarStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setSidecarStatus(status);
+        setSidecarStatusLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setSidecarStatusLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Refresh the tab list whenever the sidecar (re)enters running state.
+  useEffect(() => {
+    if (sidecarStatus?.status !== "running") {
+      setSidecarTabs([]);
+      sidecarTabsLoadedRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    void listSidecarTabs()
+      .then((tabs) => {
+        if (cancelled) return;
+        setSidecarTabs(tabs);
+        sidecarTabsLoadedRef.current = true;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sidecarStatus?.status]);
+
+  // Sidecar navigation: the app-store URL is the intent; in sidecar mode we
+  // drive the active Chromium tab (or open one, which lazily downloads and
+  // launches the browser) instead of loading into the WebContentsView/iframe.
+  useEffect(() => {
+    if (activeEngine !== "sidecar" || !url) return;
+    if (suppressNextSidecarLoadRef.current) {
+      suppressNextSidecarLoadRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      // The pane can mount while Chromium is already running but before the
+      // tab list has been fetched: fetch it first or we open a duplicate tab.
+      if (
+        sidecarStatusRef.current?.status === "running" &&
+        !sidecarTabsLoadedRef.current
+      ) {
+        try {
+          const tabs = await listSidecarTabs();
+          if (cancelled) return;
+          setSidecarTabs(tabs);
+          sidecarTabsLoadedRef.current = true;
+        } catch {
+          // Fall through and open: a transient list failure should not block.
+        }
+      }
+      if (cancelled) return;
+      const active = sidecarTabsRef.current.find((tab) => tab.active);
+      if (active) {
+        if (active.url !== url) {
+          void navigateSidecarTab(active.id, url).catch(() => {});
+        }
+      } else {
+        if (pendingSidecarOpenRef.current === url) return;
+        pendingSidecarOpenRef.current = url;
+        void openSidecarTab(url)
+          .catch(() => {})
+          .finally(() => {
+            if (pendingSidecarOpenRef.current === url) {
+              pendingSidecarOpenRef.current = null;
+            }
+          });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url, activeEngine]);
+
+  // Sidecar failure: toast once per URL and fall back to the native engine.
+  useEffect(() => {
+    if (
+      sidecarStatus?.status === "error" &&
+      sidecarStatus.eligible &&
+      isSidecarUrl(url) &&
+      !preferNative &&
+      sidecarFailedUrl !== url
+    ) {
+      window.dispatchEvent(
+        new CustomEvent("cabinet:toast", {
+          detail: {
+            kind: "error",
+            message: sidecarStatus.error || "Cabinet Browser failed to start",
+          },
+        }),
+      );
+      setSidecarFailedUrl(url ?? null);
+    }
+  }, [sidecarStatus, url, preferNative, sidecarFailedUrl]);
+
+  // Leaving sidecar for a native URL: park the Chromium window (minimized)
+  // but keep it alive so the next external page restores instantly.
+  const prevEngineRef = useRef<"sidecar" | "native">(activeEngine);
+  useEffect(() => {
+    const prev = prevEngineRef.current;
+    prevEngineRef.current = activeEngine;
+    if (
+      prev === "sidecar" &&
+      activeEngine === "native" &&
+      sidecarStatusRef.current?.status === "running"
+    ) {
+      void setSidecarWindowBounds({ visible: false }).catch(() => {});
+      void getBridge().focusAppWindow?.().catch(() => {});
+    }
+  }, [activeEngine]);
+
+  // Bounds sync (Electron only): the Chromium window floats over the pane, so
+  // every pane rect change and window move/resize is forwarded in screen
+  // coordinates. Blur never hides the window — blur is exactly what happens
+  // when the user clicks into Chromium.
+  useEffect(() => {
+    const bridge = getBridge();
+    if (activeEngine !== "sidecar") return;
+    if (typeof bridge.getWindowGeometry !== "function" || typeof bridge.onWindowGeometryChanged !== "function") {
+      return;
+    }
+
+    const sendBounds = () => {
+      if (sidecarStatusRef.current?.status !== "running") return;
+      const geometry = windowGeometryRef.current;
+      const pane = sidecarPaneRef.current ?? containerRef.current;
+      if (!geometry?.contentBounds || !pane) return;
+      const rect = pane.getBoundingClientRect();
+      if (rect.width < 8 || rect.height < 8) return;
+      const visible =
+        !geometry.minimized &&
+        geometry.visible !== false &&
+        activeEngineRef.current === "sidecar";
+      void setSidecarWindowBounds({
+        x: Math.round(geometry.contentBounds.x + rect.left),
+        y: Math.round(geometry.contentBounds.y + rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        visible,
+      }).catch(() => {});
+    };
+
+    const scheduleSendBounds = () => {
+      if (boundsThrottleRef.current !== null) {
+        boundsTrailingRef.current = true;
+        return;
+      }
+      sendBounds();
+      boundsThrottleRef.current = window.setTimeout(() => {
+        boundsThrottleRef.current = null;
+        if (boundsTrailingRef.current) {
+          boundsTrailingRef.current = false;
+          scheduleSendBounds();
+        }
+      }, 50);
+    };
+
+    let focusTimer: number | null = null;
+    const unsubscribeGeometry = bridge.onWindowGeometryChanged((payload) => {
+      windowGeometryRef.current = payload ?? null;
+      scheduleSendBounds();
+      // Focus protocol: when Cabinet regains focus while the sidecar is up,
+      // hand focus back to Chromium unless the user is typing in Cabinet or a
+      // dialog is open.
+      if (
+        payload?.focused &&
+        sidecarStatusRef.current?.status === "running" &&
+        activeEngineRef.current === "sidecar"
+      ) {
+        if (focusTimer !== null) window.clearTimeout(focusTimer);
+        focusTimer = window.setTimeout(() => {
+          focusTimer = null;
+          if (activeEngineRef.current !== "sidecar") return;
+          const active = document.activeElement;
+          const editing =
+            active instanceof HTMLElement &&
+            (active.tagName === "INPUT" ||
+              active.tagName === "TEXTAREA" ||
+              active.isContentEditable);
+          if (!editing && !isDialogOpenRef.current) {
+            void focusSidecarWindow().catch(() => {});
+          }
+        }, 150);
+      }
+    });
+    void bridge
+      .getWindowGeometry()
+      .then((geometry) => {
+        windowGeometryRef.current = geometry ?? null;
+        scheduleSendBounds();
+      })
+      .catch(() => {});
+
+    const pane = sidecarPaneRef.current ?? containerRef.current;
+    const observer = new ResizeObserver(scheduleSendBounds);
+    if (pane) observer.observe(pane);
+    scheduleSendBounds();
+
+    return () => {
+      unsubscribeGeometry();
+      observer.disconnect();
+      if (focusTimer !== null) window.clearTimeout(focusTimer);
+      if (boundsThrottleRef.current !== null) {
+        window.clearTimeout(boundsThrottleRef.current);
+        boundsThrottleRef.current = null;
+      }
+      boundsTrailingRef.current = false;
+    };
+  }, [activeEngine, sidecarStatus?.status]);
+
+  const focusSidecar = () => {
+    if (sidecarStatusRef.current?.status !== "running") return;
+    void focusSidecarWindow().catch(() => {});
+  };
+
+  const selectSidecarTab = (tab: SidecarTab) => {
+    if (sidecarStatusRef.current?.status !== "running") return;
+    setSidecarTabs((prev) => prev.map((entry) => ({ ...entry, active: entry.id === tab.id })));
+    void activateSidecarTabRequest(tab.id).catch(() => {});
+    if (
+      isSidecarUrl(tab.url) &&
+      useAppStore.getState().browseUrl !== tab.url
+    ) {
+      suppressNextSidecarLoadRef.current = true;
+      setAppMode("browse", tab.url);
+    }
+    setAddressValue(toAddressBarValue(tab.url));
+    focusSidecar();
+  };
+
   useEffect(() => {
     const bridge = getBridge();
     const viewId = viewIdRef.current;
     if (!bridge.createBrowserView || !bridge.destroyBrowserView || !viewId || browserMode !== "electron") {
       return;
     }
+    // External URLs belong to the sidecar once its status is known; until
+    // then, hold off on loading them into the WebContentsView so a potentially
+    // eligible URL does not flash in the fallback view first.
+    if (activeEngine === "sidecar") return;
+    if (isSidecarUrl(url) && !sidecarStatusLoaded) return;
     if (suppressNextElectronLoadRef.current) {
       suppressNextElectronLoadRef.current = false;
       return;
@@ -1615,7 +1880,7 @@ export function BrowserView() {
       .catch(() => {
         setElectronFailure("load-failed");
       });
-  }, [url, browserMode]);
+  }, [url, browserMode, activeEngine, sidecarStatusLoaded]);
 
   useEffect(() => {
     const bridge = getBridge();
@@ -1674,6 +1939,7 @@ export function BrowserView() {
   }, [browserMode]);
 
   const isDialogOpen = managerOpen || bookmarkDialogOpen || managerEditDialogOpen;
+  isDialogOpenRef.current = isDialogOpen;
 
   useEffect(() => {
     const bridge = getBridge();
@@ -1683,7 +1949,7 @@ export function BrowserView() {
     }
     const setBrowserViewVisible = bridge.setBrowserViewVisible;
     if (!setBrowserViewVisible) return;
-    const shouldShow = !isDialogOpen;
+    const shouldShow = !isDialogOpen && activeEngine === "native";
     if (shouldShow) {
       updateBoundsRef.current();
     }
@@ -1703,7 +1969,7 @@ export function BrowserView() {
           setInitAttempt((value) => value + 1);
         }
       });
-  }, [browserMode, isDialogOpen]);
+  }, [browserMode, isDialogOpen, activeEngine]);
 
   useEffect(() => {
     if (browserMode !== "iframe") {
@@ -1994,7 +2260,7 @@ export function BrowserView() {
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
-            {browserMode === "electron" && (
+            {browserMode === "electron" && activeEngine === "native" && (
               <button
                 type="button"
                 onClick={() => {
@@ -2021,8 +2287,15 @@ export function BrowserView() {
                 if (event.key !== "Enter") return;
                 event.preventDefault();
                 const nextUrl = normalizeEnteredUrl(addressValue);
+                // Consume any pending echo suppression so a queued tab echo
+                // cannot swallow this explicit navigation.
+                suppressNextElectronLoadRef.current = false;
+                suppressNextSidecarLoadRef.current = false;
                 setAppMode("browse", nextUrl);
                 setAddressValue(toAddressBarValue(nextUrl));
+                if (activeEngine === "sidecar") {
+                  focusSidecar();
+                }
               }}
               placeholder={t("editor:browser.noUrl")}
               className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground shadow-sm outline-none ring-offset-background focus:ring-2 focus:ring-ring"
@@ -2070,39 +2343,6 @@ export function BrowserView() {
               aria-label="Tags"
             >
               <Tags className="h-4 w-4" />
-            </button>
-            
-            {/* Pinned Extensions */}
-            {extensions.filter(ext => ext.enabled !== false && ext.pinned).map(ext => (
-              <button
-                key={ext.id}
-                type="button"
-                onClick={(e) => handleRunExtension(ext, e.currentTarget.getBoundingClientRect())}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
-                title={ext.name}
-                aria-label={ext.name}
-              >
-                {ext.iconDataUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- icon is a data URL; next/image adds no value
-                  <img src={ext.iconDataUrl} alt="" className="w-4 h-4 object-contain" />
-                ) : (
-                  <Blocks className="h-4 w-4" />
-                )}
-              </button>
-            ))}
-
-            {/* Extensions Button (native menu) */}
-            <button
-              ref={extensionsTriggerRef}
-              type="button"
-              onClick={() => {
-                void openExtensionsNativeMenu();
-              }}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
-              title="Extensions"
-              aria-label="Extensions"
-            >
-              <Blocks className="h-4 w-4" />
             </button>
           </div>
           <div className="flex justify-end gap-2">
@@ -2152,7 +2392,114 @@ export function BrowserView() {
             isolation: "isolate",
           }}
         >
-          {browserMode === "iframe" ? (
+          {activeEngine === "sidecar" ? (
+            <div
+              ref={sidecarPaneRef}
+              className="flex h-full w-full flex-col bg-background"
+              onClick={focusSidecar}
+            >
+              {/* On desktop the real Chromium window covers this pane and its
+                  own tab strip is the UI; this strip is the controller in web
+                  mode where the window is free-floating. */}
+              {!isDesktopBridge && (
+              <div className="flex items-center gap-1 overflow-x-auto border-b border-border/70 bg-muted/40 px-2 py-1">
+                {sidecarTabs.map((tab) => (
+                  <div
+                    key={tab.id}
+                    className={`group flex max-w-48 shrink-0 items-center rounded-md border text-xs ${
+                      tab.active
+                        ? "border-border bg-background text-foreground"
+                        : "border-transparent text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectSidecarTab(tab);
+                      }}
+                      className="min-w-0 truncate px-2 py-1.5"
+                      title={tab.url}
+                    >
+                      {tab.title || tab.url || "New tab"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void closeSidecarTab(tab.id).catch(() => {});
+                      }}
+                      className="mr-1 hidden h-4 w-4 items-center justify-center rounded hover:bg-foreground/10 group-hover:inline-flex"
+                      aria-label="Close tab"
+                      title="Close tab"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void openSidecarTab("about:blank").catch(() => {});
+                  }}
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                  aria-label="New tab"
+                  title="New tab"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              )}
+              <div className="flex flex-1 items-center justify-center p-6 text-center">
+                {sidecarStatus?.status === "downloading" ? (
+                  <div className="text-sm text-muted-foreground">
+                    Downloading Cabinet Browser…
+                    {sidecarStatus.download && sidecarStatus.download.totalBytes > 0
+                      ? ` ${(sidecarStatus.download.downloadedBytes / 1048576).toFixed(0)} / ${(sidecarStatus.download.totalBytes / 1048576).toFixed(0)} MB`
+                      : ""}
+                  </div>
+                ) : sidecarStatus?.status === "running" ? (
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">
+                      {isDesktopBridge
+                        ? "The page is shown in the Cabinet Browser window"
+                        : "The Cabinet Browser is open in a separate window"}
+                    </div>
+                    <div className="flex items-center justify-center gap-4">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          focusSidecar();
+                        }}
+                        className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-foreground hover:bg-muted"
+                      >
+                        Show browser
+                      </button>
+                      {isDesktopBridge ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setPreferNative(true);
+                          }}
+                          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        >
+                          Use built-in view
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting Cabinet Browser…
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : browserMode === "iframe" ? (
             <>
               <iframe
                 key={`${url || "about:blank"}:${iframeReloadKey}`}

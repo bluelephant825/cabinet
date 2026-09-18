@@ -16,24 +16,22 @@
 // while browsing the tree). The latter sit behind the `kb-auth` cookie gate, so
 // syncBrowserAuthCookie() copies that cookie into the browser session before
 // each load.
+//
+// Extensions no longer run in this layer: they live in the daemon-managed
+// Chromium sidecar (server/browser/) which is a real Chrome for Testing
+// instance. This module only serves internal/app content plus the legacy
+// external-URL fallback path.
 
-const path = require("path");
 const {
   BrowserWindow,
   WebContentsView,
   Menu,
-  nativeImage,
   session,
   shell,
   ipcMain,
 } = require("electron");
-const { ElectronChromeExtensions } = require("electron-chrome-extensions");
 
 const BROWSER_VIEW_PARTITION = "persist:cabinet-browser";
-
-let extensionsManager = null;
-let activeWebContents = null;
-let openExtensionPanelWindow = null;
 
 // Injected by initBrowserViews() so this module stays decoupled from main.cjs.
 let getMainWindow = () => null;
@@ -125,62 +123,9 @@ function userAgentPlatformToken() {
 
 // Make Google (and other client-sniffing sites) treat the browser session as
 // desktop Chrome rather than Electron, so they don't downgrade or block.
+// Legacy fallback path; external sites normally open in the Chromium sidecar.
 function setupBrowserSession() {
   const browserSession = getBrowserSession();
-
-  try {
-    extensionsManager = new ElectronChromeExtensions({
-      session: browserSession,
-      license: "GPL-3.0",
-      createTab(details) {
-        const url = typeof details?.url === "string" ? details.url : "";
-        if (!url) return;
-        if (url.startsWith("chrome-extension://")) {
-          if (typeof openExtensionPanelWindow === "function") {
-            openExtensionPanelWindow(url);
-          }
-        } else {
-          if (activeWebContents && !activeWebContents.isDestroyed()) {
-            activeWebContents.loadURL(url);
-          }
-        }
-      },
-      selectTab(tab) {
-        let foundViewId = null;
-        for (const [viewId, entry] of browserViews.entries()) {
-          if (entry.view.webContents === tab) {
-            foundViewId = viewId;
-            break;
-          }
-        }
-        if (foundViewId) {
-          const entry = browserViews.get(foundViewId);
-          if (entry && !entry.view.webContents.isDestroyed()) {
-            entry.view.setVisible(true);
-            activeWebContents = entry.view.webContents;
-          }
-        }
-      },
-      removeTab(tab) {
-        let foundViewId = null;
-        for (const [viewId, entry] of browserViews.entries()) {
-          if (entry.view.webContents === tab) {
-            foundViewId = viewId;
-            break;
-          }
-        }
-        if (foundViewId) {
-          destroyBrowserView(foundViewId);
-          const win = liveMainWindow();
-          if (win && !win.isDestroyed()) {
-            win.webContents.send("cabinet:browser-view-closed", { viewId: foundViewId });
-          }
-        }
-      }
-    });
-  } catch (err) {
-    console.error("[cabinet] Failed to initialize ElectronChromeExtensions:", err);
-  }
 
   const filter = { urls: ["*://*.google.com/*"] };
   browserSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
@@ -293,9 +238,6 @@ function destroyBrowserView(viewId) {
   if (!entry || !win) {
     browserViews.delete(viewId);
     return;
-  }
-  if (activeWebContents === entry.view.webContents) {
-    activeWebContents = null;
   }
   try {
     win.contentView.removeChildView(entry.view);
@@ -424,7 +366,6 @@ function registerHandlers() {
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
-        preload: path.join(__dirname, "browser-preload.cjs"),
       },
     });
     view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
@@ -441,11 +382,6 @@ function registerHandlers() {
 
     win.contentView.addChildView(view);
     browserViews.set(viewId, { view, ownerWebContentsId: event.sender.id });
-
-    if (extensionsManager) {
-      extensionsManager.addTab(view.webContents, win);
-      extensionsManager.selectTab(view.webContents);
-    }
 
     // Forward console messages from the browser view to the main renderer
     // so extension content-script errors are visible in the app's DevTools.
@@ -585,14 +521,6 @@ function registerHandlers() {
     }
     try {
       entry.view.setVisible(visible);
-      if (visible) {
-        activeWebContents = entry.view.webContents;
-        if (extensionsManager) {
-          extensionsManager.selectTab(entry.view.webContents);
-        }
-      } else if (activeWebContents === entry.view.webContents) {
-        activeWebContents = null;
-      }
     } catch {}
     return { ok: true };
   });
@@ -680,67 +608,6 @@ function registerHandlers() {
     }
   });
 
-  ipcMain.handle("cabinet:show-extensions-menu", async (event, payload) => {
-    if (!isMainRendererSender(event)) return { ok: false, error: "unauthorized" };
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || win.isDestroyed()) return { ok: false, error: "window-unavailable" };
-
-    const x = Number.isFinite(payload?.x) ? Math.max(0, Math.round(payload.x)) : 0;
-    const y = Number.isFinite(payload?.y) ? Math.max(0, Math.round(payload.y)) : 0;
-    const items = Array.isArray(payload?.items) ? payload.items : [];
-
-    if (items.length === 0) return { ok: true, cancelled: true };
-
-    return await new Promise((resolve) => {
-      let resolved = false;
-      const resolveOnce = (value) => {
-        if (resolved) return;
-        resolved = true;
-        resolve(value);
-      };
-
-      const template = items.map((item) => {
-        let icon = null;
-        if (item.iconDataUrl) {
-          try {
-            const img = nativeImage.createFromDataURL(item.iconDataUrl);
-            if (!img.isEmpty()) {
-              icon = img.resize({ width: 16, height: 16 });
-            }
-          } catch {}
-        }
-        return {
-          label: item.name || item.id,
-          ...(icon ? { icon } : {}),
-          submenu: [
-            {
-              label: "Open",
-              click: () => {
-                resolveOnce({ ok: true, extensionId: item.id });
-              },
-            },
-            { type: "separator" },
-            {
-              label: item.pinned ? "Unpin from toolbar" : "Pin to toolbar",
-              click: () => {
-                resolveOnce({ ok: true, togglePinId: item.id });
-              },
-            },
-          ],
-        };
-      });
-
-      const menu = Menu.buildFromTemplate(template);
-      menu.popup({
-        window: win,
-        x,
-        y,
-        callback: () => {
-          resolveOnce({ ok: true, cancelled: true });
-        },
-      });
-    });
-  });
 
   ipcMain.handle("cabinet:show-browser-bookmarks-menu", async (event, payload) => {
     if (!isMainRendererSender(event)) return { ok: false, error: "unauthorized" };
@@ -960,13 +827,8 @@ function initBrowserViews(opts) {
   getMainWindow = opts?.getMainWindow ?? (() => null);
   getBaseAppUrl = opts?.getBaseAppUrl ?? (() => null);
   isDev = opts?.isDev === true;
-  openExtensionPanelWindow = opts?.openExtensionPanelWindow ?? (() => null);
   setupBrowserSession();
   registerHandlers();
 }
 
-function getExtensionsManager() {
-  return extensionsManager;
-}
-
-module.exports = { initBrowserViews, destroyAllBrowserViews, getExtensionsManager };
+module.exports = { initBrowserViews, destroyAllBrowserViews };
