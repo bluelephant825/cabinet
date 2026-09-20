@@ -12,6 +12,13 @@ function errorFromParam(code: string | null): string {
 function LoginForm() {
   const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
+  // P1 host extension: the side-panel iframe lands here with the per-install
+  // embedToken, which the login route exchanges for a partitioned cookie
+  // that works cross-site. Pass it through to the POST URL.
+  const embedToken = searchParams.get("embedToken") ?? "";
+  const loginUrl = embedToken
+    ? `/api/auth/login?embedToken=${encodeURIComponent(embedToken)}`
+    : "/api/auth/login";
   // Native form posts redirect to /login?error=… as a full navigation, so this
   // initializer runs fresh on each mount; the JS submit handler overrides below.
   const [error, setError] = useState(() => errorFromParam(searchParams.get("error")));
@@ -27,7 +34,7 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(loginUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
@@ -64,7 +71,7 @@ function LoginForm() {
         <form
           onSubmit={handleSubmit}
           method="POST"
-          action="/api/auth/login"
+          action={loginUrl}
           className="space-y-4"
         >
           {/* Hidden username field so iOS classifies this as a login form

@@ -329,7 +329,13 @@ export class ExtensionManager extends EventEmitter {
   }
 
   /** Re-load every enabled record right after launch. Failures are logged and
-   * the record keeps enabled:true with runtimeId:null. */
+   * the record keeps enabled:true with runtimeId:null.
+   *
+   * Extensions loaded via CDP Extensions.loadUnpacked are session-scoped:
+   * Chrome purges their registration when the browser exits, so each launch
+   * is a fresh install. That means runtime.onInstalled("install") fires on
+   * every launch for extensions with onboarding pages — the launch hook
+   * sweeps chrome-extension:// page targets afterwards (see facade.ts). */
   async applyAll(): Promise<void> {
     const records = await this.loadRecords();
     if (!this.deps.getCdp()) return;

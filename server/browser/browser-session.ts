@@ -262,6 +262,17 @@ export class BrowserSession extends EventEmitter {
     // With zero windows left macOS keeps Chromium running but plain
     // createTarget fails with "no browser is open" — open a fresh window.
     const noWindows = this.targets.size === 0;
+    // A lone about:blank tab is launch debris — the buildArgs fallback used
+    // when nothing was restored. Navigate it instead of stacking a second
+    // tab, matching how Chrome replaces the initial new-tab page.
+    const only = this.targets.size === 1 ? [...this.targets.values()][0] : null;
+    if (only && (!only.url || only.url === "about:blank")) {
+      const sessionId = await this.sessionFor(only.targetId);
+      await this.cdp.send("Page.navigate", { url }, sessionId);
+      this.activeTargetId = only.targetId;
+      only.url = url;
+      return this.toTab(only)!;
+    }
     const result = (await this.cdp.send("Target.createTarget", {
       url,
       newWindow: noWindows,
@@ -312,6 +323,30 @@ export class BrowserSession extends EventEmitter {
     this.targets.delete(id);
     this.sessions.delete(id);
     return { ok: true };
+  }
+
+  /** Close every chrome-extension:// page target. Extension pages
+   * (welcome/onboarding/options) are ephemeral browser UI — they are never
+   * restored from state.json, so any present right after launch were spawned
+   * by extension onInstalled handlers (CDP loads are session-scoped and
+   * count as fresh installs). Uses a fresh target list because the local
+   * tracker lags behind targetCreated delivery. */
+  async closeExtensionPages(): Promise<number> {
+    const result = (await this.cdp.send("Target.getTargets")) as
+      | { targetInfos?: TargetInfo[] }
+      | undefined;
+    let closed = 0;
+    for (const info of result?.targetInfos ?? []) {
+      if (info.type !== "page") continue;
+      if (!String(info.url ?? "").startsWith("chrome-extension:")) continue;
+      try {
+        await this.cdp.send("Target.closeTarget", { targetId: info.targetId });
+        this.targets.delete(info.targetId);
+        this.sessions.delete(info.targetId);
+        closed += 1;
+      } catch {}
+    }
+    return closed;
   }
 
   async navigate(id: string, url: string): Promise<BrowserTab> {
@@ -501,8 +536,16 @@ export class BrowserSession extends EventEmitter {
     try {
       existing = JSON.parse(await fsp.readFile(browserStatePath(), "utf8")) as Record<string, unknown>;
     } catch {}
-    const tabs = this.listTabs().map((tab) => tab.url);
-    const activeTab = this.listTabs().find((tab) => tab.active)?.url;
+    // Ephemeral pages aren't worth restoring: about:blank launch debris and
+    // chrome-extension:// pages (welcome/onboarding, options, the host
+    // side-panel) are transient UI, not content the user browsed to.
+    const restorable = (tabUrl: string) =>
+      tabUrl !== "about:blank" && !tabUrl.startsWith("chrome-extension://");
+    const tabs = this.listTabs()
+      .map((tab) => tab.url)
+      .filter(restorable);
+    const active = this.listTabs().find((tab) => tab.active)?.url;
+    const activeTab = active && restorable(active) ? active : undefined;
     const bounds = this.pendingBounds ?? (existing.bounds as Record<string, unknown> | undefined);
     const next = {
       ...existing,

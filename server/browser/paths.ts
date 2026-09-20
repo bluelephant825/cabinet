@@ -44,6 +44,12 @@ export function extensionDirFor(id: string): string {
   return join(extensionsDir(), id);
 }
 
+/** Generated P1 host extension (server/browser/host-extension.ts). Stable
+ *  path -> stable unpacked extension id across launches. */
+export function hostExtensionDir(): string {
+  return join(browserAppDataDir(), "HostExtension");
+}
+
 /** cabinet-config.json next to CABINET_USER_DATA (Electron persists it there). */
 export function cabinetConfigPath(): string | null {
   const userData = process.env.CABINET_USER_DATA?.trim();

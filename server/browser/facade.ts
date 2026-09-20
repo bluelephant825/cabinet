@@ -60,6 +60,17 @@ export function createBrowserDaemon(): BrowserDaemon {
     }
     await extensions.migrateLegacyRecords();
     await extensions.applyAll();
+    // Every launch is a fresh extension install (CDP loads are
+    // session-scoped — Chrome purges them at exit), so onInstalled("install")
+    // fires for each record. Extensions with welcome/onboarding pages open a
+    // chrome-extension:// tab; those pages are never legitimate right after
+    // launch (state.json restore filters them), so close them. The delayed
+    // second pass catches deferred tab creations.
+    await session.closeExtensionPages().catch(() => 0);
+    const sweep = setTimeout(() => {
+      void session.closeExtensionPages().catch(() => {});
+    }, 3000);
+    sweep.unref?.();
   });
 
   const facade: BrowserFacade = {
@@ -68,6 +79,8 @@ export function createBrowserDaemon(): BrowserDaemon {
     executablePath: () => manager.executablePath,
     pid: () => manager.childPid,
     bundleId: () => manager.chromiumBundleId,
+    hostMode: () => manager.hostMode,
+    hostExtension: () => manager.hostExtension,
     version: () => PINNED_CHROME_BUILD,
     downloadProgress: () => manager.downloadProgress,
     isAvailable: (origin) => manager.isAvailable(origin),
@@ -93,12 +106,17 @@ export function createBrowserDaemon(): BrowserDaemon {
     disableExtension: (id) => extensions.disable(id),
     pinExtension: (id, pinned) => extensions.setPinned(id, pinned),
     setWindowBounds: async (bounds) => {
+      // Host mode lays tab content out inside the fork's own window, so the
+      // floating-window bounds sync (and its OS-level hide/unhide) does not
+      // apply.
+      if (manager.hostMode) return { ok: true };
       if (bounds.visible === true) await manager.setAppHidden(false);
       const result = await requireSession(manager).setWindowBounds(bounds);
       if (bounds.visible === false) await manager.setAppHidden(true);
       return result;
     },
     focusWindow: async () => {
+      if (manager.hostMode) return { ok: true };
       await manager.setAppHidden(false);
       const result = await requireSession(manager).bringToFront();
       return result;

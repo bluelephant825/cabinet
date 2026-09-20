@@ -15,6 +15,12 @@
  * and concurrent callers share the one in-flight promise. An unexpected child
  * exit relaunches at most once within 60 s (crash-loop guard); after that the
  * browser stays stopped until the next ensureRunning.
+ *
+ * Host mode (CABINET_BROWSER_HOST_MODE=1/true, or browser.hostMode in
+ * cabinet-config.json): the Cabinet Chromium fork renders the shell UI inside
+ * its own window and positions tab content in-window, so launch passes
+ * --cabinet-ui-url=<app origin> and callers skip the floating-window bounds
+ * sync / OS-level hide-unhide entirely.
  */
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
@@ -31,12 +37,18 @@ import {
   browserStatePath,
   cabinetConfigPath,
 } from "./paths";
+import {
+  ensureHostExtensionFiles,
+  installHostExtension,
+  isHostExtensionEnabled,
+} from "./host-extension";
+import { getAppOrigin } from "../../src/lib/runtime/runtime-config";
 
 export const PINNED_CHROME_BUILD = "153.0.8010.47";
 
 export type DownloadProgress = { downloadedBytes: number; totalBytes: number };
 
-type PersistedBrowserState = {
+export type PersistedBrowserState = {
   tabs?: string[];
   activeTab?: string;
   bounds?: { x?: number; y?: number; width?: number; height?: number };
@@ -76,6 +88,92 @@ function readOverridePath(): string | null {
   return null;
 }
 
+/** Host mode: the Cabinet Chromium fork hosts the shell UI inside its own
+ *  window and lays tab content out in-window. On when the
+ *  CABINET_BROWSER_HOST_MODE env var is "1"/"true" or `browser.hostMode` is
+ *  true in cabinet-config.json (same parse-and-ignore-errors pattern as
+ *  readOverridePath). */
+function readHostMode(): boolean {
+  const env = process.env.CABINET_BROWSER_HOST_MODE?.trim().toLowerCase();
+  if (env === "1" || env === "true") return true;
+  const configPath = cabinetConfigPath();
+  if (configPath) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        browser?: { hostMode?: unknown };
+      };
+      if (parsed?.browser?.hostMode === true) return true;
+    } catch {
+      // missing/invalid config is fine
+    }
+  }
+  return false;
+}
+
+/** Origin the fork loads the Cabinet shell UI from in host mode. Resolves
+ *  env-first but also consults runtime-ports.json, which matters when the app
+ *  port was assigned dynamically. */
+function cabinetAppOrigin(): string {
+  return getAppOrigin();
+}
+
+export type BuildArgsInput = {
+  /** Chromium user-data-dir. */
+  profileDir: string;
+  /** Last persisted tab set + window bounds (relaunch restore). */
+  persisted: PersistedBrowserState;
+  initialUrl: string | null;
+  /** Emit --cabinet-ui-url so the fork hosts the shell UI in-window. */
+  hostMode: boolean;
+};
+
+/** Chromium launch args as a pure function so tests can assert flag emission
+ *  without spawning a browser. In host mode the shell UI URL rides along as
+ *  --cabinet-ui-url — a flag, not a tab — grouped with the other switches
+ *  before the positional tab-restore URLs. */
+export function buildChromiumArgs(input: BuildArgsInput): string[] {
+  const bounds = input.persisted.bounds ?? {};
+  const width = Number.isFinite(bounds.width) && (bounds.width ?? 0) > 0 ? Math.round(bounds.width!) : 1200;
+  const height = Number.isFinite(bounds.height) && (bounds.height ?? 0) > 0 ? Math.round(bounds.height!) : 800;
+  const args = [
+    `--user-data-dir=${input.profileDir}`,
+    "--remote-debugging-pipe",
+    "--enable-unsafe-extension-debugging",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-infobars",
+    "--disable-features=Translate,MediaRouter",
+    "--disable-sync",
+    "--disable-background-networking",
+    `--window-size=${width},${height}`,
+  ];
+  if (Number.isFinite(bounds.x) && Number.isFinite(bounds.y)) {
+    args.push(`--window-position=${Math.round(bounds.x!)},${Math.round(bounds.y!)}`);
+  }
+  if (input.hostMode) {
+    args.push(`--cabinet-ui-url=${cabinetAppOrigin()}`);
+  }
+  if (input.initialUrl) {
+    args.push(input.initialUrl);
+  } else {
+    // No explicit target: reopen the persisted tab set so a relaunch
+    // (daemon restart, crash, user quit) restores the previous session.
+    const seen = new Set<string>();
+    const restore: string[] = [];
+    for (const entry of input.persisted.tabs ?? []) {
+      if (typeof entry !== "string") continue;
+      // Extension pages (welcome/onboarding, options, the host panel) are
+      // ephemeral browser UI — never worth reopening on launch.
+      if (!/^https?:/.test(entry)) continue;
+      if (seen.has(entry) || restore.length >= 20) continue;
+      seen.add(entry);
+      restore.push(entry);
+    }
+    args.push(...(restore.length > 0 ? restore : ["about:blank"]));
+  }
+  return args;
+}
+
 /** Read CFBundleIdentifier from `<App>.app/Contents/Info.plist` next to an
  *  executable (exe = App.app/Contents/MacOS/bin). Null for plain binaries. */
 function readBundleId(executable: string): string | null {
@@ -98,11 +196,13 @@ export class ChromiumManager extends EventEmitter {
   private cdp: CDPClient | null = null;
   private session: BrowserSession | null = null;
   private bundleId: string | null = null;
+  private hostExtensionId: string | null = null;
   private inFlight: Promise<BrowserSession> | null = null;
   private relaunchedAt = 0;
   private stopping = false;
-  private onLaunched: ((session: BrowserSession) => Promise<void> | void) | null =
-    null;
+  private onLaunched:
+    | ((session: BrowserSession) => Promise<void> | void)
+    | null = null;
 
   constructor(private readonly options: BrowserSessionOptions = {}) {
     super();
@@ -110,7 +210,9 @@ export class ChromiumManager extends EventEmitter {
   }
 
   /** Called right after each launch (used by ExtensionManager.applyAll). */
-  setLaunchHook(hook: (session: BrowserSession) => Promise<void> | void): void {
+  setLaunchHook(
+    hook: (session: BrowserSession) => Promise<void> | void,
+  ): void {
     this.onLaunched = hook;
   }
 
@@ -130,6 +232,23 @@ export class ChromiumManager extends EventEmitter {
 
   get chromiumBundleId(): string | null {
     return this.bundleId;
+  }
+
+  /** True when the next launch should run the fork in host mode (its own
+   *  window hosts the Cabinet shell UI; tab content is laid out in-window).
+   *  Re-read each call so a config/env change is picked up by the next
+   *  ensureRunning() without a daemon restart. */
+  get hostMode(): boolean {
+    return readHostMode();
+  }
+
+  /** P1 host extension state for /browser/status: enabled via env/config,
+   *  id once loaded into the running browser. */
+  get hostExtension(): { enabled: boolean; id: string | null } {
+    return {
+      enabled: isHostExtensionEnabled(),
+      id: this.hostExtensionId,
+    };
   }
 
   /** Unhide + raise the Chromium process (focusWindow / bounds visible:true).
@@ -267,42 +386,12 @@ export class ChromiumManager extends EventEmitter {
   }
 
   private buildArgs(initialUrl: string | null): string[] {
-    const state = this.readPersistedState();
-    const bounds = state.bounds ?? {};
-    const width = Number.isFinite(bounds.width) && (bounds.width ?? 0) > 0 ? Math.round(bounds.width!) : 1200;
-    const height = Number.isFinite(bounds.height) && (bounds.height ?? 0) > 0 ? Math.round(bounds.height!) : 800;
-    const args = [
-      `--user-data-dir=${browserProfileDir()}`,
-      "--remote-debugging-pipe",
-      "--enable-unsafe-extension-debugging",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--disable-infobars",
-      "--disable-features=Translate,MediaRouter",
-      "--disable-sync",
-      "--disable-background-networking",
-      `--window-size=${width},${height}`,
-    ];
-    if (Number.isFinite(bounds.x) && Number.isFinite(bounds.y)) {
-      args.push(`--window-position=${Math.round(bounds.x!)},${Math.round(bounds.y!)}`);
-    }
-    if (initialUrl) {
-      args.push(initialUrl);
-    } else {
-      // No explicit target: reopen the persisted tab set so a relaunch
-      // (daemon restart, crash, user quit) restores the previous session.
-      const seen = new Set<string>();
-      const restore: string[] = [];
-      for (const entry of state.tabs ?? []) {
-        if (typeof entry !== "string") continue;
-        if (!/^(https?:|chrome-extension:)/.test(entry)) continue;
-        if (seen.has(entry) || restore.length >= 20) continue;
-        seen.add(entry);
-        restore.push(entry);
-      }
-      args.push(...(restore.length > 0 ? restore : ["about:blank"]));
-    }
-    return args;
+    return buildChromiumArgs({
+      profileDir: browserProfileDir(),
+      persisted: this.readPersistedState(),
+      initialUrl,
+      hostMode: this.hostMode,
+    });
   }
 
   private async launch(initialUrl: string | null): Promise<BrowserSession> {
@@ -310,6 +399,20 @@ export class ChromiumManager extends EventEmitter {
     this.setStatus("starting", null);
     const profileDir = browserProfileDir();
     await fsp.mkdir(profileDir, { recursive: true });
+    // P1 host extension: regenerate before spawn so a profile-persisted copy
+    // picks up a changed app origin at startup; loaded over CDP below.
+    const hostExt = isHostExtensionEnabled()
+      ? await ensureHostExtensionFiles({
+          appOrigin: cabinetAppOrigin(),
+          platform: process.platform,
+        }).catch((err) => {
+          console.warn(
+            "[browser] host extension generation failed:",
+            err instanceof Error ? err.message : err,
+          );
+          return null;
+        })
+      : null;
     // The daemon restores tabs itself via buildArgs(); clear Chrome's own
     // session-restore data or an unclean shutdown stacks its restored tabs on
     // top of ours (duplicates grow on every relaunch).
@@ -355,6 +458,7 @@ export class ChromiumManager extends EventEmitter {
       cdp.close();
       this.session = null;
       this.cdp = null;
+      this.hostExtensionId = null;
       const wasStopping = this.stopping;
       if (this.status === "running" || this.status === "starting") {
         this.setStatus("stopped", null);
@@ -388,6 +492,18 @@ export class ChromiumManager extends EventEmitter {
     }
 
     this.setStatus("running", null);
+    if (hostExt) {
+      try {
+        this.hostExtensionId = await installHostExtension(cdp, hostExt);
+      } catch (err) {
+        console.warn(
+          "[browser] host extension load failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    } else {
+      this.hostExtensionId = null;
+    }
     try {
       await this.onLaunched?.(session);
     } catch (err) {

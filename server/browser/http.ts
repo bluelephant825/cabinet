@@ -23,6 +23,11 @@ export type BrowserFacade = {
   executablePath(): string | null;
   pid(): number | null;
   bundleId(): string | null;
+  /** True when the fork hosts the shell UI in its own window (in-window tab
+   *  layout replaces the floating-window bounds sync). */
+  hostMode(): boolean;
+  /** P1 host extension: enabled flag + runtime id once loaded. */
+  hostExtension(): { enabled: boolean; id: string | null };
   version(): string;
   downloadProgress(): { downloadedBytes: number; totalBytes: number } | null;
   isAvailable(origin: string | undefined): boolean;
@@ -147,6 +152,8 @@ export async function handleBrowserRequest(
         executablePath: browser.executablePath(),
         pid: browser.pid(),
         bundleId: browser.bundleId(),
+        hostMode: browser.hostMode(),
+        hostExtension: browser.hostExtension(),
         ...(browser.lastError() ? { error: browser.lastError() } : {}),
         ...(download ? { download } : {}),
       });

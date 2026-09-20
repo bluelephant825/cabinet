@@ -243,6 +243,71 @@ test("re-install of a disabled record skips loadUnpacked", async () => {
   assert.ok(!calls.some((c) => c.method === "Extensions.loadUnpacked"));
 });
 
+function seedRecord(userData: string, runtimeId: string | null): string {
+  const extDir = path.join(userData, "Browser", "Extensions", EXT_ID);
+  fs.mkdirSync(extDir, { recursive: true });
+  fs.writeFileSync(path.join(extDir, "manifest.json"), "{}");
+  fs.writeFileSync(
+    path.join(userData, "Browser", "extensions.json"),
+    JSON.stringify([
+      {
+        id: EXT_ID,
+        name: "Transcribed",
+        version: "1.2.3",
+        path: extDir,
+        description: "",
+        iconDataUrl: null,
+        popupHtml: null,
+        optionsPage: null,
+        contentScriptMatches: [],
+        enabled: true,
+        pinned: false,
+        runtimeId,
+      },
+    ]),
+  );
+  return extDir;
+}
+
+test("applyAll loadUnpacks every enabled record on each launch", async () => {
+  const userData = tmpUserData();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  // CDP-installed unpacked extensions are session-scoped: Chrome purges
+  // their registration at exit, so a Secure Preferences entry left over
+  // from a previous session is dead — applyAll must loadUnpacked again
+  // (verified empirically: Chrome for Testing drops the extension instead
+  // of re-attaching it).
+  seedRecord(userData, null);
+
+  await mgr.applyAll();
+
+  const rec = (await mgr.list())[0];
+  assert.equal(rec.runtimeId, `runtime-${EXT_ID}`);
+  assert.ok(calls.some((c) => c.method === "Extensions.loadUnpacked"));
+});
+
+test("applyAll skips disabled records and clears their runtimeId", async () => {
+  const userData = tmpUserData();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  seedRecord(userData, `runtime-${EXT_ID}`);
+  await mgr.disable(EXT_ID);
+  calls.length = 0;
+
+  await mgr.applyAll();
+
+  const rec = (await mgr.list())[0];
+  assert.equal(rec.runtimeId, null);
+  assert.ok(!calls.some((c) => c.method === "Extensions.loadUnpacked"));
+});
+
 test("uninstall removes record and directory", async () => {
   const userData = tmpUserData();
   const calls: CdpCall[] = [];

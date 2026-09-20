@@ -99,6 +99,51 @@ test("form login: over-limit → 303 /login?error=rate with Retry-After", async 
   assert.ok(Number(res.headers.get("retry-after")) > 0, "Retry-After set");
 });
 
+test("embedded login: valid embedToken → partitioned cookie; bad/absent token → lax", async () => {
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const fs = await import("node:fs");
+  const saved = process.env.CABINET_DATA_DIR;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-embed-login-"));
+  process.env.CABINET_DATA_DIR = dir;
+  try {
+    const { ensureHostExtensionEmbedToken } = await import(
+      "@/lib/auth/embed-token"
+    );
+    const token = ensureHostExtensionEmbedToken();
+
+    const ok = await route.POST(
+      new NextRequest(`${URL}?embedToken=${token}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: "s3cret" }),
+      })
+    );
+    assert.equal(ok.status, 200);
+    const setCookie = ok.headers.get("set-cookie") || "";
+    assert.match(setCookie, /kb-auth=/);
+    assert.match(setCookie, /SameSite=None/i);
+    assert.match(setCookie, /Partitioned/i);
+    assert.match(setCookie, /Secure/i);
+
+    const bad = await route.POST(
+      new NextRequest(`${URL}?embedToken=${"0".repeat(64)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: "s3cret" }),
+      })
+    );
+    assert.equal(bad.status, 200);
+    const badCookie = bad.headers.get("set-cookie") || "";
+    assert.match(badCookie, /SameSite=Lax/i);
+    assert.ok(!/Partitioned/i.test(badCookie));
+  } finally {
+    if (saved === undefined) delete process.env.CABINET_DATA_DIR;
+    else process.env.CABINET_DATA_DIR = saved;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a successful login resets the client's failure budget", async () => {
   const xff = { "x-forwarded-for": "203.0.113.9" };
   await route.POST(jsonReq("nope", xff)); // 1 failure
