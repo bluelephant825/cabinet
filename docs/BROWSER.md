@@ -24,6 +24,19 @@ CDP travels over `--remote-debugging-pipe` (file descriptors 3/4, NUL-framed
 JSON) rather than a TCP port, so no port or websocket URL leaks to other
 processes on the machine.
 
+> Host mode: when the engine is the Cabinet Chromium fork instead of CfT
+> (`CABINET_BROWSER_HOST_MODE=1` or `browser.hostMode` in cabinet-config.json),
+> the fork hosts the Cabinet UI as its window shell and lays tab content out
+> in-window — the window bounds/focus routes below become no-ops. See
+> `docs/CHROMIUM_HOST.md`.
+>
+> Host extension (P1 interim): `CABINET_BROWSER_HOST_EXTENSION=1` or
+> `browser.hostExtension` in cabinet-config.json makes the daemon generate a
+> small MV3 extension into `Browser/HostExtension/` and load it unpacked at
+> every launch — new-tab override pointing at the app, a side panel framing
+> it, and a `window.cabinetHost` binding injected on the app origin via
+> content scripts. Details in `docs/CHROMIUM_HOST.md`.
+
 The Electron `WebContentsView` is **not** gone. It still renders content that
 must stay inside the app: same-origin and loopback URLs (`/api/assets/...`,
 editor/document views), `data:` URLs (tag cloud), `about:blank`, and anything
@@ -119,9 +132,17 @@ channel). Overrides, in order:
 Launch flags include `--remote-debugging-pipe`,
 `--enable-unsafe-extension-debugging` (required for `Extensions.*` CDP calls),
 `--disable-infobars` (suppresses the "Chrome for Testing is only for
-automated testing" warning bar), `--no-first-run`, and the persisted tab URLs. Chrome's own session-restore
+automated testing" warning bar), `--no-first-run`, and the persisted tab URLs. Only
+`http(s)` URLs are restored — extension pages (`chrome-extension://` welcome,
+options, the host panel) are ephemeral browser UI and are filtered out of the
+restore set. Chrome's own session-restore
 files (`Profile/Default/Sessions{,_Encrypted}`) are cleared before spawn so a
 crash cannot stack duplicate tabs on top of the restored set.
+
+When nothing was persisted, the launch falls back to a single `about:blank`
+tab; a later `POST /browser/tabs` navigates that tab rather than stacking a
+second one (the same way Chrome replaces the initial new-tab page).
+`about:blank` URLs are also excluded from `state.json` persistence.
 
 ## Extensions
 
@@ -138,6 +159,16 @@ Extensions run unmodified in the real Chrome runtime:
 - Enable/disable/pin map to `Extensions.enable/disable` plus a persisted
   `pinned` flag. Disabled extensions stay installed but are not loaded at
   launch.
+- CDP `Extensions.loadUnpacked` installs are **session-scoped**: Chrome
+  purges automation-installed extensions when the browser exits (verified
+  on the pinned build — a leftover `Secure Preferences` entry does not
+  re-attach the extension; Chrome drops it). `applyAll` therefore calls
+  `loadUnpacked` for every enabled record on each launch. Because each
+  launch is a fresh install, `runtime.onInstalled("install")` fires every
+  time and extensions with welcome/onboarding pages open a tab — the
+  launch hook closes all `chrome-extension://` page targets right after
+  `applyAll` (plus a delayed second pass for stragglers), which is safe
+  because extension pages are never part of the restored tab set.
 - Options pages open as `chrome-extension://<runtimeId>/<optionsPage>` tabs.
 - **Migration**: on first launch the daemon lazily migrates the legacy
   `extensions[]` records in `cabinet-config.json` (Electron-era installs),

@@ -848,8 +848,12 @@ export function HomeScreen() {
         </div>
       </header>
       <ContentSheet>
-        <div className="flex-1 flex flex-col items-center justify-center w-full px-4 overflow-hidden">
-        <div className="flex-1 flex flex-col items-center justify-center w-full max-w-xl space-y-8">
+        {/* Scrollable: justify-center + overflow-hidden would clip content
+            above the scroll origin in short viewports (e.g. the browser
+            side panel). min-h-full keeps the centered look when it fits. */}
+        <div className="flex-1 w-full min-h-0 overflow-y-auto">
+        <div className="min-h-full w-full flex flex-col items-center justify-center px-4">
+        <div className="flex-1 flex flex-col items-center justify-center w-full max-w-xl space-y-8 py-8">
         <ProvidersEmptyBanner />
         {/*
          * Audit #005 (review feedback 2026-05-02): the prior text-xl/2xl
@@ -1079,6 +1083,7 @@ export function HomeScreen() {
           </p>
         </div>
       )}
+        </div>
         </div>
       </ContentSheet>
     </div>
