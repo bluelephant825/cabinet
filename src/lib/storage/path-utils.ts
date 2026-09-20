@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { getManagedDataDir, getManagedDataParentDir, isElectronRuntime, PROJECT_ROOT, isProcessStale } from "@/lib/runtime/runtime-config";
+import { getManagedDataDir, getManagedDataParentDir, isDesktopRuntime, PROJECT_ROOT, isProcessStale } from "@/lib/runtime/runtime-config";
 import { normalizeVirtualPath } from "@/lib/virtual-paths";
 import { StaleProcessError } from "@/lib/api/stale-process";
 
@@ -17,7 +17,7 @@ export const DATA_INSTALL_METADATA_PATH = path.join(CABINET_INTERNAL_DIR, "insta
 export const PROJECT_RELEASE_MANIFEST_PATH = path.join(PROJECT_ROOT, "cabinet-release.json");
 export const UPDATE_STATUS_PATH = path.join(CABINET_INTERNAL_DIR, "update-status.json");
 export const FILE_SCHEMA_STATE_PATH = path.join(CABINET_INTERNAL_DIR, "file-schema.json");
-export const BACKUP_ROOT = isElectronRuntime()
+export const BACKUP_ROOT = isDesktopRuntime()
   ? path.join(path.dirname(DATA_PARENT_DIR), "cabinet-backups")
   : path.resolve(PROJECT_ROOT, "..", ".cabinet-backups", path.basename(PROJECT_ROOT));
 

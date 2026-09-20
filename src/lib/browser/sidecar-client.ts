@@ -27,6 +27,9 @@ export type SidecarStatus = {
    *  visibility IPC (daemon-issued Apple Events get dropped by TCC). */
   pid?: number | null;
   bundleId?: string | null;
+  /** True when the fork hosts the shell UI in its own window (in-window tab
+   *  layout; no floating-window bounds sync). */
+  hostMode?: boolean;
   error?: string;
   download?: { downloadedBytes: number; totalBytes: number };
 };

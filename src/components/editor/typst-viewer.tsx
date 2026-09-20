@@ -15,6 +15,7 @@ import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
 import { SplitScreenIcon } from "./editor-toolbar";
 import { useSplitResize } from "@/hooks/use-split-resize";
 import { SplitRuler } from "./split-ruler";
+import { getHost } from "@/lib/host";
 
 interface TypstViewerProps {
   path: string;
@@ -135,14 +136,9 @@ export function TypstViewer({ path }: TypstViewerProps) {
     
     setSaving(true);
     try {
-      const bridge = (window as unknown as {
-        CabinetDesktop?: {
-          writeFile?: (p: string, c: string) => Promise<{ ok: boolean; error?: string }>;
-        };
-      }).CabinetDesktop;
-
-      if (bridge?.writeFile) {
-        const result = await bridge.writeFile(path, newContent);
+      const files = getHost().files;
+      if (files) {
+        const result = await files.write(path, newContent);
         if (!result.ok) throw new Error(result.error || "Failed to save");
       } else {
         const res = await fetch(assetUrl, {

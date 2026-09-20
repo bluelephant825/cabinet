@@ -1,14 +1,6 @@
 "use client";
 
-interface CabinetDesktopBridge {
-  runtime?: "electron";
-  openLocalFile?: (path: string) => Promise<{ ok: boolean; error?: string }>;
-}
-
-function getBridge(): CabinetDesktopBridge {
-  return (window as unknown as { CabinetDesktop?: CabinetDesktopBridge })
-    .CabinetDesktop ?? {};
-}
+import { getHost } from "@/lib/host";
 
 function dispatchOpenError(filePath: string, error?: string): void {
   if (typeof window === "undefined") return;
@@ -27,8 +19,8 @@ function dispatchOpenError(filePath: string, error?: string): void {
 /**
  * Open a `file://` URL.
  *
- * file:// URLs can't be loaded in a browser view or window.open — Electron
- * blocks them. In the desktop app we use shell.openPath (via the IPC bridge)
+ * file:// URLs can't be loaded in a browser view or window.open — desktop
+ * shells block them. In the desktop app we use shell.openPath (via the host)
  * to open the file with the OS default application (e.g. Preview for PDFs).
  *
  * In browser mode there's no way to open a local file, so we surface a toast
@@ -36,13 +28,13 @@ function dispatchOpenError(filePath: string, error?: string): void {
  */
 export function openLocalFileUrl(url: string): void {
   const filePath = decodeURIComponent(url.slice("file://".length));
-  const bridge = getBridge();
+  const host = getHost();
 
-  if (bridge.runtime === "electron" && bridge.openLocalFile) {
+  if (host.capabilities.shell) {
     // Surface failures (missing file, permissions) as a toast instead of
     // silently swallowing the bridge result.
-    void bridge
-      .openLocalFile(filePath)
+    void host.system
+      .openPath(filePath)
       .then((result) => {
         if (!result?.ok) {
           dispatchOpenError(filePath, result?.error);

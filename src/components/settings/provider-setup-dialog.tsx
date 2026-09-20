@@ -7,6 +7,7 @@ import { useLocale } from "@/i18n/use-locale";
 import { cn } from "@/lib/utils";
 import { WebTerminal, type WebTerminalHandle } from "@/components/terminal/web-terminal";
 import { ProviderSetupSteps, type SetupStep } from "@/components/settings/provider-setup-steps";
+import { openExternalUrl } from "@/lib/runtime/open-url";
 
 // A guided, self-advancing "get this provider ready" flow. Three phases —
 // Install → Sign in → Ready — with a live console on the right that the buttons
@@ -31,9 +32,7 @@ const findStep = (steps: SetupStep[] | undefined, re: RegExp) =>
   steps?.find((s) => s.command && re.test(s.title)) ?? null;
 
 function openExternal(url: string) {
-  const bridge = (window as unknown as { CabinetDesktop?: { openExternal?: (u: string) => void } }).CabinetDesktop;
-  if (bridge?.openExternal) bridge.openExternal(url);
-  else window.open(url, "_blank", "noopener,noreferrer");
+  openExternalUrl(url);
 }
 
 // Point new agents at the sole ready provider when the configured default isn't

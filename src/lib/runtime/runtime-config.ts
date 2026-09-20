@@ -45,12 +45,22 @@ function defaultElectronDataDir(): string {
   return path.join(os.homedir(), "Cabinet");
 }
 
-export function getCabinetRuntime(): "source" | "electron" {
-  return process.env.CABINET_RUNTIME === "electron" ? "electron" : "source";
+export function getCabinetRuntime(): "source" | "electron" | "chromium" {
+  const runtime = process.env.CABINET_RUNTIME;
+  return runtime === "electron" || runtime === "chromium" ? runtime : "source";
 }
 
 export function isElectronRuntime(): boolean {
   return getCabinetRuntime() === "electron";
+}
+
+/**
+ * True for any packaged desktop shell — electron today, the Chromium fork
+ * later. Use this for checks that mean "desktop app"; isElectronRuntime()
+ * stays for checks that literally mean electron.
+ */
+export function isDesktopRuntime(): boolean {
+  return getCabinetRuntime() !== "source";
 }
 
 /** Path to the project-root config file that persists settings like dataDir. */
@@ -95,7 +105,7 @@ export function getManagedDataParentDir(): string {
   }
 
   // 3. Platform defaults
-  if (isElectronRuntime()) {
+  if (isDesktopRuntime()) {
     return defaultElectronDataDir();
   }
 

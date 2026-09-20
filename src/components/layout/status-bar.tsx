@@ -255,9 +255,12 @@ export function StatusBar() {
   // cloud container's restart policy relaunches everything). Source installs
   // keep the textual command tips below.
   const isCloudEdition = useIsCloud() === true;
-  const isElectronInstall =
-    installKind === "electron-macos" || installKind === "electron-windows";
-  const canRestartBackend = isCloudEdition || isElectronInstall;
+  const isDesktopInstall =
+    installKind === "electron-macos" ||
+    installKind === "electron-windows" ||
+    installKind === "chromium-macos" ||
+    installKind === "chromium-windows";
+  const canRestartBackend = isCloudEdition || isDesktopInstall;
   const [restarting, setRestarting] = useState(false);
   useEffect(() => {
     // The 5s health poll is the source of truth — clear the spinner when the
@@ -624,7 +627,7 @@ export function StatusBar() {
                               ? "Your cabinet is restarting itself. This page should recover within a minute. If it doesn't, refresh your browser."
                               : "The background service stopped. Click Restart above. Your cabinet will be back in about a minute."}
                           </p>
-                        ) : isElectronInstall ? (
+                        ) : isDesktopInstall ? (
                           <p className="text-[10px] text-muted-foreground">
                             {!appAlive
                               ? "The app server is not responding. It restarts itself automatically. If this message persists, quit and reopen the Cabinet app."

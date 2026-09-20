@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useEditorStore } from "@/stores/editor-store";
 import { ViewerToolbar } from "@/components/layout/viewer-toolbar";
+import { getHost } from "@/lib/host";
 import {
   copyMarkdown,
   copyForLlm,
@@ -161,25 +162,10 @@ export function Header() {
       const prepared = await preparePrintExport(editor, getExportSettings());
       cleanup = prepared.cleanup;
       window.addEventListener("afterprint", afterPrint, { once: true });
-      const bridge = (
-        window as unknown as {
-          CabinetDesktop?: {
-            savePdf?: (payload: {
-              filename: string;
-              paperSize: "a4" | "letter";
-              orientation: "portrait" | "landscape";
-            }) => Promise<{
-              ok: boolean;
-              canceled?: boolean;
-              path?: string;
-              error?: string;
-            }>;
-          };
-        }
-      ).CabinetDesktop;
+      const host = getHost();
 
-      if (bridge?.savePdf) {
-        const result = await bridge.savePdf({
+      if (host.pdf) {
+        const result = await host.pdf.save({
           filename: sanitizePdfFilename(pageTitle),
           paperSize: prepared.paperSize,
           orientation: prepared.orientation,

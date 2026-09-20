@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { restartDaemon } from "@/lib/agents/daemon-client";
 import { isCloud } from "@/lib/cloud/tier";
-import { isElectronRuntime } from "@/lib/runtime/runtime-config";
+import { isDesktopRuntime } from "@/lib/runtime/runtime-config";
 
 // Restart-by-exit: this route never respawns anything itself — it asks the
 // target process to exit and relies on the supervisor to bring it back
@@ -11,7 +11,7 @@ import { isElectronRuntime } from "@/lib/runtime/runtime-config";
 // terminal affair and this route refuses.
 
 function supervised(): boolean {
-  return isCloud() || isElectronRuntime();
+  return isCloud() || isDesktopRuntime();
 }
 
 function exitSoon(): void {

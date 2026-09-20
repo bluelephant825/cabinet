@@ -18,6 +18,7 @@ import { SplitScreenIcon } from "./editor-toolbar";
 import { useSplitResize } from "@/hooks/use-split-resize";
 import { SplitRuler } from "./split-ruler";
 import { SafeHtml } from "@/components/ui/safe-html";
+import { getHost } from "@/lib/host";
 
 interface LatexViewerProps {
   path: string;
@@ -107,13 +108,9 @@ export function LatexViewer({ path }: LatexViewerProps) {
     }
     setSaving(true);
     try {
-      const bridge = (window as unknown as {
-        CabinetDesktop?: {
-          writeFile?: (p: string, c: string) => Promise<{ ok: boolean; error?: string }>;
-        };
-      }).CabinetDesktop;
-      if (bridge?.writeFile) {
-        const result = await bridge.writeFile(path, newContent);
+      const files = getHost().files;
+      if (files) {
+        const result = await files.write(path, newContent);
         if (!result.ok) throw new Error(result.error || "Failed to save");
       } else {
         const res = await fetch(assetUrl, {

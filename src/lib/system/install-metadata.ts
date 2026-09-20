@@ -8,6 +8,7 @@ import {
   ROOT_INSTALL_METADATA_PATH,
 } from "@/lib/storage/path-utils";
 import {
+  isDesktopRuntime,
   isElectronRuntime,
   PROJECT_ROOT,
 } from "@/lib/runtime/runtime-config";
@@ -23,6 +24,10 @@ const APP_PATH_IGNORES = [
 
 export function inferElectronInstallKind(platform: NodeJS.Platform = process.platform): InstallKind {
   return platform === "win32" ? "electron-windows" : "electron-macos";
+}
+
+export function inferChromiumInstallKind(platform: NodeJS.Platform = process.platform): InstallKind {
+  return platform === "win32" ? "chromium-windows" : "chromium-macos";
 }
 
 export async function readInstallMetadata(): Promise<InstallMetadata | null> {
@@ -52,10 +57,14 @@ export async function writeInstallMetadata(metadata: InstallMetadata): Promise<v
 export function detectInstallKind(metadata: InstallMetadata | null): InstallKind {
   if (process.env.CABINET_INSTALL_KIND === "electron-macos") return "electron-macos";
   if (process.env.CABINET_INSTALL_KIND === "electron-windows") return "electron-windows";
+  if (process.env.CABINET_INSTALL_KIND === "chromium-macos") return "chromium-macos";
+  if (process.env.CABINET_INSTALL_KIND === "chromium-windows") return "chromium-windows";
   if (process.env.CABINET_INSTALL_KIND === "source-managed") return "source-managed";
   if (process.env.CABINET_INSTALL_KIND === "source-custom") return "source-custom";
 
   if (isElectronRuntime()) return inferElectronInstallKind();
+  // Any other packaged desktop shell is the Chromium fork.
+  if (isDesktopRuntime()) return inferChromiumInstallKind();
   if (metadata?.installKind === "source-managed" && metadata.managed) {
     return "source-managed";
   }
@@ -102,6 +111,8 @@ export async function detectInstallState(): Promise<{
     managed:
       metadata?.managed === true ||
       installKind === "electron-macos" ||
-      installKind === "electron-windows",
+      installKind === "electron-windows" ||
+      installKind === "chromium-macos" ||
+      installKind === "chromium-windows",
   };
 }

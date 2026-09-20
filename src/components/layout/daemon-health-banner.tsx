@@ -16,7 +16,7 @@ export function DaemonHealthBanner() {
   if (!show) return null;
 
   const fixHint =
-    installKind === "electron-macos"
+    installKind === "electron-macos" || installKind === "chromium-macos"
       ? t("chrome:daemon.fixHintElectron")
       : t("chrome:daemon.fixHintDev");
 

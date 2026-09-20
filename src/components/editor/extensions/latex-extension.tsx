@@ -4,8 +4,8 @@
  * Tiptap extension for embedding and rendering full .tex files inline.
  *
  * Recognizes the `![[file.tex]]` embed syntax. When the node mounts, it
- * resolves the file path relative to the current page and uses the Electron
- * IPC bridge (or the /api/assets endpoint as fallback) to read the .tex
+ * resolves the file path relative to the current page and uses the host's
+ * file bridge (or the /api/assets endpoint as fallback) to read the .tex
  * content. The content is then rendered using LaTeX.js inside an iframe
  * so that the generated DOM, CSS, and fonts are fully isolated.
  *
@@ -33,6 +33,7 @@ import React, {
 } from "react";
 import { FileText, Code, Eye, Loader2, AlertCircle } from "lucide-react";
 import { useEditorStore } from "@/stores/editor-store";
+import { getHost } from "@/lib/host";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                      */
@@ -50,18 +51,13 @@ declare module "@tiptap/core" {
   }
 }
 
-type LatexFileBridge = {
-  readFile?: (filePath: string) => Promise<{ ok: boolean; content?: string; error?: string }>;
-  writeFile?: (filePath: string, content: string) => Promise<{ ok: boolean; error?: string }>;
-};
-
 /* -------------------------------------------------------------------------- */
 /*  Path resolution                                                            */
 /* -------------------------------------------------------------------------- */
 
 /**
  * Resolve a .tex file path relative to the current page's directory.
- * Returns a virtual path suitable for the IPC bridge or /api/assets.
+ * Returns a virtual path suitable for the host file bridge or /api/assets.
  */
 function resolveTexPath(texPath: string, pagePath: string | null): string {
   // Absolute virtual path (starts with /)
@@ -83,9 +79,9 @@ function resolveTexPath(texPath: string, pagePath: string | null): string {
 /* -------------------------------------------------------------------------- */
 
 async function readTexFile(virtualPath: string): Promise<string> {
-  const bridge = (window as unknown as { CabinetDesktop?: LatexFileBridge }).CabinetDesktop;
-  if (bridge && bridge.readFile) {
-    const result = await bridge.readFile(virtualPath);
+  const files = getHost().files;
+  if (files) {
+    const result = await files.read(virtualPath);
     if (result.ok && result.content !== undefined) {
       return result.content;
     }
@@ -98,9 +94,9 @@ async function readTexFile(virtualPath: string): Promise<string> {
 }
 
 async function writeTexFile(virtualPath: string, content: string): Promise<void> {
-  const bridge = (window as unknown as { CabinetDesktop?: LatexFileBridge }).CabinetDesktop;
-  if (bridge && bridge.writeFile) {
-    const result = await bridge.writeFile(virtualPath, content);
+  const files = getHost().files;
+  if (files) {
+    const result = await files.write(virtualPath, content);
     if (!result.ok) throw new Error(result.error || "Failed to write file");
     return;
   }

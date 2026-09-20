@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getHost } from "@/lib/host";
 
 export interface CabinetMetaClient {
   /** Folder name = display name (Obsidian-style: the cabinet IS its folder). */
@@ -83,17 +84,13 @@ export const useCabinetsStore = create<CabinetsState>((set, get) => ({
     });
     if (!res.ok) return;
     // Server has persisted the new active cabinet. Rebind the content root by
-    // restarting: relaunch the desktop shell when running in Electron, else
+    // restarting: relaunch the desktop shell when running in one, else
     // fall back to a full page reload (dev still needs a manual server restart
     // for the new DATA_DIR to take effect).
     if (typeof window !== "undefined") {
-      const desktop = (
-        window as unknown as {
-          CabinetDesktop?: { relaunch?: () => Promise<unknown> };
-        }
-      ).CabinetDesktop;
-      if (desktop?.relaunch) {
-        await desktop.relaunch();
+      const host = getHost();
+      if (host.capabilities.windows) {
+        await host.windows.relaunch();
         return;
       }
       // If we are not running in Electron (e.g. standard web browser in dev),

@@ -41,7 +41,13 @@ async function postBatch(events: QueuedEvent[]): Promise<boolean> {
     installId: state.installId,
     sessionId: getSessionId(),
     clientVersion: getClientVersion(),
-    platform: process.env.CABINET_RUNTIME === "electron" ? "desktop" : "cli",
+    // Plain env check (not isDesktopRuntime): telemetry runs early enough that
+    // pulling in runtime-config's load-time filesystem work isn't worth it.
+    platform:
+      process.env.CABINET_RUNTIME === "electron" ||
+      process.env.CABINET_RUNTIME === "chromium"
+        ? "desktop"
+        : "cli",
     os: process.platform,
     arch: process.arch,
     nodeVersion: process.version,

@@ -50,81 +50,12 @@ import {
   type SidecarStatus,
   type SidecarTab,
 } from "@/lib/browser/sidecar-client";
-
-type BrowserViewBounds = { x: number; y: number; width: number; height: number };
-type BrowserViewNavResult = {
-  ok: boolean;
-  skipped?: boolean;
-  error?: string;
-  loadedUrl?: string;
-  primaryUrl?: string;
-  fallbackUrl?: string | null;
-  primaryError?: string;
-  fallbackError?: string;
-};
-type BrowserBookmarkMenuItem = {
-  id: string;
-  name: string;
-  type: "url" | "folder";
-  url?: string;
-  children?: BrowserBookmarkMenuItem[];
-};
-
-type BrowserBridge = {
-  runtime: "electron";
-  createBrowserView: (url: string) => Promise<{ ok: boolean; viewId?: string }>;
-  loadBrowserViewUrl: (viewId: string, url: string) => Promise<BrowserViewNavResult>;
-  setBrowserViewBounds: (viewId: string, bounds: BrowserViewBounds) => Promise<{ ok: boolean }>;
-  setBrowserViewVisible: (viewId: string, visible: boolean) => Promise<{ ok: boolean }>;
-  browserViewGoBack: (viewId: string) => Promise<BrowserViewNavResult>;
-  browserViewGoForward: (viewId: string) => Promise<BrowserViewNavResult>;
-  browserViewReload: (viewId: string) => Promise<BrowserViewNavResult>;
-  showBrowserBookmarksMenu: (payload: {
-    x: number;
-    y: number;
-    items: BrowserBookmarkMenuItem[];
-  }) => Promise<{ ok: boolean; cancelled?: boolean; id?: string; url?: string }>;
-  onBrowserViewNavigated: (
-    listener: (payload: { viewId?: string; url?: string }) => void
-  ) => () => void;
-  onBrowserViewLoadFailed: (
-    listener: (payload: {
-      viewId?: string;
-      requestedUrl?: string;
-      primaryUrl?: string;
-      fallbackUrl?: string;
-      primaryError?: string;
-      fallbackError?: string;
-      errorCode?: number;
-      errorDescription?: string;
-      validatedUrl?: string;
-    }) => void
-  ) => () => void;
-  destroyBrowserView: (viewId: string) => Promise<{ ok: boolean }>;
-  executeBrowserViewJavaScript?: (viewId: string, code: string) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
-  openBrowserViewDevTools?: (viewId: string) => Promise<{ ok: boolean; error?: string }>;
-  onBrowserViewNavigateRequest?: (
-    listener: (payload: { url?: string }) => void
-  ) => () => void;
-  onBrowserViewClosed?: (
-    listener: (payload: { viewId?: string }) => void
-  ) => () => void;
-  showNativeToast?: (payload: { kind?: string; message: string; durationMs?: number }) => Promise<{ ok: boolean }>;
-  getWindowGeometry?: () => Promise<WindowGeometryPayload>;
-  focusAppWindow?: () => Promise<{ ok: boolean }>;
-  onWindowGeometryChanged?: (
-    listener: (payload: WindowGeometryPayload) => void
-  ) => () => void;
-};
-
-type WindowGeometryPayload = {
-  ok?: boolean;
-  contentBounds?: { x: number; y: number; width: number; height: number };
-  focused?: boolean;
-  minimized?: boolean;
-  visible?: boolean;
-  fullscreen?: boolean;
-};
+import {
+  getHost,
+  type ElectronHostExtras,
+  type HostBookmarkMenuItem,
+  type HostWindowGeometry,
+} from "@/lib/host";
 
 type ThreeJsEditorWindow = Window & {
   __lastImportedFile?: string;
@@ -195,7 +126,7 @@ function normalizeBookmarkUrl(value: string): string {
   return `https://${trimmed}`;
 }
 
-function toBridgeBookmarkMenuItems(nodes: BookmarkNode[]): BrowserBookmarkMenuItem[] {
+function toBridgeBookmarkMenuItems(nodes: BookmarkNode[]): HostBookmarkMenuItem[] {
   return normalizeBookmarkNodes(nodes).map((node) => {
     if (node.type === "folder") {
       return {
@@ -212,11 +143,6 @@ function toBridgeBookmarkMenuItems(nodes: BookmarkNode[]): BrowserBookmarkMenuIt
       url: node.url,
     };
   });
-}
-
-function getBridge(): Partial<BrowserBridge> & { runtime?: "electron" } {
-  return (window as unknown as { CabinetDesktop?: Partial<BrowserBridge> & { runtime?: "electron" } })
-    .CabinetDesktop ?? {};
 }
 
 const TAG_CLOUD_DATA_URL_PREFIX = "data:text/html;cabinet-tag-cloud=1;charset=utf-8,";
@@ -665,15 +591,26 @@ function persistBrowserSessionState(state: BrowserSessionState): void {
 
 export function BrowserView() {
   const { t } = useLocale();
+  const host = getHost();
+  // The chromium fork hosts the app inside the browser window itself: real
+  // tabs are positioned in-window via host.layout, and there is no
+  // WebContentsView, geometry feed, or second window to keep in sync.
+  const isChromiumHost = host.kind === "chromium";
+  // Electron-only extras (WebContentsView surface + window geometry feed),
+  // absent on chromium and web; every use below stays behind browserMode or
+  // method-presence guards, so the empty partial is never exercised there.
+  const bridge: Partial<ElectronHostExtras> = host.electron ?? {};
   const url = useAppStore((s) => s.browseUrl);
   const setAppMode = useAppStore((s) => s.setAppMode);
   const selectedPath = useTreeStore((s) => s.selectedPath);
   const initialSessionRef = useRef<BrowserSessionState>(loadBrowserSessionState());
   const [addressValue, setAddressValue] = useState(toAddressBarValue(url ?? initialSessionRef.current.url ?? ""));
-  const [browserMode, setBrowserMode] = useState<"initializing" | "electron" | "iframe">(() => {
-    const bridge = getBridge();
-    return bridge.createBrowserView && bridge.destroyBrowserView ? "initializing" : "iframe";
-  });
+  const [browserMode, setBrowserMode] = useState<"initializing" | "electron" | "iframe">(
+    // Only the electron host exposes the WebContentsView surface; on
+    // chromium the native engine is the iframe (external pages become real
+    // in-window tabs via host.layout) and web was always iframe.
+    () => (host.electron ? "initializing" : "iframe"),
+  );
   const [initAttempt, setInitAttempt] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bookmarksMenuRef = useRef<HTMLDivElement | null>(null);
@@ -720,6 +657,10 @@ export function BrowserView() {
   const [sidecarTabs, setSidecarTabs] = useState<SidecarTab[]>([]);
   const suppressNextSidecarLoadRef = useRef(false);
   const sidecarPaneRef = useRef<HTMLDivElement | null>(null);
+  // The content region inside the sidecar pane, below the in-app tab strip.
+  // On the chromium host this is the rect the tab's WebContents is
+  // positioned at, so the strip (shell UI) stays uncovered.
+  const sidecarContentRef = useRef<HTMLDivElement | null>(null);
   const sidecarStatusRef = useRef<SidecarStatus | null>(null);
   const sidecarTabsRef = useRef<SidecarTab[]>([]);
   // True once listTabs() has completed for the current running session; until
@@ -734,14 +675,18 @@ export function BrowserView() {
   // the remount's visible:true and hide Chromium while the user is browsing.
   // Deferring the park lets a remount cancel it.
   const sidecarParkTimerRef = useRef<number | null>(null);
-  const windowGeometryRef = useRef<WindowGeometryPayload | null>(null);
+  const windowGeometryRef = useRef<HostWindowGeometry | null>(null);
   const boundsThrottleRef = useRef<number | null>(null);
   const boundsTrailingRef = useRef(false);
   const isDialogOpenRef = useRef(false);
   sidecarStatusRef.current = sidecarStatus;
   sidecarTabsRef.current = sidecarTabs;
 
-  const isDesktopBridge = !!getBridge().getWindowGeometry;
+  // The floating sidecar window — and its own tab strip as the UI — exists
+  // only on the electron host. On web the strip below is the controller,
+  // and on chromium the fork hides its native tabstrip for shell-hosted
+  // tabs, so the in-app strip is needed there too.
+  const isDesktopBridge = host.kind === "electron";
   const activeEngine: "sidecar" | "native" =
     isSidecarUrl(url) &&
     sidecarStatus?.eligible === true &&
@@ -887,7 +832,6 @@ export function BrowserView() {
 
   const setElectronOverlayVisibility = async (visible: boolean) => {
     if (browserMode !== "electron") return;
-    const bridge = getBridge();
     const viewId = viewIdRef.current;
     const setBrowserViewVisible = bridge.setBrowserViewVisible;
     if (!viewId || !setBrowserViewVisible) return;
@@ -909,7 +853,6 @@ export function BrowserView() {
   const openBookmarksNativeMenu = async () => {
     const trigger = bookmarksTriggerRef.current;
     if (!trigger) return;
-    const bridge = getBridge();
     const showBrowserBookmarksMenu = bridge.showBrowserBookmarksMenu;
     if (!showBrowserBookmarksMenu) {
       setBookmarksMenuOpen((open) => !open);
@@ -1000,7 +943,6 @@ export function BrowserView() {
     };
     if (browserMode === "electron") {
       const viewId = viewIdRef.current;
-      const bridge = getBridge();
       if (viewId && bridge.browserViewGoBack) {
         iframeNavActionRef.current = "back";
         void bridge.browserViewGoBack(viewId)
@@ -1055,7 +997,6 @@ export function BrowserView() {
     };
     if (browserMode === "electron") {
       const viewId = viewIdRef.current;
-      const bridge = getBridge();
       if (viewId && bridge.browserViewGoForward) {
         iframeNavActionRef.current = "forward";
         void bridge.browserViewGoForward(viewId)
@@ -1091,7 +1032,6 @@ export function BrowserView() {
     };
     if (browserMode === "electron") {
       const viewId = viewIdRef.current;
-      const bridge = getBridge();
       if (!viewId) {
         applyReloadFallback();
         return;
@@ -1170,13 +1110,13 @@ export function BrowserView() {
     };
 
     const hasElectronBrowserBridge = () => {
-      const bridge = getBridge();
+      const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
       return !!bridge.createBrowserView && !!bridge.destroyBrowserView;
     };
 
     const attemptInit = () => {
       if (cancelled) return;
-      const bridge = getBridge();
+      const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
       if (!hasElectronBrowserBridge()) {
         retries += 1;
         if (retries >= maxRetries) {
@@ -1226,7 +1166,7 @@ export function BrowserView() {
 
     const existing = viewIdRef.current;
     if (existing) {
-      const bridge = getBridge();
+      const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
       const destroyBrowserView = bridge.destroyBrowserView;
       const setBrowserViewVisible = bridge.setBrowserViewVisible;
       viewIdRef.current = null;
@@ -1244,7 +1184,8 @@ export function BrowserView() {
     return () => {
       cancelled = true;
       cleanup();
-      const bridge = getBridge();
+      const host = getHost();
+      const bridge: Partial<ElectronHostExtras> = host.electron ?? {};
       const destroyBrowserView = bridge.destroyBrowserView;
       const setBrowserViewVisible = bridge.setBrowserViewVisible;
       const current = viewIdRef.current;
@@ -1255,24 +1196,31 @@ export function BrowserView() {
       if (current && destroyBrowserView) {
         void destroyBrowserView(current);
       }
-      // Leaving browse mode: park the sidecar window if it is up. Deferred so
-      // a dev StrictMode remount (or an initAttempt re-run) cancels it instead
-      // of hiding Chromium mid-browse.
+      // Leaving browse mode: hide the browser surface if it is up. On the
+      // chromium host the tab content shares this window, so dropping the
+      // in-window bounds is enough and no deferred park is needed. On
+      // electron the sidecar window park is deferred so a dev StrictMode
+      // remount (or an initAttempt re-run) cancels it instead of hiding
+      // Chromium mid-browse.
       if (sidecarStatusRef.current?.status === "running") {
-        sidecarParkTimerRef.current = window.setTimeout(() => {
-          sidecarParkTimerRef.current = null;
-          if (sidecarStatusRef.current?.status !== "running") return;
-          void setSidecarWindowBounds({ visible: false }).catch(() => {});
-          // Hiding Chromium needs Automation permission it may not have;
-          // raising Cabinet above it is permission-free, so do both.
-          void getBridge().focusAppWindow?.().catch(() => {});
-        }, 400);
+        if (host.kind === "chromium") {
+          void host.layout.setContentBounds(null).catch(() => {});
+        } else {
+          sidecarParkTimerRef.current = window.setTimeout(() => {
+            sidecarParkTimerRef.current = null;
+            if (sidecarStatusRef.current?.status !== "running") return;
+            void setSidecarWindowBounds({ visible: false }).catch(() => {});
+            // Hiding Chromium needs Automation permission it may not have;
+            // raising Cabinet above it is permission-free, so do both.
+            void host.windows.focus().catch(() => {});
+          }, 400);
+        }
       }
     };
   }, [initAttempt]);
 
   useEffect(() => {
-    const bridge = getBridge();
+    const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
     const subscribe = bridge.onBrowserViewLoadFailed;
     if (!subscribe) return;
     const unsubscribe = subscribe((payload) => {
@@ -1294,7 +1242,7 @@ export function BrowserView() {
   }, []);
 
   useEffect(() => {
-    const bridge = getBridge();
+    const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
     const subscribe = bridge.onBrowserViewNavigateRequest;
     if (!subscribe) return;
     const unsubscribe = subscribe((payload) => {
@@ -1316,7 +1264,7 @@ export function BrowserView() {
   }, [setAppMode]);
 
   useEffect(() => {
-    const bridge = getBridge();
+    const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
     const subscribe = bridge.onBrowserViewClosed;
     if (!subscribe) return;
     const unsubscribe = subscribe((payload) => {
@@ -1330,7 +1278,7 @@ export function BrowserView() {
   }, [setAppMode]);
 
   const handleAutoImportGlb = async (viewId: string, filePath: string) => {
-    const bridge = getBridge();
+    const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
     if (!bridge.executeBrowserViewJavaScript) return;
 
     try {
@@ -1506,7 +1454,7 @@ export function BrowserView() {
   };
 
   useEffect(() => {
-    const bridge = getBridge();
+    const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
     const subscribe = bridge.onBrowserViewNavigated;
     if (!subscribe) return;
     const unsubscribe = subscribe((payload) => {
@@ -1717,8 +1665,10 @@ export function BrowserView() {
     }
   }, [sidecarStatus, url, preferNative, sidecarFailedUrl]);
 
-  // Leaving sidecar for a native URL: park the Chromium window (minimized)
-  // but keep it alive so the next external page restores instantly.
+  // Leaving sidecar for a native URL: park the browser surface but keep the
+  // engine alive so the next external page restores instantly. On electron
+  // that means hiding the floating Chromium window; on the chromium host
+  // the tab shares this window, so it is a single in-window layout call.
   const prevEngineRef = useRef<"sidecar" | "native">(activeEngine);
   useEffect(() => {
     const prev = prevEngineRef.current;
@@ -1728,18 +1678,86 @@ export function BrowserView() {
       activeEngine === "native" &&
       sidecarStatusRef.current?.status === "running"
     ) {
-      void setSidecarWindowBounds({ visible: false }).catch(() => {});
-      void getBridge().focusAppWindow?.().catch(() => {});
+      const host = getHost();
+      if (host.kind === "chromium") {
+        void host.layout.setContentBounds(null).catch(() => {});
+      } else {
+        void setSidecarWindowBounds({ visible: false }).catch(() => {});
+        void host.windows.focus().catch(() => {});
+      }
     }
   }, [activeEngine]);
 
-  // Bounds sync (Electron only): the Chromium window floats over the pane, so
-  // every pane rect change and window move/resize is forwarded in screen
-  // coordinates. Blur never hides the window — blur is exactly what happens
-  // when the user clicks into Chromium.
+  // Bounds sync. On the chromium host the app IS the browser window: the
+  // fork positions the active tab's WebContents at the pane's
+  // viewport-relative CSS-px rect via host.layout.setContentBounds — no
+  // second window, no geometry IPC, no hide/focus dance. On electron the
+  // separate Chromium window floats over the pane, so every pane rect
+  // change and window move/resize is forwarded in screen coordinates. Blur
+  // never hides the window — blur is exactly what happens when the user
+  // clicks into Chromium.
   useEffect(() => {
-    const bridge = getBridge();
+    const host = getHost();
     if (activeEngine !== "sidecar") return;
+
+    if (host.kind === "chromium") {
+      // The P1 extension host injects window.cabinetHost but cannot position
+      // tab content (Chrome owns the window chrome), so capabilities.layout
+      // is false there — no bounds traffic, the pane renders a pointer
+      // surface instead.
+      if (!host.capabilities.layout) return;
+      const sendBounds = () => {
+        if (sidecarStatusRef.current?.status !== "running") return;
+        const pane =
+          sidecarContentRef.current ?? sidecarPaneRef.current ?? containerRef.current;
+        if (!pane) return;
+        const rect = pane.getBoundingClientRect();
+        if (rect.width < 8 || rect.height < 8) return;
+        void host.layout
+          .setContentBounds({
+            x: Math.round(rect.left),
+            y: Math.round(rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          })
+          .catch(() => {});
+      };
+
+      const scheduleSendBounds = () => {
+        if (boundsThrottleRef.current !== null) {
+          boundsTrailingRef.current = true;
+          return;
+        }
+        sendBounds();
+        boundsThrottleRef.current = window.setTimeout(() => {
+          boundsThrottleRef.current = null;
+          if (boundsTrailingRef.current) {
+            boundsTrailingRef.current = false;
+            scheduleSendBounds();
+          }
+        }, 50);
+      };
+
+      const pane =
+        sidecarContentRef.current ?? sidecarPaneRef.current ?? containerRef.current;
+      const observer = new ResizeObserver(scheduleSendBounds);
+      if (pane) observer.observe(pane);
+      scheduleSendBounds();
+
+      return () => {
+        observer.disconnect();
+        if (boundsThrottleRef.current !== null) {
+          window.clearTimeout(boundsThrottleRef.current);
+          boundsThrottleRef.current = null;
+        }
+        boundsTrailingRef.current = false;
+        // Leaving the sidecar engine (or unmounting): drop the in-window
+        // content bounds immediately.
+        void host.layout.setContentBounds(null).catch(() => {});
+      };
+    }
+
+    const bridge: Partial<ElectronHostExtras> = host.electron ?? {};
     if (typeof bridge.getWindowGeometry !== "function" || typeof bridge.onWindowGeometryChanged !== "function") {
       return;
     }
@@ -1833,6 +1851,17 @@ export function BrowserView() {
   }, [activeEngine, sidecarStatus?.status]);
 
   const focusSidecar = () => {
+    if (isChromiumHost) {
+      // Fork: tab content shares this window, nothing to raise.
+      // P1 extension host: "focus" means activating the real Chrome tab
+      // this page opened in.
+      if (host.capabilities.layout) return;
+      const match =
+        sidecarTabsRef.current.find((tab) => tab.url === url) ??
+        sidecarTabsRef.current.find((tab) => tab.active);
+      if (match) void activateSidecarTabRequest(match.id).catch(() => {});
+      return;
+    }
     if (sidecarStatusRef.current?.status !== "running") return;
     void focusSidecarWindow().catch(() => {});
   };
@@ -1853,7 +1882,7 @@ export function BrowserView() {
   };
 
   useEffect(() => {
-    const bridge = getBridge();
+    const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
     const viewId = viewIdRef.current;
     if (!bridge.createBrowserView || !bridge.destroyBrowserView || !viewId || browserMode !== "electron") {
       return;
@@ -1883,7 +1912,7 @@ export function BrowserView() {
   }, [url, browserMode, activeEngine, sidecarStatusLoaded]);
 
   useEffect(() => {
-    const bridge = getBridge();
+    const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
     if (!bridge.createBrowserView || !bridge.destroyBrowserView || browserMode !== "electron") return;
     const setBrowserViewBounds = bridge.setBrowserViewBounds;
     if (!setBrowserViewBounds) return;
@@ -1920,19 +1949,28 @@ export function BrowserView() {
   // Menu.popup() above the BrowserView (same pattern as the extensions menu).
   useEffect(() => {
     if (browserMode !== "electron") return;
-    const bridge = getBridge();
-    if (!bridge.showNativeToast) return;
+    const host = getHost();
+    // host.system.showToast falls back to re-dispatching "cabinet:toast"
+    // when a shell has no native toast surface; the flag lets that
+    // re-dispatched event through instead of intercepting it forever.
+    let forwarding = false;
     const handler = (event: Event) => {
+      if (forwarding) return;
       const detail = (event as CustomEvent).detail as
         | { kind?: string; message?: string; durationMs?: number }
         | undefined;
       if (!detail?.message) return;
       event.preventDefault();
-      void bridge.showNativeToast!({
-        kind: detail.kind,
-        message: detail.message,
-        durationMs: detail.durationMs,
-      });
+      forwarding = true;
+      try {
+        void host.system.showToast({
+          kind: detail.kind,
+          message: detail.message,
+          durationMs: detail.durationMs,
+        });
+      } finally {
+        forwarding = false;
+      }
     };
     window.addEventListener("cabinet:toast", handler);
     return () => window.removeEventListener("cabinet:toast", handler);
@@ -1942,7 +1980,7 @@ export function BrowserView() {
   isDialogOpenRef.current = isDialogOpen;
 
   useEffect(() => {
-    const bridge = getBridge();
+    const bridge: Partial<ElectronHostExtras> = getHost().electron ?? {};
     const viewId = viewIdRef.current;
     if (!bridge.createBrowserView || !bridge.destroyBrowserView || !viewId || browserMode !== "electron") {
       return;
@@ -2264,7 +2302,6 @@ export function BrowserView() {
               <button
                 type="button"
                 onClick={() => {
-                  const bridge = getBridge();
                   const viewId = viewIdRef.current;
                   if (viewId && bridge.openBrowserViewDevTools) {
                     void bridge.openBrowserViewDevTools(viewId);
@@ -2398,9 +2435,10 @@ export function BrowserView() {
               className="flex h-full w-full flex-col bg-background"
               onClick={focusSidecar}
             >
-              {/* On desktop the real Chromium window covers this pane and its
-                  own tab strip is the UI; this strip is the controller in web
-                  mode where the window is free-floating. */}
+              {/* On electron the real Chromium window covers this pane and its
+                  own tab strip is the UI. This strip is the controller on web
+                  (free-floating window) and on the chromium fork, which hides
+                  its native tabstrip for shell-hosted tabs. */}
               {!isDesktopBridge && (
               <div className="flex items-center gap-1 overflow-x-auto border-b border-border/70 bg-muted/40 px-2 py-1">
                 {sidecarTabs.map((tab) => (
@@ -2451,7 +2489,10 @@ export function BrowserView() {
                 </button>
               </div>
               )}
-              <div className="flex flex-1 items-center justify-center p-6 text-center">
+              <div
+                ref={sidecarContentRef}
+                className="flex flex-1 items-center justify-center p-6 text-center"
+              >
                 {sidecarStatus?.status === "downloading" ? (
                   <div className="text-sm text-muted-foreground">
                     Downloading Cabinet Browser…
@@ -2460,6 +2501,39 @@ export function BrowserView() {
                       : ""}
                   </div>
                 ) : sidecarStatus?.status === "running" ? (
+                  isChromiumHost ? (
+                    host.capabilities.layout ? (
+                      // The fork draws the active tab's WebContents into this
+                      // region, so the DOM underneath only needs a quiet
+                      // surface while the page arrives. No separate-window
+                      // copy: there is no second window to point at.
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground/70">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading page…
+                      </div>
+                    ) : (
+                      // P1 extension host: the page is a real Chrome tab in
+                      // this window's own tab strip, not content this app
+                      // can position. Offer a jump back to it.
+                      <div className="space-y-3">
+                        <div className="text-sm text-muted-foreground">
+                          This page is open in a browser tab
+                        </div>
+                        <div className="flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              focusSidecar();
+                            }}
+                            className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-foreground hover:bg-muted"
+                          >
+                            Show tab
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  ) : (
                   <div className="space-y-3">
                     <div className="text-sm text-muted-foreground">
                       {isDesktopBridge
@@ -2491,6 +2565,7 @@ export function BrowserView() {
                       ) : null}
                     </div>
                   </div>
+                  )
                 ) : (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />

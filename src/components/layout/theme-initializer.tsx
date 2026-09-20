@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useTheme } from "@/components/theme-provider";
+import { getHost } from "@/lib/host";
 import {
   THEMES,
   applyTheme,
@@ -18,21 +19,12 @@ export function ThemeInitializer() {
   const { setTheme } = useTheme();
 
   useEffect(() => {
-    const desktop =
-      typeof window !== "undefined"
-        ? (
-            window as unknown as {
-              CabinetDesktop?: {
-                onFullscreenChanged?: (cb: (v: boolean) => void) => () => void;
-              };
-            }
-          ).CabinetDesktop
-        : undefined;
+    const host = getHost();
     let unsubscribeFullscreen: (() => void) | undefined;
-    if (desktop) {
+    if (host.kind !== "web") {
       document.documentElement.classList.add("electron-desktop");
       // Drop the traffic-light clearance while full-screen (globals.css).
-      unsubscribeFullscreen = desktop.onFullscreenChanged?.((isFull) =>
+      unsubscribeFullscreen = host.windows.onFullscreenChanged((isFull) =>
         document.documentElement.classList.toggle("is-fullscreen", isFull)
       );
     }

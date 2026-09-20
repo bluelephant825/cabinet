@@ -4,29 +4,18 @@ import { useState, useSyncExternalStore } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/i18n/use-locale";
+import { getHost, type CabinetHost } from "@/lib/host";
 
-type CabinetDesktopBridge = {
-  runtime: "electron";
-  platform: NodeJS.Platform;
-  uninstallApp: () => Promise<{ ok: boolean; dataPath?: string; error?: string }>;
-};
-
-declare global {
-  interface Window {
-    CabinetDesktop?: CabinetDesktopBridge;
-  }
-}
-
-// The desktop bridge is an external value injected by the Electron preload
-// script: read it with useSyncExternalStore so the server (and the hydration
-// render) sees null and the client corrects after mount — no
-// setState-in-effect, no hydration mismatch. The snapshot is
-// reference-stable: window.CabinetDesktop is set once, before page load.
+// The host is an external value injected by the shell (Electron preload or
+// the fork's cabinetHost binding): read it with useSyncExternalStore so the
+// server (and the hydration render) sees null and the client corrects after
+// mount — no setState-in-effect, no hydration mismatch. The snapshot is
+// reference-stable: getHost() returns a cached singleton.
 const emptySubscribe = () => () => {};
 
-function readBridge(): CabinetDesktopBridge | null {
-  const b = window.CabinetDesktop;
-  return b && b.runtime === "electron" && b.platform === "darwin" ? b : null;
+function readHost(): CabinetHost | null {
+  const host = getHost();
+  return host.kind === "electron" && host.platform === "darwin" ? host : null;
 }
 
 /**
@@ -41,9 +30,9 @@ export function UninstallSection() {
   const { t } = useLocale();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bridge = useSyncExternalStore(emptySubscribe, readBridge, () => null);
+  const host = useSyncExternalStore(emptySubscribe, readHost, () => null);
 
-  if (!bridge) return null;
+  if (!host) return null;
 
   const dataPath = "~/Library/Application Support/Cabinet/cabinet-data";
 
@@ -60,7 +49,7 @@ export function UninstallSection() {
     setSubmitting(true);
     setError(null);
     try {
-      const result = await bridge.uninstallApp();
+      const result = await host.system.uninstall();
       if (!result.ok) {
         setError(result.error || "Uninstall failed.");
         setSubmitting(false);

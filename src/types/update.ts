@@ -2,7 +2,9 @@ export type InstallKind =
   | "source-managed"
   | "source-custom"
   | "electron-macos"
-  | "electron-windows";
+  | "electron-windows"
+  | "chromium-macos"
+  | "chromium-windows";
 
 export type UpdateState =
   | "idle"

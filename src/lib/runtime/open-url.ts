@@ -1,29 +1,20 @@
 "use client";
 
-interface CabinetDesktopBridge {
-  runtime?: "electron";
-  openLocalFile?: (path: string) => Promise<{ ok: boolean; error?: string }>;
-  openExternal?: (url: string) => Promise<{ ok: boolean; error?: string }>;
-}
-
-function getBridge(): CabinetDesktopBridge {
-  return (window as unknown as { CabinetDesktop?: CabinetDesktopBridge })
-    .CabinetDesktop ?? {};
-}
+import { getHost } from "@/lib/host";
 
 export function openUrlInAppropriateContext(
   url: string,
   openInBrowseMode: (url: string) => void
 ): void {
-  const bridge = getBridge();
-  const isElectron = bridge.runtime === "electron";
+  const host = getHost();
 
   // file:// URLs can't be loaded in a browser view or window.open —
-  // Electron blocks them. Use shell.openPath to open with the OS default app.
+  // desktop shells block them. Use shell.openPath to open with the OS
+  // default app.
   if (url.startsWith("file://")) {
     const filePath = decodeURIComponent(url.slice("file://".length));
-    if (isElectron && bridge.openLocalFile) {
-      void bridge.openLocalFile(filePath);
+    if (host.capabilities.shell) {
+      void host.system.openPath(filePath);
       return;
     }
     // In browser mode, there's no way to open local files — show a toast
@@ -46,7 +37,7 @@ export function openUrlInAppropriateContext(
     return;
   }
 
-  if (isElectron) {
+  if (host.kind !== "web") {
     openInBrowseMode(url);
   } else {
     window.open(url, "_blank");
@@ -59,9 +50,9 @@ export function openUrlInAppropriateContext(
  * user's provider session. Falls back to window.open in the web build.
  */
 export function openExternalUrl(url: string): void {
-  const bridge = getBridge();
-  if (bridge.runtime === "electron" && bridge.openExternal) {
-    void bridge.openExternal(url);
+  const host = getHost();
+  if (host.capabilities.shell) {
+    void host.system.openExternal(url);
     return;
   }
   if (typeof window !== "undefined") {
