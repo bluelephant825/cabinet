@@ -39,11 +39,16 @@ export type HostCapabilities = {
 
 export type HostRect = { x: number; y: number; width: number; height: number };
 
+/** A covered region of the tab overlay. `radius` rounds the painted hole's
+ *  corners so it matches the floating UI's border-radius instead of leaving
+ *  squared clip edges; hit-testing stays rect-based. */
+export type HostExclusion = HostRect & { radius?: number };
+
 /** Bounds for the in-window tab overlay. `exclude` lists viewport CSS-px
  *  rects covered by shell-drawn floating UI: the host clips those pixels out
  *  of the overlay and routes their input to the shell instead of hiding the
  *  page. Hosts that don't support holes ignore the field. */
-export type HostContentBounds = HostRect & { exclude?: HostRect[] };
+export type HostContentBounds = HostRect & { exclude?: HostExclusion[] };
 export type HostTab = {
   id: string;
   targetId: string;

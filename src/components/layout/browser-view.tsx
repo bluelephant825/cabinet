@@ -55,6 +55,7 @@ import {
   type ElectronHostExtras,
   type HostBookmarkMenuItem,
   type HostContentBounds,
+  type HostExclusion,
   type HostRect,
   type HostWindowGeometry,
 } from "@/lib/host";
@@ -1762,12 +1763,63 @@ export function BrowserView() {
         if (el.children.length > 0) return true;
         return false;
       };
+      // How far the element's drop shadow extends past its border-box. The
+      // exclusion hole is padded by this much so the shadow paints over the
+      // shell instead of being clipped square at the hole's edge.
+      const shadowPad = (shadow: string) => {
+        if (!shadow || shadow === "none") return 0;
+        // Split on top-level commas only (rgba() lists contain commas).
+        const parts: string[] = [];
+        let depth = 0;
+        let cur = "";
+        for (const ch of shadow) {
+          if (ch === "(") depth += 1;
+          if (ch === ")") depth -= 1;
+          if (ch === "," && depth === 0) {
+            parts.push(cur);
+            cur = "";
+          } else {
+            cur += ch;
+          }
+        }
+        parts.push(cur);
+        let pad = 0;
+        for (const part of parts) {
+          const nums = part
+            .replace(/\([^)]*\)/g, " ")
+            .split(/\s+/)
+            .map(parseFloat)
+            .filter(Number.isFinite);
+          const [dx = 0, dy = 0, blur = 0, spread = 0] = nums;
+          const reach = blur + Math.max(spread, 0);
+          pad = Math.max(pad, Math.abs(dx) + reach, Math.abs(dy) + reach);
+        }
+        return pad;
+      };
+      // Max corner radius and shadow extent across the cover and its direct
+      // children (popper wrappers are transparent; the child paints).
+      const visuals = (el: Element) => {
+        let radius = 0;
+        let pad = 0;
+        for (const cand of [el, ...el.children]) {
+          const s = getComputedStyle(cand);
+          radius = Math.max(
+            radius,
+            parseFloat(s.borderTopLeftRadius) || 0,
+            parseFloat(s.borderTopRightRadius) || 0,
+            parseFloat(s.borderBottomLeftRadius) || 0,
+            parseFloat(s.borderBottomRightRadius) || 0,
+          );
+          pad = Math.max(pad, shadowPad(s.boxShadow));
+        }
+        return { radius, pad };
+      };
       // Returns the covered rects intersected with the pane, or null when a
       // covering element can't be identified (hide rather than paint over it).
       const collectExclusions = (
         pane: Element,
         rect: DOMRect,
-      ): HostRect[] | null => {
+      ): HostExclusion[] | null => {
         const covers = new Set<Element>();
         for (const el of document.querySelectorAll(OVERLAY_SELECTOR)) {
           if (
@@ -1814,20 +1866,23 @@ export function BrowserView() {
             covers.add(el);
           }
         }
-        const exclude: HostRect[] = [];
+        const exclude: HostExclusion[] = [];
         for (const el of covers) {
           const r = el.getBoundingClientRect();
           if (r.width < 4 || r.height < 4) continue;
-          const x = Math.max(r.left, rect.left);
-          const y = Math.max(r.top, rect.top);
-          const right = Math.min(r.right, rect.right);
-          const bottom = Math.min(r.bottom, rect.bottom);
+          const { radius, pad } = visuals(el);
+          const x = Math.max(r.left - pad, rect.left);
+          const y = Math.max(r.top - pad, rect.top);
+          const right = Math.min(r.right + pad, rect.right);
+          const bottom = Math.min(r.bottom + pad, rect.bottom);
           if (right - x >= 1 && bottom - y >= 1) {
             exclude.push({
               x: Math.round(x),
               y: Math.round(y),
               width: Math.round(right - x),
               height: Math.round(bottom - y),
+              // Radius + pad approximates the corner's offset curve.
+              ...(radius > 0 ? { radius: Math.round(radius + pad) } : {}),
             });
           }
         }

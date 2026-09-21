@@ -1906,3 +1906,32 @@ Verified live on the managed fork: top-toolbar "Create new…" menu renders
 over a fully visible Example Domain page; page click dismisses the menu;
 Bookmarks dropdown unchanged (renders over visible page). `tsc` clean;
 1007 tests / 1005 pass / 0 fail.
+
+## 2026-02-10 — Rounded exclusion holes matching menu shape (shadow clip fix)
+
+The exclusion holes punched in the native tab overlay were hard axis-aligned
+rectangles exactly matching each floating element's border-box. Two artifacts
+resulted: a menu's drop shadow was clipped square at the hole edge (visible
+as a faint dark line / squared corners), and rounded menu corners sat on
+square clip boundaries.
+
+Shell side (`browser-view.tsx`, `types.ts`): each cover element's exclusion
+rect is now padded outward by its `box-shadow` extent (parsed from computed
+style, max over the element and its direct children — popper wrappers are
+transparent while a child paints), and carries a `radius` field equal to the
+element's max border-radius + padding (the corner's offset curve). New
+`HostExclusion = HostRect & { radius?: number }` type; exclusion emit loop
+applies the padding before clipping to the pane.
+
+Chromium side (patch 0008, `75abf7aedc`): exclusions flow as
+`OverlayExclusion{rect, radius}` through `layout.setContentBounds` into
+`CabinetWindowOverlay`; the macOS AppKit mask path uses
+`CGPathAddRoundedRect` so holes match the shell UI's shape. Hit-test holes
+and the views-layer alpha shape remain rect-based — a press in a rounded
+corner still reaches the shell and dismisses the menu, which is the desired
+behavior anyway.
+
+Verified live on the managed fork: "Create new…" and Bookmarks menus show
+rounded corners with soft shadows fading over a uniform padding ring;
+page click still dismisses; full-pane dialog behavior unchanged.
+`tsc` clean.
