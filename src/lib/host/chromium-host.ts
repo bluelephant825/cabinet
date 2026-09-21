@@ -54,6 +54,7 @@ import type {
   HostCapabilities,
   HostContentBounds,
   HostPlatform,
+  HostRect,
 } from "./types";
 
 /** The `window.cabinetHost` binding the fork will inject into the shell
@@ -93,6 +94,14 @@ type CabinetHostBinding = {
       message: string;
       durationMs?: number;
     }) => Promise<{ ok: boolean }> | { ok: boolean };
+  };
+  extensions?: {
+    triggerAction?: (payload: {
+      id: string;
+      anchor: HostRect;
+    }) =>
+      | Promise<{ ok: boolean; error?: string }>
+      | { ok: boolean; error?: string };
   };
   pdf?: {
     save?: (payload: {
@@ -212,6 +221,12 @@ export function createChromiumHost(): CabinetHost {
       enable: enableExtension,
       disable: disableExtension,
       setPinned: pinExtension,
+      triggerAction: (id, anchor) => {
+        const triggerAction = getBinding()?.extensions?.triggerAction;
+        return triggerAction
+          ? Promise.resolve(triggerAction({ id, anchor }))
+          : Promise.resolve({ ok: false, error: "unsupported" });
+      },
     },
     browser: {
       status: getStatus,

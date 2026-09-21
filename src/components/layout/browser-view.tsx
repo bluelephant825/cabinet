@@ -12,7 +12,10 @@ import {
   Globe,
   Icon,
   Loader2,
+  Pin,
+  PinOff,
   Plus,
+  Puzzle,
   RefreshCw,
   Tags,
   Trash2,
@@ -47,6 +50,7 @@ import {
   openTab as openSidecarTab,
   reloadTab as reloadSidecarTab,
   setWindowBounds as setSidecarWindowBounds,
+  type SidecarExtension,
   type SidecarStatus,
   type SidecarTab,
 } from "@/lib/browser/sidecar-client";
@@ -652,6 +656,13 @@ export function BrowserView() {
   const [bookmarkParentId, setBookmarkParentId] = useState("1");
   const bookmarkTitleRequestRef = useRef(0);
 
+  // ----- Toolbar extensions -----
+  const [toolbarExtensions, setToolbarExtensions] = useState<SidecarExtension[]>([]);
+  const [extensionsMenuOpen, setExtensionsMenuOpen] = useState(false);
+  const [extensionsMenuPosition, setExtensionsMenuPosition] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
+  const extensionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const extensionsTriggerRef = useRef<HTMLButtonElement | null>(null);
+
   // ----- Cabinet Browser sidecar -----
   const [sidecarStatus, setSidecarStatus] = useState<SidecarStatus | null>(null);
   const [sidecarStatusLoaded, setSidecarStatusLoaded] = useState(false);
@@ -715,6 +726,48 @@ export function BrowserView() {
     } finally {
       setBookmarksLoading(false);
     }
+  };
+
+  const refreshToolbarExtensions = useCallback(async () => {
+    try {
+      setToolbarExtensions(await getHost().extensions.list());
+    } catch {
+      // Daemon/browser not reachable yet; leave the strip as-is.
+    }
+  }, []);
+
+  // Runs the extension's toolbar action: on the chromium host this shows the
+  // real extension popup anchored to the clicked button; other hosts report
+  // { ok: false }.
+  const triggerExtensionAction = (extension: SidecarExtension, anchor: HTMLElement) => {
+    const rect = anchor.getBoundingClientRect();
+    // The daemon's `id` is the install-dir id; Chromium resolves extensions by
+    // their runtime id, which differs for unpacked/CWS-installed extensions.
+    const runtimeId = extension.runtimeId ?? extension.id;
+    void getHost()
+      .extensions.triggerAction(runtimeId, {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      })
+      .then((result) => {
+        if (!result?.ok && result?.error) {
+          console.warn("extensions.triggerAction failed:", result.error);
+        }
+      })
+      .catch(() => {});
+  };
+
+  const toggleExtensionPinned = (extension: SidecarExtension) => {
+    void getHost()
+      .extensions.setPinned(extension.id, !extension.pinned)
+      .then((updated) => {
+        setToolbarExtensions((list) =>
+          list.map((item) => (item.id === updated.id ? updated : item)),
+        );
+      })
+      .catch(() => {});
   };
 
   const resolveCurrentPageTitle = async (currentUrl: string): Promise<string> => {
@@ -2376,6 +2429,55 @@ export function BrowserView() {
     };
   }, [bookmarksMenuOpen]);
 
+  // Extension toolbar/menu data lives in the managed browser; refresh once it
+  // reports running and whenever the extensions menu opens.
+  useEffect(() => {
+    if (sidecarStatus?.status === "running") {
+      void refreshToolbarExtensions();
+    }
+  }, [sidecarStatus?.status, refreshToolbarExtensions]);
+
+  useEffect(() => {
+    if (!extensionsMenuOpen) {
+      setExtensionsMenuPosition(null);
+      return;
+    }
+    void refreshToolbarExtensions();
+    const updatePosition = () => {
+      const trigger = extensionsTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const menuWidth = 320;
+      const left = Math.max(8, Math.min(window.innerWidth - menuWidth - 8, rect.right - menuWidth));
+      const top = Math.max(8, rect.bottom + 6);
+      const maxHeight = Math.max(120, window.innerHeight - top - 8);
+      setExtensionsMenuPosition({ top, left, maxHeight });
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      const menu = extensionsMenuRef.current;
+      const trigger = extensionsTriggerRef.current;
+      if (menu?.contains(target) || trigger?.contains(target)) return;
+      setExtensionsMenuOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExtensionsMenuOpen(false);
+      }
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [extensionsMenuOpen, refreshToolbarExtensions]);
+
   const allTopLevelNodes = bookmarks
     ? normalizeBookmarkNodes([
         ...bookmarks.roots.bookmark_bar.children,
@@ -2597,6 +2699,40 @@ export function BrowserView() {
               aria-expanded={bookmarksMenuOpen}
             >
               <Icon iconNode={folderBookmarkIconNode} className="h-4 w-4" />
+            </button>
+            {toolbarExtensions
+              .filter((extension) => extension.enabled && extension.pinned)
+              .map((extension) => (
+                <button
+                  key={extension.id}
+                  type="button"
+                  onClick={(event) => {
+                    triggerExtensionAction(extension, event.currentTarget);
+                  }}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
+                  title={extension.name}
+                  aria-label={extension.name}
+                >
+                  {extension.iconDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={extension.iconDataUrl} alt="" className="h-4 w-4" />
+                  ) : (
+                    <Puzzle className="h-4 w-4" />
+                  )}
+                </button>
+              ))}
+            <button
+              ref={extensionsTriggerRef}
+              type="button"
+              onClick={() => {
+                setExtensionsMenuOpen((open) => !open);
+              }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
+              title="Extensions"
+              aria-label="Extensions"
+              aria-expanded={extensionsMenuOpen}
+            >
+              <Puzzle className="h-4 w-4" />
             </button>
             <button
               type="button"
@@ -2874,6 +3010,57 @@ export function BrowserView() {
               renderDropdownNodes(allTopLevelNodes)
             ) : (
               <div className="px-2 py-1.5 text-sm text-muted-foreground">No bookmarks</div>
+            )}
+          </div>
+        </div>
+      ) : null}
+      {extensionsMenuOpen && extensionsMenuPosition ? (
+        <div
+          ref={extensionsMenuRef}
+          className="fixed z-120 w-[320px] rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          style={{ top: extensionsMenuPosition.top, left: extensionsMenuPosition.left }}
+        >
+          <div className="overflow-auto" style={{ maxHeight: `${extensionsMenuPosition.maxHeight}px` }}>
+            {toolbarExtensions.length > 0 ? (
+              toolbarExtensions.map((extension) => (
+                <div
+                  key={extension.id}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                >
+                  <button
+                    type="button"
+                    disabled={!extension.enabled}
+                    onClick={() => {
+                      setExtensionsMenuOpen(false);
+                      const anchor = extensionsTriggerRef.current;
+                      if (anchor) triggerExtensionAction(extension, anchor);
+                    }}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:opacity-50"
+                    title={extension.name}
+                  >
+                    {extension.iconDataUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={extension.iconDataUrl} alt="" className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <Puzzle className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="truncate">{extension.name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleExtensionPinned(extension);
+                    }}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+                    title={extension.pinned ? "Unpin from toolbar" : "Pin to toolbar"}
+                    aria-label={extension.pinned ? `Unpin ${extension.name}` : `Pin ${extension.name}`}
+                  >
+                    {extension.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="px-2 py-1.5 text-sm text-muted-foreground">No extensions installed</div>
             )}
           </div>
         </div>

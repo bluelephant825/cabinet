@@ -193,6 +193,17 @@ export interface CabinetHost {
     enable(id: string): Promise<SidecarExtension>;
     disable(id: string): Promise<SidecarExtension>;
     setPinned(id: string, pinned: boolean): Promise<SidecarExtension>;
+    /**
+     * Run the extension's toolbar action as if its pinned button were
+     * clicked: fires action.onClicked for popup-less actions or shows the
+     * extension's real popup anchored to `anchor` (a viewport CSS-px rect —
+     * pass the button's bounding box). Chromium host only; others resolve
+     * `{ ok: false }`.
+     */
+    triggerAction(
+      id: string,
+      anchor: HostRect,
+    ): Promise<{ ok: boolean; error?: string }>;
   };
 
   /**

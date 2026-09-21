@@ -156,6 +156,7 @@ export function createWebHost(): CabinetHost {
       enable: enableExtension,
       disable: disableExtension,
       setPinned: pinExtension,
+      triggerAction: () => Promise.resolve({ ok: false, error: "unsupported" }),
     },
     browser: {
       status: getStatus,
