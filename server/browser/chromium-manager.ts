@@ -147,6 +147,16 @@ export function buildChromiumArgs(input: BuildArgsInput): string[] {
     "--disable-background-networking",
     `--window-size=${width},${height}`,
   ];
+  // Dev escape hatch: CABINET_BROWSER_DEBUG_PORT adds a TCP debugging
+  // endpoint alongside the CDP pipe so tooling can inspect the shell target
+  // (browser_ui), which the daemon's own session intentionally filters out.
+  const debugPort = Number.parseInt(
+    process.env.CABINET_BROWSER_DEBUG_PORT ?? "",
+    10,
+  );
+  if (Number.isFinite(debugPort) && debugPort > 0) {
+    args.push(`--remote-debugging-port=${debugPort}`);
+  }
   if (Number.isFinite(bounds.x) && Number.isFinite(bounds.y)) {
     args.push(`--window-position=${Math.round(bounds.x!)},${Math.round(bounds.y!)}`);
   }
