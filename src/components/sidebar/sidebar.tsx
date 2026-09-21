@@ -8,8 +8,6 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
-  Blocks,
-  Plug,
   PanelLeftClose,
   PanelLeft,
   Plus,
@@ -32,7 +30,6 @@ import { NewItemMenu } from "./new-item-menu";
 import { useAppStore } from "@/stores/app-store";
 import { useRoomsStore } from "@/stores/rooms-store";
 import { useTreeStore } from "@/stores/tree-store";
-import { useConnectedIntegrations } from "@/hooks/use-connected-integrations";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import type { TreeNode } from "@/types";
 import { useLocale } from "@/i18n/use-locale";
@@ -74,8 +71,8 @@ export function Sidebar() {
   const setCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const section = useAppStore((s) => s.section);
   const setSection = useAppStore((s) => s.setSection);
+  const setAppMode = useAppStore((s) => s.setAppMode);
   const sidebarDrawer = useAppStore((s) => s.sidebarDrawer);
-  const connectedIntegrations = useConnectedIntegrations();
   const defaultRoom = useRoomsStore((s) => s.defaultRoom);
   // The cabinet new pages/cabinets should be created *inside* (a child of the
   // cabinet you're currently in). The data-dir root (".") is the neutral home
@@ -271,40 +268,6 @@ export function Sidebar() {
         </header>
         <TreeView />
 
-        {/* Integrations gets a labeled rail entry instead of hiding as a
-            footer icon — the hub is the front door for connecting tools, so
-            it reads like a nav destination. The badge counts live connectors. */}
-        <div className="px-2 pt-2">
-          <button
-            type="button"
-            title={
-              connectedIntegrations.size > 0
-                ? t("sidebar:integrationsConnected", {
-                    count: connectedIntegrations.size,
-                    defaultValue: "Integrations — {{count}} connected",
-                  })
-                : t("sidebar:integrations", { defaultValue: "Integrations" })
-            }
-            onClick={() => setSection({ type: "integrations" })}
-            className={cn(
-              "flex w-full min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors cursor-pointer",
-              section.type === "integrations"
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground"
-            )}
-          >
-            <Blocks className="h-4 w-4 shrink-0" />
-            <span className="min-w-0 truncate">
-              {t("sidebar:integrations", { defaultValue: "Integrations" })}
-            </span>
-            {connectedIntegrations.size > 0 && (
-              <span className="ms-auto shrink-0 rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-medium leading-4 text-primary">
-                {connectedIntegrations.size}
-              </span>
-            )}
-          </button>
-        </div>
-
         <div className="p-2 flex items-center gap-1">
           {sidebarDrawer === "data" && (
             // The "+" menu creates a page, folder, or nested cabinet, placing
@@ -358,7 +321,13 @@ export function Sidebar() {
               "h-7 w-7 shrink-0 ms-auto text-muted-foreground/60 hover:text-muted-foreground",
               section.type === "settings" && "bg-accent text-foreground hover:text-foreground"
             )}
-            onClick={() => setSection({ type: "settings" })}
+            onClick={() => {
+              // Browse/canvas mode renders BrowserView/CanvasView for the
+              // settings section (app-shell); leave the app surface so the
+              // Settings page actually opens.
+              setAppMode("edit");
+              setSection({ type: "settings" });
+            }}
           >
             <Settings className="h-3.5 w-3.5" />
           </Button>

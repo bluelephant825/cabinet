@@ -23,6 +23,11 @@ export function ThemeInitializer() {
     let unsubscribeFullscreen: (() => void) | undefined;
     if (host.kind !== "web") {
       document.documentElement.classList.add("electron-desktop");
+      // The Chromium fork's window has no overlapping traffic lights in the
+      // top-left corner, so it opts out of the Electron-only clearance.
+      if (host.kind === "chromium") {
+        document.documentElement.classList.add("chromium-desktop");
+      }
       // Drop the traffic-light clearance while full-screen (globals.css).
       unsubscribeFullscreen = host.windows.onFullscreenChanged((isFull) =>
         document.documentElement.classList.toggle("is-fullscreen", isFull)

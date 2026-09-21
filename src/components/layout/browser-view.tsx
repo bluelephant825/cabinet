@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
+  Blocks,
   Bookmark,
   BookMarked,
   ChevronLeft,
@@ -2700,6 +2701,15 @@ export function BrowserView() {
             >
               <Icon iconNode={folderBookmarkIconNode} className="h-4 w-4" />
             </button>
+            <button
+              type="button"
+              onClick={openTagsCloud}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
+              title="Tags"
+              aria-label="Tags"
+            >
+              <Tags className="h-4 w-4" />
+            </button>
             {toolbarExtensions
               .filter((extension) => extension.enabled && extension.pinned)
               .map((extension) => (
@@ -2732,16 +2742,7 @@ export function BrowserView() {
               aria-label="Extensions"
               aria-expanded={extensionsMenuOpen}
             >
-              <Puzzle className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={openTagsCloud}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted"
-              title="Tags"
-              aria-label="Tags"
-            >
-              <Tags className="h-4 w-4" />
+              <Blocks className="h-4 w-4" />
             </button>
           </div>
           <div className="flex justify-end gap-2">
