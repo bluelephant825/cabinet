@@ -27,6 +27,7 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade & {
     isAvailable: (origin) => !origin || ["http://127.0.0.1:4000", "http://localhost:4000"].includes(origin),
     launch: async () => (calls.push("launch"), {}),
     shutdown: async () => { calls.push("shutdown"); },
+    relaunch: async () => (calls.push("relaunch"), {}),
     download: async () => (calls.push("download"), {}),
     ensureRunning: async () => (calls.push("ensureRunning"), {}),
     listTabs: async () => [tab],
@@ -181,6 +182,17 @@ test("POST /browser/extensions/:id/enable surfaces not-found as 404", async () =
   assert.equal(res.status, 404);
   const body = await res.json();
   assert.equal(body.code, "not-found");
+});
+
+test("POST /browser/relaunch is atomic shutdown+launch", async () => {
+  const res = await fetch(`${base}/browser/relaunch`, {
+    method: "POST",
+    headers: auth(),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.ok(browser.calls.includes("relaunch"));
 });
 
 test("POST /browser/window/focus works", async () => {

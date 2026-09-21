@@ -64,13 +64,29 @@ export function createBrowserDaemon(): BrowserDaemon {
     // session-scoped — Chrome purges them at exit), so onInstalled("install")
     // fires for each record. Extensions with welcome/onboarding pages open a
     // chrome-extension:// tab; those pages are never legitimate right after
-    // launch (state.json restore filters them), so close them. The delayed
-    // second pass catches deferred tab creations.
+    // launch (state.json restore filters them), so close them. Creation
+    // timing is unbounded — deferred onInstalled handlers and Chromium's own
+    // session restore can recreate the tab seconds late — so in addition to
+    // two delayed sweeps, watch tab events during a grace window and close
+    // extension pages as they appear (including about:blank → extension-url
+    // restores that only surface on tab-updated).
     await session.closeExtensionPages().catch(() => 0);
     const sweep = setTimeout(() => {
       void session.closeExtensionPages().catch(() => {});
     }, 3000);
     sweep.unref?.();
+    const closeIfExtensionPage = (tab: BrowserTab) => {
+      if (tab.url.startsWith("chrome-extension://")) {
+        void session.close(tab.id).catch(() => {});
+      }
+    };
+    session.on("tab-created", closeIfExtensionPage);
+    session.on("tab-updated", closeIfExtensionPage);
+    const grace = setTimeout(() => {
+      session.off("tab-created", closeIfExtensionPage);
+      session.off("tab-updated", closeIfExtensionPage);
+    }, 15000);
+    grace.unref?.();
   });
 
   const facade: BrowserFacade = {
@@ -86,6 +102,15 @@ export function createBrowserDaemon(): BrowserDaemon {
     isAvailable: (origin) => manager.isAvailable(origin),
     launch: () => manager.ensureRunning(),
     shutdown: () => manager.shutdown(),
+    // windows.relaunch in host mode: the daemon owns the managed browser, so
+    // restart it here — the browser's own relauncher would drop the
+    // --cabinet-ui-url/--user-data-dir args (macOS relaunches the bundle via
+    // LaunchServices) and the shell can't sequence shutdown+launch itself
+    // because it dies with the browser.
+    relaunch: async () => {
+      await manager.shutdown();
+      await manager.ensureRunning();
+    },
     download: () => manager.download(),
     ensureRunning: () => manager.ensureRunning(),
     listTabs: () => manager.browserSession?.listTabsFresh() ?? Promise.resolve([]),

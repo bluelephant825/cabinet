@@ -48,6 +48,7 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade {
     isAvailable: () => true,
     launch: async () => ({}),
     shutdown: async () => {},
+    relaunch: async () => ({}),
     download: async () => ({}),
     ensureRunning: async () => ({}),
     listTabs: async () => [tab],

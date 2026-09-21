@@ -33,6 +33,9 @@ export type BrowserFacade = {
   isAvailable(origin: string | undefined): boolean;
   launch(): Promise<unknown>;
   shutdown(): Promise<void>;
+  /** Atomic shutdown+launch: needed because a shell-initiated relaunch kills
+   *  the caller's own process before a second launch request could run. */
+  relaunch(): Promise<unknown>;
   download(): Promise<unknown>;
   ensureRunning(): Promise<unknown>;
   listTabs(): Promise<BrowserTab[]>;
@@ -168,6 +171,12 @@ export async function handleBrowserRequest(
 
     if (method === "POST" && parts[1] === "shutdown") {
       await browser.shutdown();
+      sendJson(res, 200, { ok: true, status: browser.status() });
+      return true;
+    }
+
+    if (method === "POST" && parts[1] === "relaunch") {
+      await browser.relaunch();
       sendJson(res, 200, { ok: true, status: browser.status() });
       return true;
     }

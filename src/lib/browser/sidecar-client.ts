@@ -90,6 +90,7 @@ const post = <T>(path: string, body?: unknown) =>
 export const getStatus = () => api<SidecarStatus>("status");
 export const launch = () => post<{ ok: boolean; status: SidecarStatusName }>("launch");
 export const shutdown = () => post<{ ok: boolean; status: SidecarStatusName }>("shutdown");
+export const relaunchBrowser = () => post<{ ok: boolean; status: SidecarStatusName }>("relaunch");
 export const downloadBrowser = () => post<{ ok: boolean; status: SidecarStatusName }>("download");
 
 export const listTabs = async () => (await api<{ tabs: SidecarTab[] }>("tabs")).tabs;

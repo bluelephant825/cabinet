@@ -38,6 +38,7 @@ import {
   openTab,
   pinExtension,
   reloadTab,
+  relaunchBrowser,
   setWindowBounds,
   shutdown,
   uninstallExtension,
@@ -244,13 +245,24 @@ export function createChromiumHost(): CabinetHost {
         getWindowLike()?.focus?.();
         return Promise.resolve({ ok: true });
       },
-      relaunch: () => {
-        const relaunch = getBinding()?.windows?.relaunch;
-        if (typeof relaunch === "function") {
-          return Promise.resolve(relaunch());
+      relaunch: async () => {
+        // The daemon owns the managed browser process, so relaunch goes
+        // through it atomically: the browser's own AttemptRelaunch drops
+        // --cabinet-ui-url/--user-data-dir on macOS (LaunchServices relaunches
+        // the bare bundle), and a client-side shutdown→launch sequence dies
+        // with the browser mid-way. The fetch usually cuts off when the
+        // process exits — that is expected.
+        try {
+          await relaunchBrowser();
+          return { ok: true };
+        } catch {
+          const relaunch = getBinding()?.windows?.relaunch;
+          if (typeof relaunch === "function") {
+            return Promise.resolve(relaunch());
+          }
+          getWindowLike()?.location?.reload?.();
+          return { ok: true };
         }
-        getWindowLike()?.location?.reload?.();
-        return Promise.resolve({ ok: true });
       },
       onFullscreenChanged: (listener) => {
         const subscribe = getBinding()?.windows?.onFullscreenChanged;
