@@ -678,6 +678,10 @@ export function BrowserView() {
   const windowGeometryRef = useRef<HostWindowGeometry | null>(null);
   const boundsThrottleRef = useRef<number | null>(null);
   const boundsTrailingRef = useRef(false);
+  // True while a shell-drawn overlay (dropdown, dialog, popover) covers part
+  // of the content rect — the native tab view paints above shell DOM, so the
+  // overlay is hidden until the floating UI clears.
+  const overlaySuppressedRef = useRef(false);
   const isDialogOpenRef = useRef(false);
   sidecarStatusRef.current = sidecarStatus;
   sidecarTabsRef.current = sidecarTabs;
@@ -1706,10 +1710,61 @@ export function BrowserView() {
       // is false there — no bounds traffic, the pane renders a pointer
       // surface instead.
       if (!host.capabilities.layout) return;
+
+      const paneEl = () =>
+        sidecarContentRef.current ?? sidecarPaneRef.current ?? containerRef.current;
+
+      // Detect shell-drawn floating UI (dropdowns, dialogs, popovers)
+      // intersecting the content rect: the overlay is a native sibling
+      // invisible to DOM hit-testing and always paints above the shell, so
+      // while such UI is open we report null bounds and hide it instead.
+      // The Electron build got this for free — clicking a shell control
+      // raised Cabinet's window above the separate Chromium window.
+      const OVERLAY_SELECTOR =
+        '[role="dialog"], [role="menu"], [role="listbox"], [role="tooltip"], ' +
+        '[data-radix-popper-content-wrapper], [class*="z-"]';
+      const paneIsCovered = () => {
+        const pane = paneEl();
+        if (!pane) return false;
+        const rect = pane.getBoundingClientRect();
+        if (rect.width < 8 || rect.height < 8) return false;
+        // Overlay-ish elements (Radix portals, custom z-indexed menus) whose
+        // rect intersects the content area — catches even a few px of
+        // overhang that point sampling would miss.
+        for (const el of document.querySelectorAll(OVERLAY_SELECTOR)) {
+          if (pane.contains(el)) continue;
+          const style = getComputedStyle(el);
+          if (style.position !== "fixed" && style.position !== "absolute") continue;
+          if (style.display === "none" || style.visibility === "hidden") continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          if (
+            r.left < rect.right && r.right > rect.left &&
+            r.top < rect.bottom && r.bottom > rect.top
+          ) return true;
+        }
+        // Point-grid fallback for floating UI without recognizable markup:
+        // elementsFromPoint only sees shell DOM, so a topmost element outside
+        // the pane means something is covering that spot.
+        for (let ix = 1; ix <= 7; ix += 1) {
+          for (let iy = 1; iy <= 5; iy += 1) {
+            const top = document.elementsFromPoint(
+              rect.left + (rect.width * ix) / 8,
+              rect.top + (rect.height * iy) / 6,
+            )[0];
+            if (top && top !== pane && !pane.contains(top)) return true;
+          }
+        }
+        return false;
+      };
+
       const sendBounds = () => {
         if (sidecarStatusRef.current?.status !== "running") return;
-        const pane =
-          sidecarContentRef.current ?? sidecarPaneRef.current ?? containerRef.current;
+        if (overlaySuppressedRef.current) {
+          void host.layout.setContentBounds(null).catch(() => {});
+          return;
+        }
+        const pane = paneEl();
         if (!pane) return;
         const rect = pane.getBoundingClientRect();
         if (rect.width < 8 || rect.height < 8) return;
@@ -1721,6 +1776,13 @@ export function BrowserView() {
             height: Math.round(rect.height),
           })
           .catch(() => {});
+      };
+
+      const syncSuppression = () => {
+        const covered = paneIsCovered();
+        if (covered === overlaySuppressedRef.current) return;
+        overlaySuppressedRef.current = covered;
+        sendBounds();
       };
 
       const scheduleSendBounds = () => {
@@ -1744,8 +1806,27 @@ export function BrowserView() {
       if (pane) observer.observe(pane);
       scheduleSendBounds();
 
+      // Re-evaluate coverage on DOM changes (menus/dialogs mount via portals)
+      // and on a slow poll to catch open/enter animations.
+      let suppressionCheckQueued = false;
+      const scheduleSuppressionCheck = () => {
+        if (suppressionCheckQueued) return;
+        suppressionCheckQueued = true;
+        requestAnimationFrame(() => {
+          suppressionCheckQueued = false;
+          syncSuppression();
+        });
+      };
+      const domObserver = new MutationObserver(scheduleSuppressionCheck);
+      domObserver.observe(document.body, { childList: true, subtree: true });
+      const suppressionPoll = window.setInterval(syncSuppression, 400);
+      syncSuppression();
+
       return () => {
         observer.disconnect();
+        domObserver.disconnect();
+        window.clearInterval(suppressionPoll);
+        overlaySuppressedRef.current = false;
         if (boundsThrottleRef.current !== null) {
           window.clearTimeout(boundsThrottleRef.current);
           boundsThrottleRef.current = null;
@@ -2019,7 +2100,10 @@ export function BrowserView() {
       return;
     }
     const isInternalRoute = url.startsWith("/") || (typeof window !== "undefined" && url.startsWith(window.location.origin));
-    if (isInternalRoute) {
+    // Frame-policy checks only apply to real http(s) pages — internal routes,
+    // data: (the bookmark tag cloud), file:, about:blank etc. can't carry
+    // XFO/CSP headers, and the endpoint 400s on them anyway.
+    if (isInternalRoute || !/^https?:/i.test(url)) {
       setIframePolicyBlocked(false);
       return;
     }
@@ -2030,7 +2114,10 @@ export function BrowserView() {
           method: "GET",
           cache: "no-store",
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setIframePolicyBlocked(false);
+          return;
+        }
         const data = await res.json();
         if (!cancelled) {
           setIframePolicyBlocked(data?.blocked === true);
@@ -2057,7 +2144,10 @@ export function BrowserView() {
       return;
     }
     const isInternalRoute = url.startsWith("/") || (typeof window !== "undefined" && url.startsWith(window.location.origin));
-    if (isInternalRoute) {
+    // Same gate as the frame-check: data:/file:/about: documents have no
+    // headers to inspect and their cross-origin DOM can't be probed, so the
+    // failure heuristic would only produce false positives.
+    if (isInternalRoute || !/^https?:/i.test(url)) {
       setIframeFailure(null);
       return;
     }

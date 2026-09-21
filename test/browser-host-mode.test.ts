@@ -16,6 +16,7 @@ const ENV_KEYS = [
   "CABINET_BROWSER_HOST_MODE",
   "CABINET_APP_ORIGIN",
   "CABINET_APP_PORT",
+  "CABINET_DATA_DIR",
   "CABINET_USER_DATA",
 ] as const;
 
@@ -141,6 +142,12 @@ test("app origin falls back to CABINET_APP_PORT then 4000", () => {
   try {
     delete process.env.CABINET_APP_ORIGIN;
     process.env.CABINET_APP_PORT = "4666";
+    // Isolate from the real .cabinet-state/runtime-ports.json: getAppOrigin()
+    // prefers it over CABINET_APP_PORT, which is correct for a live daemon.
+    process.env.CABINET_DATA_DIR = path.join(
+      os.tmpdir(),
+      `cabinet-test-ports-${process.pid}`,
+    );
     let args = buildChromiumArgs({
       profileDir: "/tmp/cabinet-profile",
       persisted: {},
