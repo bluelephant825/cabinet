@@ -127,6 +127,27 @@ content; the panel needs one extra login when `KB_PASSWORD` is set. This
 is a stepping stone to validate the seam and daily-drive the single-window
 UX — not the target architecture.
 
+## Dev-build Gatekeeper bubble
+
+On macOS 15+, syspolicyd scans every newly-created executable image on first
+load. `out/dev/libchrome_dll.dylib` is a ~4 GB ad-hoc-signed dylib that lives
+outside the app bundle, and each `autoninja` relink produces a new file, so
+the next browser launch can show a modal "Verifying libchrome_dll.dylib"
+bubble while Gatekeeper re-scans it. This is a dev-build artifact only: the
+release path (P4) ships a Developer ID-signed, notarized bundle, which is
+exempt.
+
+To suppress it on a dev machine, exempt the toolchain that spawns the
+daemon — the exemption is inherited by descendants:
+
+1. `sudo spctl developer-mode enable-terminal`
+2. System Settings -> Privacy & Security -> Developer Tools -> enable the
+   app that runs `npm run dev:all`/`dev:daemon` (Terminal, iTerm, or the
+   IDE).
+3. Restart the dev servers from that app. A daemon detached to launchd
+   (its `bash` ancestor has `ppid 1`) has no Developer Tools ancestor and
+   keeps triggering the scan — it must be a descendant of a listed tool.
+
 ## Privilege boundary
 
 `window.cabinetHost` exists only in the shell WebContents, injected only when
