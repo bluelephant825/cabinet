@@ -1733,6 +1733,35 @@ export function BrowserView() {
           style.visibility !== "hidden"
         );
       };
+      // Whether the element paints any pixels of its own. Transparent
+      // click-blockers (e.g. Base UI's modal-menu data-base-ui-inert layer:
+      // position:fixed; inset:0, no background) must NOT become exclusions —
+      // clipping the page out under them blanks the pane for no visual gain,
+      // and presses there already dismiss the UI via OverlayClicked.
+      const paints = (el: Element) => {
+        const s = getComputedStyle(el);
+        if (s.opacity === "0") return false;
+        if (
+          s.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+          s.backgroundColor !== "transparent"
+        )
+          return true;
+        if (s.backgroundImage !== "none") return true;
+        if (s.boxShadow !== "none") return true;
+        if (s.backdropFilter !== "none") return true;
+        if (
+          parseFloat(s.borderTopWidth) > 0 ||
+          parseFloat(s.borderRightWidth) > 0 ||
+          parseFloat(s.borderBottomWidth) > 0 ||
+          parseFloat(s.borderLeftWidth) > 0
+        )
+          return true;
+        if (s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0)
+          return true;
+        if ((el.textContent || "").trim()) return true;
+        if (el.children.length > 0) return true;
+        return false;
+      };
       // Returns the covered rects intersected with the pane, or null when a
       // covering element can't be identified (hide rather than paint over it).
       const collectExclusions = (
@@ -1741,7 +1770,12 @@ export function BrowserView() {
       ): HostRect[] | null => {
         const covers = new Set<Element>();
         for (const el of document.querySelectorAll(OVERLAY_SELECTOR)) {
-          if (!pane.contains(el) && !el.contains(pane) && positioned(el)) {
+          if (
+            !pane.contains(el) &&
+            !el.contains(pane) &&
+            positioned(el) &&
+            paints(el)
+          ) {
             covers.add(el);
           }
         }
@@ -1751,16 +1785,29 @@ export function BrowserView() {
         // to its outermost positioned ancestor. Elements containing the
         // pane are ancestors (layout wrappers), never covers — modal menus
         // set pointer-events:none on <body>, which makes ancestors the
-        // topmost hit at every sample point.
+        // topmost hit at every sample point. Non-painting elements are
+        // skipped for the same reason as above.
         for (let ix = 1; ix <= 7; ix += 1) {
           for (let iy = 1; iy <= 5; iy += 1) {
-            const top = document.elementsFromPoint(
+            const stack = document.elementsFromPoint(
               rect.left + (rect.width * ix) / 8,
               rect.top + (rect.height * iy) / 6,
-            )[0];
-            if (!top || pane.contains(top) || top.contains(pane)) continue;
-            let el: Element | null = top;
-            while (el && !pane.contains(el) && !el.contains(pane) && !positioned(el)) {
+            );
+            let el: Element | null = null;
+            for (const cand of stack) {
+              if (pane.contains(cand) || cand.contains(pane) || !paints(cand)) {
+                continue;
+              }
+              el = cand;
+              break;
+            }
+            if (!el) continue;
+            while (
+              el &&
+              !pane.contains(el) &&
+              !el.contains(pane) &&
+              !positioned(el)
+            ) {
               el = el.parentElement;
             }
             if (!el || pane.contains(el) || el.contains(pane)) return null;
