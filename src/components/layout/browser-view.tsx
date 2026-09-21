@@ -54,6 +54,8 @@ import {
   getHost,
   type ElectronHostExtras,
   type HostBookmarkMenuItem,
+  type HostContentBounds,
+  type HostRect,
   type HostWindowGeometry,
 } from "@/lib/host";
 
@@ -678,10 +680,6 @@ export function BrowserView() {
   const windowGeometryRef = useRef<HostWindowGeometry | null>(null);
   const boundsThrottleRef = useRef<number | null>(null);
   const boundsTrailingRef = useRef(false);
-  // True while a shell-drawn overlay (dropdown, dialog, popover) covers part
-  // of the content rect — the native tab view paints above shell DOM, so the
-  // overlay is hidden until the floating UI clears.
-  const overlaySuppressedRef = useRef(false);
   const isDialogOpenRef = useRef(false);
   sidecarStatusRef.current = sidecarStatus;
   sidecarTabsRef.current = sidecarTabs;
@@ -1717,72 +1715,110 @@ export function BrowserView() {
       // Detect shell-drawn floating UI (dropdowns, dialogs, popovers)
       // intersecting the content rect: the overlay is a native sibling
       // invisible to DOM hit-testing and always paints above the shell, so
-      // while such UI is open we report null bounds and hide it instead.
-      // The Electron build got this for free — clicking a shell control
-      // raised Cabinet's window above the separate Chromium window.
+      // the covered rects are reported via `exclude` and the fork clips
+      // them out — the page stays visible around the floating UI and its
+      // pixels show through the holes. When coverage can't be attributed
+      // to a specific element rect (unknown overlay shape) or the pane is
+      // fully covered, null bounds hide the overlay entirely. The Electron
+      // build never needed this: clicking a shell control raised Cabinet's
+      // window above the separate Chromium window.
       const OVERLAY_SELECTOR =
         '[role="dialog"], [role="menu"], [role="listbox"], [role="tooltip"], ' +
         '[data-radix-popper-content-wrapper], [class*="z-"]';
-      const paneIsCovered = () => {
-        const pane = paneEl();
-        if (!pane) return false;
-        const rect = pane.getBoundingClientRect();
-        if (rect.width < 8 || rect.height < 8) return false;
-        // Overlay-ish elements (Radix portals, custom z-indexed menus) whose
-        // rect intersects the content area — catches even a few px of
-        // overhang that point sampling would miss.
+      const positioned = (el: Element) => {
+        const style = getComputedStyle(el);
+        return (
+          (style.position === "fixed" || style.position === "absolute") &&
+          style.display !== "none" &&
+          style.visibility !== "hidden"
+        );
+      };
+      // Returns the covered rects intersected with the pane, or null when a
+      // covering element can't be identified (hide rather than paint over it).
+      const collectExclusions = (
+        pane: Element,
+        rect: DOMRect,
+      ): HostRect[] | null => {
+        const covers = new Set<Element>();
         for (const el of document.querySelectorAll(OVERLAY_SELECTOR)) {
-          if (pane.contains(el)) continue;
-          const style = getComputedStyle(el);
-          if (style.position !== "fixed" && style.position !== "absolute") continue;
-          if (style.display === "none" || style.visibility === "hidden") continue;
-          const r = el.getBoundingClientRect();
-          if (r.width < 4 || r.height < 4) continue;
-          if (
-            r.left < rect.right && r.right > rect.left &&
-            r.top < rect.bottom && r.bottom > rect.top
-          ) return true;
+          if (!pane.contains(el) && !el.contains(pane) && positioned(el)) {
+            covers.add(el);
+          }
         }
         // Point-grid fallback for floating UI without recognizable markup:
-        // elementsFromPoint only sees shell DOM, so a topmost element outside
-        // the pane means something is covering that spot.
+        // elementsFromPoint only sees shell DOM, so a topmost element
+        // outside the pane means something covers that spot — attribute it
+        // to its outermost positioned ancestor. Elements containing the
+        // pane are ancestors (layout wrappers), never covers — modal menus
+        // set pointer-events:none on <body>, which makes ancestors the
+        // topmost hit at every sample point.
         for (let ix = 1; ix <= 7; ix += 1) {
           for (let iy = 1; iy <= 5; iy += 1) {
             const top = document.elementsFromPoint(
               rect.left + (rect.width * ix) / 8,
               rect.top + (rect.height * iy) / 6,
             )[0];
-            if (top && top !== pane && !pane.contains(top)) return true;
+            if (!top || pane.contains(top) || top.contains(pane)) continue;
+            let el: Element | null = top;
+            while (el && !pane.contains(el) && !el.contains(pane) && !positioned(el)) {
+              el = el.parentElement;
+            }
+            if (!el || pane.contains(el) || el.contains(pane)) return null;
+            covers.add(el);
           }
         }
-        return false;
+        const exclude: HostRect[] = [];
+        for (const el of covers) {
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          const x = Math.max(r.left, rect.left);
+          const y = Math.max(r.top, rect.top);
+          const right = Math.min(r.right, rect.right);
+          const bottom = Math.min(r.bottom, rect.bottom);
+          if (right - x >= 1 && bottom - y >= 1) {
+            exclude.push({
+              x: Math.round(x),
+              y: Math.round(y),
+              width: Math.round(right - x),
+              height: Math.round(bottom - y),
+            });
+          }
+        }
+        return exclude;
       };
 
+      let lastBoundsJson = "";
       const sendBounds = () => {
         if (sidecarStatusRef.current?.status !== "running") return;
-        if (overlaySuppressedRef.current) {
-          void host.layout.setContentBounds(null).catch(() => {});
-          return;
-        }
         const pane = paneEl();
         if (!pane) return;
         const rect = pane.getBoundingClientRect();
         if (rect.width < 8 || rect.height < 8) return;
-        void host.layout
-          .setContentBounds({
-            x: Math.round(rect.left),
-            y: Math.round(rect.top),
-            width: Math.round(rect.width),
-            height: Math.round(rect.height),
-          })
-          .catch(() => {});
-      };
-
-      const syncSuppression = () => {
-        const covered = paneIsCovered();
-        if (covered === overlaySuppressedRef.current) return;
-        overlaySuppressedRef.current = covered;
-        sendBounds();
+        const excluded = collectExclusions(pane, rect);
+        let payload: HostContentBounds | null;
+        if (excluded === null) {
+          payload = null;
+        } else {
+          // Exclusions summing to the whole pane = fully covered = hidden.
+          const covered = excluded.reduce(
+            (sum, r) => sum + r.width * r.height,
+            0,
+          );
+          payload =
+            covered >= rect.width * rect.height * 0.98
+              ? null
+              : {
+                  x: Math.round(rect.left),
+                  y: Math.round(rect.top),
+                  width: Math.round(rect.width),
+                  height: Math.round(rect.height),
+                  ...(excluded.length ? { exclude: excluded } : {}),
+                };
+        }
+        const json = JSON.stringify(payload);
+        if (json === lastBoundsJson) return;
+        lastBoundsJson = json;
+        void host.layout.setContentBounds(payload).catch(() => {});
       };
 
       const scheduleSendBounds = () => {
@@ -1808,25 +1844,23 @@ export function BrowserView() {
 
       // Re-evaluate coverage on DOM changes (menus/dialogs mount via portals)
       // and on a slow poll to catch open/enter animations.
-      let suppressionCheckQueued = false;
-      const scheduleSuppressionCheck = () => {
-        if (suppressionCheckQueued) return;
-        suppressionCheckQueued = true;
+      let exclusionCheckQueued = false;
+      const scheduleExclusionCheck = () => {
+        if (exclusionCheckQueued) return;
+        exclusionCheckQueued = true;
         requestAnimationFrame(() => {
-          suppressionCheckQueued = false;
-          syncSuppression();
+          exclusionCheckQueued = false;
+          sendBounds();
         });
       };
-      const domObserver = new MutationObserver(scheduleSuppressionCheck);
+      const domObserver = new MutationObserver(scheduleExclusionCheck);
       domObserver.observe(document.body, { childList: true, subtree: true });
-      const suppressionPoll = window.setInterval(syncSuppression, 400);
-      syncSuppression();
+      const exclusionPoll = window.setInterval(sendBounds, 400);
 
       return () => {
         observer.disconnect();
         domObserver.disconnect();
-        window.clearInterval(suppressionPoll);
-        overlaySuppressedRef.current = false;
+        window.clearInterval(exclusionPoll);
         if (boundsThrottleRef.current !== null) {
           window.clearTimeout(boundsThrottleRef.current);
           boundsThrottleRef.current = null;

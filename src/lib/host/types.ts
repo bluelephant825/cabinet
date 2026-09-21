@@ -38,6 +38,12 @@ export type HostCapabilities = {
 };
 
 export type HostRect = { x: number; y: number; width: number; height: number };
+
+/** Bounds for the in-window tab overlay. `exclude` lists viewport CSS-px
+ *  rects covered by shell-drawn floating UI: the host clips those pixels out
+ *  of the overlay and routes their input to the shell instead of hiding the
+ *  page. Hosts that don't support holes ignore the field. */
+export type HostContentBounds = HostRect & { exclude?: HostRect[] };
 export type HostTab = {
   id: string;
   targetId: string;
@@ -214,7 +220,7 @@ export interface CabinetHost {
      * inside the shell window; null hides it. Hosts without layout support
      * resolve `{ ok: false }`.
      */
-    setContentBounds(bounds: HostRect | null): Promise<{ ok: boolean }>;
+    setContentBounds(bounds: HostContentBounds | null): Promise<{ ok: boolean }>;
   };
 
   /**

@@ -52,8 +52,8 @@ import {
 import type {
   CabinetHost,
   HostCapabilities,
+  HostContentBounds,
   HostPlatform,
-  HostRect,
 } from "./types";
 
 /** The `window.cabinetHost` binding the fork will inject into the shell
@@ -63,7 +63,7 @@ type CabinetHostBinding = {
   platform?: string;
   layout?: {
     setContentBounds?: (
-      bounds: HostRect | null,
+      bounds: HostContentBounds | null,
     ) => Promise<{ ok: boolean }> | { ok: boolean };
   };
   windows?: {

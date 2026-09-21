@@ -67,6 +67,7 @@ export type {
   HostBrowserViewLoadFailed,
   HostBrowserViewNavResult,
   HostCapabilities,
+  HostContentBounds,
   HostKind,
   HostPlatform,
   HostRect,
