@@ -14,6 +14,7 @@
     "postbuild": "node scripts/copy-standalone-assets.mjs && node scripts/build-document-tool.mjs",
     "electron:prep": "node scripts/prepare-electron-package.mjs",
     "release:manifest": "node scripts/generate-release-manifest.mjs",
+    "release:chromium": "node scripts/release-chromium-app.mjs",
     "start": "concurrently -k -n app,daemon \"npm:start:next\" \"npm:start:daemon\"",
     "start:next": "next start",
     "start:daemon": "tsx server/cabinet-daemon.ts",
