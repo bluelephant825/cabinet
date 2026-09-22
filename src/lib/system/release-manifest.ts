@@ -35,7 +35,7 @@ function buildFallbackManifest(pkg: PackageManifest): ReleaseManifest {
   const version = pkg.version || "0.0.0";
   const gitTag = `v${version}`;
   const repositoryUrl = pkg.repository?.url?.replace(/^git\+/, "").replace(/\.git$/, "") ||
-    "https://github.com/cabinetai/cabinet";
+    "https://github.com/bluelephant825/cabinet";
 
   return {
     manifestVersion: 1,

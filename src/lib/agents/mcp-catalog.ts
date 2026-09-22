@@ -699,7 +699,7 @@ const TELEGRAM: CatalogEntry = {
   logo: "/logos/telegram.svg",
   // No official MCP; community ones are MTProto (full user-account). We ship our
   // own Bot-API server (mcps/mcp-telegram/) — safe-by-default, like Discord.
-  sourceUrl: "https://github.com/cabinetai/cabinet/tree/main/mcps/mcp-telegram",
+  sourceUrl: "https://github.com/bluelephant825/cabinet/tree/main/mcps/mcp-telegram",
   trustTier: "cabinet",
   authBackend: "token",
   transport: "stdio",
@@ -789,7 +789,7 @@ const DISCORD: CatalogEntry = {
   // Cabinet-maintained (distinct from vendor-`official`). The server is released
   // on its own cadence (NOT coupled to the app's CI) — bump this pin when a new
   // cabinet-mcp-discord is published to npm.
-  sourceUrl: "https://github.com/cabinetai/cabinet/tree/main/mcps/mcp-discord",
+  sourceUrl: "https://github.com/bluelephant825/cabinet/tree/main/mcps/mcp-discord",
   trustTier: "cabinet",
   authBackend: "token",
   transport: "stdio",
@@ -1052,7 +1052,7 @@ const STACKADAPT: CatalogEntry = {
   iconSlug: "stackadapt",
   bgImage: "/integrations/stackadapt-bg.webp",
   logo: "/logos/stackadapt.svg",
-  sourceUrl: "https://github.com/cabinetai/cabinet/tree/main/mcps/mcp-stackadapt",
+  sourceUrl: "https://github.com/bluelephant825/cabinet/tree/main/mcps/mcp-stackadapt",
   trustTier: "cabinet",
   authBackend: "token",
   transport: "stdio",
