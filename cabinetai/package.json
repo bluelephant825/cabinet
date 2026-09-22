@@ -1,6 +1,6 @@
 {
   "name": "cabinetai",
-  "version": "0.5.3",
+  "version": "0.6.1",
   "description": "Cabinet CLI — AI-first self-hosted knowledge base",
   "bin": {
     "cabinetai": "dist/index.js"
