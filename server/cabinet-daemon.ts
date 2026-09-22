@@ -275,6 +275,19 @@ for (const [event, action] of [
   );
 }
 
+// Packaged Chromium app (launcher/cabinet-launcher.cjs): the browser window IS
+// the app — when the user quits Chromium, shut the daemon down so the
+// launcher's process tree unwinds and the app exits. Not set in dev: quitting
+// the managed browser must leave dev servers running.
+if (process.env.CABINET_EXIT_ON_BROWSER_QUIT === "1") {
+  browserDaemon.manager.on("browser-exit", (info) => {
+    if (info.clean && !shuttingDown) {
+      console.log("[browser] user quit Chromium — shutting down daemon");
+      void shutdown();
+    }
+  });
+}
+
 const documentService = new DocumentService(undefined, {
   onDocumentChanged: (e) =>
     broadcast("documents", {

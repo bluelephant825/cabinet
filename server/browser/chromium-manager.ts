@@ -57,6 +57,13 @@ export type PersistedBrowserState = {
 export type ChromiumManagerEvents = {
   status: (status: BrowserStatus) => void;
   "download-progress": (progress: DownloadProgress) => void;
+  /** Emitted when the Chromium child exits; `clean` means the user quit it
+   *  from the browser UI (not a crash, not a daemon-initiated stop). */
+  "browser-exit": (info: {
+    code: number | null;
+    signal: NodeJS.Signals | null;
+    clean: boolean;
+  }) => void;
 };
 
 export function isLoopbackOrigin(origin: string): boolean {
@@ -476,6 +483,13 @@ export class ChromiumManager extends EventEmitter {
       // A clean exit (code 0, no signal) means the user quit Chromium from
       // its own UI — stay stopped; the next ensureRunning() relaunches.
       const abnormal = code !== 0 || signal != null;
+      // Packaged host mode (CABINET_EXIT_ON_BROWSER_QUIT) lets the daemon's
+      // supervisor shut the whole stack down when the user quits the browser.
+      this.emit("browser-exit", {
+        code,
+        signal,
+        clean: !abnormal && !wasStopping && !this.stopping,
+      });
       if (!wasStopping && !this.stopping && abnormal) {
         const now = Date.now();
         if (now - this.relaunchedAt < 60_000 && this.relaunchedAt !== 0) {
