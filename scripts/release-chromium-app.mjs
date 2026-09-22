@@ -10,7 +10,7 @@
  *   --version <v>        Version string used in the asset name
  *                        (default: package.json version)
  *   --tag <tag>          GitHub release tag (default: v<version>)
- *   --repo <owner/repo>  Target repository (default: cabinetai/cabinet)
+ *   --repo <owner/repo>  Target repository (default: bluelephant825/cabinet)
  *   --chromium-app <p>   Fork .app to package (default:
  *                        $CABINET_CHROMIUM_SRC/src/out/release/Chromium.app)
  *   --out <dir>          Output dir for Cabinet.app + zip (default: dist/)
@@ -47,7 +47,7 @@ const pkg = JSON.parse(
 );
 const version = arg("version", pkg.version);
 const tag = arg("tag", `v${version}`);
-const repo = arg("repo", "cabinetai/cabinet");
+const repo = arg("repo", "bluelephant825/cabinet");
 const outDir = resolve(arg("out", join(projectRoot, "dist")));
 const chromiumSrc = process.env.CABINET_CHROMIUM_SRC || join(process.env.HOME, "chromium");
 const chromiumApp = resolve(

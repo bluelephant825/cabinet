@@ -20,12 +20,12 @@ const outputPath = readArg("output", path.join(process.cwd(), "cabinet-release.j
 const gitCommit = readArg("git-commit", process.env.GITHUB_SHA || undefined);
 const releaseDate = readArg("release-date", new Date().toISOString());
 // Prefer an explicit --repository-url, then the CI repo (GITHUB_REPOSITORY),
-// then the canonical repo. Keeps generated URLs correct after the org move
-// (hilash/cabinet → cabinetai/cabinet) without hardcoding.
+// then the canonical repo (the bluelephant825 fork — upstream cabinetai/cabinet
+// is read-only and no longer merged from).
 const repositoryUrl = (
   readArg("repository-url") ||
   (process.env.GITHUB_REPOSITORY && `https://github.com/${process.env.GITHUB_REPOSITORY}`) ||
-  "https://github.com/cabinetai/cabinet"
+  "https://github.com/bluelephant825/cabinet"
 ).replace(/\.git$/, "");
 
 // Prebuilt app-bundle keys for the zero-install `npx cabinetai run` path.
