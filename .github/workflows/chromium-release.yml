@@ -1,0 +1,76 @@
+name: Chromium release
+
+# Full fork → Cabinet.app → GitHub draft release pipeline.
+# Runs on the self-hosted Mac runner (Chromium needs macOS, Xcode, a warm
+# ~30 GB checkout, and 32 GB-friendly link time — no hosted runner can do this).
+#
+# Trigger manually: Actions → "Chromium release" → Run workflow.
+# Prerequisites on the runner machine: Xcode + pinned SDK, depot_tools at
+# ~/depot_tools, warm checkout at ~/chromium, node/npm, gh auth (or GH_TOKEN).
+
+on:
+  workflow_dispatch:
+    inputs:
+      chromium_version:
+        description: "Chromium tag override (blank = pinned CHROMIUM_VERSION)"
+        required: false
+      publish:
+        description: "Publish immediately instead of a draft release"
+        type: boolean
+        default: false
+
+env:
+  CABINET_CHROMIUM_SRC: /Users/odebroqueville/chromium
+  CABINET_CHROMIUM_TOOLING: /Users/odebroqueville/Developer/cabinet-chromium
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  release:
+    runs-on: [self-hosted, macOS, ARM64]
+    concurrency: chromium-release        # never two builds at once
+    timeout-minutes: 480                 # release link on 16 GB can take hours
+    steps:
+      - uses: actions/checkout@v4        # this repo (cabinet), default branch
+
+      - name: Preflight
+        run: |
+          "$CABINET_CHROMIUM_TOOLING/scripts/check-env.sh"
+          node --version
+          gh --version | head -1
+
+      - name: Pin requested Chromium version
+        if: ${{ inputs.chromium_version }}
+        run: echo "${{ inputs.chromium_version }}" > "$CABINET_CHROMIUM_TOOLING/CHROMIUM_VERSION"
+
+      - name: Fetch + sync Chromium source
+        run: |
+          "$CABINET_CHROMIUM_TOOLING/scripts/fetch.sh"
+
+      - name: Apply Cabinet patch stack
+        id: apply
+        run: |
+          "$CABINET_CHROMIUM_TOOLING/scripts/apply-patches.sh"
+
+      - name: Report patch conflict
+        if: ${{ steps.apply.outcome == 'failure' }}
+        run: |
+          gh issue create --repo "${{ github.repository }}" \
+            --title "Chromium release: patch stack failed to apply" \
+            --body "A \`git am\` in \`apply-patches.sh\` conflicted on this run's Chromium version. Resolve in \`$CABINET_CHROMIUM_SRC/src\` (\`git am --continue\`), re-export with \`export-patches.sh\`, commit, then re-run this workflow."
+
+      - name: Build release Chromium
+        run: |
+          "$CABINET_CHROMIUM_TOOLING/scripts/build.sh" release
+
+      - name: Install Cabinet dependencies
+        run: npm ci
+
+      - name: Package, zip, draft release
+        env:
+          PUBLISH_FLAG: ${{ inputs.publish && '--publish' || '' }}
+        run: |
+          node scripts/release-chromium-app.mjs \
+            --skip-build \
+            --chromium-repo "$CABINET_CHROMIUM_TOOLING" \
+            --chromium-app "$CABINET_CHROMIUM_SRC/src/out/release/Chromium.app" \
+            $PUBLISH_FLAG

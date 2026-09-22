@@ -1,0 +1,58 @@
+name: Chromium update check
+
+# Weekly check for a newer Chromium stable than the fork's pin.
+# Runs on the self-hosted Mac runner because CHROMIUM_VERSION lives in the
+# local cabinet-chromium tooling dir (not pushed to GitHub).
+# If the runner is asleep the check simply skips a week — harmless.
+
+on:
+  schedule:
+    - cron: "17 8 * * 1"   # Mondays 08:17 UTC
+  workflow_dispatch:
+
+env:
+  CABINET_CHROMIUM_TOOLING: /Users/odebroqueville/Developer/cabinet-chromium
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  check:
+    runs-on: [self-hosted, macOS, ARM64]
+    steps:
+      - name: Compare pin vs latest stable
+        run: |
+          set -e
+          PINNED=$(tr -d '[:space:]' < "$CABINET_CHROMIUM_TOOLING/CHROMIUM_VERSION")
+          LATEST=$(curl -sf "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["versions"][0]["version"])')
+          echo "pinned=$PINNED latest=$LATEST"
+          echo "PINNED=$PINNED" >> "$GITHUB_ENV"
+          echo "LATEST=$LATEST" >> "$GITHUB_ENV"
+
+      - name: Open issue if behind
+        if: env.PINNED != env.LATEST
+        run: |
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open \
+            --search "Chromium $LATEST in:title" --json number -q 'length')
+          if [ "$EXISTING" -gt 0 ]; then
+            echo "issue already open for $LATEST — skipping"
+            exit 0
+          fi
+          gh issue create --repo "${{ github.repository }}" \
+            --title "Chromium $LATEST released — fork is pinned at $PINNED" \
+            --body "$(cat <<EOF
+          Stable channel moved to \`$LATEST\`; the fork pins \`$PINNED\`.
+
+          To update:
+          \`\`\`sh
+          cd ~/Developer/cabinet-chromium
+          echo "$LATEST" > CHROMIUM_VERSION
+          scripts/fetch.sh
+          scripts/apply-patches.sh   # resolve git-am conflicts if any
+          scripts/export-patches.sh && git commit -am "rebase onto $LATEST"
+          scripts/build.sh release
+          \`\`\`
+          Then run the **Chromium release** workflow (Actions tab) to package + draft-release Cabinet.app.
+
+          See docs/CHROMIUM_CI.md and cabinet-chromium/docs/UPGRADE.md.
+          EOF
+          )"
