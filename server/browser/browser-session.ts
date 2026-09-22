@@ -147,6 +147,8 @@ export class BrowserSession extends EventEmitter {
       waitForDebuggerOnStart: false,
       flatten: true,
     });
+
+    this.startBoundsTracking();
   }
 
   private emitTab(kind: "tab-created" | "tab-updated", targetId: string): void {
@@ -516,6 +518,64 @@ export class BrowserSession extends EventEmitter {
    * connection for Extensions.*, but tests may need session routing). */
   sessionIdFor(id: string): Promise<string> {
     return this.sessionFor(id);
+  }
+
+  // ----- window-bounds tracking ------------------------------------------
+  // In host mode the fork's window IS the app: nobody calls setWindowBounds,
+  // so state.json never records where the window was. Poll the real bounds
+  // and persist on change so the next launch restores position and size.
+
+  private boundsPollTimer: NodeJS.Timeout | null = null;
+  private trackedWindowId: number | null = null;
+  private lastSeenBounds: { x: number; y: number; width: number; height: number } | null = null;
+
+  private startBoundsTracking(): void {
+    if (this.boundsPollTimer) return;
+    const poll = () => {
+      void this.pollWindowBounds().catch(() => {
+        if (this.cdp.isClosed) this.stopBoundsTracking();
+      });
+    };
+    this.boundsPollTimer = setInterval(poll, 1500);
+    this.boundsPollTimer.unref?.();
+    poll();
+  }
+
+  private stopBoundsTracking(): void {
+    if (this.boundsPollTimer) {
+      clearInterval(this.boundsPollTimer);
+      this.boundsPollTimer = null;
+    }
+  }
+
+  private async pollWindowBounds(): Promise<void> {
+    const targetId = this.activeOrFirstTarget();
+    if (!targetId) return;
+    if (this.trackedWindowId === null) {
+      const win = (await this.cdp.send("Browser.getWindowForTarget", { targetId })) as
+        | { windowId?: number }
+        | undefined;
+      if (typeof win?.windowId !== "number") return;
+      this.trackedWindowId = win.windowId;
+    }
+    const res = (await this.cdp.send("Browser.getWindowBounds", {
+      windowId: this.trackedWindowId,
+    })) as
+      | { bounds?: { left?: number; top?: number; width?: number; height?: number; windowState?: string } }
+      | undefined;
+    const b = res?.bounds;
+    // Only a normal-state window's frame is meaningful to restore; a
+    // minimized/fullscreen frame would persist garbage.
+    if (!b || (b.windowState && b.windowState !== "normal")) return;
+    const next = { x: b.left, y: b.top, width: b.width, height: b.height };
+    if (!Object.values(next).every((v) => typeof v === "number" && Number.isFinite(v))) return;
+    const last = this.lastSeenBounds;
+    if (last && last.x === next.x && last.y === next.y &&
+        last.width === next.width && last.height === next.height) {
+      return;
+    }
+    this.lastSeenBounds = next as { x: number; y: number; width: number; height: number };
+    this.schedulePersist(next as { x: number; y: number; width: number; height: number });
   }
 
   // ----- state.json persistence (last tab urls + bounds for relaunch restore)

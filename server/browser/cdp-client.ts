@@ -169,6 +169,10 @@ export class CDPClient extends EventEmitter {
     this.off(method === "*" ? "event" : method, handler);
   }
 
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
   close(): void {
     if (this.closed) return;
     this.closed = true;
