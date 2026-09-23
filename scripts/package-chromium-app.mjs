@@ -135,6 +135,24 @@ mkdirSync(dirname(outApp), { recursive: true });
 sh("ditto", [chromiumApp, outApp]);
 
 const contents = join(outApp, "Contents");
+
+// Component builds (out/dev) link the main binary against ~500 loose .dylib
+// files that live NEXT TO Chromium.app, not inside it — dyld resolves their
+// @rpath entries against Contents/Frameworks. Copy them in so a dev build
+// still runs once moved away from the out dir. Release builds are statically
+// linked and have no such siblings, so this is a no-op there.
+const chromiumOutDir = dirname(chromiumApp);
+const looseDylibs = readdirSync(chromiumOutDir).filter((f) => f.endsWith(".dylib"));
+if (looseDylibs.length > 0) {
+  console.log(`==> staging ${looseDylibs.length} component-build dylibs`);
+  const frameworksDir = join(contents, "Frameworks");
+  mkdirSync(frameworksDir, { recursive: true });
+  for (const lib of looseDylibs) {
+    cpSync(join(chromiumOutDir, lib), join(frameworksDir, lib), {
+      dereference: true,
+    });
+  }
+}
 const plist = join(contents, "Info.plist");
 
 console.log("==> rewriting Info.plist");
@@ -157,6 +175,11 @@ sh(process.execPath, [
 ]);
 
 console.log("==> staging standalone app tree");
+// Broad NFT patterns can trace the previous dist/ build output into
+// .next/standalone (a whole nested Cabinet.app inside Resources/app/dist).
+// Never ship it — the exclude in next.config is the real fix, this is the
+// safety net for trees built before it existed.
+rmSync(join(standalone, "dist"), { recursive: true, force: true });
 // verbatimSymlinks: Next's output tracing emits RELATIVE dedup links in
 // .next/node_modules (<pkg>-<hash> -> ../../node_modules/<pkg>) which resolve
 // fine inside the bundle — but cpSync's default rewrites them to absolute

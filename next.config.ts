@@ -70,6 +70,7 @@ const nextConfig: NextConfig = {
     "/*": [
       ".next/dev/**/*",
       ".next/cache/**/*",
+      "dist/**/*",
       ".git/**/*",
       ".github/**/*",
       ".claude/**/*",
