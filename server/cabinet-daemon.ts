@@ -286,6 +286,15 @@ if (process.env.CABINET_EXIT_ON_BROWSER_QUIT === "1") {
       void shutdown();
     }
   });
+  // A browser that never comes up leaves the app invisible — daemon + Next
+  // keep running headless and hold their ports, blocking the next launch.
+  // Treat launch failure like a quit so the whole tree unwinds.
+  browserDaemon.manager.on("browser-launch-failed", () => {
+    if (!shuttingDown) {
+      console.log("[browser] launch failed — shutting down daemon");
+      void shutdown();
+    }
+  });
 }
 
 const documentService = new DocumentService(undefined, {

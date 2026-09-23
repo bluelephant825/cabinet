@@ -494,6 +494,7 @@ export class ChromiumManager extends EventEmitter {
         const now = Date.now();
         if (now - this.relaunchedAt < 60_000 && this.relaunchedAt !== 0) {
           console.warn(`[browser] chromium exited (code=${code} signal=${signal}); crash-loop guard: not relaunching`);
+          this.emit("browser-launch-failed", { code, signal });
           return;
         }
         this.relaunchedAt = now;
@@ -512,6 +513,7 @@ export class ChromiumManager extends EventEmitter {
       } catch {}
       const message = err instanceof Error ? err.message : String(err);
       this.setStatus("error", message);
+      this.emit("browser-launch-failed", { message });
       throw new BrowserError("launch-failed", `Chromium launch failed: ${message}`);
     }
 

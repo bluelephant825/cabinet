@@ -408,6 +408,13 @@ function spawnBackend(command, args, env, meta) {
     // than respawning. The app cannot run without either backend.
     if (code === 0 && signal == null) {
       console.warn(`launcher: ${meta.name} exited cleanly — shutting down`);
+      // The daemon exits cleanly when the browser fails to launch too — if the
+      // window was never confirmed up, surface that instead of vanishing.
+      if (!browserConfirmed) {
+        showFatalDialog(
+          `Cabinet could not open its browser window and has quit.\n\nLog: ${logFile || "unknown"}`,
+        );
+      }
       cleanupBackends();
       process.exit(0);
     }
@@ -495,6 +502,24 @@ function ensureDaemonToken(contentDir) {
   }
 }
 
+// Set once the daemon confirms the browser window is up. The app is invisible
+// until then — if the whole tree tears down before this flips, the user would
+// otherwise see a bounce in the Dock and nothing else.
+let browserConfirmed = false;
+
+// Packaged app has no terminal to surface errors in — put up a real dialog so
+// "no window appeared" isn't a silent mystery. Detached so it outlives us.
+function showFatalDialog(message) {
+  if (process.platform !== "darwin") return;
+  try {
+    const esc = (s) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    spawn("osascript", [
+      "-e",
+      `display dialog "${esc(message)}" with title "Cabinet" buttons {"OK"} default button "OK" with icon stop`,
+    ], { detached: true, stdio: "ignore" }).unref();
+  } catch {}
+}
+
 async function launchBrowser(daemonOrigin, token) {
   const deadline = Date.now() + 45_000;
   let lastError = null;
@@ -504,14 +529,23 @@ async function launchBrowser(daemonOrigin, token) {
         method: "POST",
         headers: { authorization: `Bearer ${token}` },
       });
-      if (res.ok) return;
+      if (res.ok) {
+        browserConfirmed = true;
+        return;
+      }
       lastError = new Error(`HTTP ${res.status}`);
     } catch (err) {
       lastError = err;
     }
     await new Promise((resolve) => setTimeout(resolve, 750));
   }
-  console.warn("launcher: browser launch did not confirm:", lastError?.message || lastError);
+  const detail = lastError?.message || String(lastError);
+  console.warn("launcher: browser launch did not confirm:", detail);
+  showFatalDialog(
+    `Cabinet could not open its browser window (${detail}). The app has quit — relaunch it to try again.\n\nLog: ${logFile || "unknown"}`,
+  );
+  cleanupBackends();
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -610,7 +644,11 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("launcher: fatal startup error:", err instanceof Error ? err.message : err);
+  const detail = err instanceof Error ? err.message : String(err);
+  console.error("launcher: fatal startup error:", detail);
+  showFatalDialog(
+    `Cabinet failed to start (${detail}).\n\nLog: ${logFile || "unknown"}`,
+  );
   cleanupBackends();
   process.exit(1);
 });
