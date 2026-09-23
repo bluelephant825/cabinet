@@ -34,7 +34,7 @@
  *   cabinet-chromium/scripts/build.sh release (produces out/release/Chromium.app)
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, cpSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, cpSync, rmSync, readFileSync, writeFileSync, readdirSync, realpathSync, readlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -157,7 +157,32 @@ sh(process.execPath, [
 ]);
 
 console.log("==> staging standalone app tree");
-cpSync(standalone, join(contents, "Resources", "app"), { recursive: true });
+// verbatimSymlinks: Next's output tracing emits RELATIVE dedup links in
+// .next/node_modules (<pkg>-<hash> -> ../../node_modules/<pkg>) which resolve
+// fine inside the bundle — but cpSync's default rewrites them to absolute
+// source paths, leaking the build dir into the shipped app and breaking on
+// any other machine. Copying the link text verbatim keeps them in-bundle.
+cpSync(standalone, join(contents, "Resources", "app"), {
+  recursive: true,
+  verbatimSymlinks: true,
+});
+
+// Guard: no symlink inside Resources/app may resolve to a path outside the
+// bundle. Catches leaks from any staging step, not just the one above.
+const stagedApp = join(contents, "Resources", "app");
+for (const entry of readdirSync(stagedApp, { recursive: true, withFileTypes: true })) {
+  const p = join(entry.parentPath ?? stagedApp, entry.name);
+  if (!entry.isSymbolicLink()) continue;
+  let target;
+  try {
+    target = realpathSync(p);
+  } catch {
+    die(`staged symlink is dangling: ${p} -> ${readlinkSync(p)}`);
+  }
+  if (!target.startsWith(stagedApp)) {
+    die(`staged symlink escapes the bundle: ${p} -> ${target}`);
+  }
+}
 
 const icon = join(projectRoot, "electron", "assets", "cabinet-icon.icns");
 if (existsSync(icon)) {

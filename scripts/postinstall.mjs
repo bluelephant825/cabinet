@@ -148,23 +148,27 @@ function copyDirRecursive(src, dest) {
 
 // better-sqlite3 prebuilds ship for a specific NODE_MODULE_VERSION; if the
 // user's runtime doesn't match, rebuild from source so the daemon boots
-// cleanly regardless of which Node version is active.
+// cleanly regardless of which Node version is active. Open a real database:
+// require() alone is lazy and succeeds even when the .node binding is absent.
 try {
-  require("better-sqlite3");
+  new (require("better-sqlite3"))(":memory:").close();
 } catch (err) {
   const msg = err instanceof Error ? err.message : String(err);
   const mismatch =
     msg.includes("NODE_MODULE_VERSION") ||
     msg.includes("ERR_DLOPEN_FAILED") ||
-    msg.includes("was compiled against a different Node.js version");
+    msg.includes("was compiled against a different Node.js version") ||
+    msg.includes("Could not locate the bindings file") ||
+    msg.includes("bindings file");
   if (mismatch) {
     const runtime = `Node ${process.version} (NODE_MODULE_VERSION ${process.versions.modules})`;
     console.warn(
       `[cabinet] better-sqlite3 prebuild does not match this runtime — ${runtime}. Rebuilding from source…`,
     );
     try {
-      execSync("npm rebuild better-sqlite3 --build-from-source", {
+      execSync("npm rebuild better-sqlite3", {
         stdio: "inherit",
+        env: { ...process.env, npm_config_build_from_source: "true" },
       });
       console.warn("[cabinet] better-sqlite3 rebuilt successfully.");
     } catch {
