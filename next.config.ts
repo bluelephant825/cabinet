@@ -66,6 +66,15 @@ const nextConfig: NextConfig = {
     "takumi-pdf",
     "@takumi-rs/helpers",
   ],
+  outputFileTracingIncludes: {
+    "/*": [
+      // Turbopack prod runtimes are loaded via externalRequire() at runtime,
+      // so static tracing misses them — the packaged standalone died on boot
+      // with "Cannot find module 'next/dist/compiled/next-server/app-route-
+      // turbo.runtime.prod.js'". Force-include the whole directory.
+      "node_modules/next/dist/compiled/next-server/*.js",
+    ],
+  },
   outputFileTracingExcludes: {
     "/*": [
       ".next/dev/**/*",
