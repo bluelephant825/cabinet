@@ -35,6 +35,25 @@ const path = require("path");
 const util = require("util");
 
 // ---------------------------------------------------------------------------
+// LaunchServices detach — the process opened via `open`/Dock IS the bundle's
+// launch record. If it stays alive without ever checking in with the
+// WindowServer (we're a plain Node binary, not an app), the Dock keeps a
+// second, forever-bouncing tile next to the real Chromium one. Respawn
+// detached and exit immediately so the launch record dies with this process;
+// the child does all supervision work. The single-instance guard below runs
+// in the child, so a repeat `open` still routes to activate-and-exit.
+// ---------------------------------------------------------------------------
+if (process.env.CABINET_LAUNCHER_DETACHED !== "1") {
+  const child = spawn(process.execPath, process.argv.slice(1), {
+    env: { ...process.env, CABINET_LAUNCHER_DETACHED: "1" },
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
 
