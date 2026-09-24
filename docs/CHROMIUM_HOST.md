@@ -157,6 +157,50 @@ strength as today's Electron preload boundary — an upgrade path to a
 `chrome://cabinet` WebUI that embeds the app unprivileged is documented in
 `cabinet-chromium/docs/DESIGN.md` but is not required for the POC.
 
+## Deep links (`cabinet://`)
+
+The cabinet-clipper browser extension saves a clip to the desktop app by
+opening `cabinet://new?file=<Room/folder/Name>[&silent=true]` with either
+`&clipboard=true` (the full markdown, YAML frontmatter included, is on the
+system clipboard) or `&content=<markdown>` (clipboard write failed).
+`file` is the virtual page path relative to the active cabinet root, no
+`.md`, the same mapping `PUT /api/pages/<file>` uses.
+
+```
+OS ── cabinet://new?… ──▶ fork: application:openURLs: (app_controller_mac.mm)
+        ▶ cabinet::CabinetDeepLinks::Enqueue(url)   (bounded queue, 16)
+        ▶ shell frame: window.dispatchEvent(new CustomEvent("cabinet:open-url"))
+renderer: getHost().system.onOpenUrl(listener)
+        ▶ on nudge, and once on subscribe: cabinetHost.deeplinks.drain() → { urls }
+        ▶ handleDeepLink(url): POST /api/clip { uri }
+server:   parseClipUri → content (param, else server-side clipboard read)
+        ▶ gray-matter → unique path (Name, Name 1, …) → writePage
+        ▶ invalidateTreeCache → autoCommit
+renderer: toast; unless silent → navigate to /room/<path> and focus the window
+```
+
+Contract for the host: the nudge event carries no URL (an isolated-world
+`detail` is not relied on); URLs travel through the `deeplinks.drain` op,
+which empties the queue, so multi-window is "whoever drains first wins".
+`capabilities.deepLinks` is true only when the binding exposes `drain`.
+Hosts without OS URL delivery (web, the P1 extension, Electron) share a
+fallback that forwards a string `detail` on the same event; in dev,
+`window.dispatchEvent(new CustomEvent("cabinet:open-url", { detail:
+"cabinet://new?file=Clips/X&content=Hi" }))` exercises the whole path, and
+`curl -X POST /api/clip -d '{"uri":"cabinet://new?…"}'` exercises the server
+half. `POST /api/clip` also accepts `{ file, markdown }` directly.
+
+The `clipboard=true` read happens server-side (`pbpaste` / PowerShell
+`Get-Clipboard` / `wl-paste`|`xclip`) and is refused on cloud cabinets. The
+scheme is registered via `CFBundleURLTypes` in the fork's `app-Info.plist`,
+which the packaged `Cabinet.app` inherits.
+
+Known limitation: cold start. When Cabinet is not running, LaunchServices
+launches the bundle's executable (the Node launcher), which cannot receive
+the Apple Event, so that first URL is dropped; clip again once the window is
+up. Windows/Linux second-instance forwarding
+(`StartupBrowserCreator::ProcessCommandLineAlreadyRunning`) is a follow-up.
+
 ## Roadmap
 
 1. **P0 (done in this change):** the `CabinetHost` seam, daemon host mode,

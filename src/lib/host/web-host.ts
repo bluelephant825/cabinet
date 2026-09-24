@@ -55,6 +55,8 @@ type WindowLike = {
     removeEventListener?: (type: string, listener: () => void) => void;
   };
   dispatchEvent?: (event: Event) => boolean;
+  addEventListener?: (type: string, listener: (event: Event) => void) => void;
+  removeEventListener?: (type: string, listener: (event: Event) => void) => void;
 };
 
 type NavigatorLike = {
@@ -121,6 +123,32 @@ export function dispatchCabinetToast(payload: {
   return { ok: true };
 }
 
+/**
+ * Deep-link fallback for hosts with no OS URL delivery: listens for the
+ * "cabinet:open-url" window CustomEvent and forwards `event.detail` when it
+ * is a cabinet:// URL. The chromium host fires the same event as a nudge
+ * (its URLs travel through the deeplinks.drain op instead); this fallback
+ * is the dev/test hook.
+ */
+export function subscribeOpenUrlFallback(
+  listener: (url: string) => void,
+): () => void {
+  const win = getWindowLike();
+  if (!win || typeof win.addEventListener !== "function") {
+    return NOOP_UNSUBSCRIBE;
+  }
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent).detail;
+    if (typeof detail === "string" && detail.startsWith("cabinet://")) {
+      listener(detail);
+    }
+  };
+  win.addEventListener("cabinet:open-url", handler);
+  return () => {
+    win.removeEventListener?.("cabinet:open-url", handler);
+  };
+}
+
 export function createWebHost(): CabinetHost {
   const capabilities: HostCapabilities = {
     layout: false,
@@ -132,6 +160,7 @@ export function createWebHost(): CabinetHost {
     toast: false,
     shell: false,
     browserView: false,
+    deepLinks: false,
   };
 
   return {
@@ -205,6 +234,7 @@ export function createWebHost(): CabinetHost {
       },
       showToast: (payload) => Promise.resolve(dispatchCabinetToast(payload)),
       uninstall: () => Promise.resolve({ ok: false, error: "unsupported" }),
+      onOpenUrl: subscribeOpenUrlFallback,
     },
   };
 }

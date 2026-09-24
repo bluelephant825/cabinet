@@ -149,6 +149,7 @@ const OnboardingWizard = dynamic(
 import { findNodeByPath } from "@/lib/cabinets/tree";
 import { useCabinetUpdate } from "@/hooks/use-cabinet-update";
 import { useRoute } from "@/hooks/use-hash-route";
+import { useDeepLinks } from "@/hooks/use-deep-links";
 import { useTaskFileSync } from "@/hooks/use-task-file-sync";
 import { useTreeStore } from "@/stores/tree-store";
 import { useAppStore } from "@/stores/app-store";
@@ -225,6 +226,9 @@ export function AppShell() {
 
   // Sync navigation state with the URL path (clean-path routing).
   useRoute();
+
+  // cabinet:// deep links from the OS (cabinet-clipper saves).
+  useDeepLinks();
 
   // Live-refresh the tree + open page when agent tasks create/change files.
   useTaskFileSync();

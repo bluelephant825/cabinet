@@ -35,6 +35,7 @@ export type HostCapabilities = {
   toast: boolean; // native toast; adapters may fall back to the in-app cabinet:toast event
   shell: boolean; // openExternal/openPath against the OS
   browserView: boolean; // electron WebContentsView surface exists (electron only)
+  deepLinks: boolean; // host delivers OS-level cabinet:// deep links (chromium fork only)
 };
 
 export type HostRect = { x: number; y: number; width: number; height: number };
@@ -271,6 +272,12 @@ export interface CabinetHost {
       durationMs?: number;
     }): Promise<{ ok: boolean }>;
     uninstall(): Promise<{ ok: boolean; dataPath?: string; error?: string }>;
+    /**
+     * Subscribe to OS-delivered `cabinet://` deep links. May replay URLs the
+     * host queued before the listener subscribed. Returns an unsubscribe
+     * function.
+     */
+    onOpenUrl(listener: (url: string) => void): () => void;
   };
 
   /**

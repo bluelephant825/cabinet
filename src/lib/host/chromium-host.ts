@@ -103,6 +103,11 @@ type CabinetHostBinding = {
       | Promise<{ ok: boolean; error?: string }>
       | { ok: boolean; error?: string };
   };
+  deeplinks?: {
+    drain?: () =>
+      | Promise<{ ok: boolean; urls?: string[] }>
+      | { ok: boolean; urls?: string[] };
+  };
   pdf?: {
     save?: (payload: {
       filename: string;
@@ -197,6 +202,7 @@ export function createChromiumHost(): CabinetHost {
     toast: true,
     shell: true,
     browserView: false,
+    deepLinks: typeof binding?.deeplinks?.drain === "function",
   };
 
   return {
@@ -320,6 +326,36 @@ export function createChromiumHost(): CabinetHost {
           : Promise.resolve(dispatchCabinetToast(payload));
       },
       uninstall: () => Promise.resolve({ ok: false, error: "unsupported" }),
+      // The fork dispatches "cabinet:open-url" as a bare nudge (no URL in
+      // the event); URLs travel through the deeplinks.drain op. Drain once
+      // on subscribe to replay anything queued before the listener existed.
+      onOpenUrl: (listener) => {
+        const drain = async () => {
+          const fn = getBinding()?.deeplinks?.drain;
+          if (typeof fn !== "function") return;
+          const result = await fn();
+          for (const url of result?.urls ?? []) {
+            if (typeof url === "string") listener(url);
+          }
+        };
+        const win = getWindowLike();
+        const handler = (event: Event) => {
+          void drain();
+          if (typeof getBinding()?.deeplinks?.drain !== "function") {
+            const detail = (event as CustomEvent).detail;
+            if (typeof detail === "string" && detail.startsWith("cabinet://")) {
+              listener(detail);
+            }
+          }
+        };
+        if (win && typeof win.addEventListener === "function") {
+          win.addEventListener("cabinet:open-url", handler);
+        }
+        void drain();
+        return () => {
+          win?.removeEventListener?.("cabinet:open-url", handler);
+        };
+      },
     },
 
     files: {

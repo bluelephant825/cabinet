@@ -38,6 +38,7 @@ test("web host reports kind, platform and all-false capabilities", () => {
     toast: false,
     shell: false,
     browserView: false,
+    deepLinks: false,
   });
 });
 

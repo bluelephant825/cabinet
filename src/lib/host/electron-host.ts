@@ -36,7 +36,7 @@ import {
   shutdown,
   uninstallExtension,
 } from "@/lib/browser/sidecar-client";
-import { dispatchCabinetToast } from "./web-host";
+import { dispatchCabinetToast, subscribeOpenUrlFallback } from "./web-host";
 import type {
   CabinetHost,
   HostBookmarkMenuItem,
@@ -174,6 +174,7 @@ export function createElectronHost(): CabinetHost {
     toast: true,
     shell: true,
     browserView: true,
+    deepLinks: false,
   };
 
   return {
@@ -244,6 +245,7 @@ export function createElectronHost(): CabinetHost {
       uninstall: () =>
         bridge.uninstallApp?.() ??
         Promise.resolve({ ok: false, error: "unsupported" }),
+      onOpenUrl: subscribeOpenUrlFallback,
     },
 
     files: {
