@@ -18,9 +18,15 @@ type Ctx = { params: Promise<{ op: string[] }> };
 async function forward(req: NextRequest, op: string[]): Promise<NextResponse> {
   const method = req.method ?? "GET";
   const headers = new Headers();
+  // No Origin header on same-origin GETs: fall back to the Host header — the
+  // origin the client actually connected to. req.nextUrl.origin is the
+  // server's bind hostname in the standalone build (0.0.0.0), which the
+  // daemon's loopback check would reject, wrongly marking local clients
+  // ineligible for the browser engine.
+  const host = req.headers.get("host");
   headers.set(
     "x-cabinet-client-origin",
-    req.headers.get("origin") ?? req.nextUrl.origin,
+    req.headers.get("origin") ?? (host ? `http://${host}` : req.nextUrl.origin),
   );
   let body: BodyInit | undefined;
   if (method !== "GET" && method !== "HEAD") {
