@@ -53,6 +53,15 @@ export async function getUpdateCheckResult(): Promise<UpdateCheckResult> {
     readUpdateStatus(),
   ]);
 
+  // A persisted status written by a different install kind (e.g. an old
+  // Electron install's update-status.json carried over in the data dir) does
+  // not describe this app — normalize to idle so the update dialog is not
+  // pinned open by a restart-required it can never act on.
+  const effectiveUpdateStatus =
+    updateStatus.installKind && updateStatus.installKind !== installState.installKind
+      ? { state: "idle" as const }
+      : updateStatus;
+
   const latest = latestResult.manifest;
   const updateAvailable = compareVersions(latest.version, current.version) > 0;
   const canApplyUpdate =
@@ -78,6 +87,6 @@ export async function getUpdateCheckResult(): Promise<UpdateCheckResult> {
       installState.dirtyAppFiles
     ),
     latestReleaseNotesUrl: latest.releaseNotesUrl,
-    updateStatus,
+    updateStatus: effectiveUpdateStatus,
   };
 }

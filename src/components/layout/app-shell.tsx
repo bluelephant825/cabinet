@@ -267,6 +267,10 @@ export function AppShell() {
     }
   }, []);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  // Session-scoped dismissal for blocking update states (restart-required,
+  // failed, in-flight). Resetting per session means a still-pending restart
+  // re-prompts on next launch, but never pins an unclosable dialog.
+  const [blockingUpdateDismissed, setBlockingUpdateDismissed] = useState(false);
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -744,6 +748,7 @@ export function AppShell() {
       }
       setDismissedUpdateVersion(latestVersion);
     }
+    setBlockingUpdateDismissed(true);
     setUpdateDialogOpen(false);
   }
 
@@ -820,7 +825,7 @@ export function AppShell() {
   const isModel3d = nodeType === "model3d";
   const isUnknown = nodeType === "unknown";
   const googleFrontmatter = selectedNode?.frontmatter?.google;
-  const hasPersistentUpdateState =
+  const hasBlockingUpdateState =
     update?.updateStatus.state === "restart-required" ||
     update?.updateStatus.state === "failed" ||
     update?.updateStatus.state === "starting" ||
@@ -831,8 +836,13 @@ export function AppShell() {
     update?.updateAvailable === true &&
     !!update.latest?.version &&
     dismissedUpdateVersion !== update.latest.version;
+  // Blocking update states surface the dialog automatically, but must stay
+  // dismissible — restart-required offers no in-dialog action, so pinning it
+  // open traps the user behind a modal they can never close.
   const effectiveUpdateDialogOpen =
-    updateDialogOpen || hasPersistentUpdateState || shouldPromptForUpdate;
+    updateDialogOpen ||
+    shouldPromptForUpdate ||
+    (hasBlockingUpdateState && !blockingUpdateDismissed);
 
   // Auto-collapse sidebar + AI panel when entering app mode, and restore
   // whatever they were before on the way out — whether that's via the

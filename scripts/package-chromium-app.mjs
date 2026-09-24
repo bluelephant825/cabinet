@@ -162,6 +162,12 @@ plistSet(plist, "CFBundleDisplayName", "string", "Cabinet");
 plistSet(plist, "CFBundleIdentifier", "string", BUNDLE_ID);
 plistSet(plist, "CFBundleIconFile", "string", "cabinet-icon");
 plistSet(plist, "NSHumanReadableCopyright", "string", "Cabinet");
+// NOTE: do NOT set LSUIElement on the outer bundle to hide the launcher's
+// Dock tile — Chromium reads it in IsBackgroundOnlyProcess() to detect
+// HELPER processes; with it set, the browser binary takes the helper path in
+// GetFrameworkBundlePath(), computes a bogus framework bundle, and dies at
+// startup with "icudtl.dat not found in bundle". The launcher never checks in
+// with the WindowServer, so it gets no Dock tile anyway.
 // Keystone/Sparkle keys advertise Chromium's updater; Cabinet ships its own.
 for (const key of ["KSProductID", "KSVersion", "KSChannelID", "KSUpdateURL"]) {
   plistDelete(plist, key);
