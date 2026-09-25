@@ -196,22 +196,6 @@ function resolveManagedDataDir() {
 
 const managedDataDir = resolveManagedDataDir();
 
-const DEFAULT_CABINET_NAME = "Cabinet";
-
-function resolveContentDir() {
-  try {
-    const homePath = path.join(managedDataDir, ".home", "home.json");
-    const parsed = JSON.parse(fs.readFileSync(homePath, "utf8"));
-    const name = parsed ? parsed.activeCabinet || parsed.activeVault : null;
-    if (typeof name === "string" && name.trim()) {
-      return path.join(managedDataDir, name.trim());
-    }
-  } catch {
-    // no home.json yet
-  }
-  return path.join(managedDataDir, DEFAULT_CABINET_NAME);
-}
-
 initLogging(managedDataDir);
 
 // ---------------------------------------------------------------------------
@@ -491,12 +475,14 @@ async function checkHealth(url, timeoutMs = 1200) {
 }
 
 // ---------------------------------------------------------------------------
-// Daemon auth — the token file lives under <contentDir>/.agents/.runtime.
+// Daemon auth — the token file lives under <managedDataDir>/.cabinet-state
+// (cabinet-independent: DATA_DIR resolves to the active cabinet, which can
+// change while the stack is booting and desync the two sides).
 // Create it if missing so the launch POST can authenticate immediately.
 // ---------------------------------------------------------------------------
 
-function ensureDaemonToken(contentDir) {
-  const runtimeDir = path.join(contentDir, ".agents", ".runtime");
+function ensureDaemonToken() {
+  const runtimeDir = path.join(managedDataDir, ".cabinet-state");
   const tokenPath = path.join(runtimeDir, "daemon-token");
   try {
     const existing = fs.readFileSync(tokenPath, "utf8").trim();
@@ -602,7 +588,6 @@ async function main() {
   installSignalHandlers();
 
   ensureManagedData();
-  const contentDir = resolveContentDir();
 
   const externalModulesDir = extractNativeModules();
   const ocrHelperDir = extractOcrHelper();
@@ -656,7 +641,7 @@ async function main() {
   await waitForHealth(`${appOrigin}/api/health`);
 
   // Shell must be serving before the fork loads --cabinet-ui-url.
-  const token = ensureDaemonToken(contentDir);
+  const token = ensureDaemonToken();
   void launchBrowser(daemonOrigin, token);
 
   console.log(`launcher: Cabinet up at ${appOrigin} (daemon ${daemonOrigin})`);

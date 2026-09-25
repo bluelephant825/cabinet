@@ -1,10 +1,17 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { DATA_DIR } from "@/lib/storage/path-utils";
-import { getDaemonUrl as getConfiguredDaemonUrl } from "@/lib/runtime/runtime-config";
+import {
+  getDaemonUrl as getConfiguredDaemonUrl,
+  getManagedDataParentDir,
+} from "@/lib/runtime/runtime-config";
 
-const DAEMON_RUNTIME_DIR = path.join(DATA_DIR, ".agents", ".runtime");
+// The token authenticates one daemon ↔ app-server process pair, so it must
+// live somewhere cabinet-independent: DATA_DIR resolves to the *active*
+// cabinet, which can change mid-boot and leave the daemon and server reading
+// different token files (all daemon calls then 401). `.cabinet-state` is the
+// shared parent-level dir — same place runtime-ports.json already lives.
+const DAEMON_RUNTIME_DIR = path.join(getManagedDataParentDir(), ".cabinet-state");
 const DAEMON_TOKEN_PATH = path.join(DAEMON_RUNTIME_DIR, "daemon-token");
 
 let cachedToken: string | null = null;
