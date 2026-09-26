@@ -20,7 +20,11 @@ export async function GET() {
   // Prefer the v2 workspace.json; fall back to legacy company.json.
   const workspace = await readJson(WORKSPACE_FILE);
   if (workspace) {
-    return NextResponse.json(workspace);
+    // exists:true is the "onboarding done" signal the shell keys on, but it
+    // rides INSIDE the file — a racing read-modify-write (e.g. profile PUT
+    // landing between the setup POST's mkdir and writeFile) silently drops
+    // it and the wizard relaunches every boot. File presence is the truth.
+    return NextResponse.json({ exists: true, ...workspace });
   }
 
   const company = await readJson(COMPANY_FILE);

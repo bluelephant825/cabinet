@@ -138,6 +138,10 @@ export async function writeWorkspaceFields(
   const next = {
     ...existing,
     version: existing.version ?? 2,
+    // Keep the "onboarding done" flag — a racy read-modify-write otherwise
+    // resurrects the wizard on every launch (the /api/agents/config check
+    // keys on it). Same unconditional write as the company.json mirror below.
+    exists: true,
     home: {
       ...(existing.home || {}),
       ...(patch.homeName !== undefined ? { name: patch.homeName } : {}),
