@@ -43,6 +43,7 @@
     "coverage",
     ".audit-shots",
     "data",
+    "data-backup-*",
     "data-old*",
     "old-data",
     "cabinetai",
