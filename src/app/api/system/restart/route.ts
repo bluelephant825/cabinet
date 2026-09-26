@@ -14,9 +14,9 @@ function supervised(): boolean {
   return isCloud() || isDesktopRuntime();
 }
 
-function exitSoon(): void {
+function exitSoon(code = 0): void {
   // Give the response time to flush before the process goes away.
-  setTimeout(() => process.exit(0), 300);
+  setTimeout(() => process.exit(code), 300);
 }
 
 export async function POST(req: NextRequest) {
@@ -46,6 +46,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  exitSoon();
-  return NextResponse.json({ ok: true, restarting: isCloud() ? "all" : "app" });
+  exitSoon(target === "all" && process.env.CABINET_RUNTIME === "chromium" ? 42 : 0);
+  return NextResponse.json({ ok: true, restarting: isCloud() || target === "all" ? "all" : "app" });
 }

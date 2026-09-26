@@ -89,6 +89,18 @@ export const useCabinetsStore = create<CabinetsState>((set, get) => ({
     // for the new DATA_DIR to take effect).
     if (typeof window !== "undefined") {
       const host = getHost();
+      if (host.kind === "chromium") {
+        try {
+          const restart = await fetch("/api/system/restart", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target: "all" }),
+          });
+          if (restart.ok) return;
+        } catch {}
+        alert(`Cabinet switched to "${name}". Please quit and reopen Cabinet to apply the change.`);
+        return;
+      }
       if (host.capabilities.windows) {
         await host.windows.relaunch();
         return;

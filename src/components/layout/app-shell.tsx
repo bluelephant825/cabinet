@@ -380,8 +380,14 @@ export function AppShell() {
     // configured default. Phase 2 routing extends this to restore the deepest
     // path (reopen.path); within a returning tab the persisted route already does.
     const landingRoom = reopen?.room ?? defaultRoom;
-    if (!landingRoom || landingRoom === ROOT_CABINET_PATH) return;
+    if (!landingRoom) return;
     const cp = section.cabinetPath;
+    if (landingRoom === ROOT_CABINET_PATH) {
+      if (section.type === "home" && !cp) {
+        setSection({ type: "cabinet", cabinetPath: ROOT_CABINET_PATH });
+      }
+      return;
+    }
     // Snap into the room whenever a section would otherwise show the neutral
     // home container: the bare home screen, or any content view scoped to the
     // data-dir root ("."). You're always inside a room, never the dir above

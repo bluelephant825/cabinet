@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import yaml from "js-yaml";
 import { DATA_PARENT_DIR } from "@/lib/storage/path-utils";
 import {
   DEFAULT_CABINET_NAME,
@@ -45,7 +46,12 @@ async function isCabinetDir(name: string): Promise<boolean> {
   try {
     const stat = await fs.stat(path.join(DATA_PARENT_DIR, name));
     if (!stat.isDirectory()) return false;
-    await fs.access(path.join(DATA_PARENT_DIR, name, CABINET_MANIFEST_FILE));
+    try {
+      await fs.access(path.join(DATA_PARENT_DIR, name, CABINET_MANIFEST_FILE));
+    } catch {
+      await fs.access(path.join(DATA_PARENT_DIR, name, ".home", "home.json"));
+      await fs.access(path.join(DATA_PARENT_DIR, name, "Cabinet", CABINET_MANIFEST_FILE));
+    }
     return true;
   } catch {
     return false;
@@ -136,6 +142,21 @@ async function moveMerge(from: string, to: string): Promise<void> {
 export async function ensureCabinetsMigrated(): Promise<void> {
   const existing = await listCabinets();
   if (existing.length > 0) {
+    for (const cabinet of existing) {
+      const manifest = path.join(DATA_PARENT_DIR, cabinet.name, CABINET_MANIFEST_FILE);
+      try {
+        await fs.writeFile(manifest, yaml.dump({
+          schemaVersion: 1,
+          id: `${cabinet.name.toLowerCase().replace(/\s+/g, "-")}-root`,
+          name: cabinet.name,
+          kind: "root",
+          version: "0.1.0",
+          entry: "Cabinet/index.md",
+        }), { flag: "wx" });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
+    }
     // Already migrated. Heal a missing/stale active pointer so the resolved
     // DATA_DIR always maps to a real cabinet.
     if (!existing.some((c) => c.active)) {

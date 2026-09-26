@@ -9,6 +9,7 @@ import { normalizeVirtualPath } from "@/lib/virtual-paths";
 import { useAppStore } from "@/stores/app-store";
 import { useTreeStore } from "@/stores/tree-store";
 import { useEditorStore } from "@/stores/editor-store";
+import { useRoomsStore } from "@/stores/rooms-store";
 
 /**
  * Sync app navigation state with URL hash + localStorage persistence.
@@ -348,7 +349,6 @@ function expandParents(pagePath: string) {
  */
 async function resolveIsCabinet(p: string): Promise<boolean> {
   if (!p) return false;
-  if (!p.includes("/")) return true; // top-level room
   const node = findNodeByPath(useTreeStore.getState().nodes, p);
   if (node) return node.type === "cabinet";
   try {
@@ -416,7 +416,12 @@ async function applyCleanRoute(route: CleanRoute): Promise<void> {
         return scopeTo(route.path);
       }
       // A page: scope to its room (first segment); load the page itself.
-      setSection({ type: "page", cabinetPath: route.path.split("/")[0] });
+      await useRoomsStore.getState().load();
+      const rooms = useRoomsStore.getState().rooms;
+      const cabinetPath = rooms.length === 1 && rooms[0].path === ROOT_CABINET_PATH
+        ? ROOT_CABINET_PATH
+        : route.path.split("/")[0];
+      setSection({ type: "page", cabinetPath });
       selectPage(route.path);
       await loadPage(route.path);
       expandParents(route.path);

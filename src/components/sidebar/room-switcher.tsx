@@ -87,7 +87,8 @@ export function RoomSwitcher() {
   // Rooms are top-level cabinets, so a deep path resolves to its first segment.
   const activeTop =
     activePath === ROOT_CABINET_PATH ? ROOT_CABINET_PATH : activePath.split("/")[0];
-  const active = rooms.find((r) => r.path === activeTop) ?? null;
+  const active = rooms.find((r) => r.path === activeTop) ??
+    rooms.find((r) => r.isRoot) ?? null;
 
   function switchTo(room: RoomMetaClient) {
     // Clear any page selected in the previous room so we don't carry a stale
@@ -183,8 +184,8 @@ export function RoomSwitcher() {
   // Customize / Delete only make sense on a real room. The dropdown still
   // renders if `active` resolved to nothing (rooms not loaded yet or list is
   // empty), it just hides those entries.
-  const canEdit = active !== null;
-  const canDelete = active !== null && rooms.length > 1;
+  const canEdit = active !== null && !active.isRoot;
+  const canDelete = canEdit && rooms.length > 1;
 
   return (
     <>
@@ -249,7 +250,7 @@ export function RoomSwitcher() {
           <DropdownMenuGroup>
             <DropdownMenuLabel>{t("rooms:switchRoom")}</DropdownMenuLabel>
             {rooms.map((room) => {
-              const isActive = room.path === activeTop;
+              const isActive = room.path === active?.path;
               return (
                 <DropdownMenuItem
                   key={room.path}

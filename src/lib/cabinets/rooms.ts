@@ -118,6 +118,12 @@ export async function listRooms(): Promise<RoomMeta[]> {
     rooms.push(roomFromManifest(dirName, dirName, manifest));
   }
 
+  if (rooms.length === 0) {
+    const manifest = await readManifest(DATA_DIR);
+    if (manifest && manifest.kind !== "home") {
+      return [{ ...roomFromManifest(ROOT_CABINET_PATH, path.basename(DATA_DIR), manifest), isRoot: true }];
+    }
+  }
   return rooms;
 }
 
@@ -272,8 +278,13 @@ export async function setLastActive(cabinetPath: string): Promise<void> {
   if (normalized === ROOT_CABINET_PATH) return; // home has no content of its own
   const room = normalized.split("/")[0];
   const rooms = await listRooms();
-  if (!rooms.some((r) => r.path === room)) return; // unknown room — ignore
-  await patchHomeConfig({ lastActiveRoom: room, lastActivePath: normalized });
+  const owningRoom = rooms.some((r) => r.path === room)
+    ? room
+    : rooms.some((r) => r.path === ROOT_CABINET_PATH)
+      ? ROOT_CABINET_PATH
+      : null;
+  if (!owningRoom) return; // unknown room — ignore
+  await patchHomeConfig({ lastActiveRoom: owningRoom, lastActivePath: normalized });
 }
 
 export interface ReopenTarget {
@@ -300,6 +311,9 @@ export async function resolveReopen(): Promise<ReopenTarget | null> {
   const lapRoom = roomOf(home.lastActivePath);
   if (home.lastActivePath && lapRoom && paths.has(lapRoom)) {
     return { room: lapRoom, path: home.lastActivePath };
+  }
+  if (home.lastActivePath && paths.has(ROOT_CABINET_PATH)) {
+    return { room: ROOT_CABINET_PATH, path: home.lastActivePath };
   }
   if (home.lastActiveRoom && paths.has(home.lastActiveRoom)) {
     return { room: home.lastActiveRoom, path: home.lastActiveRoom };
