@@ -38,7 +38,7 @@ execFileSync(process.execPath, ["--experimental-sea-config", configPath], {
   stdio: "inherit",
 });
 
-const target = join(outDir, "Cabinet");
+const target = join(outDir, "CabinetSupervisor");
 copyFileSync(process.execPath, target);
 
 // The copied node binary is signed for its own identity; inject requires a
@@ -77,3 +77,12 @@ try {
 }
 
 console.log(`launcher SEA written to ${target}`);
+
+if (process.platform === "darwin") {
+  execFileSync("swiftc", [
+    "-O",
+    "-framework", "AppKit",
+    join(projectRoot, "launcher", "cabinet-protocol-bridge.swift"),
+    "-o", join(outDir, "Cabinet"),
+  ], { stdio: "inherit" });
+}

@@ -286,13 +286,15 @@ function extractNativeModules() {
   let needsCopy = true;
   if (fs.existsSync(externalPkgPath) && fs.existsSync(bundledPkgPath)) {
     needsCopy =
-      fs.statSync(bundledPkgPath).mtimeMs > fs.statSync(externalPkgPath).mtimeMs;
+      fs.statSync(bundledPkgPath).mtimeMs > fs.statSync(externalPkgPath).mtimeMs ||
+      !fs.existsSync(path.join(externalNodePty, "prebuilds", `darwin-${process.arch}`, "pty.node"));
   }
 
   if (needsCopy) {
     fs.rmSync(externalNodePty, { recursive: true, force: true });
     fs.mkdirSync(externalModulesDir, { recursive: true });
     fs.cpSync(bundledNodePty, externalNodePty, { recursive: true });
+    console.log("launcher: native pty after copy", fs.existsSync(path.join(externalNodePty, "prebuilds", `darwin-${process.arch}`, "pty.node")));
 
     const prebuildsDir = path.join(externalNodePty, "prebuilds", "darwin-arm64");
     for (const name of ["spawn-helper", "pty.node"]) {
@@ -306,6 +308,7 @@ function extractNativeModules() {
         } catch {}
       }
     }
+    console.log("launcher: native pty after signing", fs.existsSync(path.join(prebuildsDir, "pty.node")));
   }
 
   return externalModulesDir;
@@ -406,6 +409,15 @@ function spawnBackend(command, args, env, meta) {
   child.on("exit", (code, signal) => {
     backendChildren = backendChildren.filter((entry) => entry !== child);
     if (backendsQuitting) return;
+    if (meta.name === "app" && code === 42 && signal == null) {
+      void restartBackends().catch((err) => {
+        console.error("launcher: restart failed:", err);
+        cleanupBackends();
+        showFatalDialog(`Cabinet could not restart. Please reopen it.\n\nLog: ${logFile || "unknown"}`);
+        process.exit(1);
+      });
+      return;
+    }
     // A clean exit means intentional shutdown (e.g. the daemon exits after a
     // clean browser quit in packaged mode) — unwind the whole stack rather
     // than respawning. The app cannot run without either backend.
@@ -511,6 +523,43 @@ function ensureDaemonToken() {
 // until then — if the whole tree tears down before this flips, the user would
 // otherwise see a bounce in the Dock and nothing else.
 let browserConfirmed = false;
+let appOriginForLinks = null;
+let browserExecutableForLinks = null;
+const pendingDeepLinks = [];
+
+function flushDeepLinks() {
+  if (!browserConfirmed || !appOriginForLinks || !browserExecutableForLinks) return;
+  while (pendingDeepLinks.length > 0) {
+    const uri = pendingDeepLinks.shift();
+    console.log("launcher: dispatching cabinet deep link");
+    const browser = spawn(browserExecutableForLinks, [
+      `--user-data-dir=${path.join(userDataDir, "Browser", "Profile")}`,
+      `--cabinet-ui-url=${appOriginForLinks}`,
+      uri,
+    ], { stdio: "ignore" });
+    browser.on("error", (error) => console.error("launcher: deep link delivery failed:", error));
+    browser.on("exit", (code) => {
+      if (code !== 0) console.error("launcher: deep link dispatch exited with code", code);
+    });
+  }
+}
+
+if (process.env.CABINET_PROTOCOL_BRIDGE === "1") {
+  const input = require("readline").createInterface({ input: process.stdin });
+  input.on("line", (line) => {
+    if (Buffer.byteLength(line) > 8 * 1024 * 1024) return;
+    try {
+      const uri = JSON.parse(line)?.uri;
+      if (typeof uri !== "string") return;
+      const url = new URL(uri);
+      if (url.protocol !== "cabinet:" || url.hostname !== "new") return;
+      pendingDeepLinks.push(uri);
+      console.log("launcher: received cabinet deep link");
+      if (pendingDeepLinks.length > 16) pendingDeepLinks.shift();
+      flushDeepLinks();
+    } catch {}
+  });
+}
 
 // Packaged app has no terminal to surface errors in — put up a real dialog so
 // "no window appeared" isn't a silent mystery. Detached so it outlives us.
@@ -536,6 +585,7 @@ async function launchBrowser(daemonOrigin, token) {
       });
       if (res.ok) {
         browserConfirmed = true;
+        flushDeepLinks();
         return;
       }
       lastError = new Error(`HTTP ${res.status}`);
@@ -576,17 +626,27 @@ function installSignalHandlers() {
   process.on("SIGTERM", quit);
 }
 
+async function restartBackends() {
+  const children = [...backendChildren];
+  cleanupBackends();
+  await Promise.all(children.map((child) => new Promise((resolve, reject) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resolve();
+    const timer = setTimeout(() => reject(new Error("Backend did not exit for restart")), 45000);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  })));
+  backendsQuitting = false;
+  browserConfirmed = false;
+  await startBackends();
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
-async function main() {
-  if (!acquireSingleInstance()) {
-    process.exit(0);
-    return;
-  }
-  installSignalHandlers();
-
+async function startBackends() {
   ensureManagedData();
 
   const externalModulesDir = extractNativeModules();
@@ -596,6 +656,8 @@ async function main() {
     getFreePort(),
   ]);
   const appOrigin = `http://127.0.0.1:${appPort}`;
+  appOriginForLinks = appOrigin;
+  browserExecutableForLinks = process.env.CABINET_CHROMIUM_PATH?.trim() || chromiumBinaryPath;
   const daemonOrigin = `http://127.0.0.1:${daemonPort}`;
   const daemonWsOrigin = `ws://127.0.0.1:${daemonPort}`;
 
@@ -645,6 +707,12 @@ async function main() {
   void launchBrowser(daemonOrigin, token);
 
   console.log(`launcher: Cabinet up at ${appOrigin} (daemon ${daemonOrigin})`);
+}
+
+async function main() {
+  if (!acquireSingleInstance()) return;
+  installSignalHandlers();
+  await startBackends();
 }
 
 main().catch((err) => {
