@@ -24,7 +24,18 @@ function clipboardCommands(): [string, string[]][] {
     case "darwin":
       return [["pbpaste", []]];
     case "win32":
-      return [["powershell", ["-NoProfile", "-Command", "Get-Clipboard", "-Raw"]]];
+      // Get-Clipboard prints via Console.OutputEncoding — force UTF-8 so the
+      // bytes decode correctly instead of arriving as mojibake.
+      return [
+        [
+          "powershell",
+          [
+            "-NoProfile",
+            "-Command",
+            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-Clipboard -Raw",
+          ],
+        ],
+      ];
     default:
       return [
         ["wl-paste", ["--no-newline"]],
@@ -33,6 +44,16 @@ function clipboardCommands(): [string, string[]][] {
   }
 }
 
+// pbpaste/wl-paste emit bytes in the LOCALE charset, and a LaunchServices- or
+// launchd-spawned Cabinet has no LC_*/LANG — C locale means MacRoman bytes that
+// decode as U+FFFD ("Norvge"). Pin UTF-8 for the child regardless.
+const UTF8_ENV = {
+  ...process.env,
+  LC_ALL: "en_US.UTF-8",
+  LANG: "en_US.UTF-8",
+  LC_CTYPE: "UTF-8",
+};
+
 export async function readSystemClipboard(): Promise<string> {
   if (readerForTests) return readerForTests();
   if (isCloud()) {
@@ -40,7 +61,7 @@ export async function readSystemClipboard(): Promise<string> {
   }
   for (const [command, args] of clipboardCommands()) {
     try {
-      const { stdout } = await exec(command, args);
+      const { stdout } = await exec(command, args, { env: UTF8_ENV });
       return stdout;
     } catch {
       /* try the next clipboard tool */
