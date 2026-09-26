@@ -241,17 +241,44 @@ function acquireSingleInstance() {
 // ---------------------------------------------------------------------------
 
 // Executables copied out of the bundle inherit com.apple.quarantine when the
-// app itself was still quarantined at first launch (Gatekeeper flags payloads
-// written by quarantined apps), and a skipped copy leaves the attribute in
-// place forever — the daemon then dies on dlopen with a Gatekeeper dialog.
-// Strip + ad-hoc sign on every launch so stale extracts self-heal.
+// app itself was still quarantined at first launch. fs.cpSync/copyFileSync go
+// through copyfile(3) which also copies com.apple.provenance, and Gatekeeper
+// asynchronously re-flags the copy — often after a post-copy strip already ran
+// — so the daemon dies on dlopen with a modal "Not Opened" dialog. Plain
+// reads+writes don't propagate xattrs, so copy byte-wise instead.
+function copyFileBytes(source, dest) {
+  fs.writeFileSync(dest, fs.readFileSync(source), {
+    mode: fs.statSync(source).mode,
+  });
+}
+
+function copyDirBytes(source, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const src = path.join(source, entry.name);
+    const dst = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirBytes(src, dst);
+    } else if (entry.isSymbolicLink()) {
+      fs.symlinkSync(fs.readlinkSync(src), dst);
+    } else if (entry.isFile()) {
+      copyFileBytes(src, dst);
+    }
+  }
+}
+
+// Still strip quarantine on every launch so extracts flagged by older builds
+// (or any future copyfile path) self-heal. Do NOT codesign here: rewriting the
+// Mach-O re-arms Gatekeeper's provenance tracking and the quarantine flag is
+// re-applied asynchronously right after the strip. Ad-hoc signature is only a
+// nicety — an unquarantined file dlopens fine without it.
+const machOTargets = [];
+
 function normalizeMachO(target) {
   if (!fs.existsSync(target)) return;
+  if (!machOTargets.includes(target)) machOTargets.push(target);
   try {
     execFileSync("xattr", ["-d", "com.apple.quarantine", target]);
-  } catch {}
-  try {
-    execFileSync("codesign", ["--force", "--sign", "-", target]);
   } catch {}
 }
 
@@ -275,7 +302,7 @@ function extractOcrHelper() {
   }
   if (needsCopy) {
     fs.mkdirSync(externalDir, { recursive: true });
-    fs.copyFileSync(bundledBinary, externalBinary);
+    copyFileBytes(bundledBinary, externalBinary);
     fs.chmodSync(externalBinary, 0o755);
   }
   normalizeMachO(externalBinary);
@@ -303,7 +330,7 @@ function extractNativeModules() {
   if (needsCopy) {
     fs.rmSync(externalNodePty, { recursive: true, force: true });
     fs.mkdirSync(externalModulesDir, { recursive: true });
-    fs.cpSync(bundledNodePty, externalNodePty, { recursive: true });
+    copyDirBytes(bundledNodePty, externalNodePty);
   }
 
   const prebuildsDir = path.join(externalNodePty, "prebuilds", "darwin-arm64");
@@ -698,6 +725,15 @@ async function startBackends() {
 
   backendsQuitting = false;
   spawnNodeBackend([serverEntry], env, { name: "app" });
+  // Gatekeeper flags extracted payloads asynchronously via provenance — the
+  // flag can land after the post-copy strip. Give it a beat, then strip once
+  // more immediately before the daemon dlopens pty.node.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  for (const target of machOTargets) {
+    try {
+      execFileSync("xattr", ["-d", "com.apple.quarantine", target]);
+    } catch {}
+  }
   spawnNodeBackend([daemonEntry], daemonEnv, { name: "daemon" });
 
   await waitForHealth(`${appOrigin}/api/health`);
