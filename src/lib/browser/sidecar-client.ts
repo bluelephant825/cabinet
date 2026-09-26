@@ -55,6 +55,9 @@ export type SidecarExtension = {
   enabled: boolean;
   pinned: boolean;
   runtimeId: string | null;
+  /** True for folders loaded via "Load unpacked" — `path` is the user's own
+   *  directory, kept in place (never copied or deleted by uninstall). */
+  unpacked?: boolean;
 };
 
 export type SidecarWindowBounds = {
@@ -117,6 +120,8 @@ export const listExtensions = async () =>
   (await api<{ extensions: SidecarExtension[] }>("extensions")).extensions;
 export const installExtension = async (idOrUrl: string) =>
   (await post<{ extension: SidecarExtension }>("extensions", { idOrUrl })).extension;
+export const loadUnpackedExtension = async (dirPath: string) =>
+  (await post<{ extension: SidecarExtension }>("extensions/unpacked", { path: dirPath })).extension;
 export const uninstallExtension = (id: string) =>
   api<{ ok: boolean }>(`extensions/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const enableExtension = async (id: string) =>

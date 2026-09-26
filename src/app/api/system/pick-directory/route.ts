@@ -3,45 +3,65 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-function getPickerCommand(): { command: string; args: string[] } {
+const DEFAULT_PROMPT = "Select local repository folder";
+
+function sanitizePrompt(value: unknown): string {
+  if (typeof value !== "string") return DEFAULT_PROMPT;
+  const cleaned = value.replace(/[\r\n]+/g, " ").trim().slice(0, 120);
+  return cleaned || DEFAULT_PROMPT;
+}
+
+function getPickerCommand(prompt: string): {
+  command: string;
+  args: string[];
+  env?: NodeJS.ProcessEnv;
+} {
   switch (process.platform) {
-    case "darwin":
+    case "darwin": {
+      // The prompt is embedded in an AppleScript string literal.
+      const escaped = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       return {
         command: "osascript",
         args: [
           "-e",
-          'set chosenFolder to choose folder with prompt "Select local repository folder"',
+          `set chosenFolder to choose folder with prompt "${escaped}"`,
           "-e",
           "POSIX path of chosenFolder",
         ],
       };
+    }
     case "win32":
       return {
         command: "powershell",
         args: [
           "-NoProfile",
           "-Command",
-          "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Select local repository folder'; $dialog.UseDescriptionForTitle = $true; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }",
+          "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = $env:CABINET_PICKER_PROMPT; $dialog.UseDescriptionForTitle = $true; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }",
         ],
+        env: { ...process.env, CABINET_PICKER_PROMPT: prompt },
       };
     default:
       return {
         command: "sh",
         args: [
           "-lc",
-          "if command -v zenity >/dev/null 2>&1; then zenity --file-selection --directory --title='Select local repository folder'; elif command -v kdialog >/dev/null 2>&1; then kdialog --getexistingdirectory ~ 'Select local repository folder'; else exit 127; fi",
+          'if command -v zenity >/dev/null 2>&1; then zenity --file-selection --directory --title="$CABINET_PICKER_PROMPT"; elif command -v kdialog >/dev/null 2>&1; then kdialog --getexistingdirectory ~ "$CABINET_PICKER_PROMPT"; else exit 127; fi',
         ],
+        env: { ...process.env, CABINET_PICKER_PROMPT: prompt },
       };
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    const { command, args } = getPickerCommand();
+    const body = (await req.json().catch(() => ({}))) as { prompt?: unknown };
+    const prompt = sanitizePrompt(body?.prompt);
+    const { command, args, env } = getPickerCommand(prompt);
 
     const selectedPath = await new Promise<string>((resolve, reject) => {
       const proc = spawn(command, args, {
         stdio: ["ignore", "pipe", "pipe"],
+        env,
       });
 
       let stdout = "";

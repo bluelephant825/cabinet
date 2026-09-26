@@ -344,6 +344,9 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade {
     installExtension: async () => {
       throw new BrowserError("invalid", "nope");
     },
+    loadUnpackedExtension: async () => {
+      throw new BrowserError("invalid", "nope");
+    },
     uninstallExtension: async () => ({ ok: true }),
     enableExtension: async () => { throw new BrowserError("not-found", "x"); },
     disableExtension: async () => { throw new BrowserError("not-found", "x"); },

@@ -8,6 +8,7 @@ import JSZip from "jszip";
 import {
   ExtensionManager,
   crxZipOffset,
+  deriveExtensionId,
   extractExtensionId,
   resolveI18nMessage,
 } from "../server/browser/extension-manager";
@@ -320,4 +321,140 @@ test("uninstall removes record and directory", async () => {
   assert.equal((await mgr.list()).length, 0);
   assert.ok(!fs.existsSync(path.join(userData, "Browser", "Extensions", EXT_ID)));
   assert.ok(calls.some((c) => c.method === "Extensions.uninstall"));
+});
+
+function makeUnpackedDir(overrides?: Record<string, unknown>): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-ext-src-"));
+  fs.writeFileSync(
+    path.join(dir, "manifest.json"),
+    JSON.stringify({
+      manifest_version: 3,
+      name: "Dev Extension",
+      version: "0.1.0",
+      description: "loaded from disk",
+      ...overrides,
+    }),
+  );
+  fs.writeFileSync(path.join(dir, "sentinel.txt"), "user file, never delete");
+  return dir;
+}
+
+test("deriveExtensionId produces a stable a-p id and honors manifest.key", () => {
+  const dir = makeUnpackedDir();
+  const id = deriveExtensionId(dir, { name: "x" });
+  assert.match(id, /^[a-p]{32}$/);
+  assert.equal(deriveExtensionId(dir, { name: "x" }), id); // deterministic
+  const keyed = deriveExtensionId(dir, { name: "x", key: Buffer.from("k").toString("base64") });
+  assert.match(keyed, /^[a-p]{32}$/);
+  assert.notEqual(keyed, id); // key wins over path
+});
+
+test("installUnpacked loads the folder in place and marks the record", async () => {
+  const userData = tmpUserData();
+  const srcDir = makeUnpackedDir();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  const rec = await mgr.installUnpacked(srcDir);
+  assert.equal(rec.unpacked, true);
+  assert.equal(rec.name, "Dev Extension");
+  assert.equal(rec.version, "0.1.0");
+  assert.equal(rec.path, srcDir); // kept in place, not copied into appdata
+  assert.equal(rec.enabled, true);
+  assert.equal(rec.runtimeId, `runtime-${path.basename(srcDir)}`);
+  assert.ok(calls.some((c) => c.method === "Extensions.loadUnpacked" && c.params?.path === srcDir));
+  // Nothing written under managed Extensions/<id> for unpacked records
+  assert.ok(!fs.existsSync(path.join(userData, "Browser", "Extensions")));
+});
+
+test("installUnpacked works with the browser stopped (runtimeId null, derived id)", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir();
+  const mgr = new ExtensionManager({ getCdp: () => null });
+  const rec = await mgr.installUnpacked(srcDir);
+  assert.equal(rec.runtimeId, null);
+  assert.equal(rec.id, deriveExtensionId(srcDir, { name: "Dev Extension" }));
+  assert.equal(rec.unpacked, true);
+});
+
+test("installUnpacked rejects non-folder, missing/invalid manifest", async () => {
+  tmpUserData();
+  const mgr = new ExtensionManager({ getCdp: () => null });
+
+  await assert.rejects(() => mgr.installUnpacked("/no/such/dir-xyz"), /not a folder/i);
+
+  const filePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-ext-")), "f.txt");
+  fs.writeFileSync(filePath, "x");
+  await assert.rejects(() => mgr.installUnpacked(filePath), /not a folder/i);
+
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-ext-src-"));
+  await assert.rejects(() => mgr.installUnpacked(empty), /manifest\.json/i);
+
+  const badJson = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-ext-src-"));
+  fs.writeFileSync(path.join(badJson, "manifest.json"), "{nope");
+  await assert.rejects(() => mgr.installUnpacked(badJson), /not valid JSON/i);
+
+  const noName = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-ext-src-"));
+  fs.writeFileSync(
+    path.join(noName, "manifest.json"),
+    JSON.stringify({ manifest_version: 3, version: "1.0" }),
+  );
+  await assert.rejects(() => mgr.installUnpacked(noName), /manifest_version, name/i);
+});
+
+test("installUnpacked is idempotent for the same folder and keeps prefs", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir({ version: "0.2.0" });
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  const first = await mgr.installUnpacked(srcDir);
+  await mgr.setPinned(first.id, true);
+  await mgr.disable(first.id);
+  calls.length = 0;
+
+  const second = await mgr.installUnpacked(srcDir);
+  assert.equal((await mgr.list()).length, 1);
+  assert.equal(second.id, first.id);
+  assert.equal(second.pinned, true); // preserved across re-load
+  assert.equal(second.enabled, false); // preserved — disabled ext is not re-loaded
+  assert.equal(second.version, "0.2.0"); // metadata refreshed
+  assert.ok(!calls.some((c) => c.method === "Extensions.loadUnpacked"));
+});
+
+test("uninstall of an unpacked record keeps the user's folder on disk", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir();
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  const rec = await mgr.installUnpacked(srcDir);
+  await mgr.uninstall(rec.id);
+  assert.equal((await mgr.list()).length, 0);
+  assert.ok(fs.existsSync(path.join(srcDir, "manifest.json")));
+  assert.ok(fs.existsSync(path.join(srcDir, "sentinel.txt")));
+  assert.ok(calls.some((c) => c.method === "Extensions.uninstall"));
+});
+
+test("installUnpacked surfaces CDP errors without leaking the path", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir();
+  const mgr = new ExtensionManager({
+    getCdp: () =>
+      ({
+        send: async () => {
+          throw new Error(`Cannot load extension at ${srcDir}: bad manifest`);
+        },
+      }) as unknown as CDPClient,
+  });
+  const err = await mgr.installUnpacked(srcDir).catch((e) => e);
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /bad manifest/i);
+  assert.ok(!err.message.includes(srcDir), "error must not leak the absolute path");
 });

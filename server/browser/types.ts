@@ -32,6 +32,10 @@ export type BrowserExtensionRecord = {
   enabled: boolean;
   pinned: boolean;
   runtimeId: string | null;
+  /** True for user-selected "load unpacked" directories: `path` is the
+   *  user's source folder, so uninstall drops the record without deleting
+   *  files. Absent/undefined on Web Store records (managed copies). */
+  unpacked?: boolean;
 };
 
 export type BrowserErrorCode =

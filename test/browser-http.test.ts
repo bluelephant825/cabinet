@@ -48,6 +48,15 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade & {
         iconDataUrl: null, popupHtml: null, optionsPage: null,
         contentScriptMatches: [], enabled: true, pinned: false, runtimeId: null,
       }),
+    loadUnpackedExtension: async (dirPath) =>
+      (calls.push(`loadUnpacked:${dirPath}`),
+      {
+        id: "aabbccddeeffgghhiiaabbccddeeffgg",
+        name: "x", version: "1", path: dirPath, description: "",
+        iconDataUrl: null, popupHtml: null, optionsPage: null,
+        contentScriptMatches: [], enabled: true, pinned: false, runtimeId: null,
+        unpacked: true,
+      }),
     uninstallExtension: async () => ({ ok: true }),
     enableExtension: async () => { throw new BrowserError("not-found", "Extension not found"); },
     disableExtension: async () => { throw new BrowserError("not-found", "Extension not found"); },
@@ -172,6 +181,31 @@ test("GET /browser/tabs/:id/screenshot returns image/png", async () => {
   const res = await fetch(`${base}/browser/tabs/T1/screenshot`, { headers: auth() });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("content-type"), "image/png");
+});
+
+test("POST /browser/extensions/unpacked loads a local folder", async () => {
+  const res = await fetch(`${base}/browser/extensions/unpacked`, {
+    method: "POST",
+    headers: auth({ "content-type": "application/json" }),
+    body: JSON.stringify({ path: "/tmp/my-ext" }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.extension.unpacked, true);
+  assert.equal(body.extension.path, "/tmp/my-ext");
+  assert.ok(browser.calls.includes("ensureRunning"));
+  assert.ok(browser.calls.includes("loadUnpacked:/tmp/my-ext"));
+});
+
+test("POST /browser/extensions/unpacked without path is 400", async () => {
+  const res = await fetch(`${base}/browser/extensions/unpacked`, {
+    method: "POST",
+    headers: auth({ "content-type": "application/json" }),
+    body: "{}",
+  });
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.equal(body.code, "invalid");
 });
 
 test("POST /browser/extensions/:id/enable surfaces not-found as 404", async () => {

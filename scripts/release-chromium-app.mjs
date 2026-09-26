@@ -98,13 +98,13 @@ sh(process.execPath, [
 ]);
 
 // --- 3. zip -----------------------------------------------------------------
-// `zip -ry` preserves the framework's symlink tree (-y); the ad-hoc signature
-// lives in regular _CodeSignature files + embedded LC_CODE_SIGNATURE, so it
-// survives. ditto --sequesterRsrc instead emits a __MACOSX/ AppleDouble
-// sidecar per entry — 36k of them here — which non-Archive-Utility extractors
-// leave behind as a bogus zero-byte __MACOSX/Cabinet.app next to the real app.
-// Strip build-machine xattrs (com.apple.provenance lands on every file) first
-// so none ride along in the archive.
+// ditto -ck is what Apple tooling uses for app archives: it preserves the
+// framework's symlink tree and the ad-hoc signature seal, which Finder's
+// Compress and plain `zip` can mangle. --sequesterRsrc is deliberately absent:
+// it emits a __MACOSX/ AppleDouble sidecar per entry — 36k of them here —
+// which non-Archive-Utility extractors leave behind as a bogus zero-byte
+// __MACOSX/Cabinet.app next to the real app. xattrs we actually want gone
+// anyway (build-machine provenance) are stripped first, so nothing is lost.
 
 console.log(`==> zipping ${zipName}`);
 try {
@@ -112,9 +112,7 @@ try {
 } catch {
   console.warn("release-chromium-app: xattr strip failed — continuing");
 }
-sh("zip", ["-qry", zipPath, "Cabinet.app"], {
-  cwd: dirname(appPath),
-});
+sh("ditto", ["-c", "-k", "--keepParent", appPath, zipPath]);
 
 // --- 4. draft release --------------------------------------------------------
 

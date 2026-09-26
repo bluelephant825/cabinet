@@ -51,6 +51,7 @@ export type BrowserFacade = {
   screenshotTab(id: string): Promise<Buffer>;
   listExtensions(): Promise<BrowserExtensionRecord[]>;
   installExtension(idOrUrl: string): Promise<BrowserExtensionRecord>;
+  loadUnpackedExtension(dirPath: string): Promise<BrowserExtensionRecord>;
   uninstallExtension(id: string): Promise<unknown>;
   enableExtension(id: string): Promise<BrowserExtensionRecord>;
   disableExtension(id: string): Promise<BrowserExtensionRecord>;
@@ -275,6 +276,19 @@ export async function handleBrowserRequest(
         }
         await browser.ensureRunning();
         sendJson(res, 200, { extension: await browser.installExtension(idOrUrl) });
+        return true;
+      }
+      // POST /browser/extensions/unpacked { path } — Chrome's "Load unpacked":
+      // the folder stays in place; the record marks it so uninstall only
+      // drops our registration.
+      if (method === "POST" && parts[2] === "unpacked" && !parts[3]) {
+        const body = await readJson(req);
+        const dirPath = typeof body.path === "string" ? body.path : "";
+        if (!dirPath.trim()) {
+          throw new BrowserError("invalid", "path is required");
+        }
+        await browser.ensureRunning();
+        sendJson(res, 200, { extension: await browser.loadUnpackedExtension(dirPath) });
         return true;
       }
       const extId = decodeURIComponent(parts[2] ?? "");

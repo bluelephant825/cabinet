@@ -14,6 +14,7 @@
  * `extensions[]` (the old dirs were mutated by the stub patcher and are never
  * reused) and then strips that key.
  */
+import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
@@ -31,6 +32,25 @@ import { PINNED_CHROME_BUILD } from "./chromium-manager";
 export function extractExtensionId(idOrUrl: string): string | null {
   const match = String(idOrUrl ?? "").match(/[a-p]{32}/);
   return match ? match[0] : null;
+}
+
+/** Chromium's deterministic id for an unpacked extension
+ * (id_util::GenerateId): SHA-256 over the manifest's base64 `key` when
+ * present, else the absolute directory path; the first 16 bytes map to the
+ * a-p alphabet. The runtime id returned by Extensions.loadUnpacked is
+ * authoritative — this fallback only matters while the browser is stopped. */
+export function deriveExtensionId(
+  extensionDir: string,
+  manifest: Record<string, unknown>,
+): string {
+  const key = typeof manifest.key === "string" ? manifest.key.trim() : "";
+  const bytes = key ? Buffer.from(key, "base64") : Buffer.from(extensionDir, "utf8");
+  const digest = crypto.createHash("sha256").update(bytes).digest();
+  let id = "";
+  for (let i = 0; i < 16; i++) {
+    id += String.fromCharCode(97 + (digest[i] >> 4)) + String.fromCharCode(97 + (digest[i] & 0xf));
+  }
+  return id;
 }
 
 /** Byte offset of the embedded zip inside a CRX buffer (0 when not a Cr24). */
@@ -198,6 +218,61 @@ export class ExtensionManager extends EventEmitter {
     }
   }
 
+  /** Manifest-derived record fields shared by CRX installs and user-selected
+   * unpacked directories (i18n resolution, icons, popup/options pages,
+   * content-script match patterns). */
+  private describeExtension(
+    extensionDir: string,
+    manifest: Record<string, unknown>,
+  ): Pick<
+    BrowserExtensionRecord,
+    | "name"
+    | "version"
+    | "description"
+    | "iconDataUrl"
+    | "popupHtml"
+    | "optionsPage"
+    | "contentScriptMatches"
+  > {
+    const i18n = (value: unknown) =>
+      resolveI18nMessage(
+        typeof value === "string" ? value : undefined,
+        extensionDir,
+        manifest as { default_locale?: string },
+      );
+
+    const action = (manifest.action ?? manifest.browser_action ?? {}) as {
+      default_popup?: unknown;
+    };
+    const optionsUi = (manifest.options_ui ?? {}) as { page?: unknown };
+    const contentScriptMatches: string[] = [];
+    if (Array.isArray(manifest.content_scripts)) {
+      for (const cs of manifest.content_scripts as { matches?: unknown }[]) {
+        if (!Array.isArray(cs?.matches)) continue;
+        for (const m of cs.matches) {
+          if (typeof m === "string" && !contentScriptMatches.includes(m)) {
+            contentScriptMatches.push(m);
+          }
+        }
+      }
+    }
+
+    return {
+      name: (i18n(manifest.name) as string) || path.basename(extensionDir),
+      version: typeof manifest.version === "string" ? manifest.version : "unknown",
+      description: (i18n(manifest.description) as string) || "",
+      iconDataUrl: iconDataUrlFor(extensionDir, manifest),
+      popupHtml: typeof action.default_popup === "string" ? action.default_popup : null,
+      optionsPage:
+        typeof manifest.options_page === "string"
+          ? manifest.options_page
+          : typeof optionsUi.page === "string"
+            ? optionsUi.page
+            : null,
+      contentScriptMatches,
+    };
+  }
+
   async install(idOrUrl: string): Promise<BrowserExtensionRecord> {
     const id = extractExtensionId(idOrUrl);
     if (!id) {
@@ -230,46 +305,13 @@ export class ExtensionManager extends EventEmitter {
     if (fs.existsSync(manifestPath)) {
       manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
     }
-    const i18n = (value: unknown) =>
-      resolveI18nMessage(
-        typeof value === "string" ? value : undefined,
-        outDir,
-        manifest as { default_locale?: string },
-      );
-
-    const action = (manifest.action ?? manifest.browser_action ?? {}) as {
-      default_popup?: unknown;
-    };
-    const optionsUi = (manifest.options_ui ?? {}) as { page?: unknown };
-    const contentScriptMatches: string[] = [];
-    if (Array.isArray(manifest.content_scripts)) {
-      for (const cs of manifest.content_scripts as { matches?: unknown }[]) {
-        if (!Array.isArray(cs?.matches)) continue;
-        for (const m of cs.matches) {
-          if (typeof m === "string" && !contentScriptMatches.includes(m)) {
-            contentScriptMatches.push(m);
-          }
-        }
-      }
-    }
 
     const records = await this.loadRecords();
     const existing = records.find((entry) => entry.id === id);
     const record: BrowserExtensionRecord = {
       id,
-      name: (i18n(manifest.name) as string) || id,
-      version: typeof manifest.version === "string" ? manifest.version : "unknown",
+      ...this.describeExtension(outDir, manifest),
       path: outDir,
-      description: (i18n(manifest.description) as string) || "",
-      iconDataUrl: iconDataUrlFor(outDir, manifest),
-      popupHtml: typeof action.default_popup === "string" ? action.default_popup : null,
-      optionsPage:
-        typeof manifest.options_page === "string"
-          ? manifest.options_page
-          : typeof optionsUi.page === "string"
-            ? optionsUi.page
-            : null,
-      contentScriptMatches,
       enabled: existing?.enabled ?? true,
       pinned: existing?.pinned ?? false,
       runtimeId: null,
@@ -287,13 +329,92 @@ export class ExtensionManager extends EventEmitter {
     return record;
   }
 
+  /** Chrome's "Load unpacked": register a user-selected extension directory
+   * in place. The folder is never copied — the record keeps the external
+   * path with `unpacked: true` so uninstall drops the registration without
+   * deleting the user's source, and applyAll re-loads it on each launch. */
+  async installUnpacked(dirPath: string): Promise<BrowserExtensionRecord> {
+    const resolved = path.resolve(String(dirPath ?? "").trim());
+    const stat = await fsp.stat(resolved).catch(() => null);
+    if (!stat?.isDirectory()) {
+      throw new BrowserError("invalid", "The selected path is not a folder.");
+    }
+    const manifestPath = path.join(resolved, "manifest.json");
+    if (!fs.existsSync(manifestPath)) {
+      throw new BrowserError("invalid", "No manifest.json found in the selected folder.");
+    }
+    let manifest: Record<string, unknown>;
+    try {
+      manifest = JSON.parse(await fsp.readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    } catch {
+      throw new BrowserError("invalid", "manifest.json is not valid JSON.");
+    }
+    if (
+      typeof manifest.manifest_version !== "number" ||
+      typeof manifest.name !== "string" ||
+      !manifest.name.trim()
+    ) {
+      throw new BrowserError(
+        "invalid",
+        "manifest.json is missing required fields (manifest_version, name).",
+      );
+    }
+
+    const records = await this.loadRecords();
+    const derivedId = deriveExtensionId(resolved, manifest);
+    const index = records.findIndex(
+      (entry) => entry.id === derivedId || (entry.unpacked && entry.path === resolved),
+    );
+    const existing = index >= 0 ? records[index] : undefined;
+    const id = existing?.id ?? derivedId;
+    const record: BrowserExtensionRecord = {
+      id,
+      ...this.describeExtension(resolved, manifest),
+      path: resolved,
+      enabled: existing?.enabled ?? true,
+      pinned: existing?.pinned ?? false,
+      runtimeId: existing?.runtimeId ?? null,
+      unpacked: true,
+    };
+
+    if (record.enabled && this.deps.getCdp()) {
+      try {
+        const runtimeId = await this.loadUnpacked(resolved);
+        if (runtimeId) {
+          // Chromium's path-derived id is authoritative once loaded.
+          record.runtimeId = runtimeId;
+          record.id = runtimeId;
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!existing?.runtimeId || !/already|duplicate/i.test(message)) {
+          throw new BrowserError(
+            "cdp",
+            `Chromium could not load the extension: ${message.replaceAll(resolved, "…")}`,
+          );
+        }
+        // Already registered this session — keep the live runtime id.
+      }
+    }
+
+    if (index >= 0) records[index] = record;
+    else records.push(record);
+    await this.saveRecords();
+    this.emit("installed", record);
+    return record;
+  }
+
   async uninstall(id: string): Promise<{ ok: true }> {
     const records = await this.loadRecords();
     const rec = this.record(id, records);
     await this.uninstallRuntime(rec.runtimeId);
     records.splice(records.indexOf(rec), 1);
     await this.saveRecords();
-    await fsp.rm(rec.path, { recursive: true, force: true });
+    // Unpacked records point at the user's source folder — only the
+    // record goes away, never the files on disk.
+    if (!rec.unpacked) {
+      await fsp.rm(rec.path, { recursive: true, force: true });
+    }
     this.emit("removed", rec);
     return { ok: true };
   }

@@ -70,6 +70,14 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade {
         iconDataUrl: null, popupHtml: null, optionsPage: null,
         contentScriptMatches: [], enabled: true, pinned: false, runtimeId: null,
       }),
+    loadUnpackedExtension: async (dirPath) =>
+      ({
+        id: "aabbccddeeffgghhiiaabbccddeeffgg",
+        name: "x", version: "1", path: dirPath, description: "",
+        iconDataUrl: null, popupHtml: null, optionsPage: null,
+        contentScriptMatches: [], enabled: true, pinned: false, runtimeId: null,
+        unpacked: true,
+      }),
     uninstallExtension: async () => ({ ok: true }),
     enableExtension: async () => { throw new BrowserError("not-found", "Extension not found"); },
     disableExtension: async () => { throw new BrowserError("not-found", "Extension not found"); },

@@ -126,6 +126,7 @@ export function createBrowserDaemon(): BrowserDaemon {
     screenshotTab: async (id) => requireSession(manager).screenshot(id),
     listExtensions: () => extensions.list(),
     installExtension: (idOrUrl) => extensions.install(idOrUrl),
+    loadUnpackedExtension: (dirPath) => extensions.installUnpacked(dirPath),
     uninstallExtension: (id) => extensions.uninstall(id),
     enableExtension: (id) => extensions.enable(id),
     disableExtension: (id) => extensions.disable(id),

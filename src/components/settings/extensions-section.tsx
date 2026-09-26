@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Blocks, Trash2, Loader2, Settings, Download, Play, RotateCw } from "lucide-react";
+import { Blocks, Trash2, Loader2, Settings, Download, Play, RotateCw, FolderOpen } from "lucide-react";
 import { showError } from "@/lib/ui/toast";
 import { useAppStore } from "@/stores/app-store";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
@@ -16,6 +16,7 @@ import {
   getStatus,
   installExtension,
   launch,
+  loadUnpackedExtension,
   listExtensions,
   openTab,
   shutdown,
@@ -46,6 +47,7 @@ export function ExtensionsSection() {
   const [status, setStatus] = useState<SidecarStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState(false);
+  const [loadingUnpacked, setLoadingUnpacked] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [extensionUrlOrId, setExtensionUrlOrId] = useState("");
 
@@ -124,6 +126,29 @@ export function ExtensionsSection() {
       showError(errorMessage(e2, "Failed to install extension"));
     } finally {
       setInstalling(false);
+    }
+  };
+
+  const handleLoadUnpacked = async () => {
+    setLoadingUnpacked(true);
+    try {
+      const res = await fetch("/api/system/pick-directory", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: "Select the unpacked extension folder" }),
+      });
+      const data = (await res.json()) as { ok?: boolean; path?: string; cancelled?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error || "Failed to open the folder picker");
+      if (data.cancelled || !data.path) return;
+
+      const ext = await loadUnpackedExtension(data.path);
+      showToast("success", `Extension loaded: ${ext.name}`);
+      refreshExtensions();
+      refreshStatus();
+    } catch (e) {
+      showError(errorMessage(e, "Failed to load unpacked extension"));
+    } finally {
+      setLoadingUnpacked(false);
     }
   };
 
@@ -289,6 +314,23 @@ export function ExtensionsSection() {
             Install
           </Button>
         </form>
+        <div className="mt-4 pt-4 border-t flex items-center justify-between gap-3">
+          <p className="text-[12px] text-muted-foreground">
+            Developing an extension? Load it from a folder containing a manifest.json.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => void handleLoadUnpacked()}
+            disabled={loadingUnpacked}
+          >
+            {loadingUnpacked ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FolderOpen className="mr-2 h-4 w-4" />
+            )}
+            Load unpacked…
+          </Button>
+        </div>
       </div>
 
       <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
@@ -321,6 +363,14 @@ export function ExtensionsSection() {
                     <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                       v{ext.version}
                     </span>
+                    {ext.unpacked && (
+                      <span
+                        className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded"
+                        title={ext.path}
+                      >
+                        unpacked
+                      </span>
+                    )}
                   </h4>
                   <p className="text-[12px] text-muted-foreground mt-1 line-clamp-2">
                     {ext.description || "No description provided."}
