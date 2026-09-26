@@ -240,6 +240,21 @@ function acquireSingleInstance() {
 // Native module + OCR helper extraction (ported from main.cjs)
 // ---------------------------------------------------------------------------
 
+// Executables copied out of the bundle inherit com.apple.quarantine when the
+// app itself was still quarantined at first launch (Gatekeeper flags payloads
+// written by quarantined apps), and a skipped copy leaves the attribute in
+// place forever — the daemon then dies on dlopen with a Gatekeeper dialog.
+// Strip + ad-hoc sign on every launch so stale extracts self-heal.
+function normalizeMachO(target) {
+  if (!fs.existsSync(target)) return;
+  try {
+    execFileSync("xattr", ["-d", "com.apple.quarantine", target]);
+  } catch {}
+  try {
+    execFileSync("codesign", ["--force", "--sign", "-", target]);
+  } catch {}
+}
+
 function extractOcrHelper() {
   const platformDir =
     process.platform === "win32" ? "win32-x64" : `darwin-${process.arch}`;
@@ -262,13 +277,8 @@ function extractOcrHelper() {
     fs.mkdirSync(externalDir, { recursive: true });
     fs.copyFileSync(bundledBinary, externalBinary);
     fs.chmodSync(externalBinary, 0o755);
-    try {
-      execFileSync("xattr", ["-dr", "com.apple.quarantine", externalBinary]);
-    } catch {}
-    try {
-      execFileSync("codesign", ["--force", "--sign", "-", externalBinary]);
-    } catch {}
   }
+  normalizeMachO(externalBinary);
   return externalDir;
 }
 
@@ -294,21 +304,11 @@ function extractNativeModules() {
     fs.rmSync(externalNodePty, { recursive: true, force: true });
     fs.mkdirSync(externalModulesDir, { recursive: true });
     fs.cpSync(bundledNodePty, externalNodePty, { recursive: true });
-    console.log("launcher: native pty after copy", fs.existsSync(path.join(externalNodePty, "prebuilds", `darwin-${process.arch}`, "pty.node")));
+  }
 
-    const prebuildsDir = path.join(externalNodePty, "prebuilds", "darwin-arm64");
-    for (const name of ["spawn-helper", "pty.node"]) {
-      const target = path.join(prebuildsDir, name);
-      if (fs.existsSync(target)) {
-        try {
-          execFileSync("xattr", ["-dr", "com.apple.quarantine", target]);
-        } catch {}
-        try {
-          execFileSync("codesign", ["--force", "--sign", "-", target]);
-        } catch {}
-      }
-    }
-    console.log("launcher: native pty after signing", fs.existsSync(path.join(prebuildsDir, "pty.node")));
+  const prebuildsDir = path.join(externalNodePty, "prebuilds", "darwin-arm64");
+  for (const name of ["spawn-helper", "pty.node"]) {
+    normalizeMachO(path.join(prebuildsDir, name));
   }
 
   return externalModulesDir;
