@@ -181,11 +181,21 @@ sh(process.execPath, [
 ]);
 
 console.log("==> staging standalone app tree");
-// Broad NFT patterns can trace the previous dist/ build output into
-// .next/standalone (a whole nested Cabinet.app inside Resources/app/dist).
-// Never ship it — the exclude in next.config is the real fix, this is the
-// safety net for trees built before it existed.
-rmSync(join(standalone, "dist"), { recursive: true, force: true });
+// Turbopack's NFT ignores outputFileTracingExcludes (verified: test/, dist/,
+// .git/ and data-backup-*/ all land in .next/standalone anyway). Broad
+// dynamic fs patterns in the routes trace the whole project tree — and
+// data-backup-* dirs holding retired .app bundles amplify recursively
+// (standalone/dist/Cabinet.app → Resources/app/data-backup-* → …). Prune
+// the junk here so the shipped bundle can't balloon no matter what NFT
+// decided to include.
+for (const entry of readdirSync(standalone)) {
+  if (/^data-backup-/.test(entry)) {
+    rmSync(join(standalone, entry), { recursive: true, force: true });
+  }
+}
+for (const junk of ["dist", "out", "test", "coverage", ".git", ".github", ".claude", ".agents"]) {
+  rmSync(join(standalone, junk), { recursive: true, force: true });
+}
 // verbatimSymlinks: Next's output tracing emits RELATIVE dedup links in
 // .next/node_modules (<pkg>-<hash> -> ../../node_modules/<pkg>) which resolve
 // fine inside the bundle — but cpSync's default rewrites them to absolute
