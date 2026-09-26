@@ -206,6 +206,17 @@ cpSync(standalone, join(contents, "Resources", "app"), {
   verbatimSymlinks: true,
 });
 
+// The agent library templates are read at runtime via
+// PROJECT_ROOT/src/lib/agents/library (resolveAgentLibraryDir). The src/
+// tree is never traced into .next/standalone, so stage the templates
+// explicitly — without this, packaged builds ship an empty agent library
+// and every boot warns "library template for editor not found".
+cpSync(
+  join(projectRoot, "src", "lib", "agents", "library"),
+  join(contents, "Resources", "app", "src", "lib", "agents", "library"),
+  { recursive: true },
+);
+
 // Guard: no symlink inside Resources/app may resolve to a path outside the
 // bundle. Catches leaks from any staging step, not just the one above.
 const stagedApp = join(contents, "Resources", "app");
