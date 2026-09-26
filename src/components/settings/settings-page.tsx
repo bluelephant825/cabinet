@@ -3014,8 +3014,15 @@ function ProfileTab() {
   }
   if (state.status === "error") {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-        Failed to load profile: {state.error}
+      <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+        <span>Failed to load profile: {state.error}</span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => void refreshUserProfile()}
+        >
+          Retry
+        </Button>
       </div>
     );
   }

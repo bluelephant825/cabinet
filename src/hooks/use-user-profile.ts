@@ -83,7 +83,18 @@ export function setUserProfileOptimistic(next: {
 export function useUserProfile(): State {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   useEffect(() => {
-    if (state.status === "idle") void refreshUserProfile();
+    if (state.status === "idle") {
+      void refreshUserProfile();
+      return;
+    }
+    // The store is global: one transient failure (backend mid-restart while
+    // the window stayed open) would otherwise pin the error for the page's
+    // lifetime. Retry once per mount after a beat — a failed retry keeps
+    // "error" so this can't loop.
+    if (state.status === "error") {
+      const timer = setTimeout(() => void refreshUserProfile(), 3000);
+      return () => clearTimeout(timer);
+    }
   }, []);
   return snap;
 }
