@@ -35,7 +35,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, cpSync, rmSync, readFileSync, writeFileSync, readdirSync, realpathSync, readlinkSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -201,9 +201,15 @@ for (const junk of ["dist", "out", "test", "coverage", ".git", ".github", ".clau
 // fine inside the bundle — but cpSync's default rewrites them to absolute
 // source paths, leaking the build dir into the shipped app and breaking on
 // any other machine. Copying the link text verbatim keeps them in-bundle.
+const redundantAssets = existsSync(join(standalone, "server.js"))
+  ? ["public", join(".next", "static")]
+    .filter((asset) => existsSync(join(standalone, asset)))
+    .map((asset) => join(standalone, "cabinet", asset))
+  : [];
 cpSync(standalone, join(contents, "Resources", "app"), {
   recursive: true,
   verbatimSymlinks: true,
+  filter: (source) => !redundantAssets.some((asset) => source === asset || source.startsWith(`${asset}${sep}`)),
 });
 
 // The agent library templates are read at runtime via
