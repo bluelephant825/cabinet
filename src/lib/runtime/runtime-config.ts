@@ -94,22 +94,35 @@ function readPersistedDataDir(): string | null {
 export function getManagedDataParentDir(): string {
   // 1. Env var takes highest priority
   const configured = process.env.CABINET_DATA_DIR?.trim();
-  if (configured) {
-    return path.resolve(configured);
-  }
+  if (configured) return resolveDataParent(path.resolve(configured));
 
   // 2. Persisted config file
   const persisted = readPersistedDataDir();
-  if (persisted) {
-    return path.resolve(persisted);
-  }
+  if (persisted) return resolveDataParent(path.resolve(persisted));
 
   // 3. Platform defaults
-  if (isDesktopRuntime()) {
-    return defaultElectronDataDir();
-  }
+  return resolveDataParent(isDesktopRuntime()
+    ? defaultElectronDataDir()
+    : path.join(PROJECT_ROOT, "data"));
+}
 
-  return path.join(PROJECT_ROOT, "data");
+function resolveDataParent(dir: string): string {
+  let manifest: string | null = null;
+  try {
+    manifest = fs.readFileSync(path.join(dir, ".cabinet"), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  if (manifest && /^kind:\s*home\s*$/m.test(manifest)) return dir;
+  const parent = path.dirname(dir);
+  try {
+    const home = JSON.parse(fs.readFileSync(path.join(parent, ".home", "home.json"), "utf8"));
+    if ((home.activeCabinet || home.activeVault) === path.basename(dir)) return parent;
+  } catch (error) {
+    if (manifest && (error as NodeJS.ErrnoException).code === "ENOENT") return dir;
+  }
+  if (!manifest) return dir;
+  throw new Error(`Data directory ${dir} points at a cabinet, not the shared data folder`);
 }
 
 let cachedActiveCabinet: string | null = null;
@@ -171,7 +184,13 @@ export function isProcessStale(): boolean {
  * to the active cabinet with no per-call-site changes.
  */
 export function getManagedDataDir(): string {
-  return path.join(getManagedDataParentDir(), getActiveCabinetName());
+  const parent = getManagedDataParentDir();
+  try {
+    const manifest = fs.readFileSync(path.join(parent, ".cabinet"), "utf8");
+    if (!/^kind:\s*home\s*$/m.test(manifest) &&
+        !fs.existsSync(path.join(path.dirname(parent), ".home", "home.json"))) return parent;
+  } catch {}
+  return path.join(parent, getActiveCabinetName());
 }
 
 function getRuntimePortsPath(): string {

@@ -179,19 +179,39 @@ function dirHasContent(dir) {
   }
 }
 
+function resolveDataParent(dir) {
+  const resolved = path.resolve(dir);
+  let manifest = null;
+  try {
+    manifest = fs.readFileSync(path.join(resolved, ".cabinet"), "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (manifest && /^kind:\s*home\s*$/m.test(manifest)) return resolved;
+  const parent = path.dirname(resolved);
+  try {
+    const home = JSON.parse(fs.readFileSync(path.join(parent, ".home", "home.json"), "utf8"));
+    if ((home.activeCabinet || home.activeVault) === path.basename(resolved)) return parent;
+  } catch (error) {
+    if (manifest && error.code === "ENOENT") return resolved;
+  }
+  if (!manifest) return resolved;
+  throw new Error(`Data directory ${resolved} points at a cabinet, not the shared data folder`);
+}
+
 function resolveManagedDataDir() {
   const envDir = process.env.CABINET_DATA_DIR?.trim();
-  if (envDir) return path.resolve(envDir);
+  if (envDir) return resolveDataParent(envDir);
   const persisted = readPersistedDataDir();
-  if (persisted) return persisted;
+  if (persisted) return resolveDataParent(persisted);
   // Legacy <userData>/cabinet-data installs (v0.4.3 and earlier).
   if (dirHasContent(legacyDataDir)) {
     writePersistedConfig({ dataDir: legacyDataDir });
-    return legacyDataDir;
+    return resolveDataParent(legacyDataDir);
   }
   const fresh = defaultUserVisibleDataDir();
   writePersistedConfig({ dataDir: fresh });
-  return fresh;
+  return resolveDataParent(fresh);
 }
 
 const managedDataDir = resolveManagedDataDir();

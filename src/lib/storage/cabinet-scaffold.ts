@@ -132,11 +132,15 @@ export async function scaffoldCabinet(
     fs.writeFile(
       path.join(targetDir, ".cabinet"),
       yaml.dump(manifest, { lineWidth: -1 }),
-      "utf-8"
+      skipExisting ? { encoding: "utf-8", flag: "wx" } : "utf-8"
     );
 
   if (skipExisting) {
-    await writeManifest().catch(() => {});
+    try {
+      await writeManifest();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
   } else {
     await writeManifest();
   }

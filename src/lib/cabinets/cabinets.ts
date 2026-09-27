@@ -140,6 +140,13 @@ async function moveMerge(from: string, to: string): Promise<void> {
  * then record the active cabinet. Safe to call on every server start.
  */
 export async function ensureCabinetsMigrated(): Promise<void> {
+  try {
+    const raw = await fs.readFile(path.join(DATA_PARENT_DIR, CABINET_MANIFEST_FILE), "utf8");
+    const manifest = yaml.load(raw) as { kind?: string } | null;
+    if (manifest?.kind && manifest.kind !== "home") return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
   const existing = await listCabinets();
   if (existing.length > 0) {
     for (const cabinet of existing) {
@@ -163,6 +170,15 @@ export async function ensureCabinetsMigrated(): Promise<void> {
       await writeActiveCabinet(existing[0].name);
     }
     return;
+  }
+
+  const activeDir = path.join(DATA_PARENT_DIR, getActiveCabinetName());
+  const hasState = await fs.stat(path.join(activeDir, ".cabinet-state"))
+    .then((stat) => stat.isDirectory(), () => false);
+  const hasEntry = await fs.access(path.join(activeDir, "index.md"))
+    .then(() => true, () => false);
+  if (hasState && hasEntry) {
+    throw new Error(`Active cabinet manifest missing at ${activeDir}; refusing to move its contents`);
   }
 
   let entries: import("fs").Dirent[] = [];
