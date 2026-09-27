@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import os from "node:os";
 import { join } from "node:path";
+import { assertNoArchivedApps } from "../next.config";
 import { compareVersions, isStableVersion } from "@/lib/system/version-utils";
 import { readBundledReleaseManifest } from "@/lib/system/release-manifest";
 import { detectInstallKind, inferElectronInstallKind } from "@/lib/system/install-metadata";
@@ -10,6 +12,33 @@ import type { InstallMetadata } from "@/types";
 const pkgVersion = JSON.parse(
   readFileSync(join(__dirname, "..", "package.json"), "utf8")
 ).version as string;
+
+test("production trace guard rejects archived apps without following their recursive contents", () => {
+  const root = mkdtempSync(join(os.tmpdir(), "cabinet-trace-guard-"));
+  try {
+    mkdirSync(join(root, "dist", "Cabinet.app", "Contents", "Resources", "app", "dist", "Cabinet.app"), { recursive: true });
+    assert.throws(() => assertNoArchivedApps(root), /dist\/Cabinet\.app/);
+    rmSync(join(root, "dist"), { recursive: true });
+    mkdirSync(join(root, "data-backup-old", "retired", "Old.app"), { recursive: true });
+    assert.throws(() => assertNoArchivedApps(root), /data-backup-old/);
+    rmSync(join(root, "data-backup-old"), { recursive: true });
+    mkdirSync(join(root, ".next", "standalone", "dist", "Stale.app"), { recursive: true });
+    assert.throws(() => assertNoArchivedApps(root), /\.next\/standalone/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("production trace guard permits clean source and ignores node_modules fixtures", () => {
+  const root = mkdtempSync(join(os.tmpdir(), "cabinet-trace-guard-"));
+  try {
+    mkdirSync(join(root, "node_modules", "fixture.app"), { recursive: true });
+    mkdirSync(join(root, "dist", "documents"), { recursive: true });
+    assert.doesNotThrow(() => assertNoArchivedApps(root));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("compareVersions sorts stable semver values correctly", () => {
   assert.equal(compareVersions("0.2.0", "0.1.9"), 1);

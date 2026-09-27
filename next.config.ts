@@ -1,4 +1,6 @@
 import type { NextConfig } from "next";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { existsSync, readdirSync } from "node:fs";
 import path from "path";
 
 // Next.js 15 blocks cross-origin dev requests (HMR, /_next/*) from any Host
@@ -103,4 +105,35 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export function assertNoArchivedApps(root: string): void {
+  const skipped = new Set(["node_modules", ".git", ".next"]);
+  const findApp = (dir: string): string | null => {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.endsWith(".app")) return path.join(dir, entry.name);
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || skipped.has(entry.name)) continue;
+      const found = findApp(path.join(dir, entry.name));
+      if (found) return found;
+    }
+    return null;
+  };
+  const standalone = path.join(root, ".next", "standalone");
+  let found = existsSync(standalone) ? findApp(standalone) : null;
+  if (!found) {
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || skipped.has(entry.name)) continue;
+      found = findApp(path.join(root, entry.name));
+      if (found) break;
+    }
+  }
+  if (found) {
+    throw new Error(`Turbopack would recursively trace ${path.relative(root, found)}. Move archived .app bundles outside the project before building.`);
+  }
+}
+
+export default function cabinetConfig(phase: string): NextConfig {
+  if (phase === PHASE_PRODUCTION_BUILD) assertNoArchivedApps(__dirname);
+  return nextConfig;
+}
