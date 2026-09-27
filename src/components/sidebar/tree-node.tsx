@@ -94,6 +94,43 @@ import { getDataDir } from "@/lib/data-dir-cache";
 import { isMacPlatform, isEditableTarget, formatShortcut } from "@/lib/keys";
 import { useLocale } from "@/i18n/use-locale";
 
+// <img> that re-requests its src when the initial load fails. On the app's
+// first launch the host window can cancel low-priority image fetches while
+// startup settles (window show/overlay hand-off), and a failed <img> never
+// retries on its own — sidebar icons stayed as broken boxes until the next
+// app restart. A few spaced retries absorb that transient window.
+function TreeIcon({ src, className }: { src: string; className?: string }) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const retries = useRef(0);
+  const srcRef = useRef(src);
+  useEffect(() => {
+    srcRef.current = src;
+    retries.current = 0;
+  }, [src]);
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      ref={imgRef}
+      src={src}
+      alt=""
+      className={className}
+      onError={() => {
+        const el = imgRef.current;
+        if (!el || retries.current >= 3) return;
+        retries.current += 1;
+        setTimeout(() => {
+          if (!el.isConnected) return;
+          const latest = srcRef.current;
+          const sep = latest.includes("?") ? "&" : "?";
+          // The cache-buster guarantees a fresh request — without it a cached
+          // error response could just re-serve and burn a retry.
+          el.src = `${latest}${sep}icon-retry=${retries.current}`;
+        }, 400 * retries.current);
+      }}
+    />
+  );
+}
+
 function getFileIconPath(filename: string): string {
   const parts = filename.split(".");
   const ext = parts.length > 1 ? "." + parts.pop()!.toLowerCase() : "";
@@ -1333,8 +1370,7 @@ function TreeNodeImpl({
             >
             {knowledgeLogo ? (
               // Inline Connect Knowledge mount → provider brand mark.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={knowledgeLogo} alt="" className="h-3.5 w-3.5 shrink-0" />
+              <TreeIcon src={knowledgeLogo} className="h-3.5 w-3.5 shrink-0" />
             ) : node.knowledgeProvider ? (
               // Mount whose provider has no brand asset (e.g. iCloud).
               <Cloud className="h-3.5 w-3.5 shrink-0 text-sky-400" />
@@ -1352,17 +1388,13 @@ function TreeNodeImpl({
             ) : node.isLinked ? (
               <Link2 className="h-3.5 w-3.5 shrink-0 text-blue-400" />
             ) : hasChildren || node.type === "directory" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <TreeIcon
                 src={getFolderIconPath(node.name)}
-                alt=""
                 className="h-3.5 w-3.5 shrink-0 animate-in fade-in duration-200"
               />
             ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <TreeIcon
                 src={getFileIconPath(node.name)}
-                alt=""
                 className="h-3.5 w-3.5 shrink-0 animate-in fade-in duration-200"
               />
             )}
