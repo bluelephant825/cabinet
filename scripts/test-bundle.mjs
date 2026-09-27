@@ -46,6 +46,7 @@ const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-bundle-test-"));
 
 let child = null;
 let isoDaemon = null;
+let isoNext = null;
 let isoDir = null;
 let cleanedUp = false;
 let childOutput = "";
@@ -80,6 +81,10 @@ function cleanup() {
   if (isoDaemon && isoDaemon.pid) {
     try { process.kill(-isoDaemon.pid, "SIGTERM"); } catch {}
     try { process.kill(-isoDaemon.pid, "SIGKILL"); } catch {}
+  }
+  if (isoNext && isoNext.pid) {
+    try { process.kill(-isoNext.pid, "SIGTERM"); } catch {}
+    try { process.kill(-isoNext.pid, "SIGKILL"); } catch {}
   }
   removeAppDir();
   fs.rmSync(DATA_DIR, { recursive: true, force: true });
@@ -297,6 +302,18 @@ ok("document assets staged: worker bundle, fonts, pdfium/harfbuzz/takumi wasm, n
 const isoNode = fs.existsSync(path.join(ISO_APP, "bin", "node"))
   ? path.join(ISO_APP, "bin", "node")
   : process.execPath;
+step("Verifying isolated HTML rendering dependencies...");
+try {
+  const result = execFileSync(isoNode, ["-e", "const { JSDOM } = require('jsdom'); process.stdout.write(new JSDOM('<p>ready</p>').window.document.querySelector('p').textContent)"], {
+    cwd: ISO_APP,
+    env: { ...process.env, NODE_PATH: "" },
+    encoding: "utf8",
+  });
+  if (result !== "ready") fail(`unexpected jsdom output: ${result}`);
+} catch (error) {
+  fail(`isolated jsdom cannot render HTML: ${error.message}`);
+}
+ok("isolated jsdom renders HTML");
 const isoDaemonPort = await freePort();
 
 step(`Booting the isolated daemon (daemon:${isoDaemonPort})...`);
@@ -329,6 +346,59 @@ if (isoHealth !== 200) {
 }
 ok("isolated daemon healthy");
 
+const isoAppPort = await freePort();
+step(`Booting the isolated Next server (app:${isoAppPort})...`);
+isoNext = spawn(isoNode, [path.join(ISO_APP, "server.js")], {
+  cwd: ISO_APP,
+  detached: true,
+  stdio: ["ignore", "pipe", "pipe"],
+  env: {
+    ...process.env,
+    NODE_ENV: "production",
+    NODE_PATH: "",
+    PORT: String(isoAppPort),
+    CABINET_APP_PORT: String(isoAppPort),
+    CABINET_DATA_DIR: ISO_DATA,
+    CABINET_DAEMON_PORT: String(isoDaemonPort),
+  },
+});
+let isoNextOut = "";
+isoNext.stdout.on("data", (d) => { isoNextOut += d; });
+isoNext.stderr.on("data", (d) => { isoNextOut += d; });
+if (await pollHealth(`http://127.0.0.1:${isoAppPort}/api/health`, 60_000) !== 200) {
+  fail(`isolated Next server failed to boot: ${isoNextOut.slice(-2000)}`);
+}
+// Seed fixtures inside the isolated cabinet root.
+const ISO_CABINET = path.join(ISO_DATA, "Cabinet");
+for (const [extension, content] of Object.entries({
+  html: "<p>Bundle isolated smoke</p>",
+  ipynb: JSON.stringify({ nbformat: 4, nbformat_minor: 5, metadata: {}, cells: [] }),
+  tex: "\\documentclass{article}\\begin{document}Smoke\\end{document}",
+  typ: "= Bundle isolated smoke",
+})) {
+  fs.writeFileSync(path.join(ISO_CABINET, `smoke.${extension}`), content);
+}
+fs.writeFileSync(path.join(ISO_CABINET, "smoke.pdf"), await makePdfBytes("Bundle isolated smoke"));
+for (const extension of ["html", "ipynb", "tex", "typ", "pdf", "docx"]) {
+  const route = `http://127.0.0.1:${isoAppPort}/room/Cabinet/smoke.${extension}`;
+  const response = await fetch(route, { signal: AbortSignal.timeout(15_000) });
+  if (response.status !== 200) {
+    fail(`isolated viewer ${extension} returned ${response.status}: ${isoNextOut.slice(-2000)}`);
+  }
+}
+ok("isolated HTML, notebook, LaTeX, Typst, PDF and DOCX viewer routes → 200");
+for (const extension of ["html", "ipynb", "tex", "typ", "pdf"]) {
+  const response = await fetch(`http://127.0.0.1:${isoAppPort}/api/assets/smoke.${extension}`);
+  if (response.status !== 200) fail(`isolated ${extension} asset returned ${response.status}`);
+}
+const pdfOpen = await fetch(`http://127.0.0.1:${isoAppPort}/api/documents/open`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ virtualPath: "smoke.pdf" }),
+});
+if (pdfOpen.status !== 200) fail(`isolated PDF open returned ${pdfOpen.status}: ${await pdfOpen.text()}`);
+ok("isolated HTML, notebook, LaTeX, Typst and PDF assets + PDF editor open → 200");
+
 function docTool(args, label) {
   const r = spawnSync(
     isoNode,
@@ -356,13 +426,6 @@ function docTool(args, label) {
   }
   return parsed;
 }
-
-// Seed fixtures inside the isolated cabinet root.
-const ISO_CABINET = path.join(ISO_DATA, "Cabinet");
-fs.writeFileSync(
-  path.join(ISO_CABINET, "smoke.pdf"),
-  await makePdfBytes("Bundle isolated smoke")
-);
 
 step("documents: pdf inspect + patch (pdfium + harfbuzz wasm)...");
 const pdfInspect = docTool(["inspect", "--path", "smoke.pdf"], "inspect");
@@ -429,6 +492,15 @@ if (conv?.pageCount < 1 || !fs.existsSync(path.join(ISO_CABINET, "smoke.docx")))
   fail(`convert produced no docx: ${JSON.stringify(conv).slice(0, 300)}`);
 }
 ok("convert --wait produced a docx");
+const docxOpen = await fetch(`http://127.0.0.1:${isoAppPort}/api/documents/open`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ virtualPath: "smoke.docx" }),
+});
+if (docxOpen.status !== 200) fail(`isolated DOCX open returned ${docxOpen.status}: ${await docxOpen.text()}`);
+const docxAsset = await fetch(`http://127.0.0.1:${isoAppPort}/api/assets/smoke.docx`);
+if (docxAsset.status !== 200) fail(`isolated DOCX asset returned ${docxAsset.status}`);
+ok("isolated DOCX editor open and asset → 200");
 
 step("documents: pdfcn render (takumi wasm + staged fonts)...");
 docTool(["pdf-new", "--path", "comp.pdf.source.json", "--template", "report"], "pdf-new");

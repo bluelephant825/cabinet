@@ -1,6 +1,7 @@
 import { build as bundle } from "esbuild";
 import { existsSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createRequire, isBuiltin } from "node:module";
 import fs from "fs/promises";
 import path from "path";
 
@@ -155,6 +156,40 @@ async function copyFileIfExists(fromPath, toPath) {
 async function copyFile(fromPath, toPath) {
   await fs.mkdir(path.dirname(toPath), { recursive: true });
   await fs.copyFile(fromPath, toPath);
+}
+
+async function stageJsdomDependencies() {
+  const sourceModules = path.join(projectRoot, "node_modules");
+  const visited = new Set();
+  async function stage(packageDir) {
+    if (visited.has(packageDir)) return;
+    visited.add(packageDir);
+    const relative = path.relative(sourceModules, packageDir);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error(`jsdom dependency outside node_modules: ${packageDir}`);
+    }
+    const manifestPath = path.join(packageDir, "package.json");
+    const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+    await copyDirectory(packageDir, path.join(standaloneNodeModulesDir, relative));
+    const resolve = createRequire(manifestPath);
+    for (const name of Object.keys(manifest.dependencies ?? {})) {
+      if (isBuiltin(name)) continue;
+      let dir = path.dirname(resolve.resolve(name));
+      while (dir !== sourceModules && dir !== path.dirname(dir)) {
+        const candidate = path.join(dir, "package.json");
+        if (await pathExists(candidate)) {
+          const dependency = JSON.parse(await fs.readFile(candidate, "utf8"));
+          if (dependency.name === name) break;
+        }
+        dir = path.dirname(dir);
+      }
+      if (dir === sourceModules || dir === path.dirname(dir)) {
+        throw new Error(`Cannot locate jsdom dependency ${name}`);
+      }
+      await stage(dir);
+    }
+  }
+  await stage(path.join(sourceModules, "jsdom"));
 }
 
 async function bundleDaemon() {
@@ -402,6 +437,7 @@ async function main() {
   await copyDirectory(path.join(projectRoot, "public"), path.join(standaloneDir, "public"));
   await copyDirectory(path.join(nextDir, "static"), path.join(standaloneDir, ".next", "static"));
   await stageDaemonRuntime();
+  await stageJsdomDependencies();
   await stageBundledNodeRuntime();
   await stageSeedContent();
 }
