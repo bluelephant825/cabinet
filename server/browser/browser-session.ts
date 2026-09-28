@@ -55,6 +55,7 @@ function isInternalTarget(info: TargetInfo): boolean {
 export class BrowserSession extends EventEmitter {
   private readonly targets = new Map<string, TargetInfo>();
   private readonly sessions = new Map<string, string>(); // targetId -> sessionId
+  private readonly fitWidthTargets = new Set<string>();
   private activeTargetId: string | null = null;
   private persistTimer: NodeJS.Timeout | null = null;
   private started = false;
@@ -88,6 +89,7 @@ export class BrowserSession extends EventEmitter {
       const tab = this.toTab(this.targets.get(targetId));
       this.targets.delete(targetId);
       this.sessions.delete(targetId);
+      this.fitWidthTargets.delete(targetId);
       if (this.activeTargetId === targetId) this.activeTargetId = null;
       if (tab) this.emit("tab-closed", tab);
       this.schedulePersist();
@@ -431,6 +433,60 @@ export class BrowserSession extends EventEmitter {
       text: value.text ?? "",
       ...(opts.html && typeof value.html === "string" ? { html: value.html } : {}),
     };
+  }
+
+  /**
+   * Shrinks the page to fit the tab's viewport when its content is wider —
+   * the same mechanism mobile browsers use for desktop pages: a device
+   * metrics override sized to the content plus a page scale factor.
+   * Idempotent and self-correcting: an already-emulated tab is reset and
+   * re-measured at natural metrics, so resizes/navigation converge instead
+   * of compounding.
+   */
+  async fitWidth(id: string): Promise<{ ok: true; applied: boolean }> {
+    this.requireTarget(id);
+    const sessionId = await this.sessionFor(id);
+    if (this.fitWidthTargets.has(id)) {
+      await this.cdp
+        .send("Emulation.clearDeviceMetricsOverride", {}, sessionId)
+        .catch(() => {});
+      this.fitWidthTargets.delete(id);
+      // Layout metrics lag the reflow triggered by clearing the override;
+      // wait a frame before measuring or we'd read the emulated values.
+      await this.evaluate(
+        id,
+        "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+      ).catch(() => {});
+    }
+    const metrics = (await this.cdp.send("Page.getLayoutMetrics", {}, sessionId)) as
+      | {
+          cssLayoutViewport?: { clientWidth?: number; clientHeight?: number };
+          cssContentSize?: { width?: number };
+        }
+      | undefined;
+    const viewportW = metrics?.cssLayoutViewport?.clientWidth ?? 0;
+    const viewportH = metrics?.cssLayoutViewport?.clientHeight ?? 0;
+    const contentW = metrics?.cssContentSize?.width ?? 0;
+    // Ignore sub-pixel overflow (scrollbar/rounding noise).
+    if (viewportW <= 0 || viewportH <= 0 || contentW <= viewportW + 2) {
+      return { ok: true, applied: false };
+    }
+    // Clamp to Chromium's minimum page scale; below that horizontal scroll
+    // is more usable than unreadably small content anyway.
+    const scale = Math.max(viewportW / contentW, 0.25);
+    await this.cdp.send(
+      "Emulation.setDeviceMetricsOverride",
+      {
+        width: Math.ceil(contentW),
+        height: Math.ceil(viewportH / scale),
+        deviceScaleFactor: 0, // 0 = keep the display's real DPR
+        mobile: false,
+        scale,
+      },
+      sessionId,
+    );
+    this.fitWidthTargets.add(id);
+    return { ok: true, applied: true };
   }
 
   async screenshot(

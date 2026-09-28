@@ -43,6 +43,7 @@ import {
   activateTab as activateSidecarTabRequest,
   backTab as backSidecarTab,
   closeTab as closeSidecarTab,
+  fitWidthTab as fitWidthSidecarTab,
   focusWindow as focusSidecarWindow,
   forwardTab as forwardSidecarTab,
   getStatus as getSidecarStatus,
@@ -714,6 +715,7 @@ export function BrowserView() {
   const sidecarParkTimerRef = useRef<number | null>(null);
   const windowGeometryRef = useRef<HostWindowGeometry | null>(null);
   const boundsThrottleRef = useRef<number | null>(null);
+  const fitWidthTimersRef = useRef<number[]>([]);
   const boundsTrailingRef = useRef(false);
   const isDialogOpenRef = useRef(false);
   sidecarStatusRef.current = sidecarStatus;
@@ -1625,6 +1627,37 @@ export function BrowserView() {
       .catch(() => {});
   }, []);
 
+  // Ask the daemon to scale the active sidecar page to its viewport when the
+  // content is wider (fit-width emulation). Two passes: late-loading
+  // resources can still widen the page after the first check.
+  const scheduleFitWidthCheck = useCallback(() => {
+    for (const timer of fitWidthTimersRef.current) window.clearTimeout(timer);
+    const run = () => {
+      if (sidecarStatusRef.current?.status !== "running") return;
+      const active = sidecarTabsRef.current.find((tab) => tab.active);
+      if (active) void fitWidthSidecarTab(active.id).catch(() => {});
+    };
+    fitWidthTimersRef.current = [
+      window.setTimeout(run, 350),
+      window.setTimeout(run, 1400),
+    ];
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      for (const timer of fitWidthTimersRef.current) window.clearTimeout(timer);
+      fitWidthTimersRef.current = [];
+    };
+  }, []);
+
+  // Tab-list changes cover navigation, activation and new tabs; a resize of
+  // the content area is handled where the new bounds are sent.
+  useEffect(() => {
+    if (activeEngine !== "sidecar") return;
+    if (!sidecarTabs.some((tab) => tab.active)) return;
+    scheduleFitWidthCheck();
+  }, [sidecarTabs, activeEngine, scheduleFitWidthCheck]);
+
   const syncActiveSidecarTab = (tabUrl: string) => {
     if (activeEngineRef.current !== "sidecar") return;
     const normalized = normalizeSessionUrl(tabUrl);
@@ -2035,6 +2068,8 @@ export function BrowserView() {
         if (json === lastBoundsJson) return;
         lastBoundsJson = json;
         void host.layout.setContentBounds(payload).catch(() => {});
+        // The tab's viewport just changed — re-evaluate fit-width scaling.
+        scheduleFitWidthCheck();
       };
 
       const scheduleSendBounds = () => {
@@ -2179,7 +2214,7 @@ export function BrowserView() {
       }
       boundsTrailingRef.current = false;
     };
-  }, [activeEngine, sidecarStatus?.status]);
+  }, [activeEngine, sidecarStatus?.status, scheduleFitWidthCheck]);
 
   const focusSidecar = () => {
     if (isChromiumHost) {

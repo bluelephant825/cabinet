@@ -41,6 +41,7 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade & {
     evaluateTab: async () => 42,
     extractTab: async () => ({ url: "https://example.com", title: "Example", text: "hi" }),
     screenshotTab: async () => Buffer.from([0x89, 0x50]),
+    fitWidthTab: async () => ({ ok: true, applied: false }),
     listExtensions: async () => [],
     installExtension: async (id) =>
       ({

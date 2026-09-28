@@ -111,6 +111,10 @@ export const forwardTab = (id: string) =>
   post<{ ok: boolean; skipped?: boolean }>(`tabs/${encodeURIComponent(id)}/forward`);
 export const reloadTab = (id: string) =>
   post<{ ok: boolean }>(`tabs/${encodeURIComponent(id)}/reload`);
+/** Ask the daemon to scale the tab's page to fit the viewport when its
+ * content is wider (or clear such an override once it fits again). */
+export const fitWidthTab = (id: string) =>
+  post<{ ok: boolean; applied: boolean }>(`tabs/${encodeURIComponent(id)}/fit-width`);
 
 export const setWindowBounds = (bounds: SidecarWindowBounds) =>
   post<{ ok: boolean }>("window/bounds", bounds);

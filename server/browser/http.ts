@@ -49,6 +49,7 @@ export type BrowserFacade = {
   evaluateTab(id: string, expression: string): Promise<unknown>;
   extractTab(id: string, opts: { html?: boolean }): Promise<unknown>;
   screenshotTab(id: string): Promise<Buffer>;
+  fitWidthTab(id: string): Promise<{ ok: boolean; applied: boolean }>;
   listExtensions(): Promise<BrowserExtensionRecord[]>;
   installExtension(idOrUrl: string): Promise<BrowserExtensionRecord>;
   loadUnpackedExtension(dirPath: string): Promise<BrowserExtensionRecord>;
@@ -255,6 +256,11 @@ export async function handleBrowserRequest(
           const png = await browser.screenshotTab(tabId);
           res.writeHead(200, { "content-type": "image/png" });
           res.end(png);
+          return true;
+        }
+        case "fit-width": {
+          await browser.ensureRunning();
+          sendJson(res, 200, await browser.fitWidthTab(tabId));
           return true;
         }
         default:

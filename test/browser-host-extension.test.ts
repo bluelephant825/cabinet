@@ -340,6 +340,7 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade {
     evaluateTab: async () => 42,
     extractTab: async () => ({}),
     screenshotTab: async () => Buffer.from([0x89]),
+    fitWidthTab: async () => ({ ok: true, applied: false }),
     listExtensions: async () => [],
     installExtension: async () => {
       throw new BrowserError("invalid", "nope");
