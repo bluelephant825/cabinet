@@ -473,11 +473,13 @@ export class BrowserSession extends EventEmitter {
     }
     // Clamp to Chromium's minimum page scale; below that horizontal scroll
     // is more usable than unreadably small content anyway.
-    const scale = Math.max(viewportW / contentW, 0.25);
+    const scrollbarWidth = await this.evaluate(id, "window.innerWidth - document.documentElement.clientWidth").catch(() => 0);
+    const pageWidth = contentW + (typeof scrollbarWidth === "number" && Number.isFinite(scrollbarWidth) ? Math.max(0, Math.min(scrollbarWidth, 32)) : 0);
+    const scale = Math.max(viewportW / pageWidth, 0.25);
     await this.cdp.send(
       "Emulation.setDeviceMetricsOverride",
       {
-        width: Math.ceil(contentW),
+        width: Math.ceil(pageWidth),
         height: Math.ceil(viewportH / scale),
         deviceScaleFactor: 0, // 0 = keep the display's real DPR
         mobile: false,

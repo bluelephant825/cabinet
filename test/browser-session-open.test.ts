@@ -19,7 +19,7 @@ type FakeCdp = CDPClient & {
   targets: Record<string, unknown>[];
 };
 
-function fakeCdp(metrics?: { viewportWidth: number; viewportHeight: number; contentWidth: number }): FakeCdp {
+function fakeCdp(metrics?: { viewportWidth: number; viewportHeight: number; contentWidth: number; scrollbarWidth?: number }): FakeCdp {
   const calls: CdpCall[] = [];
   const handlers = new Map<string, (event: CdpEventMessage) => void>();
   const targets: Record<string, unknown>[] = [];
@@ -47,6 +47,9 @@ function fakeCdp(metrics?: { viewportWidth: number; viewportHeight: number; cont
           cssLayoutViewport: { clientWidth: metrics.viewportWidth, clientHeight: metrics.viewportHeight },
           cssContentSize: { width: metrics.contentWidth },
         };
+      }
+      if (method === "Runtime.evaluate" && params?.expression === "window.innerWidth - document.documentElement.clientWidth") {
+        return { result: { value: metrics?.scrollbarWidth ?? 0 } };
       }
       return {};
     },
@@ -118,7 +121,7 @@ test("open() with no tracked targets opens a fresh window", async () => {
 
 test("fitWidth() scales overflowing content without resizing the native tab view", async () => {
   tmpUserData();
-  const metrics = { viewportWidth: 1074, viewportHeight: 698, contentWidth: 1249 };
+  const metrics = { viewportWidth: 1074, viewportHeight: 698, contentWidth: 1249, scrollbarWidth: 15 };
   const cdp = fakeCdp(metrics);
   const session = new BrowserSession(cdp);
   await session.start();
@@ -127,11 +130,11 @@ test("fitWidth() scales overflowing content without resizing the native tab view
   assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: true });
   const override = cdp.calls.find((call) => call.method === "Emulation.setDeviceMetricsOverride");
   assert.deepEqual(override?.params, {
-    width: 1249,
-    height: Math.ceil(698 / (1074 / 1249)),
+    width: 1264,
+    height: Math.ceil(698 / (1074 / 1264)),
     deviceScaleFactor: 0,
     mobile: false,
-    scale: 1074 / 1249,
+    scale: 1074 / 1264,
     dontSetVisibleSize: true,
   });
   assert.equal(override?.sessionId, "sess-t-page");
@@ -140,6 +143,13 @@ test("fitWidth() scales overflowing content without resizing the native tab view
   assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: false });
   assert.equal(cdp.calls.filter((call) => call.method === "Emulation.clearDeviceMetricsOverride").length, 1);
   assert.equal(cdp.calls.filter((call) => call.method === "Emulation.setDeviceMetricsOverride").length, 1);
+
+  metrics.contentWidth = 1249;
+  metrics.scrollbarWidth = 0;
+  assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: true });
+  const withoutScrollbar = cdp.calls.filter((call) => call.method === "Emulation.setDeviceMetricsOverride")[1];
+  assert.equal(withoutScrollbar.params?.width, 1249);
+  assert.equal(withoutScrollbar.params?.scale, 1074 / 1249);
 });
 
 test("closeExtensionPages() closes chrome-extension pages only", async () => {
