@@ -152,6 +152,11 @@ export function buildChromiumArgs(input: BuildArgsInput): string[] {
     "--disable-features=Translate,MediaRouter",
     "--disable-sync",
     "--disable-background-networking",
+    // --remote-debugging-pipe unconditionally enables the AutomationControlled
+    // runtime feature → navigator.webdriver === true on every page, which is
+    // Cloudflare's primary bot signal (Wikiwand and others hard-block us).
+    // Force the feature back off; CDP transport does not depend on it.
+    "--disable-blink-features=AutomationControlled",
     `--window-size=${width},${height}`,
   ];
   // Dev escape hatch: CABINET_BROWSER_DEBUG_PORT adds a TCP debugging

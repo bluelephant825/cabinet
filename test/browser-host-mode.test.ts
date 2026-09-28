@@ -252,3 +252,20 @@ test("no --cabinet-ui-url and hostMode:false without the env or config", () => {
     restore();
   }
 });
+
+test("launch args suppress the AutomationControlled webdriver flag", () => {
+  // --remote-debugging-pipe unconditionally maps to the AutomationControlled
+  // runtime feature (content/renderer runtime_features), so every page exposes
+  // navigator.webdriver === true and Cloudflare-class bot checks hard-block the
+  // browser. The explicit --disable-blink-features override must stay present.
+  const args = buildChromiumArgs({
+    profileDir: "/tmp/cabinet-profile",
+    persisted: {},
+    initialUrl: null,
+    hostMode: false,
+  });
+  assert.ok(
+    args.includes("--disable-blink-features=AutomationControlled"),
+    "AutomationControlled must be force-disabled so navigator.webdriver stays false",
+  );
+});
