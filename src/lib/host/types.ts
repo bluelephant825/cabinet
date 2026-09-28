@@ -45,11 +45,19 @@ export type HostRect = { x: number; y: number; width: number; height: number };
  *  squared clip edges; hit-testing stays rect-based. */
 export type HostExclusion = HostRect & { radius?: number };
 
+/** Per-corner radii (CSS px) rounding the overlay's outer shape to match the
+ *  shell pane's border-radius. Only corners that coincide with a rounded
+ *  shell corner are set — interior edges stay square. */
+export type HostCornerRadii = { tl?: number; tr?: number; br?: number; bl?: number };
+
 /** Bounds for the in-window tab overlay. `exclude` lists viewport CSS-px
  *  rects covered by shell-drawn floating UI: the host clips those pixels out
  *  of the overlay and routes their input to the shell instead of hiding the
  *  page. Hosts that don't support holes ignore the field. */
-export type HostContentBounds = HostRect & { exclude?: HostExclusion[] };
+export type HostContentBounds = HostRect & {
+  exclude?: HostExclusion[];
+  corners?: HostCornerRadii;
+};
 export type HostTab = {
   id: string;
   targetId: string;

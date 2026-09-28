@@ -2036,6 +2036,31 @@ export function BrowserView() {
         return exclude;
       };
 
+      // The overlay is a square native view; round its outer corners where
+      // the pane's rect shares a corner with the rounded container so the
+      // page doesn't paint square pixels over the shell's corner cutout.
+      const cornerRadii = (rect: DOMRect): HostContentBounds["corners"] => {
+        const container = containerRef.current;
+        if (!container) return undefined;
+        const crect = container.getBoundingClientRect();
+        const cs = getComputedStyle(container);
+        const near = (a: number, b: number) => Math.abs(a - b) <= 1.5;
+        const corners: NonNullable<HostContentBounds["corners"]> = {};
+        if (near(rect.left, crect.left) && near(rect.top, crect.top)) {
+          corners.tl = parseFloat(cs.borderTopLeftRadius) || 0;
+        }
+        if (near(rect.right, crect.right) && near(rect.top, crect.top)) {
+          corners.tr = parseFloat(cs.borderTopRightRadius) || 0;
+        }
+        if (near(rect.right, crect.right) && near(rect.bottom, crect.bottom)) {
+          corners.br = parseFloat(cs.borderBottomRightRadius) || 0;
+        }
+        if (near(rect.left, crect.left) && near(rect.bottom, crect.bottom)) {
+          corners.bl = parseFloat(cs.borderBottomLeftRadius) || 0;
+        }
+        return Object.values(corners).some((r) => r > 0) ? corners : undefined;
+      };
+
       let lastBoundsJson = "";
       const sendBounds = () => {
         if (sidecarStatusRef.current?.status !== "running") return;
@@ -2044,6 +2069,7 @@ export function BrowserView() {
         const rect = pane.getBoundingClientRect();
         if (rect.width < 8 || rect.height < 8) return;
         const excluded = collectExclusions(pane, rect);
+        const corners = cornerRadii(rect);
         let payload: HostContentBounds | null;
         if (excluded === null) {
           payload = null;
@@ -2061,6 +2087,7 @@ export function BrowserView() {
                   y: Math.round(rect.top),
                   width: Math.round(rect.width),
                   height: Math.round(rect.height),
+                  ...(corners ? { corners } : {}),
                   ...(excluded.length ? { exclude: excluded } : {}),
                 };
         }

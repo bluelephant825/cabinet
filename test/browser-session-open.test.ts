@@ -20,7 +20,13 @@ type FakeCdp = CDPClient & {
   targets: Record<string, unknown>[];
 };
 
-function fakeCdp(metrics?: { viewportWidth: number; viewportHeight: number; contentWidth: number; scrollbarWidth?: number }): FakeCdp {
+function fakeCdp(metrics?: {
+  viewportWidth: number;
+  viewportHeight: number;
+  contentWidth: number;
+  innerWidth?: number;
+  innerHeight?: number;
+}): FakeCdp {
   const calls: CdpCall[] = [];
   const handlers = new Map<string, (event: CdpEventMessage) => void>();
   const targets: Record<string, unknown>[] = [];
@@ -49,8 +55,19 @@ function fakeCdp(metrics?: { viewportWidth: number; viewportHeight: number; cont
           cssContentSize: { width: metrics.contentWidth },
         };
       }
-      if (method === "Runtime.evaluate" && params?.expression === "window.innerWidth - document.documentElement.clientWidth") {
-        return { result: { value: metrics?.scrollbarWidth ?? 0 } };
+      if (method === "Runtime.evaluate" && String(params?.expression ?? "").includes("window.innerWidth")) {
+        return {
+          result: {
+            value: metrics
+              ? {
+                  iw: metrics.innerWidth ?? metrics.viewportWidth,
+                  ih: metrics.innerHeight ?? metrics.viewportHeight,
+                  cw: metrics.viewportWidth,
+                  ch: metrics.viewportHeight,
+                }
+              : null,
+          },
+        };
       }
       return {};
     },
@@ -126,9 +143,12 @@ test("open() with no tracked targets opens a fresh window", async () => {
   assert.equal(create!.params?.newWindow, true);
 });
 
-test("fitWidth() scales overflowing content without resizing the native tab view", async () => {
+test("fitWidth() scales overflowing content to the full viewport without resizing the native tab view", async () => {
   tmpUserData();
-  const metrics = { viewportWidth: 1074, viewportHeight: 698, contentWidth: 1249, scrollbarWidth: 15 };
+  // Slim-scrollbar style is injected before measuring: the styled 5px
+  // vertical bar leaves clientWidth = innerWidth - 5, and the hidden
+  // horizontal bar leaves clientHeight = innerHeight.
+  const metrics = { viewportWidth: 1069, viewportHeight: 698, innerWidth: 1074, innerHeight: 698, contentWidth: 1249 };
   const cdp = fakeCdp(metrics);
   const session = new BrowserSession(cdp);
   await session.start();
@@ -136,29 +156,33 @@ test("fitWidth() scales overflowing content without resizing the native tab view
 
   assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: true });
   const override = cdp.calls.find((call) => call.method === "Emulation.setDeviceMetricsOverride");
+  // Emulated width covers content + scrollbar; scale spans the FULL
+  // viewport (innerWidth) so the painted frame reaches the view's right
+  // and bottom edges rather than leaving unpainted strips.
   assert.deepEqual(override?.params, {
-    width: 1264,
-    height: Math.ceil(698 / (1074 / 1264)),
+    width: 1254,
+    height: Math.ceil(698 / (1074 / 1254)),
     deviceScaleFactor: 0,
     mobile: false,
-    scale: 1074 / 1264,
+    scale: 1074 / 1254,
     dontSetVisibleSize: true,
   });
   assert.equal(override?.sessionId, "sess-t-page");
   assert.ok(cdp.calls.some((call) => call.method === "Runtime.evaluate" && String(call.params?.expression).includes("html::-webkit-scrollbar{width:5px")));
 
-  metrics.contentWidth = 1074;
+  metrics.contentWidth = 1060;
   assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: false });
   assert.equal(cdp.calls.filter((call) => call.method === "Emulation.clearDeviceMetricsOverride").length, 1);
   assert.equal(cdp.calls.filter((call) => call.method === "Emulation.setDeviceMetricsOverride").length, 1);
   assert.ok(cdp.calls.some((call) => call.method === "Runtime.evaluate" && String(call.params?.expression).includes('getElementById("cabinet-fit-width-scrollbar")?.remove()')));
 
+  // No vertical scrollbar at measure time: no width reserve.
   metrics.contentWidth = 1249;
-  metrics.scrollbarWidth = 0;
+  metrics.innerWidth = metrics.viewportWidth;
   assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: true });
   const withoutScrollbar = cdp.calls.filter((call) => call.method === "Emulation.setDeviceMetricsOverride")[1];
   assert.equal(withoutScrollbar.params?.width, 1249);
-  assert.equal(withoutScrollbar.params?.scale, 1074 / 1249);
+  assert.equal(withoutScrollbar.params?.scale, 1069 / 1249);
 });
 
 test("close() notifies listeners even when the targetDestroyed event arrives later", async () => {

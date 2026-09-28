@@ -451,12 +451,15 @@ export class BrowserSession extends EventEmitter {
   async fitWidth(id: string): Promise<{ ok: true; applied: boolean }> {
     this.requireTarget(id);
     const sessionId = await this.sessionFor(id);
+    const styleId = JSON.stringify(FIT_WIDTH_STYLE_ID);
+    const removeStyle = () =>
+      this.evaluate(id, `document.getElementById(${styleId})?.remove()`).catch(() => {});
     if (this.fitWidthTargets.has(id)) {
       await this.cdp
         .send("Emulation.clearDeviceMetricsOverride", {}, sessionId)
         .catch(() => {});
       this.fitWidthTargets.delete(id);
-      await this.evaluate(id, `document.getElementById(${JSON.stringify(FIT_WIDTH_STYLE_ID)})?.remove()`).catch(() => {});
+      await removeStyle();
       // Layout metrics lag the reflow triggered by clearing the override;
       // wait a frame before measuring or we'd read the emulated values.
       await this.evaluate(
@@ -464,29 +467,47 @@ export class BrowserSession extends EventEmitter {
         "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
       ).catch(() => {});
     }
+    // Apply the slim-scrollbar style before measuring so the layout metrics
+    // match the scrollbars the page will actually render under emulation.
+    await this.evaluate(id, `(() => { if (document.getElementById(${styleId})) return; const style = document.createElement("style"); style.id = ${styleId}; style.textContent = ${JSON.stringify(FIT_WIDTH_STYLE)}; (document.head || document.documentElement).appendChild(style); })()`).catch(() => {});
+    // innerWidth/innerHeight span the whole viewport including scrollbars;
+    // clientWidth/clientHeight do not. The painted frame must cover the full
+    // view or the gap shows as unpainted (white) strips along the edges.
+    const dims = (await this.evaluate(
+      id,
+      "({ iw: window.innerWidth, ih: window.innerHeight, cw: document.documentElement.clientWidth, ch: document.documentElement.clientHeight })",
+    ).catch(() => null)) as
+      | { iw?: number; ih?: number; cw?: number; ch?: number }
+      | null;
     const metrics = (await this.cdp.send("Page.getLayoutMetrics", {}, sessionId)) as
       | {
           cssLayoutViewport?: { clientWidth?: number; clientHeight?: number };
           cssContentSize?: { width?: number };
         }
       | undefined;
-    const viewportW = metrics?.cssLayoutViewport?.clientWidth ?? 0;
-    const viewportH = metrics?.cssLayoutViewport?.clientHeight ?? 0;
+    const viewportW = metrics?.cssLayoutViewport?.clientWidth ?? dims?.cw ?? 0;
+    const viewportH = metrics?.cssLayoutViewport?.clientHeight ?? dims?.ch ?? 0;
+    const fullW = dims?.iw ?? viewportW;
+    const fullH = dims?.ih ?? viewportH;
     const contentW = metrics?.cssContentSize?.width ?? 0;
     // Ignore sub-pixel overflow (scrollbar/rounding noise).
     if (viewportW <= 0 || viewportH <= 0 || contentW <= viewportW + 2) {
+      await removeStyle();
       return { ok: true, applied: false };
     }
+    // Reserve the scrollbar's share of the page width (the styled 5px when
+    // the injection took, otherwise the native width) so the scrollbar stays
+    // flush with the view's right edge instead of floating on dead space.
+    const scrollbarW = Math.max(0, Math.min(fullW - viewportW, 32));
+    const pageWidth = contentW + scrollbarW;
     // Clamp to Chromium's minimum page scale; below that horizontal scroll
     // is more usable than unreadably small content anyway.
-    const scrollbarWidth = await this.evaluate(id, "window.innerWidth - document.documentElement.clientWidth").catch(() => 0);
-    const pageWidth = contentW + (typeof scrollbarWidth === "number" && Number.isFinite(scrollbarWidth) ? Math.max(0, Math.min(scrollbarWidth, 32)) : 0);
-    const scale = Math.max(viewportW / pageWidth, 0.25);
+    const scale = Math.max(fullW / pageWidth, 0.25);
     await this.cdp.send(
       "Emulation.setDeviceMetricsOverride",
       {
         width: Math.ceil(pageWidth),
-        height: Math.ceil(viewportH / scale),
+        height: Math.ceil(fullH / scale),
         deviceScaleFactor: 0, // 0 = keep the display's real DPR
         mobile: false,
         scale,
@@ -495,7 +516,6 @@ export class BrowserSession extends EventEmitter {
       sessionId,
     );
     this.fitWidthTargets.add(id);
-    await this.evaluate(id, `(() => { const style = document.createElement("style"); style.id = ${JSON.stringify(FIT_WIDTH_STYLE_ID)}; style.textContent = ${JSON.stringify(FIT_WIDTH_STYLE)}; (document.head || document.documentElement).appendChild(style); })()`).catch(() => {});
     return { ok: true, applied: true };
   }
 
