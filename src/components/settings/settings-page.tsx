@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   ShieldAlert,
   Plug,
+  ToyBrick,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -948,12 +949,11 @@ export function SettingsPage() {
         {
           id: "integrations-hub" as Tab,
           label: t("settings:tabs.integrations"),
-          icon: <Blocks className="h-3.5 w-3.5" />,
+          icon: <ToyBrick className="h-3.5 w-3.5" />,
           onSelect: () => useAppStore.getState().setSection({ type: "integrations" }),
         },
         { id: "skills", label: t("settings:tabs.skills"), icon: <Asterisk className="h-3.5 w-3.5" /> },
         { id: "storage", label: t("settings:tabs.storage"), icon: <HardDrive className="h-3.5 w-3.5" /> },
-        { id: "integrations", label: t("settings:tabs.integrations"), icon: <Plug className="h-3.5 w-3.5" /> },
         { id: "extensions", label: "Extensions", icon: <Blocks className="h-3.5 w-3.5" /> },
       ],
     },
