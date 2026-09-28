@@ -22,6 +22,8 @@ import { browserStatePath } from "./paths";
 import { WEBSTORE_HOOK_SCRIPT } from "./webstore-hook";
 
 const EXTRACT_TEXT_CAP = 500 * 1024;
+const FIT_WIDTH_STYLE_ID = "cabinet-fit-width-scrollbar";
+const FIT_WIDTH_STYLE = "html::-webkit-scrollbar{width:5px!important;height:0!important;background:transparent!important}html::-webkit-scrollbar-thumb{background:rgba(0,0,0,.35)!important}";
 
 export type BrowserSessionOptions = {
   /** Called when the web-store hook binding fires; returns a status label. */
@@ -85,14 +87,7 @@ export class BrowserSession extends EventEmitter {
     });
     this.cdp.onEvent("Target.targetDestroyed", (event) => {
       const targetId = event.params?.targetId as string | undefined;
-      if (!targetId) return;
-      const tab = this.toTab(this.targets.get(targetId));
-      this.targets.delete(targetId);
-      this.sessions.delete(targetId);
-      this.fitWidthTargets.delete(targetId);
-      if (this.activeTargetId === targetId) this.activeTargetId = null;
-      if (tab) this.emit("tab-closed", tab);
-      this.schedulePersist();
+      if (targetId) this.removeTarget(targetId);
     });
     this.cdp.onEvent("Target.attachedToTarget", (event) => {
       const sessionId = event.params?.sessionId as string | undefined;
@@ -151,6 +146,18 @@ export class BrowserSession extends EventEmitter {
     });
 
     this.startBoundsTracking();
+  }
+
+  private removeTarget(targetId: string): void {
+    const info = this.targets.get(targetId);
+    if (!info) return;
+    const tab = this.toTab(info);
+    this.targets.delete(targetId);
+    this.sessions.delete(targetId);
+    this.fitWidthTargets.delete(targetId);
+    if (this.activeTargetId === targetId) this.activeTargetId = null;
+    if (tab) this.emit("tab-closed", tab);
+    this.schedulePersist();
   }
 
   private emitTab(kind: "tab-created" | "tab-updated", targetId: string): void {
@@ -324,8 +331,7 @@ export class BrowserSession extends EventEmitter {
   async close(id: string): Promise<{ ok: true }> {
     this.requireTarget(id);
     await this.cdp.send("Target.closeTarget", { targetId: id });
-    this.targets.delete(id);
-    this.sessions.delete(id);
+    this.removeTarget(id);
     return { ok: true };
   }
 
@@ -345,8 +351,7 @@ export class BrowserSession extends EventEmitter {
       if (!String(info.url ?? "").startsWith("chrome-extension:")) continue;
       try {
         await this.cdp.send("Target.closeTarget", { targetId: info.targetId });
-        this.targets.delete(info.targetId);
-        this.sessions.delete(info.targetId);
+        this.removeTarget(info.targetId);
         closed += 1;
       } catch {}
     }
@@ -451,6 +456,7 @@ export class BrowserSession extends EventEmitter {
         .send("Emulation.clearDeviceMetricsOverride", {}, sessionId)
         .catch(() => {});
       this.fitWidthTargets.delete(id);
+      await this.evaluate(id, `document.getElementById(${JSON.stringify(FIT_WIDTH_STYLE_ID)})?.remove()`).catch(() => {});
       // Layout metrics lag the reflow triggered by clearing the override;
       // wait a frame before measuring or we'd read the emulated values.
       await this.evaluate(
@@ -489,6 +495,7 @@ export class BrowserSession extends EventEmitter {
       sessionId,
     );
     this.fitWidthTargets.add(id);
+    await this.evaluate(id, `(() => { const style = document.createElement("style"); style.id = ${JSON.stringify(FIT_WIDTH_STYLE_ID)}; style.textContent = ${JSON.stringify(FIT_WIDTH_STYLE)}; (document.head || document.documentElement).appendChild(style); })()`).catch(() => {});
     return { ok: true, applied: true };
   }
 

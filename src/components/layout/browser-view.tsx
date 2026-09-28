@@ -2947,7 +2947,7 @@ export function BrowserView() {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        void closeSidecarTab(tab.id).catch(() => {});
+                        void closeSidecarTab(tab.id).then(refreshSidecarTabs).catch(() => {});
                       }}
                       className="mr-1 hidden h-4 w-4 items-center justify-center rounded hover:bg-foreground/10 group-hover:inline-flex"
                       aria-label="Close tab"

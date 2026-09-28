@@ -16,6 +16,7 @@ type CdpCall = {
 type FakeCdp = CDPClient & {
   calls: CdpCall[];
   emitTarget: (targetInfo: Record<string, unknown>) => void;
+  emitTargetDestroyed: (targetId: string) => void;
   targets: Record<string, unknown>[];
 };
 
@@ -60,6 +61,12 @@ function fakeCdp(metrics?: { viewportWidth: number; viewportHeight: number; cont
       handlers.get("Target.targetCreated")?.({
         method: "Target.targetCreated",
         params: { targetInfo },
+      });
+    },
+    emitTargetDestroyed: (targetId: string) => {
+      handlers.get("Target.targetDestroyed")?.({
+        method: "Target.targetDestroyed",
+        params: { targetId },
       });
     },
   } as unknown as FakeCdp;
@@ -138,11 +145,13 @@ test("fitWidth() scales overflowing content without resizing the native tab view
     dontSetVisibleSize: true,
   });
   assert.equal(override?.sessionId, "sess-t-page");
+  assert.ok(cdp.calls.some((call) => call.method === "Runtime.evaluate" && String(call.params?.expression).includes("html::-webkit-scrollbar{width:5px")));
 
   metrics.contentWidth = 1074;
   assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: false });
   assert.equal(cdp.calls.filter((call) => call.method === "Emulation.clearDeviceMetricsOverride").length, 1);
   assert.equal(cdp.calls.filter((call) => call.method === "Emulation.setDeviceMetricsOverride").length, 1);
+  assert.ok(cdp.calls.some((call) => call.method === "Runtime.evaluate" && String(call.params?.expression).includes('getElementById("cabinet-fit-width-scrollbar")?.remove()')));
 
   metrics.contentWidth = 1249;
   metrics.scrollbarWidth = 0;
@@ -150,6 +159,22 @@ test("fitWidth() scales overflowing content without resizing the native tab view
   const withoutScrollbar = cdp.calls.filter((call) => call.method === "Emulation.setDeviceMetricsOverride")[1];
   assert.equal(withoutScrollbar.params?.width, 1249);
   assert.equal(withoutScrollbar.params?.scale, 1074 / 1249);
+});
+
+test("close() notifies listeners even when the targetDestroyed event arrives later", async () => {
+  tmpUserData();
+  const cdp = fakeCdp();
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "t-page", type: "page", url: "https://example.com/", title: "Example" });
+  const closed: string[] = [];
+  session.on("tab-closed", (tab: { id: string }) => closed.push(tab.id));
+
+  await session.close("t-page");
+  assert.deepEqual(closed, ["t-page"]);
+  cdp.emitTargetDestroyed("t-page");
+  assert.deepEqual(closed, ["t-page"]);
+  assert.deepEqual(session.listTabs(), []);
 });
 
 test("closeExtensionPages() closes chrome-extension pages only", async () => {
