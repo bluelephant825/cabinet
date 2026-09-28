@@ -13,6 +13,7 @@ import {
   Globe,
   Icon,
   Loader2,
+  PackagePlus,
   Pin,
   PinOff,
   Plus,
@@ -154,6 +155,26 @@ function toBridgeBookmarkMenuItems(nodes: BookmarkNode[]): HostBookmarkMenuItem[
 }
 
 const TAG_CLOUD_DATA_URL_PREFIX = "data:text/html;cabinet-tag-cloud=1;charset=utf-8,";
+
+// Chrome Web Store detail pages end with the extension's 32-char id; the
+// daemon installer extracts it with the same regex, so matching here keeps
+// the toolbar button visible exactly when an install would resolve.
+const CHROME_WEB_STORE_ID_RE = /[a-p]{32}/;
+
+function chromeWebStoreExtensionUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== "chromewebstore.google.com" && host !== "chrome.google.com") {
+      return null;
+    }
+    if (!parsed.pathname.includes("/detail/")) return null;
+    return CHROME_WEB_STORE_ID_RE.test(parsed.pathname) ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 function isTagCloudDataUrl(value: string | null | undefined): boolean {
   if (!value) return false;
@@ -663,6 +684,7 @@ export function BrowserView() {
   const [extensionsMenuPosition, setExtensionsMenuPosition] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   const extensionsMenuRef = useRef<HTMLDivElement | null>(null);
   const extensionsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [installingStoreExtension, setInstallingStoreExtension] = useState(false);
 
   // ----- Cabinet Browser sidecar -----
   const [sidecarStatus, setSidecarStatus] = useState<SidecarStatus | null>(null);
@@ -712,6 +734,15 @@ export function BrowserView() {
   const activeEngineRef = useRef(activeEngine);
   activeEngineRef.current = activeEngine;
 
+  // When the current page is a Chrome Web Store extension detail page, the
+  // toolbar offers a one-click install that goes through the same daemon
+  // op as the Settings → Extensions URL field.
+  const storeExtensionUrl = chromeWebStoreExtensionUrl(url);
+  const storeExtensionId = storeExtensionUrl?.match(CHROME_WEB_STORE_ID_RE)?.[0] ?? null;
+  const storeExtensionInstalled = storeExtensionId
+    ? toolbarExtensions.some((extension) => extension.id === storeExtensionId)
+    : false;
+
   useEffect(() => {
     if (url == null) return;
     setAddressValue(toAddressBarValue(url));
@@ -758,6 +789,35 @@ export function BrowserView() {
         }
       })
       .catch(() => {});
+  };
+
+  // Installs the Chrome Web Store extension shown in the current tab — the
+  // same daemon op as pasting its URL into Settings → Extensions.
+  const handleInstallStoreExtension = () => {
+    const targetUrl = storeExtensionUrl;
+    if (!targetUrl || installingStoreExtension) return;
+    setInstallingStoreExtension(true);
+    void getHost()
+      .extensions.install(targetUrl)
+      .then((extension) => {
+        window.dispatchEvent(
+          new CustomEvent("cabinet:toast", {
+            detail: { kind: "success", message: `Extension installed: ${extension.name}` },
+          }),
+        );
+        void refreshToolbarExtensions();
+      })
+      .catch((e) => {
+        window.dispatchEvent(
+          new CustomEvent("cabinet:toast", {
+            detail: {
+              kind: "error",
+              message: e instanceof Error && e.message ? e.message : "Failed to install extension",
+            },
+          }),
+        );
+      })
+      .finally(() => setInstallingStoreExtension(false));
   };
 
   const toggleExtensionPinned = (extension: SidecarExtension) => {
@@ -2744,6 +2804,30 @@ export function BrowserView() {
             >
               <Blocks className="h-4 w-4" />
             </button>
+            {storeExtensionUrl ? (
+              <button
+                type="button"
+                onClick={handleInstallStoreExtension}
+                disabled={installingStoreExtension || storeExtensionInstalled}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-foreground hover:border-border hover:bg-muted disabled:opacity-50 disabled:hover:border-transparent disabled:hover:bg-transparent"
+                title={
+                  storeExtensionInstalled
+                    ? "Extension already installed"
+                    : "Add this extension to Cabinet"
+                }
+                aria-label={
+                  storeExtensionInstalled
+                    ? "Extension already installed"
+                    : "Add this extension to Cabinet"
+                }
+              >
+                {installingStoreExtension ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PackagePlus className="h-4 w-4" />
+                )}
+              </button>
+            ) : null}
           </div>
           <div className="flex justify-end gap-2">
             {url ? (
