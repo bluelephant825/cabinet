@@ -19,7 +19,7 @@ type FakeCdp = CDPClient & {
   targets: Record<string, unknown>[];
 };
 
-function fakeCdp(): FakeCdp {
+function fakeCdp(metrics?: { viewportWidth: number; viewportHeight: number; contentWidth: number }): FakeCdp {
   const calls: CdpCall[] = [];
   const handlers = new Map<string, (event: CdpEventMessage) => void>();
   const targets: Record<string, unknown>[] = [];
@@ -41,6 +41,12 @@ function fakeCdp(): FakeCdp {
       }
       if (method === "Target.getTargets") {
         return { targetInfos: targets };
+      }
+      if (method === "Page.getLayoutMetrics" && metrics) {
+        return {
+          cssLayoutViewport: { clientWidth: metrics.viewportWidth, clientHeight: metrics.viewportHeight },
+          cssContentSize: { width: metrics.contentWidth },
+        };
       }
       return {};
     },
@@ -108,6 +114,32 @@ test("open() with no tracked targets opens a fresh window", async () => {
   const create = cdp.calls.find((c) => c.method === "Target.createTarget");
   assert.ok(create);
   assert.equal(create!.params?.newWindow, true);
+});
+
+test("fitWidth() scales overflowing content without resizing the native tab view", async () => {
+  tmpUserData();
+  const metrics = { viewportWidth: 1074, viewportHeight: 698, contentWidth: 1249 };
+  const cdp = fakeCdp(metrics);
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "t-page", type: "page", url: "https://example.com/", title: "A" });
+
+  assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: true });
+  const override = cdp.calls.find((call) => call.method === "Emulation.setDeviceMetricsOverride");
+  assert.deepEqual(override?.params, {
+    width: 1249,
+    height: Math.ceil(698 / (1074 / 1249)),
+    deviceScaleFactor: 0,
+    mobile: false,
+    scale: 1074 / 1249,
+    dontSetVisibleSize: true,
+  });
+  assert.equal(override?.sessionId, "sess-t-page");
+
+  metrics.contentWidth = 1074;
+  assert.deepEqual(await session.fitWidth("t-page"), { ok: true, applied: false });
+  assert.equal(cdp.calls.filter((call) => call.method === "Emulation.clearDeviceMetricsOverride").length, 1);
+  assert.equal(cdp.calls.filter((call) => call.method === "Emulation.setDeviceMetricsOverride").length, 1);
 });
 
 test("closeExtensionPages() closes chrome-extension pages only", async () => {

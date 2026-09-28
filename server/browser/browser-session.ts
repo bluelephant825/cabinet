@@ -482,6 +482,7 @@ export class BrowserSession extends EventEmitter {
         deviceScaleFactor: 0, // 0 = keep the display's real DPR
         mobile: false,
         scale,
+        dontSetVisibleSize: true,
       },
       sessionId,
     );
