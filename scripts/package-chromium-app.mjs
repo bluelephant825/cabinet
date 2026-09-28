@@ -161,6 +161,9 @@ plistSet(plist, "CFBundleName", "string", "Cabinet");
 plistSet(plist, "CFBundleDisplayName", "string", "Cabinet");
 plistSet(plist, "CFBundleIdentifier", "string", BUNDLE_ID);
 plistSet(plist, "CFBundleIconFile", "string", "cabinet-icon");
+// Chromium's AppIcon also lives in Assets.car, and CFBundleIconName wins
+// over CFBundleIconFile — drop it or the Dock keeps showing Chromium.
+plistDelete(plist, "CFBundleIconName");
 plistSet(plist, "NSHumanReadableCopyright", "string", "Cabinet");
 // NOTE: do NOT set LSUIElement on the outer bundle to hide the launcher's
 // Dock tile — Chromium reads it in IsBackgroundOnlyProcess() to detect
