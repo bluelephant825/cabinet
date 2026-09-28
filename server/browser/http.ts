@@ -49,7 +49,10 @@ export type BrowserFacade = {
   evaluateTab(id: string, expression: string): Promise<unknown>;
   extractTab(id: string, opts: { html?: boolean }): Promise<unknown>;
   screenshotTab(id: string): Promise<Buffer>;
-  fitWidthTab(id: string): Promise<{ ok: boolean; applied: boolean }>;
+  fitWidthTab(
+    id: string,
+    viewport?: { width: number; height: number },
+  ): Promise<{ ok: boolean; applied: boolean }>;
   listExtensions(): Promise<BrowserExtensionRecord[]>;
   installExtension(idOrUrl: string): Promise<BrowserExtensionRecord>;
   loadUnpackedExtension(dirPath: string): Promise<BrowserExtensionRecord>;
@@ -259,8 +262,14 @@ export async function handleBrowserRequest(
           return true;
         }
         case "fit-width": {
+          const body = await readJson(req);
+          const vp = body.viewport as { width?: unknown; height?: unknown } | undefined;
+          const viewport =
+            typeof vp?.width === "number" && typeof vp?.height === "number"
+              ? { width: vp.width, height: vp.height }
+              : undefined;
           await browser.ensureRunning();
-          sendJson(res, 200, await browser.fitWidthTab(tabId));
+          sendJson(res, 200, await browser.fitWidthTab(tabId, viewport));
           return true;
         }
         default:

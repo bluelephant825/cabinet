@@ -185,6 +185,71 @@ test("fitWidth() scales overflowing content to the full viewport without resizin
   assert.equal(withoutScrollbar.params?.scale, 1069 / 1249);
 });
 
+test("fitWidth() keeps an already-fitted page's emulation for the same pane instead of resetting it", async () => {
+  tmpUserData();
+  const metrics = { viewportWidth: 1069, viewportHeight: 698, innerWidth: 1074, innerHeight: 698, contentWidth: 1249 };
+  const cdp = fakeCdp(metrics);
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "t-page", type: "page", url: "https://example.com/", title: "A" });
+  const pane = { width: 1074, height: 698 };
+  const count = (method: string) => cdp.calls.filter((call) => call.method === method).length;
+
+  assert.deepEqual(await session.fitWidth("t-page", pane), { ok: true, applied: true });
+  // Under emulation the page lays out at the emulated width minus the bar.
+  metrics.contentWidth = 1249;
+  assert.deepEqual(await session.fitWidth("t-page", { ...pane }), { ok: true, applied: true });
+  assert.equal(count("Emulation.clearDeviceMetricsOverride"), 0, "a repeat check must not flash the unscaled page");
+  assert.equal(count("Emulation.setDeviceMetricsOverride"), 1);
+
+  // Late content widened the page: re-scale directly, still without a reset.
+  metrics.contentWidth = 1400;
+  await session.fitWidth("t-page", pane);
+  assert.equal(count("Emulation.clearDeviceMetricsOverride"), 0);
+  const widened = cdp.calls.filter((call) => call.method === "Emulation.setDeviceMetricsOverride")[1];
+  assert.equal(widened.params?.width, 1405);
+  assert.equal(widened.params?.scale, 1074 / 1405);
+
+  // A different pane size re-measures from natural metrics.
+  metrics.contentWidth = 1249;
+  await session.fitWidth("t-page", { width: 900, height: 698 });
+  assert.equal(count("Emulation.clearDeviceMetricsOverride"), 1);
+  assert.ok(
+    cdp.calls.some((call) => call.method === "Runtime.evaluate" && String(call.params?.expression).includes("setTimeout(resolve, 100)")),
+    "the post-reset frame wait must be bounded for background tabs",
+  );
+});
+
+test("fitWidth() leaves pages that already fit untouched (no scrollbar style churn)", async () => {
+  tmpUserData();
+  const cdp = fakeCdp({ viewportWidth: 1059, viewportHeight: 698, innerWidth: 1074, innerHeight: 698, contentWidth: 1059 });
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "t-page", type: "page", url: "https://example.com/", title: "A" });
+
+  assert.deepEqual(await session.fitWidth("t-page", { width: 1074, height: 698 }), { ok: true, applied: false });
+  assert.ok(
+    !cdp.calls.some((call) => call.method === "Runtime.evaluate" && String(call.params?.expression).includes("cabinet-fit-width-scrollbar")),
+    "injecting then removing the style repaints the scrollbar",
+  );
+});
+
+test("fitWidth() skips a background tab that was never laid out at the pane's size", async () => {
+  tmpUserData();
+  // A restored background tab still has Chromium's default window size.
+  const cdp = fakeCdp({ viewportWidth: 1195, viewportHeight: 800, innerWidth: 1200, innerHeight: 800, contentWidth: 1249 });
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "t-page", type: "page", url: "https://example.com/", title: "A" });
+
+  assert.deepEqual(await session.fitWidth("t-page", { width: 1074, height: 698 }), { ok: true, applied: false });
+  assert.ok(!cdp.calls.some((call) => call.method === "Emulation.setDeviceMetricsOverride"));
+
+  // Once it is the active tab the mismatch is page zoom, not stale sizing: fit.
+  await session.activate("t-page");
+  assert.deepEqual(await session.fitWidth("t-page", { width: 1074, height: 698 }), { ok: true, applied: true });
+});
+
 test("close() notifies listeners even when the targetDestroyed event arrives later", async () => {
   tmpUserData();
   const cdp = fakeCdp();

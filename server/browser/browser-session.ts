@@ -38,6 +38,19 @@ type TargetInfo = {
   attached?: boolean;
 };
 
+/** The host pane's size as reported by the shell — the one input that can
+ *  change a fitted page's scale without the page itself changing. */
+export type FitWidthViewport = { width: number; height: number };
+
+type FitWidthState = {
+  url: string;
+  viewport?: FitWidthViewport;
+  pageWidth: number;
+  scrollbarW: number;
+  fullW: number;
+  fullH: number;
+};
+
 type WindowBounds = {
   x?: number;
   y?: number;
@@ -57,7 +70,7 @@ function isInternalTarget(info: TargetInfo): boolean {
 export class BrowserSession extends EventEmitter {
   private readonly targets = new Map<string, TargetInfo>();
   private readonly sessions = new Map<string, string>(); // targetId -> sessionId
-  private readonly fitWidthTargets = new Set<string>();
+  private readonly fitWidthTargets = new Map<string, FitWidthState>();
   private activeTargetId: string | null = null;
   private persistTimer: NodeJS.Timeout | null = null;
   private started = false;
@@ -448,13 +461,37 @@ export class BrowserSession extends EventEmitter {
    * re-measured at natural metrics, so resizes/navigation converge instead
    * of compounding.
    */
-  async fitWidth(id: string): Promise<{ ok: true; applied: boolean }> {
+  async fitWidth(id: string, viewport?: FitWidthViewport): Promise<{ ok: true; applied: boolean }> {
     this.requireTarget(id);
     const sessionId = await this.sessionFor(id);
+    const url = this.targets.get(id)?.url ?? "";
+    const fitted = this.fitWidthTargets.get(id);
+    if (
+      fitted?.viewport &&
+      viewport &&
+      fitted.url === url &&
+      Math.abs(fitted.viewport.width - viewport.width) < 1 &&
+      Math.abs(fitted.viewport.height - viewport.height) < 1
+    ) {
+      // Same page, same pane: re-check under the current emulation instead of
+      // resetting it. Clearing the override repaints the page unscaled for a
+      // few frames, which flickered on every tab switch and repeat check.
+      const current = (await this.cdp.send("Page.getLayoutMetrics", {}, sessionId)) as
+        | { cssContentSize?: { width?: number } }
+        | undefined;
+      const contentW = current?.cssContentSize?.width ?? 0;
+      if (contentW > fitted.pageWidth - fitted.scrollbarW + 2) {
+        await this.applyFitWidth(id, sessionId, {
+          ...fitted,
+          pageWidth: contentW + fitted.scrollbarW,
+        });
+      }
+      return { ok: true, applied: true };
+    }
     const styleId = JSON.stringify(FIT_WIDTH_STYLE_ID);
     const removeStyle = () =>
       this.evaluate(id, `document.getElementById(${styleId})?.remove()`).catch(() => {});
-    if (this.fitWidthTargets.has(id)) {
+    if (fitted) {
       await this.cdp
         .send("Emulation.clearDeviceMetricsOverride", {}, sessionId)
         .catch(() => {});
@@ -462,36 +499,64 @@ export class BrowserSession extends EventEmitter {
       await removeStyle();
       // Layout metrics lag the reflow triggered by clearing the override;
       // wait a frame before measuring or we'd read the emulated values.
+      // Background tabs never run rAF, so bound the wait — an unbounded one
+      // left the tab stuck unemulated until the next check.
       await this.evaluate(
         id,
-        "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+        "new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); setTimeout(resolve, 100); })",
       ).catch(() => {});
+    }
+    const measure = async () => {
+      // innerWidth/innerHeight span the whole viewport including scrollbars;
+      // clientWidth/clientHeight do not. The painted frame must cover the full
+      // view or the gap shows as unpainted (white) strips along the edges.
+      const dims = (await this.evaluate(
+        id,
+        "({ iw: window.innerWidth, ih: window.innerHeight, cw: document.documentElement.clientWidth, ch: document.documentElement.clientHeight })",
+      ).catch(() => null)) as
+        | { iw?: number; ih?: number; cw?: number; ch?: number }
+        | null;
+      const metrics = (await this.cdp.send("Page.getLayoutMetrics", {}, sessionId)) as
+        | {
+            cssLayoutViewport?: { clientWidth?: number; clientHeight?: number };
+            cssContentSize?: { width?: number };
+          }
+        | undefined;
+      const viewportW = metrics?.cssLayoutViewport?.clientWidth ?? dims?.cw ?? 0;
+      const viewportH = metrics?.cssLayoutViewport?.clientHeight ?? dims?.ch ?? 0;
+      return {
+        viewportW,
+        viewportH,
+        fullW: dims?.iw ?? viewportW,
+        fullH: dims?.ih ?? viewportH,
+        contentW: metrics?.cssContentSize?.width ?? 0,
+      };
+    };
+    // Pages that already fit at natural metrics never get the slim-scrollbar
+    // style: injecting and removing it repaints the scrollbar (a visible
+    // one-frame flicker on every check of an ordinary page).
+    const natural = await measure();
+    if (natural.viewportW > 0 && natural.contentW <= natural.viewportW + 2) {
+      return { ok: true, applied: false };
     }
     // Apply the slim-scrollbar style before measuring so the layout metrics
     // match the scrollbars the page will actually render under emulation.
     await this.evaluate(id, `(() => { if (document.getElementById(${styleId})) return; const style = document.createElement("style"); style.id = ${styleId}; style.textContent = ${JSON.stringify(FIT_WIDTH_STYLE)}; (document.head || document.documentElement).appendChild(style); })()`).catch(() => {});
-    // innerWidth/innerHeight span the whole viewport including scrollbars;
-    // clientWidth/clientHeight do not. The painted frame must cover the full
-    // view or the gap shows as unpainted (white) strips along the edges.
-    const dims = (await this.evaluate(
-      id,
-      "({ iw: window.innerWidth, ih: window.innerHeight, cw: document.documentElement.clientWidth, ch: document.documentElement.clientHeight })",
-    ).catch(() => null)) as
-      | { iw?: number; ih?: number; cw?: number; ch?: number }
-      | null;
-    const metrics = (await this.cdp.send("Page.getLayoutMetrics", {}, sessionId)) as
-      | {
-          cssLayoutViewport?: { clientWidth?: number; clientHeight?: number };
-          cssContentSize?: { width?: number };
-        }
-      | undefined;
-    const viewportW = metrics?.cssLayoutViewport?.clientWidth ?? dims?.cw ?? 0;
-    const viewportH = metrics?.cssLayoutViewport?.clientHeight ?? dims?.ch ?? 0;
-    const fullW = dims?.iw ?? viewportW;
-    const fullH = dims?.ih ?? viewportH;
-    const contentW = metrics?.cssContentSize?.width ?? 0;
-    // Ignore sub-pixel overflow (scrollbar/rounding noise).
-    if (viewportW <= 0 || viewportH <= 0 || contentW <= viewportW + 2) {
+    const { viewportW, viewportH, fullW, fullH, contentW } = await measure();
+    // Only trust the pane size as a cache key when the page actually measures
+    // at it (page zoom breaks the equality; re-measure every time then).
+    const sized =
+      !!viewport && Math.abs(fullW - viewport.width) <= 2 && Math.abs(fullH - viewport.height) <= 2;
+    // Ignore sub-pixel overflow (scrollbar/rounding noise). A background tab
+    // that was never laid out at the pane's size (restored/opened hidden)
+    // would be scaled for the wrong viewport — leave it to the checks that
+    // run once it is shown.
+    if (
+      viewportW <= 0 ||
+      viewportH <= 0 ||
+      contentW <= viewportW + 2 ||
+      (viewport && !sized && this.activeTargetId !== id)
+    ) {
       await removeStyle();
       return { ok: true, applied: false };
     }
@@ -499,15 +564,26 @@ export class BrowserSession extends EventEmitter {
     // the injection took, otherwise the native width) so the scrollbar stays
     // flush with the view's right edge instead of floating on dead space.
     const scrollbarW = Math.max(0, Math.min(fullW - viewportW, 32));
-    const pageWidth = contentW + scrollbarW;
+    await this.applyFitWidth(id, sessionId, {
+      url,
+      viewport: sized ? viewport : undefined,
+      pageWidth: contentW + scrollbarW,
+      scrollbarW,
+      fullW,
+      fullH,
+    });
+    return { ok: true, applied: true };
+  }
+
+  private async applyFitWidth(id: string, sessionId: string, state: FitWidthState): Promise<void> {
     // Clamp to Chromium's minimum page scale; below that horizontal scroll
     // is more usable than unreadably small content anyway.
-    const scale = Math.max(fullW / pageWidth, 0.25);
+    const scale = Math.max(state.fullW / state.pageWidth, 0.25);
     await this.cdp.send(
       "Emulation.setDeviceMetricsOverride",
       {
-        width: Math.ceil(pageWidth),
-        height: Math.ceil(fullH / scale),
+        width: Math.ceil(state.pageWidth),
+        height: Math.ceil(state.fullH / scale),
         deviceScaleFactor: 0, // 0 = keep the display's real DPR
         mobile: false,
         scale,
@@ -515,8 +591,7 @@ export class BrowserSession extends EventEmitter {
       },
       sessionId,
     );
-    this.fitWidthTargets.add(id);
-    return { ok: true, applied: true };
+    this.fitWidthTargets.set(id, state);
   }
 
   async screenshot(

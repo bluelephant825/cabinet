@@ -124,7 +124,7 @@ export function createBrowserDaemon(): BrowserDaemon {
     evaluateTab: async (id, expression) => requireSession(manager).evaluate(id, expression),
     extractTab: async (id, opts) => requireSession(manager).extract(id, opts),
     screenshotTab: async (id) => requireSession(manager).screenshot(id),
-    fitWidthTab: async (id) => requireSession(manager).fitWidth(id),
+    fitWidthTab: async (id, viewport) => requireSession(manager).fitWidth(id, viewport),
     listExtensions: () => extensions.list(),
     installExtension: (idOrUrl) => extensions.install(idOrUrl),
     loadUnpackedExtension: (dirPath) => extensions.installUnpacked(dirPath),

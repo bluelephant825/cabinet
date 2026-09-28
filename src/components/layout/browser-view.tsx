@@ -1630,12 +1630,20 @@ export function BrowserView() {
   // Ask the daemon to scale the active sidecar page to its viewport when the
   // content is wider (fit-width emulation). Two passes: late-loading
   // resources can still widen the page after the first check.
+  // The pane size lets the daemon skip re-fitting an already-fitted page.
+  const sidecarPaneViewport = () => {
+    const rect = (
+      sidecarContentRef.current ?? sidecarPaneRef.current ?? containerRef.current
+    )?.getBoundingClientRect();
+    return rect ? { width: Math.round(rect.width), height: Math.round(rect.height) } : undefined;
+  };
+
   const scheduleFitWidthCheck = useCallback(() => {
     for (const timer of fitWidthTimersRef.current) window.clearTimeout(timer);
     const run = () => {
       if (sidecarStatusRef.current?.status !== "running") return;
       const active = sidecarTabsRef.current.find((tab) => tab.active);
-      if (active) void fitWidthSidecarTab(active.id).catch(() => {});
+      if (active) void fitWidthSidecarTab(active.id, sidecarPaneViewport()).catch(() => {});
     };
     fitWidthTimersRef.current = [
       window.setTimeout(run, 350),
@@ -2262,7 +2270,12 @@ export function BrowserView() {
   const selectSidecarTab = (tab: SidecarTab) => {
     if (sidecarStatusRef.current?.status !== "running") return;
     setSidecarTabs((prev) => prev.map((entry) => ({ ...entry, active: entry.id === tab.id })));
-    void activateSidecarTabRequest(tab.id).catch(() => {});
+    // Fit while the tab is still hidden so a wide page is first shown already
+    // scaled rather than snapping from its natural size a moment later.
+    void fitWidthSidecarTab(tab.id, sidecarPaneViewport())
+      .catch(() => {})
+      .then(() => activateSidecarTabRequest(tab.id))
+      .catch(() => {});
     if (
       isSidecarUrl(tab.url) &&
       useAppStore.getState().browseUrl !== tab.url
