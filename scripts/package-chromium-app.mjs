@@ -243,7 +243,9 @@ for (const entry of readdirSync(stagedApp, { recursive: true, withFileTypes: tru
   }
 }
 
-const icon = join(projectRoot, "electron", "assets", "cabinet-icon.icns");
+// resources/ — not electron/: the icon belongs to the packaged app, and the
+// electron shell is slated for removal.
+const icon = join(projectRoot, "resources", "icons", "cabinet-icon.icns");
 if (existsSync(icon)) {
   cpSync(icon, join(contents, "Resources", "cabinet-icon.icns"));
 } else {
