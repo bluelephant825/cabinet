@@ -43,6 +43,11 @@ const STANDALONE = path.join(ROOT, ".next", "standalone");
 const TEST_VERSION = "0.0.0-bundletest";
 const APP_DIR = path.join(os.homedir(), ".cabinet", "app", `v${TEST_VERSION}`);
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-bundle-test-"));
+let nativeTypstAvailable = false;
+try {
+  execFileSync("typst", ["--version"], { stdio: "ignore" });
+  nativeTypstAvailable = true;
+} catch {}
 
 let child = null;
 let isoDaemon = null;
@@ -387,6 +392,30 @@ for (const extension of ["html", "ipynb", "tex", "typ", "pdf", "docx"]) {
   }
 }
 ok("isolated HTML, notebook, LaTeX, Typst, PDF and DOCX viewer routes → 200");
+if (nativeTypstAvailable) {
+  step("Verifying the isolated Typst compile API produces a PDF...");
+  const typstResponse = await fetch(
+    `http://127.0.0.1:${isoAppPort}/api/export/typst/compile`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code: "#set page(width: 100pt, height: 100pt)\nBundle isolated smoke",
+      }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (typstResponse.status !== 200) {
+    fail(`isolated Typst compile returned ${typstResponse.status}: ${await typstResponse.text()}`);
+  }
+  const typstPdf = Buffer.from(await typstResponse.arrayBuffer());
+  if (typstPdf.subarray(0, 4).toString() !== "%PDF") {
+    fail("isolated Typst compile returned a non-PDF response");
+  }
+  ok("isolated Typst compile API → PDF bytes");
+} else {
+  info("native Typst CLI not found; skipping compile API check");
+}
 for (const extension of ["html", "ipynb", "tex", "typ", "pdf"]) {
   const response = await fetch(`http://127.0.0.1:${isoAppPort}/api/assets/smoke.${extension}`);
   if (response.status !== 200) fail(`isolated ${extension} asset returned ${response.status}`);

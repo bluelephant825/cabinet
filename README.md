@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  Built by Hila Shmuel, former Engineering Manager at Apple — now building Cabinet in public, with the open-source community.
+  Original build by Hila Shmuel, former Engineering Manager at Apple — now building Cabinet in public, with the open-source community.
 </p>
 
 <p align="center">
@@ -48,11 +48,9 @@
 
 ```bash
 npx create-cabinet@latest
-cd cabinet
-npm run dev:all
 ```
 
-Open [http://localhost:4000](http://localhost:4000). The onboarding wizard builds your custom AI team in 5 questions.
+This creates a Cabinet workspace and starts the packaged app. For source development, run `npm run dev:all` from a Cabinet source checkout.
 
 ---
 
@@ -128,19 +126,49 @@ Cabinet is built around a few principles that we think matter deeply for the fut
 
 | Feature | What it does |
 |---|---|
-| **WYSIWYG + Markdown** | Rich text editing with Tiptap. Tables, code blocks, slash commands. |
-| **AI Agents** | Each has goals, skills, scheduled jobs. Watch them work like a real team. |
-| **Skills** | Browse and install from skills.sh or any GitHub repo. Attach per agent, or `@`-mention in the composer to scope to a single task. |
-| **Scheduled Jobs** | Cron-based agent automation. Reddit scout every 6 hours. Weekly reports on Monday. |
-| **Embedded HTML Apps** | Drop an `index.html` in any folder — it renders as an iframe. Full-screen mode. |
-| **Web Terminal** | Interactive local AI CLI terminal in the browser. Kept for direct sessions, debugging, and future terminal-native features such as tmux-style Cabinet workflows. |
-| **File-Based Everything** | No database. Markdown on disk. Your data is always yours, always portable. |
-| **Git-Backed History** | Every save auto-commits. Full diff viewer. Restore any page to any point in time. |
-| **Missions & Tasks** | Break goals into missions. Track progress with Kanban boards. |
-| **Internal Chat** | Built-in team channels. Agents and humans communicate. |
-| **Full-Text Search** | Cmd+K instant search across all pages. Fuzzy matching. |
-| **PDF & CSV Viewers** | First-class support for PDFs and spreadsheets. |
-| **Dark/Light Mode** | Theme toggle. Dark mode by default. |
+| **WYSIWYG + Markdown** | Rich text editing with Tiptap, tables, code blocks, frontmatter, and slash commands. |
+| **Documents and Notebooks** | View and edit common office documents, PDFs, Markdown, and Jupyter notebooks. See the format guide below for capabilities and optional tools. |
+| **Diagrams, Charts, and 3D** | Create Draw.io and Excalidraw diagrams, preview Mermaid, insert bar, line, and pie charts or live code blocks from the editor slash menu, and view `.glb`/`.gltf` models. |
+| **Canvas** | View pages, folders, and supported documents as movable, resizable preview cards on a zoomable board. |
+| **LLM Wiki** | Opt in from Settings to build linked Wiki pages from selected notes with a configured AI agent, while keeping the originals editable. Inspect sources, track processing, and explore the generated knowledge graph. |
+| **Built-in Chromium Browser** | Use daemon-managed Chromium from local loopback source-mode clients or the macOS Chromium desktop host. Install supported Chrome extensions from the Chrome Web Store or an unpacked folder. Remote LAN clients are ineligible, and extension compatibility varies. |
+| **AI Agents** | Local provider adapters run tasks, jobs, and heartbeats with persisted conversations and memory. |
+| **Skills** | Browse and install from skills.sh or GitHub. Attach skills to agents, or `@`-mention one for a single task. |
+| **Scheduled Jobs** | Cron-based agent automation for recurring research, reports, and other work. |
+| **PDF Composition** | Build and render structured PDF documents from reusable components. |
+| **Embedded HTML Apps** | Drop an `index.html` in a folder to render it as an app, with full-screen mode. |
+| **Google and Local Knowledge** | Link Google Workspace pages or mount local synced knowledge sources into the file tree. |
+| **Web Terminal** | Interactive local AI CLI terminal for direct sessions and debugging. |
+| **File-Based Everything** | No database. Content stays in ordinary files on disk and remains portable. |
+| **Git-Backed History** | Auto-committed changes, diffs, and page restoration. |
+| **Missions, Tasks, and Chat** | Track work on Kanban boards and communicate in built-in team channels. |
+| **Full-Text Search** | Cmd+K search across pages with fuzzy matching. |
+| **Dark/Light Mode** | Theme toggle with dark mode by default. |
+
+## Document, diagram, and media support
+
+Cabinet opens many formats directly from the file tree. Editing and execution capabilities depend on the format:
+
+| Files | Built-in support | Optional tool or limitation |
+|---|---|---|
+| `.md` | Rich Markdown editing, frontmatter, tables, and code blocks. | None. |
+| `.mdx` | Opens in the source viewer. | Markdown rendering supports only Cabinet's verified components, not arbitrary MDX execution. |
+| `.pdf` | PDF viewing and document-service editing. | The read-only viewer remains available when editing is unavailable. |
+| `.docx` | Document-service editing and preview. | A read-only preview is used when editing is unavailable. |
+| `.xlsx`, `.xlsm`, `.pptx` | Inline spreadsheet and presentation viewers. | Read-only. Legacy `.doc`, `.xls`, and `.ppt` files use the fallback viewer. |
+| `.csv` | Inline spreadsheet viewer. | None. |
+| `.ipynb` | Open notebooks, edit cells, and keep saved outputs. | Cell execution needs a running local Jupyter server and a matching installed kernel. |
+| `.mmd`, `.mermaid` | Mermaid diagram preview. | None. |
+| `.drawio`, `.dio`, `.drawio.svg` | Open and edit local Draw.io diagrams. | None. |
+| `.excalidraw`, `.excalidraw.svg` | Open and edit local Excalidraw drawings. | None. |
+| `.tex`, `.latex` | LaTeX source and built-in preview. | No TeX distribution is required for the preview. |
+| `.typ` | Typst source view. | PDF preview requires the native Typst CLI. |
+| `.glb`, `.gltf` | Interactive 3D model viewer. The same viewer is available through the verified `ModelViewer` Markdown component. | None. |
+| Images, audio, video, and source files | Built-in image, media, and code viewers. | None. |
+
+In a Markdown editor, typing `/draw` filters the slash menu to **Draw.io Diagram**. Typing `/excalidraw` filters it to **Excalidraw Drawing**. Choose the menu item to insert an editable local diagram or drawing. These are editor commands, not shell commands.
+
+The verified MDX component registry includes `Callout`, `VideoPlayer`, `ModelViewer`, `NotebookCell`, `CodeOutput`, `DataFrame`, `PlotlyChart`, `ImageOutput`, and `ErrorOutput`. Cabinet does not execute arbitrary MDX.
 
 ---
 
@@ -224,12 +252,34 @@ cabinet/
 
 ## Requirements
 
-- **Node.js** 22+ (LTS). The repo ships an `.nvmrc` — run `nvm use` to auto-switch. Node 20 still works but produces an `EBADENGINE` warning from a transitive `chevrotain@12` pulled in by mermaid.
-- At least one supported CLI provider:
-  - **Claude Code CLI** (`npm install -g @anthropic-ai/claude-code`)
-  - **Codex CLI** (`npm install -g @openai/codex` or `brew install --cask codex`)
-- **Source mode:** macOS, Linux, or Windows
-- **Electron desktop packaging:** macOS and Windows
+### Base requirements
+
+- **Node.js 22+ (LTS)** for source development and the `npx` CLI. The repo ships an `.nvmrc`; run `nvm use` in the source checkout. The installed prebuilt app bundles its runtime and does not need a separate Node installation.
+- **AI provider CLI for agent runs.** Install at least one supported local provider to run agents, tasks, jobs, and heartbeats. Examples include Claude Code (`npm install -g @anthropic-ai/claude-code`) and Codex CLI (`npm install -g @openai/codex`). Cabinet can also use other supported local adapters.
+- **Source mode:** macOS, Linux, or Windows.
+- **Packaged desktop:** the Chromium-hosted desktop build currently targets macOS. Windows Electron packaging is legacy and should not be assumed to provide the same host features.
+
+### Optional local tools
+
+- **Typst PDF preview:** `.typ` source files open without Typst installed. To compile them for PDF preview, install the native CLI. On macOS with Homebrew:
+
+  ```bash
+  brew install typst
+  typst --version
+  ```
+
+- **Jupyter notebook execution:** `.ipynb` files can be viewed and edited, including saved outputs, without Python or Jupyter. To run cells, install JupyterLab and a Python kernel in a virtual environment, then start Jupyter in another terminal while Cabinet is running:
+
+  ```bash
+  python3 -m venv ~/cabinet-jupyter-venv
+  source ~/cabinet-jupyter-venv/bin/activate
+  python -m pip install jupyterlab ipykernel
+  python -m jupyter lab --no-browser
+  ```
+
+  Cabinet discovers a local Jupyter server from its runtime files. The notebook's kernelspec name must match a kernel installed in that Jupyter environment.
+
+LaTeX preview for `.tex` and `.latex` files is built in and does not require a TeX distribution.
 
 ## Configuration
 
@@ -257,15 +307,15 @@ once. Full details, threat model, and tuning: **[docs/AUTH.md](docs/AUTH.md)**.
 ## Commands
 
 ```bash
-npm run dev          # Next.js dev server (port 4000 by default)
-npm run dev:daemon   # Unified daemon: structured runs, terminal sessions, WebSockets, scheduler (port 4100 by default)
-npm run dev:all      # Both servers
-npm run electron:start   # Launch Electron desktop against the local dev servers
+npm run dev          # Next.js development server (port 4000 by default)
+npm run dev:daemon   # Local daemon (port 4100 by default)
+npm run dev:all      # Start both source-mode servers
 npm run build        # Production build
-npm run start        # Production mode (both servers)
-npm run electron:make:win  # Build a portable Windows zip
-npx cabinetai run    # Zero-install runtime, downloads the prebuilt app bundle
+npm run start        # Run both production servers
+npx cabinetai run    # Download and start the packaged runtime
 ```
+
+The Chromium-hosted desktop app currently targets macOS. Source-mode development also supports Linux and Windows. The Windows Electron packaging script is retained for legacy use.
 
 ---
 
