@@ -410,6 +410,17 @@ export interface DocxComment {
   paraId?: string;
 }
 
+/** Read-only summary of the default header/footer (see docx-header-footer.ts). */
+export interface DocxHeaderFooterInfo {
+  header: string[];
+  footer: string[];
+  headerImages: number;
+  footerImages: number;
+  watermark: string | null;
+  differentFirstPage: boolean;
+  differentOddEven: boolean;
+}
+
 export interface DocxDocumentModel {
   format: "docx";
   /** engine `Block[]` — plain JSON objects (imageDataUrl is a data URL). */
@@ -428,6 +439,8 @@ export interface DocxDocumentModel {
   docDefaults?: unknown | null;
   /** Every comment in word/comments.xml (replies carry `parentId`). */
   comments?: DocxComment[];
+  /** Default header/footer text for the frame's read-only panel. */
+  headerFooter?: DocxHeaderFooterInfo;
   /** Count of images whose data URL exceeded the per-image cap and were
    *  replaced with a placeholder flag on the block (`imageOversized: true`). */
   oversizedImages: number;

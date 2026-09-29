@@ -340,6 +340,103 @@ test("docx tracked changes: list, accept/reject, track toggle, persists", async 
   await expect(items2).toHaveCount(0);
 });
 
+// 1x1 PNG
+const PNG_B64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+test("docx horizontal rule, image, styles gallery and header/footer view persist", async ({
+  page,
+}) => {
+  const doc = await parseDocx(await buildBlankDocx());
+  const bytes = Buffer.from(
+    await saveDocx(doc, ["Title text", "Body text"].map(para), {
+      header: { text: "Quarterly report" },
+      footer: { text: "Confidential", pageNumber: true },
+    } as never),
+  );
+  expect((await putDocument("insert.docx", bytes)).ok).toBe(true);
+
+  const frame = await openDocx(page, "insert.docx");
+  const editor = frame.locator(".ProseMirror").first();
+
+  // Read-only header/footer panel.
+  await frame.locator('[data-testid="docx-tb-headers-footers"]').click();
+  await expect(frame.locator('[data-testid="docx-hf-header"]')).toContainText("Quarterly report");
+  await expect(frame.locator('[data-testid="docx-hf-footer"]')).toContainText("Confidential");
+  await frame.locator('[data-testid="docx-hf-close"]').click();
+  await expect(frame.locator('[data-testid="docx-hf-panel"]')).toHaveCount(0);
+
+  // Styles gallery: make the first paragraph Heading 1.
+  const gallery = frame.locator('[data-testid="docx-tb-styles-gallery"]');
+  await expect(gallery).toBeVisible();
+  await editor.getByText("Title text").click();
+  await gallery.selectOption({ label: "heading 1" }).catch(async () => {
+    await gallery.selectOption({ label: "Heading 1" });
+  });
+  await expect(editor.locator("h1")).toContainText("Title text");
+
+  // Horizontal line after the body paragraph, then an image.
+  await editor.getByText("Body text").click();
+  await frame.locator('[data-testid="docx-tb-hr"]').click();
+  await frame.locator('[data-testid="docx-tb-image-input"]').setInputFiles({
+    name: "dot.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(PNG_B64, "base64"),
+  });
+  await expect(editor.locator("img")).toHaveCount(1);
+
+  await frame.locator('[data-testid="docx-tb-save"]').click();
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 15_000 });
+
+  const frame2 = await openDocx(page, "insert.docx");
+  const editor2 = frame2.locator(".ProseMirror").first();
+  await expect(editor2.locator("h1")).toContainText("Title text", { timeout: 30_000 });
+  await expect(editor2.locator("img")).toHaveCount(1);
+  const ruled = await editor2
+    .locator("p")
+    .evaluateAll(
+      (ps) => ps.filter((el) => parseFloat(getComputedStyle(el).borderBottomWidth) > 0).length,
+    );
+  expect(ruled).toBe(1);
+});
+
+test("docx table properties: alignment, borders, shading, header row persist", async ({
+  page,
+}) => {
+  expect((await putDocument("tables.docx", await makeDocx("Before table"))).ok).toBe(true);
+  const frame = await openDocx(page, "tables.docx");
+  const editor = frame.locator(".ProseMirror").first();
+  await editor.getByText("Before table").click();
+  await frame.locator('[data-testid="docx-tb-table-insert"]').click();
+  await expect(editor.locator("table")).toHaveCount(1);
+  // Insert leaves the caret in the last cell; the properties apply to the caret cell/row.
+  await editor.locator("table td, table th").first().click();
+
+  await frame.locator('[data-testid="docx-tb-table-props"]').click();
+  const panel = frame.locator('[data-testid="docx-table-panel"]');
+  await expect(panel).toBeVisible();
+  await panel.locator('[data-testid="docx-tp-align"]').selectOption("center");
+  await panel.locator('[data-testid="docx-tp-borders"]').selectOption("none");
+  await panel.locator('[data-testid="docx-tp-fill"]').fill("#ffcc00");
+  await panel.locator('[data-testid="docx-tp-valign"]').selectOption("center");
+  await panel.locator('[data-testid="docx-tp-repeat-header"]').check();
+
+  await frame.locator('[data-testid="docx-tb-save"]').click();
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 15_000 });
+
+  const frame2 = await openDocx(page, "tables.docx");
+  const table2 = frame2.locator(".ProseMirror table").first();
+  await expect(table2).toBeVisible({ timeout: 30_000 });
+  await table2.locator("td, th").first().click();
+  await frame2.locator('[data-testid="docx-tb-table-props"]').click();
+  const panel2 = frame2.locator('[data-testid="docx-table-panel"]');
+  await expect(panel2.locator('[data-testid="docx-tp-align"]')).toHaveValue("center");
+  await expect(panel2.locator('[data-testid="docx-tp-borders"]')).toHaveValue("none");
+  await expect(panel2.locator('[data-testid="docx-tp-fill"]')).toHaveValue("#ffcc00");
+  await expect(panel2.locator('[data-testid="docx-tp-valign"]')).toHaveValue("center");
+  await expect(panel2.locator('[data-testid="docx-tp-repeat-header"]')).toBeChecked();
+});
+
 test("docx save clears the dirty badge — including a second edit+save cycle", async ({
   page,
 }) => {

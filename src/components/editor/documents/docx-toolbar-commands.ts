@@ -18,6 +18,7 @@ import {
   deleteTable,
   isInTable,
   mergeCells,
+  setCellAttr,
   splitCell,
 } from "@tiptap/pm/tables";
 
@@ -67,7 +68,19 @@ export interface DocxFormatState {
   canUndo: boolean;
   canRedo: boolean;
   linkHref: string | null;
+  /** w:pStyle of the caret paragraph (null = the default style). */
+  styleId: string | null;
+  tableAlign: TableAlignKey | null;
+  /** Table has explicit single-line borders on every side. */
+  tableBordered: boolean;
+  /** Shading (hex, no '#') and vertical alignment of the caret cell. */
+  cellFill: string | null;
+  cellVAlign: CellVAlignKey | null;
+  repeatHeader: boolean;
 }
+
+export type TableAlignKey = "left" | "center" | "right";
+export type CellVAlignKey = "top" | "center" | "bottom";
 
 const PARA_BLOCKS = new Set(["docParagraph", "docHeading", "docListItem"]);
 
@@ -102,6 +115,7 @@ export function readFormatState(editor: Editor): DocxFormatState {
   const caretPara = state.selection.$from.parent;
   const paraAttrs: Record<string, unknown> =
     caretPara.isTextblock && "lineSpacing" in caretPara.attrs ? caretPara.attrs : {};
+  const tableInfo = inTable ? caretTableInfo(state) : null;
   return {
     bold: editor.isActive("bold"),
     italic: editor.isActive("italic"),
@@ -128,6 +142,12 @@ export function readFormatState(editor: Editor): DocxFormatState {
     linkHref: editor.isActive("link")
       ? ((editor.getAttributes("link").href as string) ?? null)
       : null,
+    styleId: (paraAttrs.styleId as string | null | undefined) ?? null,
+    tableAlign: (tableInfo?.table.attrs.tblAlign as TableAlignKey | null | undefined) ?? null,
+    tableBordered: tableInfo ? tableIsBordered(tableInfo.table) : false,
+    cellFill: (tableInfo?.cell?.attrs.fill as string | null | undefined) ?? null,
+    cellVAlign: (tableInfo?.cell?.attrs.vAlign as CellVAlignKey | null | undefined) ?? null,
+    repeatHeader: Boolean(tableInfo?.row?.attrs.repeatHeader),
   };
 }
 
@@ -473,3 +493,302 @@ export function makePendingNumberingDef(numId: string, kind: ListKind): PendingN
     startOverrides: {},
   };
 }
+
+// ── horizontal rule (paragraph bottom border — the w:pBdr Word's own `---` makes) ──
+
+const RULE_ATTRS = { borders: "b", borderLines: JSON.stringify({ b: { szPt: 0.75 } }) };
+
+/**
+ * Insert a horizontal rule: an empty paragraph carrying a single bottom border,
+ * followed by an empty paragraph the caret moves to. An empty caret paragraph
+ * becomes the rule itself. Pure (state in, transaction out; null when the caret
+ * is not in a textblock).
+ */
+export function horizontalRuleTransaction(state: EditorState): Transaction | null {
+  const { $from } = state.selection;
+  const para = $from.parent;
+  const paraType = state.schema.nodes.docParagraph;
+  if (!para.isTextblock || !paraType) return null;
+  const tr = state.tr;
+  const empty = para.content.size === 0 && para.type === paraType;
+  let after: number;
+  if (empty) {
+    tr.setNodeMarkup($from.before(), undefined, { ...para.attrs, ...RULE_ATTRS });
+    after = $from.after();
+  } else {
+    after = $from.after();
+    tr.insert(after, paraType.create(RULE_ATTRS));
+    after += tr.doc.nodeAt(after)!.nodeSize;
+  }
+  tr.insert(after, paraType.create());
+  return tr.setSelection(TextSelection.near(tr.doc.resolve(after + 1))).scrollIntoView();
+}
+
+export function insertHorizontalRule(editor: Editor): boolean {
+  const tr = horizontalRuleTransaction(editor.state);
+  if (!tr) return false;
+  editor.view.dispatch(tr);
+  editor.view.focus();
+  return true;
+}
+
+// ── insert image ───────────────────────────────────────────────────────────
+
+/** Largest image accepted (bytes of the file). The bytes ride the save plan as base64. */
+export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+/** Inserted pictures are scaled down to fit the text column (CSS px). */
+export const IMAGE_MAX_WIDTH_PX = 600;
+
+export type ImageMime = "image/png" | "image/jpeg" | "image/gif";
+
+/** png / jpeg / gif data URLs only (the formats the engine embeds). */
+export function parseImageDataUrl(dataUrl: string): { mime: ImageMime; base64: string } | null {
+  const m = /^data:(image\/(?:png|jpeg|gif));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  return m ? { mime: m[1] as ImageMime, base64: m[2] } : null;
+}
+
+/** Scale to the column width, never upscale; whole px, at least 1. */
+export function fitImageSize(
+  width: number,
+  height: number,
+  maxWidth = IMAGE_MAX_WIDTH_PX,
+): { widthPx: number; heightPx: number } {
+  const w = Math.max(1, width);
+  const h = Math.max(1, height);
+  const scale = Math.min(1, maxWidth / w);
+  return { widthPx: Math.max(1, Math.round(w * scale)), heightPx: Math.max(1, Math.round(h * scale)) };
+}
+
+/** A new-image block the way `pmDocToSavePlan` expects it (genImage carries the bytes to embed). */
+export function imageBlockJson(
+  dataUrl: string,
+  size: { widthPx: number; heightPx: number },
+  altText = "",
+): Record<string, unknown> | null {
+  const parsed = parseImageDataUrl(dataUrl);
+  if (!parsed) return null;
+  return {
+    type: "docProtected",
+    attrs: {
+      docxIndex: null,
+      blockType: "image",
+      label: "Image",
+      imageDataUrl: dataUrl,
+      imageWidthPx: size.widthPx,
+      imageHeightPx: size.heightPx,
+      genImage: {
+        base64: parsed.base64,
+        mime: parsed.mime,
+        widthPx: size.widthPx,
+        heightPx: size.heightPx,
+        ...(altText ? { altText } : {}),
+      },
+    },
+  };
+}
+
+/** Insert below the top-level block holding the caret (an empty paragraph keeps the doc typable). */
+export function insertImageBlock(
+  editor: Editor,
+  dataUrl: string,
+  size: { widthPx: number; heightPx: number },
+  altText = "",
+): boolean {
+  const node = imageBlockJson(dataUrl, size, altText);
+  if (!node) return false;
+  const { doc, selection } = editor.state;
+  const at = selection.$from.depth >= 1 ? selection.$from.after(1) : doc.content.size;
+  const content: Record<string, unknown>[] = [node];
+  if (at >= doc.content.size) content.push({ type: "docParagraph" });
+  return editor.chain().focus().insertContentAt(at, content).run();
+}
+
+// ── styles gallery ─────────────────────────────────────────────────────────
+
+/** The bits of the engine's StyleInfo the gallery reads. */
+export interface StyleEntry {
+  styleId: string;
+  name: string;
+  type: string;
+  headingLevel?: number;
+  semiHidden?: boolean;
+  qFormat?: boolean;
+  linkedCharShell?: boolean;
+  isDefault?: boolean;
+  display?: {
+    sizeHalfPoints?: number;
+    color?: string;
+    bold?: boolean;
+    italic?: boolean;
+    font?: string;
+    fontAscii?: string;
+  };
+}
+
+/**
+ * Paragraph styles worth offering (Word's quick-style logic): visible paragraph
+ * styles that are the default, a heading, or flagged qFormat. Default first,
+ * then headings by level, then the rest by name.
+ */
+export function listParagraphStyles(entries: Iterable<[string, unknown]>): StyleEntry[] {
+  const out: StyleEntry[] = [];
+  for (const [, raw] of entries) {
+    const s = raw as StyleEntry;
+    if (s.type !== "paragraph" || s.semiHidden || s.linkedCharShell) continue;
+    if (s.isDefault || s.headingLevel || s.qFormat) out.push(s);
+  }
+  const rank = (s: StyleEntry) => (s.isDefault ? 0 : s.headingLevel ? s.headingLevel : 100);
+  return out.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+}
+
+/**
+ * Apply a document paragraph style: heading styles become docHeading (their
+ * level), everything else docParagraph; the styleId is what save writes as
+ * w:pStyle (null for the document default).
+ */
+export function applyDocumentStyle(editor: Editor, style: StyleEntry): boolean {
+  const key: ParagraphStyleKey =
+    style.headingLevel && style.headingLevel <= 6 ? (`h${style.headingLevel}` as ParagraphStyleKey) : "p";
+  applyParagraphStyle(editor, key);
+  applyParagraphAttrs(editor, { styleId: style.isDefault ? null : style.styleId });
+  return true;
+}
+
+const CSS_ID = /^[A-Za-z0-9_.-]+$/;
+const CSS_COLOR = /^[0-9A-Fa-f]{6}$/;
+const CSS_FONT = /^[^"'\\;{}<>]+$/;
+
+/**
+ * Minimal display CSS for the gallery's styles, keyed on the `data-style`
+ * attribute the vendored schema renders: size, weight, italics, color and
+ * face. Only values that pass strict allow-lists are emitted.
+ */
+export function paragraphStyleCss(styles: StyleEntry[]): string {
+  const rules: string[] = [];
+  for (const s of styles) {
+    if (s.isDefault || !CSS_ID.test(s.styleId) || !s.display) continue;
+    const d = s.display;
+    const decls: string[] = [];
+    if (d.sizeHalfPoints && d.sizeHalfPoints > 0) decls.push(`font-size:${d.sizeHalfPoints / 2}pt`);
+    if (d.bold !== undefined) decls.push(`font-weight:${d.bold ? 700 : 400}`);
+    if (d.italic !== undefined) decls.push(`font-style:${d.italic ? "italic" : "normal"}`);
+    if (d.color && CSS_COLOR.test(d.color)) decls.push(`color:#${d.color}`);
+    const face = d.fontAscii ?? d.font;
+    if (face && CSS_FONT.test(face)) decls.push(`font-family:"${face}",sans-serif`);
+    if (decls.length) rules.push(`.doc-page [data-style="${s.styleId}"]{${decls.join(";")}}`);
+  }
+  return rules.join("\n");
+}
+
+// ── table properties ───────────────────────────────────────────────────────
+
+interface CaretTableInfo {
+  table: PmNode;
+  tablePos: number;
+  row: PmNode | null;
+  rowPos: number;
+  cell: PmNode | null;
+}
+
+/** Innermost table around the caret, with its row and cell. */
+export function caretTableInfo(state: EditorState): CaretTableInfo | null {
+  const { $from } = state.selection;
+  let row: PmNode | null = null;
+  let rowPos = -1;
+  let cell: PmNode | null = null;
+  for (let d = $from.depth; d > 0; d--) {
+    const node = $from.node(d);
+    const name = node.type.name;
+    if (name === "docTableCell" || name === "docTableHeader") cell ??= node;
+    else if (name === "docTableRow") {
+      row ??= node;
+      if (rowPos < 0) rowPos = $from.before(d);
+    } else if (name === "docTable") return { table: node, tablePos: $from.before(d), row, rowPos, cell };
+  }
+  return null;
+}
+
+const BORDER_SIDES = ["top", "bottom", "left", "right", "insideH", "insideV"] as const;
+const SINGLE = { style: "single", szEighths: 4, color: "auto" };
+const NONE = { style: "none", szEighths: 0, color: "auto" };
+
+/**
+ * Cell borders override the table's (Word), and only they reach the save
+ * plan, so a cell side set to none means the table is not bordered.
+ */
+export function tableIsBordered(table: PmNode): boolean {
+  let cellNone = false;
+  table.descendants((node) => {
+    if (node.type.name !== "docTableCell" && node.type.name !== "docTableHeader") return true;
+    const cb = node.attrs.borders as Record<string, { style?: string }> | null;
+    if (cb && Object.values(cb).some((side) => side?.style === "none")) cellNone = true;
+    return false;
+  });
+  if (cellNone) return false;
+  const b = table.attrs.borders as Record<string, { style?: string }> | null;
+  return !!b && BORDER_SIDES.every((k) => b[k] && b[k].style !== "none");
+}
+
+/** Patch the enclosing table's attrs (null when not in a table or nothing changes). */
+export function tableAttrsTransaction(
+  state: EditorState,
+  patch: Record<string, unknown>,
+): Transaction | null {
+  const info = caretTableInfo(state);
+  if (!info) return null;
+  const { table, tablePos } = info;
+  if (Object.keys(patch).every((k) => table.attrs[k] === patch[k])) return null;
+  return state.tr.setNodeMarkup(tablePos, undefined, { ...table.attrs, ...patch });
+}
+
+/**
+ * Word's Borders → All Borders / No Border: sets the table borders AND every
+ * cell's own borders, because the save plan detects edits through the cells.
+ */
+export function tableBordersTransaction(state: EditorState, on: boolean): Transaction | null {
+  const info = caretTableInfo(state);
+  if (!info) return null;
+  const line = on ? SINGLE : NONE;
+  const borders = Object.fromEntries(BORDER_SIDES.map((k) => [k, line]));
+  const cellBorders = { top: line, bottom: line, left: line, right: line };
+  const tr = state.tr.setNodeMarkup(info.tablePos, undefined, { ...info.table.attrs, borders });
+  const start = info.tablePos + 1;
+  info.table.descendants((node, pos) => {
+    if (node.type.name === "docTableCell" || node.type.name === "docTableHeader") {
+      tr.setNodeMarkup(tr.mapping.map(start + pos), undefined, { ...node.attrs, borders: cellBorders });
+      return false;
+    }
+    return true;
+  });
+  return tr;
+}
+
+/** Repeat-as-header flag on the caret row (w:tblHeader). */
+export function repeatHeaderTransaction(state: EditorState, on: boolean): Transaction | null {
+  const info = caretTableInfo(state);
+  if (!info?.row || info.rowPos < 0 || Boolean(info.row.attrs.repeatHeader) === on) return null;
+  return state.tr.setNodeMarkup(info.rowPos, undefined, {
+    ...info.row.attrs,
+    repeatHeader: on,
+    repeatHeaderEdited: true,
+  });
+}
+
+function dispatchTr(editor: Editor, tr: Transaction | null): boolean {
+  if (!tr) return false;
+  editor.view.dispatch(tr);
+  editor.view.focus();
+  return true;
+}
+
+export const setTableAlign = (e: Editor, align: TableAlignKey | null) =>
+  dispatchTr(e, tableAttrsTransaction(e.state, { tblAlign: align }));
+export const setTableBordered = (e: Editor, on: boolean) =>
+  dispatchTr(e, tableBordersTransaction(e.state, on));
+export const setRepeatHeader = (e: Editor, on: boolean) =>
+  dispatchTr(e, repeatHeaderTransaction(e.state, on));
+/** Shading / vertical alignment of the selected cells (prosemirror-tables setCellAttr). */
+export const setCellFill = (e: Editor, hex: string | null) =>
+  tableOp(e, setCellAttr("fill", hex && /^[0-9A-Fa-f]{6}$/.test(hex) ? hex.toUpperCase() : null));
+export const setCellVAlign = (e: Editor, v: CellVAlignKey | null) =>
+  tableOp(e, setCellAttr("vAlign", v));

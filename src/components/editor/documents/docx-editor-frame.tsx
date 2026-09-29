@@ -9,13 +9,14 @@
  * pmDocToSavePlan), NOT Cabinet's markdown Tiptap schema — document bytes are
  * patched, never round-tripped through markdown.
  */
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Editor } from "@tiptap/core";
 
 import { createFrameBridge, type BridgeMessage } from "@/lib/documents/frame-bridge";
 import type {
   DocxDocumentModel,
   DocxSavePlan,
+  DocxHeaderFooterInfo,
   FontListResult,
 } from "@/lib/documents/types";
 import { editorExtensions } from "../../../vendor/genoffice/apps/docs/src/renderer/editor/extensions";
@@ -31,12 +32,17 @@ import { DocxChangesPanel, type MarkupView } from "./docx-changes-panel";
 import { DocxCommentsPanel } from "./docx-comments-panel";
 import type { DocxComment } from "./docx-comments";
 import { DocxFindPanel } from "./docx-find-panel";
+import { DocxHeaderFooterPanel } from "./docx-header-footer-panel";
+import { DocxTablePanel } from "./docx-table-panel";
 import { DocxToolbar } from "./docx-toolbar";
 import {
   makePendingNumberingDef,
   nextNumId,
+  listParagraphStyles,
+  paragraphStyleCss,
   readFormatState,
   type DocxFormatState,
+  type StyleEntry,
   type ListKind,
 } from "./docx-toolbar-commands";
 import { useLocale } from "@/i18n/use-locale";
@@ -104,8 +110,12 @@ export default function DocxEditorFrame() {
   const [uiState, setUiState] = useState({ dirty: false, saving: false, readOnly: false });
   const [installedFonts, setInstalledFonts] = useState<string[]>([]);
   const [findOpen, setFindOpen] = useState(false);
-  const [sidePanel, setSidePanel] = useState<"comments" | "changes" | null>(null);
+  const [sidePanel, setSidePanel] = useState<"comments" | "changes" | "headerFooter" | null>(null);
+  const [tableOpen, setTableOpen] = useState(false);
+  const [headerFooter, setHeaderFooter] = useState<DocxHeaderFooterInfo | null>(null);
+  const [styleEntries, setStyleEntries] = useState<StyleEntry[]>([]);
   const [markupView, setMarkupView] = useState<MarkupView>("all");
+  const styleCss = useMemo(() => paragraphStyleCss(styleEntries), [styleEntries]);
   const [comments, setComments] = useState<DocxComment[]>([]);
   const [author, setAuthor] = useState("");
 
@@ -168,6 +178,8 @@ export default function DocxEditorFrame() {
     s.comments = model.comments ?? [];
     s.commentsChanged = false;
     setComments(s.comments);
+    setHeaderFooter(model.headerFooter ?? null);
+    setStyleEntries(listParagraphStyles(model.styles));
     // A reload re-parses numbering.xml — pending definitions are either saved
     // (and now part of the model) or discarded with the doc state.
     s.numberingKeys = model.numbering.map(([numId]) => numId);
@@ -551,8 +563,24 @@ export default function DocxEditorFrame() {
           onToggleComments={() => setSidePanel((v) => (v === "comments" ? null : "comments"))}
           changesOpen={sidePanel === "changes"}
           onToggleChanges={() => setSidePanel((v) => (v === "changes" ? null : "changes"))}
+          hfOpen={sidePanel === "headerFooter"}
+          onToggleHeaderFooter={() =>
+            setSidePanel((v) => (v === "headerFooter" ? null : "headerFooter"))
+          }
+          tableOpen={tableOpen}
+          onToggleTable={() => setTableOpen((v) => !v)}
+          styleEntries={styleEntries}
         />
       )}
+      {status === "ready" && tableOpen && formatState?.inTable && (
+        <DocxTablePanel
+          editor={editorInstance}
+          readOnly={uiState.readOnly}
+          formatState={formatState}
+          onClose={() => setTableOpen(false)}
+        />
+      )}
+      {styleCss ? <style data-testid="docx-style-css">{styleCss}</style> : null}
       {status === "ready" && findOpen && (
         <DocxFindPanel
           editor={editorInstance}
@@ -574,6 +602,9 @@ export default function DocxEditorFrame() {
             onChange={updateComments}
             onClose={() => setSidePanel(null)}
           />
+        )}
+        {status === "ready" && sidePanel === "headerFooter" && (
+          <DocxHeaderFooterPanel info={headerFooter} onClose={() => setSidePanel(null)} />
         )}
         {status === "ready" && sidePanel === "changes" && (
           <DocxChangesPanel

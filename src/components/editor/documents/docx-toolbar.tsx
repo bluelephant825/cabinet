@@ -7,24 +7,29 @@
  * vendored.
  */
 import type { Editor } from "@tiptap/core";
+import { useRef } from "react";
 import {
   AlignCenter,
   AlignJustify,
   AlignLeft,
   AlignRight,
   Bold,
+  Image as ImageIcon,
   Italic,
   Link,
   List,
   ListOrdered,
   MessageSquare,
   PenLine,
+  Minus,
   Outdent,
   Indent,
+  PanelTop,
   Redo2,
   Save,
   Search,
   SeparatorHorizontal,
+  SlidersHorizontal,
   Strikethrough,
   Subscript,
   Superscript,
@@ -41,10 +46,13 @@ import { HIGHLIGHT_CSS } from "../../../vendor/genoffice/apps/docs/src/renderer/
 import {
   LINE_SPACING_OPTIONS,
   PARA_SPACING_PT_OPTIONS,
+  applyDocumentStyle,
   applyParagraphAttrs,
   applyParagraphStyle,
   changeIndent,
   insertBreak,
+  insertHorizontalRule,
+  insertImageBlock,
   insertTable,
   lineSpacingPatch,
   paragraphSpacingPatch,
@@ -64,7 +72,9 @@ import {
   type DocxFormatState,
   type ListKind,
   type ParagraphStyleKey,
+  type StyleEntry,
 } from "./docx-toolbar-commands";
+import { readImageFile } from "./docx-image-file";
 
 const FONT_SIZES_PT = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
 
@@ -132,6 +142,11 @@ export function DocxToolbar({
   onToggleComments,
   changesOpen,
   onToggleChanges,
+  hfOpen,
+  onToggleHeaderFooter,
+  tableOpen,
+  onToggleTable,
+  styleEntries,
 }: {
   editor: Editor | null;
   readOnly: boolean;
@@ -149,8 +164,15 @@ export function DocxToolbar({
   onToggleComments?: () => void;
   changesOpen?: boolean;
   onToggleChanges?: () => void;
+  hfOpen?: boolean;
+  onToggleHeaderFooter?: () => void;
+  tableOpen?: boolean;
+  onToggleTable?: () => void;
+  /** Gallery paragraph styles of the document (listParagraphStyles). */
+  styleEntries?: readonly StyleEntry[];
 }) {
   const { t, locale } = useLocale();
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const fs = formatState;
   const disabled = readOnly || !editor;
   const act = (fn: (e: Editor) => boolean | void) => () => {
@@ -179,6 +201,18 @@ export function DocxToolbar({
     sizePt != null && !FONT_SIZES_PT.includes(sizePt)
       ? [sizePt, ...FONT_SIZES_PT]
       : FONT_SIZES_PT;
+
+  const pickImage = async (file: File | undefined) => {
+    if (!editor || !file) return;
+    const res = await readImageFile(file);
+    if (!res.ok) {
+      window.alert(
+        t(res.reason === "size" ? "docxEditor:tbImageTooLarge" : "docxEditor:tbImageUnsupported"),
+      );
+      return;
+    }
+    insertImageBlock(editor, res.dataUrl, res, res.altText);
+  };
 
   const promptLink = () => {
     if (!editor) return;
@@ -220,6 +254,15 @@ export function DocxToolbar({
           <PenLine size={14} />
         </ToolButton>
         <ToolButton
+          testId="docx-tb-headers-footers"
+          title={t("docxEditor:tbHeadersFooters")}
+          pressed={hfOpen}
+          disabled={!editor}
+          onClick={() => onToggleHeaderFooter?.()}
+        >
+          <PanelTop size={14} />
+        </ToolButton>
+        <ToolButton
           testId="docx-tb-undo"
           title={t("docxEditor:tbUndo")}
           disabled={disabled || !fs?.canUndo}
@@ -257,6 +300,30 @@ export function DocxToolbar({
             </option>
           ))}
         </select>
+        {styleEntries && styleEntries.length > 0 ? (
+          <select
+            data-testid="docx-tb-styles-gallery"
+            className="doc-frame-select"
+            title={t("docxEditor:tbStylesGallery")}
+            aria-label={t("docxEditor:tbStylesGallery")}
+            disabled={disabled}
+            value={fs?.styleId ?? styleEntries.find((st) => st.isDefault)?.styleId ?? ""}
+            onMouseDown={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const entry = styleEntries.find((st) => st.styleId === e.target.value);
+              if (editor && entry) applyDocumentStyle(editor, entry);
+            }}
+          >
+            {fs?.styleId && !styleEntries.some((st) => st.styleId === fs.styleId) ? (
+              <option value={fs.styleId}>{fs.styleId}</option>
+            ) : null}
+            {styleEntries.map((st) => (
+              <option key={st.styleId} value={st.styleId}>
+                {st.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <select
           data-testid="docx-tb-font"
           className="doc-frame-select"
@@ -541,6 +608,33 @@ export function DocxToolbar({
           <SeparatorHorizontal size={14} />
         </ToolButton>
         <ToolButton
+          testId="docx-tb-hr"
+          title={t("docxEditor:tbHorizontalRule")}
+          disabled={disabled}
+          onClick={act(insertHorizontalRule)}
+        >
+          <Minus size={14} />
+        </ToolButton>
+        <ToolButton
+          testId="docx-tb-image"
+          title={t("docxEditor:tbInsertImage")}
+          disabled={disabled}
+          onClick={() => imageInputRef.current?.click()}
+        >
+          <ImageIcon size={14} />
+        </ToolButton>
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif"
+          data-testid="docx-tb-image-input"
+          hidden
+          onChange={(e) => {
+            void pickImage(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <ToolButton
           testId="docx-tb-table-insert"
           title={t("docxEditor:tbInsertTable")}
           disabled={disabled}
@@ -550,6 +644,15 @@ export function DocxToolbar({
         </ToolButton>
         {fs?.inTable ? (
           <>
+            <ToolButton
+              testId="docx-tb-table-props"
+              title={t("docxEditor:tbTableProperties")}
+              pressed={tableOpen}
+              disabled={!editor}
+              onClick={() => onToggleTable?.()}
+            >
+              <SlidersHorizontal size={14} />
+            </ToolButton>
             <ToolButton
               testId="docx-tb-table-row-add"
               title={t("docxEditor:tbAddRow")}

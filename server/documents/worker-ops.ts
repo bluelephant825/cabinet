@@ -57,6 +57,7 @@ import type {
   ImageEditInput,
 } from "../../src/vendor/genoffice/apps/pdf/shared/ipc";
 import { DocumentError } from "../../src/lib/documents/errors";
+import { summarizeHeaderFooter } from "../../src/lib/documents/docx-header-footer";
 import type {
   DocumentFormat,
   DocumentPatchOp,
@@ -1135,6 +1136,7 @@ async function docxLoadOp(args: { inputPath: string }): Promise<DocxDocumentMode
     fontTable: parsed.fontTable ?? null,
     docDefaults: parsed.docDefaults ?? null,
     comments: (parsed.comments ?? []) as DocxComment[],
+    headerFooter: summarizeHeaderFooter(parsed),
     oversizedImages,
   };
 }
