@@ -2229,7 +2229,19 @@
     "findReplaceAll": "",
     "findWholeWord": "",
     "replacePlaceholder": "",
-    "tbFind": ""
+    "tbFind": "",
+    "commentDefaultAuthor": "",
+    "commentReopen": "",
+    "commentReply": "",
+    "commentReplyPlaceholder": "",
+    "commentResolve": "",
+    "commentResolved": "",
+    "commentUnknownAuthor": "",
+    "commentsClose": "",
+    "commentsEmpty": "",
+    "commentsShowResolved": "",
+    "commentsTitle": "",
+    "tbComments": ""
   },
   "pdfEditor": {
     "bold": "",

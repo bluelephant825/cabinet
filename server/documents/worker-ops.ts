@@ -60,6 +60,7 @@ import { DocumentError } from "../../src/lib/documents/errors";
 import type {
   DocumentFormat,
   DocumentPatchOp,
+  DocxComment,
   DocxDocumentModel,
   DocxInspectResult,
   DocxSavePlan,
@@ -1133,6 +1134,7 @@ async function docxLoadOp(args: { inputPath: string }): Promise<DocxDocumentMode
     themeColors: parsed.themeColors ?? null,
     fontTable: parsed.fontTable ?? null,
     docDefaults: parsed.docDefaults ?? null,
+    comments: (parsed.comments ?? []) as DocxComment[],
     oversizedImages,
   };
 }

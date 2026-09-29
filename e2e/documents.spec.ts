@@ -208,6 +208,69 @@ test("docx find and replace: count, navigate, replace one and all, persists", as
   });
 });
 
+test("docx comments panel: read thread, reply and resolve, persists across reload", async ({
+  page,
+}) => {
+  const doc = await parseDocx(await buildBlankDocx());
+  const bytes = Buffer.from(
+    await saveDocx(
+      doc,
+      [
+        {
+          kind: "generated",
+          block: {
+            type: "paragraph",
+            runs: [{ text: "Plain " }, { text: "anchored", commentIds: ["1"] }, { text: " tail" }],
+          },
+        },
+      ] as SaveBlock[],
+      {
+        comments: [
+          { id: "1", author: "Ada Lovelace", text: "First note", date: "2026-09-01T09:00:00Z" },
+        ],
+      },
+    ),
+  );
+  expect((await putDocument("comments.docx", bytes)).ok).toBe(true);
+
+  const frame = await openDocx(page, "comments.docx");
+  await expect(frame.locator('[data-testid="docx-tb-comments-count"]')).toHaveText("1");
+  await frame.locator('[data-testid="docx-tb-comments"]').click();
+  const panel = frame.locator('[data-testid="docx-comments-panel"]');
+  await expect(panel).toBeVisible();
+  const thread = panel.locator('[data-testid="docx-comment-thread"]').first();
+  await expect(thread).toContainText("Ada Lovelace");
+  await expect(thread).toContainText("First note");
+  await expect(thread.locator('[data-testid="docx-comment-anchor"]')).toHaveText("anchored");
+
+  // The anchor button selects the commented text in the editor.
+  await thread.locator('[data-testid="docx-comment-anchor"]').click();
+  expect(await frame.locator("body").evaluate(() => window.getSelection()?.toString())).toBe(
+    "anchored",
+  );
+
+  await thread.locator('[data-testid="docx-comment-reply-input"]').fill("Looks good");
+  await thread.locator('[data-testid="docx-comment-reply"]').click();
+  await expect(thread.locator('[data-testid="docx-comment-reply"]')).toBeDisabled();
+  await expect(thread.locator('[data-testid="docx-comment-reply-entry"]')).toContainText("Looks good");
+  await thread.locator('[data-testid="docx-comment-resolve"]').click();
+  await expect(thread).toContainText("Resolved");
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+  await frame.locator('[data-testid="docx-tb-save"]').click();
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 15_000 });
+
+  const frame2 = await openDocx(page, "comments.docx");
+  await expect(frame2.locator('[data-testid="docx-tb-comments-count"]')).toHaveText("2", {
+    timeout: 30_000,
+  });
+  await frame2.locator('[data-testid="docx-tb-comments"]').click();
+  const thread2 = frame2.locator('[data-testid="docx-comment-thread"]').first();
+  await expect(thread2).toContainText("First note");
+  await expect(thread2.locator('[data-testid="docx-comment-reply-entry"]')).toContainText("Looks good");
+  await expect(thread2).toContainText("Resolved");
+});
+
 test("docx save clears the dirty badge — including a second edit+save cycle", async ({
   page,
 }) => {

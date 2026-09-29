@@ -394,6 +394,22 @@ export interface DocumentErrorPayload {
 // and `numbering` are Maps upstream and ship here as entry arrays so the model
 // crosses the worker → daemon → Next → iframe boundary with JSON.stringify.
 
+/** Structural copy of the engine's `CommentInfo` (word/comments.xml entry). */
+export interface DocxComment {
+  id: string;
+  author: string;
+  initials?: string;
+  /** ISO timestamp from w:date */
+  date?: string;
+  /** plain text, paragraphs joined with \n */
+  text: string;
+  /** Reply: the parent comment's w:id */
+  parentId?: string;
+  /** Resolved (w15:done) */
+  done?: boolean;
+  paraId?: string;
+}
+
 export interface DocxDocumentModel {
   format: "docx";
   /** engine `Block[]` — plain JSON objects (imageDataUrl is a data URL). */
@@ -410,6 +426,8 @@ export interface DocxDocumentModel {
   fontTable?: unknown[] | null;
   /** `docDefaults` (w:docDefaults display defaults) — list-numbering storage. */
   docDefaults?: unknown | null;
+  /** Every comment in word/comments.xml (replies carry `parentId`). */
+  comments?: DocxComment[];
   /** Count of images whose data URL exceeded the per-image cap and were
    *  replaced with a placeholder flag on the block (`imageOversized: true`). */
   oversizedImages: number;

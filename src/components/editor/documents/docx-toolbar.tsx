@@ -17,6 +17,7 @@ import {
   Link,
   List,
   ListOrdered,
+  MessageSquare,
   Outdent,
   Indent,
   Redo2,
@@ -125,6 +126,9 @@ export function DocxToolbar({
   installedFonts,
   findOpen,
   onToggleFind,
+  commentsOpen,
+  commentCount,
+  onToggleComments,
 }: {
   editor: Editor | null;
   readOnly: boolean;
@@ -137,6 +141,9 @@ export function DocxToolbar({
   installedFonts?: readonly string[];
   findOpen?: boolean;
   onToggleFind?: () => void;
+  commentsOpen?: boolean;
+  commentCount?: number;
+  onToggleComments?: () => void;
 }) {
   const { t, locale } = useLocale();
   const fs = formatState;
@@ -187,6 +194,16 @@ export function DocxToolbar({
           onClick={() => onToggleFind?.()}
         >
           <Search size={14} />
+        </ToolButton>
+        <ToolButton
+          testId="docx-tb-comments"
+          title={t("docxEditor:tbComments")}
+          pressed={commentsOpen}
+          disabled={!editor}
+          onClick={() => onToggleComments?.()}
+        >
+          <MessageSquare size={14} />
+          {commentCount ? <span data-testid="docx-tb-comments-count">{commentCount}</span> : null}
         </ToolButton>
         <ToolButton
           testId="docx-tb-undo"

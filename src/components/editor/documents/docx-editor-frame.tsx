@@ -27,6 +27,8 @@ import {
 import { setModuleLang } from "../../../vendor/genoffice/apps/docs/src/renderer/i18n/locale";
 import { strings as editorStrings } from "../../../vendor/genoffice/apps/docs/src/renderer/i18n/strings";
 import { setDocFontTable } from "../../../vendor/genoffice/apps/docs/src/renderer/line-metrics";
+import { DocxCommentsPanel } from "./docx-comments-panel";
+import type { DocxComment } from "./docx-comments";
 import { DocxFindPanel } from "./docx-find-panel";
 import { DocxToolbar } from "./docx-toolbar";
 import {
@@ -101,6 +103,9 @@ export default function DocxEditorFrame() {
   const [uiState, setUiState] = useState({ dirty: false, saving: false, readOnly: false });
   const [installedFonts, setInstalledFonts] = useState<string[]>([]);
   const [findOpen, setFindOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<DocxComment[]>([]);
+  const [author, setAuthor] = useState("");
 
   // Mutable editor state, kept in a ref so bridge handlers never go stale.
   const st = useRef({
@@ -124,6 +129,9 @@ export default function DocxEditorFrame() {
     numIdFloor: 0,
     /** A revision-changed notice received while a save was in flight. */
     deferredRevision: null as string | null,
+    /** Full comment list (word/comments.xml); written back only after a reply/resolve. */
+    comments: [] as DocxComment[],
+    commentsChanged: false,
   });
 
   const sendState = useCallback((extra?: Record<string, unknown>) => {
@@ -155,6 +163,9 @@ export default function DocxEditorFrame() {
       sessionId: init.sessionId,
     });
     s.blocks = model.blocks;
+    s.comments = model.comments ?? [];
+    s.commentsChanged = false;
+    setComments(s.comments);
     // A reload re-parses numbering.xml — pending definitions are either saved
     // (and now part of the model) or discarded with the doc state.
     s.numberingKeys = model.numbering.map(([numId]) => numId);
@@ -210,6 +221,17 @@ export default function DocxEditorFrame() {
     const titleText = (firstHeading?.runs ?? []).map((r) => r.text ?? "").join("").trim();
     if (titleText) s.bridge?.send("title", { text: titleText });
   }, [markDirty]);
+
+  const updateComments = useCallback(
+    (next: DocxComment[]) => {
+      const s = st.current;
+      s.comments = next;
+      s.commentsChanged = true;
+      setComments(next);
+      markDirty();
+    },
+    [markDirty],
+  );
 
   /**
    * Allocate a brand-new numbering id for a first-of-kind list (upstream
@@ -277,6 +299,7 @@ export default function DocxEditorFrame() {
         // retired — defs allocated during the in-flight save stay pending.
         const sentDefs = s.pendingNumbering.newDefs.map((d) => ({ ...d }));
         const sentIds = new Set(sentDefs.map((d) => d.numId));
+        const sentComments = s.commentsChanged ? s.comments : null;
         const body: { sessionId: string; baseRevision: string; plan: DocxSavePlan } = {
           sessionId: s.init!.sessionId,
           baseRevision: s.revision,
@@ -285,8 +308,13 @@ export default function DocxEditorFrame() {
             ...(plan.chartPatches?.length
               ? { chartPatches: plan.chartPatches as DocxSavePlan["chartPatches"] }
               : {}),
-            ...(sentDefs.length
-              ? { options: { numbering: { newDefs: sentDefs } } }
+            ...(sentDefs.length || sentComments
+              ? {
+                  options: {
+                    ...(sentDefs.length ? { numbering: { newDefs: sentDefs } } : {}),
+                    ...(sentComments ? { comments: sentComments } : {}),
+                  },
+                }
               : {}),
           },
         };
@@ -295,6 +323,7 @@ export default function DocxEditorFrame() {
         s.pendingNumbering.newDefs = s.pendingNumbering.newDefs.filter(
           (d) => !sentIds.has(d.numId),
         );
+        if (sentComments && s.comments === sentComments) s.commentsChanged = false;
         s.savedGeneration = Math.max(s.savedGeneration, generation);
         if (s.dirtyGeneration === generation) {
           s.dirty = false;
@@ -416,6 +445,16 @@ export default function DocxEditorFrame() {
   );
 
   useEffect(() => {
+    fetch("/api/user/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { profile?: { displayName?: string; name?: string } } | null) => {
+        const p = j?.profile;
+        setAuthor((p?.displayName || p?.name || "").trim());
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.slice(1));
     const channel = hash.get("channel") ?? "";
     if (!channel) {
@@ -505,6 +544,9 @@ export default function DocxEditorFrame() {
           installedFonts={installedFonts}
           findOpen={findOpen}
           onToggleFind={() => setFindOpen((v) => !v)}
+          commentsOpen={commentsOpen}
+          commentCount={comments.length}
+          onToggleComments={() => setCommentsOpen((v) => !v)}
         />
       )}
       {status === "ready" && findOpen && (
@@ -517,7 +559,19 @@ export default function DocxEditorFrame() {
           }}
         />
       )}
-      <div ref={scrollRef} className="doc-editor-scroll" />
+      <div className="doc-editor-body">
+        <div ref={scrollRef} className="doc-editor-scroll" />
+        {status === "ready" && commentsOpen && (
+          <DocxCommentsPanel
+            editor={editorInstance}
+            comments={comments}
+            readOnly={uiState.readOnly}
+            author={author || t("docxEditor:commentDefaultAuthor")}
+            onChange={updateComments}
+            onClose={() => setCommentsOpen(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
