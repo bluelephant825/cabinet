@@ -895,9 +895,6 @@ export function AppShell() {
 
   useEffect(() => {
     const handleExit = () => {
-      setAppMode("edit");
-      loadTree();
-      
       // If the selected path itself is a drawio diagram or excalidraw drawing, deselect it to parent
       // directory to prevent redirect loop
       const currentPath = useTreeStore.getState().selectedPath;
@@ -912,6 +909,8 @@ export function AppShell() {
         const parentPath = lastSlash > 0 ? currentPath.slice(0, lastSlash) : null;
         useTreeStore.getState().selectPage(parentPath);
       }
+      setAppMode("edit", null);
+      loadTree();
     };
 
     const handleEditorMessage = (event: MessageEvent) => {

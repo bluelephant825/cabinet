@@ -246,7 +246,7 @@ cabinet/
     getting-started/  -> Default KB page
 ```
 
-**Tech stack:** Next.js 16, TypeScript, Tailwind CSS, shadcn/ui, Tiptap, Zustand, xterm.js, node-cron
+**Tech stack:** Next.js 16, TypeScript, Tailwind CSS, shadcn/ui, Tiptap, Monaco Editor, Zustand, xterm.js, node-cron
 
 ---
 

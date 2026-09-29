@@ -1,5 +1,9 @@
 # Progress
 
+[2026-09-29] Added Monaco Editor to the README tech stack to reflect the existing source and document editors.
+
+[2026-09-29] Fixed reopening Draw.io and Excalidraw after editor save messages. The exit handler now selects the containing folder before switching to edit mode and clears the stale browse URL, so reselecting the same drawing reopens its iframe. Added isolated Playwright regressions for both editor types; both failed against the old behavior and pass with the fix. Production build, TypeScript, and targeted ESLint pass.
+
 [2026-09-29] Added Canvas and LLM Wiki to the README feature list. Canvas shows pages, folders, and supported documents as movable preview cards; the opt-in Wiki builds linked pages from selected notes with a configured AI agent while leaving original notes editable.
 
 [2026-09-29] Expanded the README feature overview and documented document, notebook, diagram, media, MDX, 3D, and local Chromium extension support. Clarified that MDX rendering is limited to verified components, notebook execution needs a local Jupyter server, and Typst PDF preview needs the optional native CLI. Updated requirements and commands for the macOS Chromium desktop host and cross-platform source mode. Corrected quickstart to use the packaged create-and-run flow, clarified local loopback versus LAN browser eligibility, listed all nine verified MDX components, and added chart and live-code features.
