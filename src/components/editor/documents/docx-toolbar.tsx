@@ -21,6 +21,7 @@ import {
   Indent,
   Redo2,
   Save,
+  Search,
   SeparatorHorizontal,
   Strikethrough,
   Subscript,
@@ -122,6 +123,8 @@ export function DocxToolbar({
   saving,
   allocateNumId,
   installedFonts,
+  findOpen,
+  onToggleFind,
 }: {
   editor: Editor | null;
   readOnly: boolean;
@@ -132,6 +135,8 @@ export function DocxToolbar({
   allocateNumId: (kind: ListKind) => string | null;
   /** Daemon fonts/list inventory; empty → Local Font Access fallback. */
   installedFonts?: readonly string[];
+  findOpen?: boolean;
+  onToggleFind?: () => void;
 }) {
   const { t, locale } = useLocale();
   const fs = formatState;
@@ -174,6 +179,15 @@ export function DocxToolbar({
   return (
     <div className="doc-frame-toolbar" data-testid="docx-toolbar">
       <div className="doc-frame-group">
+        <ToolButton
+          testId="docx-tb-find"
+          title={t("docxEditor:tbFind")}
+          pressed={findOpen}
+          disabled={!editor}
+          onClick={() => onToggleFind?.()}
+        >
+          <Search size={14} />
+        </ToolButton>
         <ToolButton
           testId="docx-tb-undo"
           title={t("docxEditor:tbUndo")}

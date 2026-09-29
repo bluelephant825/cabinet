@@ -27,6 +27,7 @@ import {
 import { setModuleLang } from "../../../vendor/genoffice/apps/docs/src/renderer/i18n/locale";
 import { strings as editorStrings } from "../../../vendor/genoffice/apps/docs/src/renderer/i18n/strings";
 import { setDocFontTable } from "../../../vendor/genoffice/apps/docs/src/renderer/line-metrics";
+import { DocxFindPanel } from "./docx-find-panel";
 import { DocxToolbar } from "./docx-toolbar";
 import {
   makePendingNumberingDef,
@@ -99,6 +100,7 @@ export default function DocxEditorFrame() {
   const [formatState, setFormatState] = useState<DocxFormatState | null>(null);
   const [uiState, setUiState] = useState({ dirty: false, saving: false, readOnly: false });
   const [installedFonts, setInstalledFonts] = useState<string[]>([]);
+  const [findOpen, setFindOpen] = useState(false);
 
   // Mutable editor state, kept in a ref so bridge handlers never go stale.
   const st = useRef({
@@ -432,6 +434,9 @@ export default function DocxEditorFrame() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         void doSaveRef.current("manual");
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFindOpen(true);
       }
     };
     const unloadHandler = (e: BeforeUnloadEvent) => {
@@ -498,6 +503,18 @@ export default function DocxEditorFrame() {
           saving={uiState.saving}
           allocateNumId={allocateNumId}
           installedFonts={installedFonts}
+          findOpen={findOpen}
+          onToggleFind={() => setFindOpen((v) => !v)}
+        />
+      )}
+      {status === "ready" && findOpen && (
+        <DocxFindPanel
+          editor={editorInstance}
+          readOnly={uiState.readOnly}
+          onClose={() => {
+            setFindOpen(false);
+            editorInstance?.commands.focus();
+          }}
         />
       )}
       <div ref={scrollRef} className="doc-editor-scroll" />

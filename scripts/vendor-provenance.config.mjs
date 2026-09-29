@@ -48,7 +48,7 @@ export const VENDORS = {
       'apps/docs/src/shared/ipc.ts':
         "upstream's docs IPC contract (DesktopApi, AI channels, agent-core/ai-provider/electron-utils types) is shell-facing and not vendored; trimmed to the AgentToolDef shape the vendored renderer ai/style-ops.ts needs",
       'packages/ui/src/index.ts':
-        'upstream barrel re-exports the whole shared UI kit (AiComposer, Dropdown, Markdown, find panel, ribbon collapse, dialogs…); the vendored editors only need the WordArt presets, the shape-clip helper and foldCase (PDF search), so the barrel exports just those',
+        'upstream barrel re-exports the whole shared UI kit (AiComposer, Dropdown, Markdown, find panel, ribbon collapse, dialogs…); the vendored editors only need the WordArt presets, the shape-clip helper and the find-text helpers (foldCase for PDF search; findInText/FindOptions also used by the Cabinet DOCX find panel), so the barrel exports just those',
       'apps/pdf/renderer/ImageEditLayer.tsx':
         "as-CSSProperties cast on the veil style — upstream's local Box type lacks the `--*` index signature current @types/react requires",
     },

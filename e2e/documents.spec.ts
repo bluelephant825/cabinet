@@ -167,6 +167,47 @@ test("docx toolbar script, spacing and page break survive save + reload", async 
   await expect(editor2.locator(".page-break-before").first()).toBeAttached();
 });
 
+test("docx find and replace: count, navigate, replace one and all, persists", async ({ page }) => {
+  const res = await putDocument(
+    "find.docx",
+    await makeDocx("cat one cat", "two Cat three", "scatter"),
+  );
+  expect(res.ok).toBe(true);
+
+  const frame = await openDocx(page, "find.docx");
+  const editor = frame.locator(".ProseMirror").first();
+  await frame.locator('[data-testid="docx-tb-find"]').click();
+  const input = frame.locator('[data-testid="docx-find-input"]');
+  await expect(input).toBeFocused();
+
+  await input.fill("cat");
+  await expect(frame.locator('[data-testid="docx-find-count"]')).toContainText("4");
+  await frame.locator('[data-testid="docx-find-case"]').click();
+  await expect(frame.locator('[data-testid="docx-find-count"]')).toContainText("3");
+  await frame.locator('[data-testid="docx-find-word"]').click();
+  await expect(frame.locator('[data-testid="docx-find-count"]')).toContainText("2");
+
+  // Enter selects the first match; Replace swaps it and moves on.
+  await input.press("Enter");
+  await frame.locator('[data-testid="docx-replace-input"]').fill("dog");
+  await frame.locator('[data-testid="docx-replace-one"]').click();
+  await expect(editor).toContainText("dog one cat");
+  await frame.locator('[data-testid="docx-replace-all"]').click();
+  await expect(editor).toContainText("dog one dog");
+  // Case-sensitive: "Cat" and "scatter" are untouched.
+  await expect(editor).toContainText("two Cat three");
+  await expect(editor).toContainText("scatter");
+
+  await frame.locator('[data-testid="docx-find-close"]').click();
+  await frame.locator('[data-testid="docx-tb-save"]').click();
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 15_000 });
+
+  const frame2 = await openDocx(page, "find.docx");
+  await expect(frame2.locator(".ProseMirror").first()).toContainText("dog one dog", {
+    timeout: 30_000,
+  });
+});
+
 test("docx save clears the dirty badge — including a second edit+save cycle", async ({
   page,
 }) => {

@@ -2217,7 +2217,19 @@
     "tbLineSpacing": "",
     "tbPageBreak": "",
     "tbSubscript": "",
-    "tbSuperscript": ""
+    "tbSuperscript": "",
+    "findClose": "",
+    "findCount": "",
+    "findMatchCase": "",
+    "findNext": "",
+    "findNone": "",
+    "findPlaceholder": "",
+    "findPrev": "",
+    "findReplace": "",
+    "findReplaceAll": "",
+    "findWholeWord": "",
+    "replacePlaceholder": "",
+    "tbFind": ""
   },
   "pdfEditor": {
     "bold": "",

@@ -39,6 +39,33 @@ body {
   color: var(--text, #1f2937);
 }
 
+.doc-find-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px 10px;
+  background: var(--surface, #f3f4f6);
+  border-bottom: 1px solid var(--border-strong, #e1e4e8);
+  font: 12px/1.4 system-ui, sans-serif;
+  color: var(--text, #1f2937);
+}
+
+.doc-find-input {
+  font: inherit;
+  width: 160px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong, #e1e4e8);
+  background: var(--surface-subtle, #fff);
+  color: var(--text, #1f2937);
+}
+
+.doc-find-count {
+  min-width: 56px;
+  opacity: 0.7;
+}
+
 .doc-frame-group {
   display: flex;
   align-items: center;

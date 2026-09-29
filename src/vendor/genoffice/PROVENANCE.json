@@ -2128,10 +2128,10 @@
     {
       "path": "packages/ui/src/index.ts",
       "upstreamPath": "packages/ui/src/index.ts",
-      "sha256": "cdff3f09992f9ac4a0c9d54e2603fdc662cd8bd72f70c2a1d68957e09163e79e",
+      "sha256": "75d0966f13f9f3b15cb097d506c5dee550852d94f987128b2e10c1c1393664e5",
       "adapted": true,
       "upstreamSha256": "5a9a69d2e9639130ff711722607371d1c0558bc0a7ba3755c17a39cc4d01ebfd",
-      "adaptationNote": "upstream barrel re-exports the whole shared UI kit (AiComposer, Dropdown, Markdown, find panel, ribbon collapse, dialogs…); the vendored editors only need the WordArt presets, the shape-clip helper and foldCase (PDF search), so the barrel exports just those"
+      "adaptationNote": "upstream barrel re-exports the whole shared UI kit (AiComposer, Dropdown, Markdown, find panel, ribbon collapse, dialogs…); the vendored editors only need the WordArt presets, the shape-clip helper and the find-text helpers (foldCase for PDF search; findInText/FindOptions also used by the Cabinet DOCX find panel), so the barrel exports just those"
     },
     {
       "path": "packages/ui/src/shape-gallery.tsx",
