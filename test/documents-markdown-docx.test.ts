@@ -98,6 +98,7 @@ function minimalDoc(blocks: Partial<Block>[]): ParsedDoc {
     styles: new Map(),
     headingStyleIds: new Map(),
     protection: null,
+    zoteroDocumentData: "",
     writeProtection: null,
     removePersonalInfo: false,
     numbering: new Map(),

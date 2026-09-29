@@ -1,7 +1,9 @@
 import {
   readSections,
+  tocLevelOf,
   type ParsedDocFull,
   type StyleDisplay,
+  type StyleInfo,
   type ThemeColors,
   type ThemeFonts,
 } from '@genoffice/docx-engine'
@@ -26,14 +28,69 @@ import {
   lineHeightFactor,
   textHasCjk,
   isKoreanFontName,
+  wordKerns,
 } from './line-metrics'
 import { sectionGridPitchPt } from './pagination'
+import { DARK_PAPER_HEX, DK_SIDE, darkPageBorderCss, darkPageColor } from './editor/dark-page'
+import { fillInk } from './editor/shading-ink'
+import { textOutlineDecl } from './editor/text-outline'
+import { textAlignDecl } from './editor/text-effects'
+import { paraBorderCss, paraBorderPadding, paraBorderPaddingDecls } from './editor/hf-dom'
+
+/** lines laid out on list geometry: list items and the numbered stray line of a textbox anchor */
+const LIST_LINES = '.doc-li, .doc-li-stray'
+
+/** appended to every dark-twin subject: filled text boxes keep their authored colors */
+const DARK_TWIN_SUBJECT = ':where(:not(.doc-textbox-filled *))'
 
 // Word suppresses HTML auto space-before on the document's first paragraph
 // (prod_021: a 14pt lead Word does not render pushed a line per page and left
 // a trailing blank page); the page-1 float host is a zero-height widget that
 // may precede the first block
+/** auto-colour ink on table-style shading (data-ink twin of styles.css). Dark
+ * fills flip the ink; light fills reset it only where a dark fill would
+ * otherwise reach them (a dark whole-table fill, or a dark data-ink ancestor),
+ * so an inherited explicit colour on a plain light fill stays untouched. Cells
+ * carrying their own fill (data-ink) are left to that attribute. */
+const AUTO_INK: Record<'light' | 'dark', { paper: string; dark: string }> = {
+  light: {
+    paper: '--docs-paper-ink:#fff;color:var(--docs-paper-ink)',
+    dark: `--docs-paper-ink:${DARK_PAPER_HEX}`,
+  },
+  dark: {
+    paper: '--docs-paper-ink:#000;color:var(--docs-paper-ink)',
+    dark: '--docs-paper-ink:#ffffff',
+  },
+}
+const ownFill = (cellSel: string): string =>
+  cellSel
+    .split(',')
+    .map((s) => `${s.trim()}:not([data-ink])`)
+    .join(', ')
+const underDarkInk = (sel: string): string =>
+  sel
+    .split(',')
+    .map((s) =>
+      s
+        .trim()
+        .replace(
+          /^\.doc-page table\[/,
+          ".doc-page :is([data-ink='light'] table, table[data-ink='light'])[",
+        ),
+    )
+    .join(', ')
+const insideCells = (sel: string): string =>
+  sel
+    .split(',')
+    .map((s) => `${s.trim()} [data-ink='dark']`)
+    .join(', ')
+
 const DOC_FIRST_BLOCK = ':nth-child(1 of :not(.page-float-host))'
+// ...and on a cell's first paragraph; auto space-after goes on its last (styles.css
+// sp-auto-*); .doc-cell-boxes is the zero-width anchored-shape strut ahead of it
+const CELL_BLOCK = '.doc-table :is(td, th, .cell-clip, .cell-vert) > '
+const CELL_FIRST = ':nth-child(1 of :not(.doc-cell-boxes))'
+const CELL_LAST = ':nth-last-child(1 of :not(.doc-cell-boxes))'
 
 /**
  * CSS for the document theme (Design ▸ Themes / Fonts / Colors). Kept separate from
@@ -59,7 +116,9 @@ export function docThemeCss(
     )
   }
   if (fonts?.major) {
-    const headings = [1, 2, 3, 4, 5, 6].map((n) => `.doc-page h${n}`).join(', ')
+    const headings = [1, 2, 3, 4, 5, 6]
+      .map((n) => `.doc-page h${n}:where(:not(.doc-outline-only))`)
+      .join(', ')
     rules.push(`${headings} { font-family:${cssFontFamily(fonts.major)} }`)
   }
   if (colors?.accent1) {
@@ -98,10 +157,11 @@ export function docCjkFactor(parsed: ParsedDocFull): number {
   const factor = (f: string) => cjkDeclaredLineFactor(f) ?? lineHeightFactor(f)
   // Normal's EA face wins over docDefaults (a Normal declaring e.g. Noto KR must
   // not fall back to the SimSun factor). font === fontAscii means only a
-  // Latin slot was declared (StyleDisplay.font is EA-first) — not an EA choice.
+  // Latin slot was declared (StyleDisplay.font is EA-first) — not an EA choice,
+  // unless the shared name is itself a CJK face (Meiryo in every slot).
   const normal = defaultParaDisplay(parsed)
   const normalEa =
-    normal?.font && (normal.font !== normal.fontAscii || isKoreanFontName(normal.font))
+    normal?.font && (normal.font !== normal.fontAscii || isCjkFontName(normal.font))
       ? normal.font
       : undefined
   if (normalEa && !normal?.eaSlotEmpty) return factor(normalEa)
@@ -131,6 +191,10 @@ export function docCjkFactor(parsed: ParsedDocFull): number {
  */
 const NOTO_HAN_SUPERFAMILY_RE = /^(?:noto (?:sans|serif) cjk|source han (?:sans|serif))\b/
 export function docAutospaceOff(parsed: ParsedDocFull): boolean {
+  // docDefaults w:lang w:val naming an East Asian language classifies the
+  // Latin text itself as East Asian: no gaps anywhere (Word probe 2026-09-11,
+  // ja-JP both ways; zh/ko assumed by the same mechanism)
+  if (/^(?:ja|zh|ko)(?:[-_]|$)/i.test(parsed.docDefaults?.lang ?? '')) return true
   const normal = defaultParaDisplay(parsed)
   const normalEa =
     normal?.font &&
@@ -208,8 +272,43 @@ export function docBodyFont(parsed: ParsedDocFull): string | undefined {
   return normal?.fontAscii ?? normal?.font ?? parsed.docDefaults?.asciiFont
 }
 
+/** the Hyperlink character style: Word's id, or a localized id under the English name */
+function isHyperlinkStyle(info: StyleInfo): boolean {
+  return info.styleId === 'Hyperlink' || /^hyperlink$/i.test(info.name)
+}
+
 export function docStyleCss(parsed: ParsedDocFull): string {
   const rules: string[] = []
+  // Dark-page twins of every color rule below (editor/dark-page.ts): same
+  // selectors under `.page-dark`, remapped values, emitted in one screen-only
+  // block at the end so printToPDF and the pagination preview keep the
+  // authored colors. Filled text boxes are a light island (their text contrasts
+  // with the box fill, not the paper): the twins skip everything inside them,
+  // with :where() so the specificity stays that of the authored rule + .page-dark.
+  const darkRules: string[] = []
+  const darkTwin = (selectors: string, decls: string[]): void => {
+    if (decls.length === 0) return
+    const sel = selectors
+      .split(',')
+      .map((s) => `.page-dark ${s.trim()}${DARK_TWIN_SUBJECT}`)
+      .join(', ')
+    darkRules.push(`${sel} { ${decls.join(';')} }`)
+  }
+  const inkRule = (sel: string, ink: 'light' | 'dark'): void => {
+    rules.push(`${sel} { ${AUTO_INK[ink].paper} }`)
+    darkTwin(sel, [AUTO_INK[ink].dark])
+  }
+  const autoInk = (cellSel: string, fill: string, underDark: boolean): void => {
+    const ink = fillInk(fill)
+    if (!ink) return
+    const own = ownFill(cellSel)
+    if (ink === 'light') {
+      inkRule(own, 'light')
+      // light data-ink fills inside these dark cells take the paper ink back
+      inkRule(insideCells(own), 'dark')
+    } else if (underDark) inkRule(own, 'dark')
+    else inkRule(underDarkInk(own), 'dark')
+  }
   // typed line grid: auto/multiple line heights resolve --doc-line-grid to a
   // grid-snapped length instead of the unitless factor (cssGridLineBase).
   // Declared on every element so per-paragraph --doc-line-factor /
@@ -255,6 +354,12 @@ export function docStyleCss(parsed: ParsedDocFull): string {
   // without a w:pStyle, so its display merges into the document baseline here
   // ([data-style] rules only reach explicitly styled paragraphs).
   const normal = defaultParaDisplay(parsed)
+  const docSizeHalf = normal?.sizeHalfPoints ?? dd?.sizeHalfPoints ?? 20
+  const docKernHalf = normal?.kernHalfPoints ?? dd?.kernHalfPoints
+  // styles.css defaults document text to font-kerning:none (Word kerns only under w:kern)
+  if (wordKerns(docKernHalf, docSizeHalf)) {
+    rules.push('.page-wrap, .doc-page, .pv-page { font-kerning:normal }')
+  }
   // settings.xml w:autoHyphenation: Word breaks words at line ends document-wide,
   // except paragraphs opted out via w:suppressAutoHyphens (pPrDefault/Normal decide
   // the baseline here; explicit style values override per style below). Chromium
@@ -277,6 +382,8 @@ export function docStyleCss(parsed: ParsedDocFull): string {
     // at parse time + live decorations in LineFactorExtension).
     const factor = docLineFactor(parsed, docHasCjk(parsed))
     decls.push(`--doc-line-factor:${factor}`)
+    // .page-wrap too: the first-page header/footer strips size their lines by it
+    rules.push(`.page-wrap { --doc-line-factor:${factor} }`)
     // CJK paragraphs resolve their per-paragraph factor through this var
     // (paraLineFactorCss); value follows the document's East Asian face
     decls.push(`--doc-line-factor-cjk:${docCjkFactor(parsed)}`)
@@ -291,12 +398,16 @@ export function docStyleCss(parsed: ParsedDocFull): string {
     decls.push(`--doc-line-factor-kr:${krLineFactor(normalEaKr ?? dd?.eastAsiaFont)}`)
     // dual-slot baseline: Latin families first, then the East Asian chain
     const baseAscii = normal?.fontAscii ?? dd?.asciiFont
-    const baseEa = normal?.font ?? dd?.eastAsiaFont
+    const baseEa =
+      normal?.eastAsiaFont ??
+      (normal?.font !== normal?.fontAscii ? normal?.font : undefined) ??
+      dd?.eastAsiaFont
     const baseFamily =
       baseAscii && baseEa && baseAscii !== baseEa
         ? cssDualFontFamily(baseAscii, baseEa)
         : cssFontFamily(baseEa ?? baseAscii ?? 'Calibri')
     decls.push(`font-family:${baseFamily}`)
+    if (baseEa) decls.push(`--doc-east-asian-font:${cssFontFamily(baseEa)}`)
     // Mixed declared/inherited-font paragraphs under a typed grid (blockAttrs
     // .doc-grid-strut): Chromium's line box unions the strut's and every inline
     // box's half-leading geometry, so a Latin-primary strut under EA-primary
@@ -331,23 +442,29 @@ export function docStyleCss(parsed: ParsedDocFull): string {
     rules.push(
       `.page-wrap, .doc-page, .pv-page { --doc-latin-chain:${docLatinChainCss(baseAscii ?? baseEa ?? 'Calibri')} }`,
     )
-    const sizeHalf = normal?.sizeHalfPoints ?? dd?.sizeHalfPoints
+    // no size anywhere (HWP exports): Word's built-in default is 10pt, not the editor's 11pt
+    const sizeHalf = normal?.sizeHalfPoints ?? dd?.sizeHalfPoints ?? 20
     if (sizeHalf) {
       decls.push(`font-size:${sizeHalf / 2}pt`)
+      // rule runs without w:sz size their line by this; .page-wrap too — the
+      // first-page header/footer strips are .doc-page siblings
+      rules.push(`.page-wrap, .doc-page, .pv-page { --doc-base-fs:${sizeHalf / 2}pt }`)
       // Header/footer strips (.page-hf) resolve their default run size through
-      // this var (Word's Header/Footer styles are based on Normal, so runs
-      // without their own w:sz take the document default, not the static
-      // 10.5pt guess). Shrink-only: the strip line-height carries the
-      // document-wide script strut, which overshoots Word on Latin-only strip
-      // lines — letting the base size grow would over-reserve push-down and
-      // push page counts up (prod_008/091). .page-wrap too — the canvas
-      // strips are .doc-page siblings.
-      if (sizeHalf < 21) {
-        rules.push(`.page-wrap, .doc-page, .pv-page { --hf-default-fs:${sizeHalf / 2}pt }`)
-      }
+      // this var: Word's Header/Footer styles are based on Normal, so runs
+      // without their own w:sz take the document default (a 12pt default wraps
+      // a long header line one line earlier than the old 10.5pt guess).
+      // .page-wrap too — the canvas strips are .doc-page siblings.
+      rules.push(`.page-wrap, .doc-page, .pv-page { --hf-default-fs:${sizeHalf / 2}pt }`)
     }
     const color = normal?.color ?? dd?.color
-    if (color) decls.push(`color:#${color}`)
+    // auto = the paper ink the page already uses
+    if (color && color !== 'auto') {
+      decls.push(`color:#${color}`)
+      darkTwin('.doc-page', [`color:${darkPageColor(color)}`])
+      // the box would otherwise inherit the remapped default from .doc-page
+      // (styles.css re-sets the paper ink the same way when there is none)
+      darkRules.push(`.page-dark .doc-textbox-filled { color:#${color} }`)
+    }
     if (normal?.bold ?? dd?.bold) decls.push('font-weight:600')
     if (normal?.italic ?? dd?.italic) decls.push('font-style:italic')
     // default style's w:jc reaches unstyled paragraphs (explicit w:jc and
@@ -368,6 +485,16 @@ export function docStyleCss(parsed: ParsedDocFull): string {
       // paragraphs that declare their own auto spacing (inline --doc-line-mult)
       // keep tallest-run snapping despite the document-level fixed line
       rules.push(`${gridBlocks}[style*="--doc-line-mult"] span { ${gridSpanSnap} }`)
+    }
+    // CJK stretches of mixed-script paragraphs (lineFactorLive .doc-run-lf)
+    // re-resolve the paragraph's line rule with their own factor: exact pins
+    // them to the paragraph line, atLeast keeps its floor per stretch
+    if (lhSrc && lhSrc.lineRule === 'exact') {
+      rules.push(`.doc-page .doc-run-lf { line-height:inherit }`)
+    } else if (lhSrc && lhSrc.lineRule === 'atLeast' && lh) {
+      rules.push(`.doc-page .doc-run-lf { line-height:${lh} }`)
+      // must outrank the typed-grid `span { line-height:inherit }` rule above
+      if (typedGrid) rules.push(`${gridBlocks} span.doc-run-lf { line-height:${lh} }`)
     }
     // .pv-page too: preview header/footer strips must wrap with the same
     // document font/line-height the canvas strips inherit inside .doc-page
@@ -407,14 +534,16 @@ export function docStyleCss(parsed: ParsedDocFull): string {
     // default-level auto collapses to 0 between two list items like the direct/
     // per-style variants; scoped to unstyled items (styled ones resolve their
     // margins per style) and left un-!important so direct spacing still wins
+    const unstyledBlock =
+      ':is(p, .doc-li, h1, h2, h3, h4, h5, h6, .doc-protected-field):not([data-style])'
     if (normal?.spaceAfterAuto ?? dd?.spaceAfterAuto) {
       rules.push(`.doc-page .doc-li:not([data-style]):has(+ .doc-li) { margin-bottom:0 }`)
+      rules.push(`${CELL_BLOCK}${unstyledBlock}${CELL_LAST} { margin-bottom:0 }`)
     }
     if (normal?.spaceBeforeAuto ?? dd?.spaceBeforeAuto) {
       rules.push(`.doc-page .doc-li + .doc-li:not([data-style]) { margin-top:0 }`)
-      rules.push(
-        `.doc-page > :is(p, .doc-li, h1, h2, h3, h4, h5, h6, .doc-protected-field):not([data-style])${DOC_FIRST_BLOCK} { margin-top:0 }`,
-      )
+      rules.push(`.doc-page > ${unstyledBlock}${DOC_FIRST_BLOCK} { margin-top:0 }`)
+      rules.push(`${CELL_BLOCK}${unstyledBlock}${CELL_FIRST} { margin-top:0 }`)
     }
     // textbox paragraphs re-evaluate the line-height var per block too;
     // inheriting .doc-page's computed length forced the body's pixel strut
@@ -427,6 +556,21 @@ export function docStyleCss(parsed: ParsedDocFull): string {
         `.doc-page p { text-indent:${((normal!.indentFirstLineTwips as number) / 20).toFixed(1)}pt }`,
       )
     }
+    // Normal's left/right indents reach unstyled paragraphs only: styled ones
+    // inherit through their basedOn chain (resolved into their own rule), and a
+    // style not based on Normal does not indent in Word
+    {
+      const decls: string[] = []
+      if (normal?.indentLeftTwips)
+        decls.push(`margin-inline-start:${(normal.indentLeftTwips / 20).toFixed(1)}pt`)
+      if (normal?.indentRightTwips)
+        decls.push(`margin-inline-end:${(normal.indentRightTwips / 20).toFixed(1)}pt`)
+      if (decls.length > 0) {
+        rules.push(
+          `.doc-page :is(p, h1, h2, h3, h4, h5, h6, .doc-protected-field):not([data-style]) { ${decls.join(';')} }`,
+        )
+      }
+    }
   }
   // table styles: tables carrying data-tbl-style are colored by style (explicit cell shading
   // is inline style and naturally overrides these rules; parse gives exact display after save)
@@ -434,30 +578,68 @@ export function docStyleCss(parsed: ParsedDocFull): string {
     const t = info.tableDisplay
     if (info.type !== 'table' || !t) continue
     const sel = `.doc-page table[data-tbl-style="${CSS.escape(info.styleId)}"]`
-    if (t.fill) rules.push(`${sel} td, ${sel} th { background:#${t.fill} }`)
+    const tableDark = fillInk(t.fill) === 'light'
+    if (t.fill) {
+      rules.push(`${sel} td, ${sel} th { background:#${t.fill} }`)
+      darkTwin(`${sel} td, ${sel} th`, [`background:${darkPageColor(t.fill)}`])
+      autoInk(`${sel} td, ${sel} th`, t.fill, false)
+    }
     // whole-table rPr beats the document baseline inside the table (Word's
     // table-style layer sits above docDefaults/Normal for unstyled cell text)
     {
       const decls: string[] = []
       if (t.wholeTable?.sizeHalfPoints) decls.push(`font-size:${t.wholeTable.sizeHalfPoints / 2}pt`)
       if (t.wholeTable?.italic) decls.push('font-style:italic')
+      if (t.wholeTable?.kernHalfPoints !== undefined) {
+        const on = wordKerns(
+          t.wholeTable.kernHalfPoints,
+          t.wholeTable.sizeHalfPoints ?? docSizeHalf,
+        )
+        decls.push(`font-kerning:${on ? 'normal' : 'none'}`)
+      }
       if (decls.length > 0) rules.push(`${sel} td, ${sel} th { ${decls.join(';')} }`)
     }
     // band1 = first data row after the header → even nth-child when a header row exists
     if (t.band1Fill) {
-      rules.push(`${sel} tr:nth-child(even) td { background:#${t.band1Fill} }`)
+      const bandSel = `${sel} tr:nth-child(even) td`
+      rules.push(`${bandSel} { background:#${t.band1Fill} }`)
+      darkTwin(bandSel, [`background:${darkPageColor(t.band1Fill)}`])
+      autoInk(bandSel, t.band1Fill, tableDark)
     }
     if (t.band2Fill) {
-      rules.push(`${sel} tr:nth-child(odd):not(:first-child) td { background:#${t.band2Fill} }`)
+      const bandSel = `${sel} tr:nth-child(odd):not(:first-child) td`
+      rules.push(`${bandSel} { background:#${t.band2Fill} }`)
+      darkTwin(bandSel, [`background:${darkPageColor(t.band2Fill)}`])
+      autoInk(bandSel, t.band2Fill, tableDark)
     }
     if (t.firstRow) {
       const decls: string[] = []
-      if (t.firstRow.fill) decls.push(`background:#${t.firstRow.fill}`)
+      const darkDecls: string[] = []
+      if (t.firstRow.fill) {
+        decls.push(`background:#${t.firstRow.fill}`)
+        darkDecls.push(`background:${darkPageColor(t.firstRow.fill)}`)
+      }
       if (t.firstRow.bold) decls.push('font-weight:600')
-      if (t.firstRow.color) decls.push(`color:#${t.firstRow.color}`)
+      if (t.firstRow.italic) decls.push('font-style:italic')
+      if (t.firstRow.color) {
+        decls.push(`color:#${t.firstRow.color}`)
+        darkDecls.push(`color:${darkPageColor(t.firstRow.color)}`)
+      }
       if (t.firstRow.sizeHalfPoints) decls.push(`font-size:${t.firstRow.sizeHalfPoints / 2}pt`)
-      if (decls.length > 0)
-        rules.push(`${sel} tr:first-child td, ${sel} tr:first-child th { ${decls.join(';')} }`)
+      if (t.firstRow.fontAscii) decls.push(`font-family:${cssFontFamily(t.firstRow.fontAscii)}`)
+      if (t.firstRow.charSpacingTwips !== undefined)
+        decls.push(`letter-spacing:${t.firstRow.charSpacingTwips / 20}pt`)
+      if (t.firstRow.caps === 'all') decls.push('text-transform:uppercase')
+      else if (t.firstRow.caps === 'small') decls.push('font-variant-caps:small-caps')
+      // Word extends header-row formatting over the leading w:tblHeader rows;
+      // kept as a comma list because the ink helpers split on ','
+      const headerTr = 'tr[data-repeat-header="1"]:not(tr:not([data-repeat-header="1"]) ~ tr)'
+      const firstRowSel = [`${sel} tr:first-child`, `${sel} ${headerTr}`]
+        .flatMap((tr) => [`${tr} td`, `${tr} th`])
+        .join(', ')
+      if (decls.length > 0) rules.push(`${firstRowSel} { ${decls.join(';')} }`)
+      darkTwin(firstRowSel, darkDecls)
+      if (t.firstRow.fill && !t.firstRow.color) autoInk(firstRowSel, t.firstRow.fill, tableDark)
     }
     {
       // Word precedence: paragraph style (Normal) > table style pPr > docDefaults —
@@ -475,6 +657,12 @@ export function docStyleCss(parsed: ParsedDocFull): string {
         // --doc-line-max reads the multiple from this var
         const psMult = cssAutoLineMult(ps?.lineRule, ps?.lineRawTwips, ps?.lineSpacing)
         if (psMult) decls.push(`--doc-line-mult:${psMult}`)
+        if (ps?.lineRule === 'exact' || ps?.lineRule === 'atLeast') {
+          const stretches = ['td p', 'th p', 'td .doc-li', 'th .doc-li']
+            .map((c) => `${sel} ${c} .doc-run-lf`)
+            .join(', ')
+          rules.push(`${stretches} { line-height:${ps.lineRule === 'exact' ? 'inherit' : psLh} }`)
+        }
       }
       if (t.paraJc && t.paraJc !== 'left' && t.paraJc !== 'start' && normal?.align === undefined) {
         const align =
@@ -496,8 +684,15 @@ export function docStyleCss(parsed: ParsedDocFull): string {
     const d = info.display
     if (!d) continue
     const decls: string[] = []
-    if (d.sizeHalfPoints) decls.push(`font-size:${d.sizeHalfPoints / 2}pt`)
-    if (d.color) decls.push(`color:#${d.color}`)
+    const darkDecls: string[] = []
+    if (d.sizeHalfPoints) {
+      decls.push(`font-size:${d.sizeHalfPoints / 2}pt`, `--doc-base-fs:${d.sizeHalfPoints / 2}pt`)
+    }
+    if (d.color === 'auto') decls.push('color:var(--docs-paper-ink)')
+    else if (d.color) {
+      decls.push(`color:#${d.color}`)
+      darkDecls.push(`color:${darkPageColor(d.color)}`)
+    }
     // explicit off (w:val="0") must out-rule an inherited on from .doc-page defaults
     if (d.bold) decls.push('font-weight:600')
     else if (d.bold === false) decls.push('font-weight:400')
@@ -518,6 +713,8 @@ export function docStyleCss(parsed: ParsedDocFull): string {
             ? cssFontFamily(d.font)
             : cssEaOnlyFontFamily(d.font)
       decls.push(`font-family:${styleFamily}`)
+      if (!d.eaSlotEmpty && (d.eastAsiaFont || d.font !== d.fontAscii))
+        decls.push(`--doc-east-asian-font:${cssFontFamily(d.eastAsiaFont ?? d.font)}`)
       // the strut alias tail must follow the style's own chain, not the doc base
       if (gridStrut) decls.push(`--doc-grid-strut-tail:${styleFamily}`)
       if (d.fontAscii) decls.push(`--doc-latin-chain:${docLatinChainCss(d.fontAscii)}`)
@@ -532,11 +729,43 @@ export function docStyleCss(parsed: ParsedDocFull): string {
       if (gridStrut) decls.push(`--doc-grid-strut-tail:${cssFontFamily(d.fontAscii)}`)
       decls.push(`--doc-latin-chain:${docLatinChainCss(d.fontAscii)}`)
     }
-    if (d.charSpacingTwips) decls.push(`letter-spacing:${d.charSpacingTwips / 20}pt`)
+    // Latin lines of a paragraph style follow the style's own face, not the
+    // body font (Cambria headings under a Calibri body: 1.172 vs 1.22)
+    if (d.fontAscii && info.type === 'paragraph') {
+      decls.push(`--doc-line-factor-latin:${lineHeightFactor(d.fontAscii)}`)
+    }
+    if (d.charSpacingTwips !== undefined) decls.push(`letter-spacing:${d.charSpacingTwips / 20}pt`)
+    // the inherited threshold is re-tested against the style's own size
+    const kernHalf = d.kernHalfPoints ?? docKernHalf
+    if (kernHalf !== undefined && (d.kernHalfPoints !== undefined || d.sizeHalfPoints)) {
+      const on = wordKerns(kernHalf, d.sizeHalfPoints ?? docSizeHalf)
+      decls.push(`font-kerning:${on ? 'normal' : 'none'}`)
+    }
     if (d.caps === 'all') decls.push('text-transform:uppercase')
     else if (d.caps === 'small') decls.push('font-variant-caps:small-caps')
     else if (d.caps === 'none') decls.push('text-transform:none', 'font-variant-caps:normal')
-    const styleLh = cssLineHeight(d.lineRule, d.lineRawTwips, d.lineSpacing)
+    if (d.textOutline) decls.push(textOutlineDecl(d.textOutline))
+    // a paragraph style's rPr shading colours its runs, not the block; only
+    // character styles map onto one span
+    if (info.type === 'character' && d.shading) {
+      decls.push(`background-color:#${d.shading}`)
+      darkDecls.push(`background:${darkPageColor(d.shading)}`)
+      if (!d.color && fillInk(d.shading) === 'light') {
+        decls.push(AUTO_INK.light.paper)
+        darkDecls.push(AUTO_INK.light.dark)
+      }
+    }
+    // a paragraph style whose w:basedOn chain never reaches the default style
+    // inherits docDefaults only: Normal's spacing and line (the .doc-page base)
+    // must not leak into it (a No Spacing letterhead packs its lines in Word)
+    const offNormalChain =
+      info.type === 'paragraph' && !info.isDefault && !chainReachesDefault(parsed.styles, info)
+    const dd = offNormalChain ? parsed.docDefaults : undefined
+    const styleLh =
+      cssLineHeight(d.lineRule, d.lineRawTwips, d.lineSpacing) ??
+      (offNormalChain
+        ? (cssLineHeight(dd?.lineRule, dd?.lineRawTwips, dd?.lineSpacing) ?? cssGridLineBase())
+        : undefined)
     if (styleLh) decls.push(`line-height:${styleLh}`)
     // grid span snapping scales by the style's multiple (an explicit single
     // still overrides an inherited document multiple); the extra rule keeps
@@ -554,47 +783,68 @@ export function docStyleCss(parsed: ParsedDocFull): string {
     // (:not() bumps specificity above the grid span rule); --doc-line-fixed
     // marks them for measureBlocks, which must not divide an inherited document
     // auto multiple out of their full-height line box (breakOnlyLineH)
-    if ((d.lineRule === 'exact' || d.lineRule === 'atLeast') && d.lineRawTwips) {
+    // (atLeast includes the line="0" natural-height form, like extensions.ts)
+    if ((d.lineRule === 'exact' && d.lineRawTwips) || d.lineRule === 'atLeast') {
       decls.push('--doc-line-fixed:1')
       rules.push(
         `.doc-page [data-style="${CSS.escape(info.styleId)}"]:not(.doc-lh-fixed) span { line-height:inherit }`,
       )
     }
-    if (d.spaceBeforeAuto) decls.push(`margin-top:${cssGridSpacingPt(WORD_AUTO_SPACING_PT)}`)
-    else if (d.spaceBeforeTwips !== undefined)
-      decls.push(`margin-top:${cssGridSpacingPt(d.spaceBeforeTwips / 20)}`)
-    if (d.spaceAfterAuto) decls.push(`margin-bottom:${cssGridSpacingPt(WORD_AUTO_SPACING_PT)}`)
-    else if (d.spaceAfterTwips !== undefined)
-      decls.push(`margin-bottom:${cssGridSpacingPt(d.spaceAfterTwips / 20)}`)
+    // CJK stretches (.doc-run-lf) re-resolve the style's line rule with their
+    // own factor; the style rule beats the document-level .doc-run-lf rule
+    if (styleLh) {
+      rules.push(
+        `.doc-page [data-style="${CSS.escape(info.styleId)}"]:not(.doc-lh-fixed) .doc-run-lf { line-height:${
+          d.lineRule === 'exact' ? 'inherit' : styleLh
+        } }`,
+      )
+    }
+    const beforeAuto = d.spaceBeforeAuto ?? dd?.spaceBeforeAuto
+    const beforeTwips =
+      d.spaceBeforeTwips ?? (offNormalChain ? (dd?.spaceBeforeTwips ?? 0) : undefined)
+    if (beforeAuto) decls.push(`margin-top:${cssGridSpacingPt(WORD_AUTO_SPACING_PT)}`)
+    else if (beforeTwips !== undefined)
+      decls.push(`margin-top:${cssGridSpacingPt(beforeTwips / 20)}`)
+    const afterAuto = d.spaceAfterAuto ?? dd?.spaceAfterAuto
+    const afterTwips =
+      d.spaceAfterTwips ?? (offNormalChain ? (dd?.spaceAfterTwips ?? 0) : undefined)
+    if (afterAuto) decls.push(`margin-bottom:${cssGridSpacingPt(WORD_AUTO_SPACING_PT)}`)
+    else if (afterTwips !== undefined)
+      decls.push(`margin-bottom:${cssGridSpacingPt(afterTwips / 20)}`)
     // style-level auto spacing collapses to 0 between two list items (Word),
     // mirroring the .sp-auto-* rules for direct autospacing (styles.css);
     // un-!important so a direct explicit margin (inline, auto turned off) wins —
     // specificity already beats the style's own margin declaration
     if (d.spaceAfterAuto || d.spaceBeforeAuto) {
       const sa = `[data-style="${CSS.escape(info.styleId)}"]`
-      if (d.spaceAfterAuto) rules.push(`.doc-page .doc-li${sa}:has(+ .doc-li) { margin-bottom:0 }`)
+      if (d.spaceAfterAuto) {
+        rules.push(`.doc-page .doc-li${sa}:has(+ .doc-li) { margin-bottom:0 }`)
+        rules.push(`${CELL_BLOCK}${sa}${CELL_LAST} { margin-bottom:0 }`)
+      }
       if (d.spaceBeforeAuto) {
         rules.push(`.doc-page .doc-li + .doc-li${sa} { margin-top:0 }`)
         rules.push(`.doc-page > ${sa}${DOC_FIRST_BLOCK} { margin-top:0 }`)
+        rules.push(`${CELL_BLOCK}${sa}${CELL_FIRST} { margin-top:0 }`)
       }
     }
-    if (d.indentRightTwips)
+    // explicit 0 emits too: a child style's w:ind 0 cancels its parent's indent
+    if (d.indentRightTwips != null)
       decls.push(`margin-inline-end:${(d.indentRightTwips / 20).toFixed(1)}pt`)
     // first-line indent must not hit list items (hanging is expressed by the
     // marker box; a style text-indent double-shifts the first line and leaks
     // into the ::before marker) — w:hanging feeds the fallback chain instead
-    if (d.indentFirstLineTwips) {
+    if (d.indentFirstLineTwips != null) {
       const s = `[data-style="${CSS.escape(info.styleId)}"]`
       rules.push(
-        `.doc-page ${s}:not(.doc-li) { text-indent:${(d.indentFirstLineTwips / 20).toFixed(1)}pt }`,
+        `.doc-page ${s}:not(${LIST_LINES}) { text-indent:${(d.indentFirstLineTwips / 20).toFixed(1)}pt }`,
       )
       if (d.indentFirstLineTwips < 0) {
         rules.push(
-          `.doc-page .doc-li${s} { --style-li-hang:${(-d.indentFirstLineTwips / 20).toFixed(1)}pt }`,
+          `.doc-page :is(${LIST_LINES})${s} { --style-li-hang:${(-d.indentFirstLineTwips / 20).toFixed(1)}pt }`,
         )
       }
     }
-    if (d.align) decls.push(`text-align:${d.align}`)
+    if (d.align) decls.push(textAlignDecl(d.align))
     if (
       parsed.autoHyphenation &&
       info.type === 'paragraph' &&
@@ -604,21 +854,38 @@ export function docStyleCss(parsed: ParsedDocFull): string {
       decls.push(`hyphens:${h}`, `-webkit-hyphens:${h}`)
     }
     // style-level paragraph shading (explicit pPr w:shd is inline style and wins)
-    if (d.shadingFill) decls.push(`background-color:#${d.shadingFill}`)
+    if (d.shadingFill && d.shadingFill !== 'auto') {
+      decls.push(`background-color:#${d.shadingFill}`)
+      darkDecls.push(`background-color:${darkPageColor(d.shadingFill)}`)
+    }
+    // style-level w:pBdr, same look as blockAttrs' direct borders (which win as inline style)
+    if (d.borderSides) {
+      let drawn = ''
+      for (const side of ['top', 'bottom', 'left', 'right'] as const) {
+        const line = d.borderSides[DK_SIDE[side]]
+        if (!line) continue
+        drawn += DK_SIDE[side]
+        const css = paraBorderCss(line)
+        decls.push(`border-${side}:${css}`)
+        darkDecls.push(`border-${side}:${darkPageBorderCss(css)}`)
+      }
+      decls.push(...paraBorderPaddingDecls(paraBorderPadding(drawn, d.borderSides)))
+    }
     // the static sheet guesses italic for h4-h6 (Word's built-in defaults);
     // a real style definition without w:i means upright
     if (info.headingLevel && info.headingLevel >= 4 && !d.italic) decls.push('font-style:normal')
     if (decls.length > 0) {
       rules.push(`.doc-page [data-style="${CSS.escape(info.styleId)}"] { ${decls.join(';')} }`)
     }
+    darkTwin(`.doc-page [data-style="${CSS.escape(info.styleId)}"]`, darkDecls)
     // Word merges indents per property (direct ind > numbering level ind > style ind), never
     // adds them: list items run on --li-left geometry, so the style indent must not also apply
     // as a margin — it only feeds the --li-left fallback chain (styles.css)
-    if (d.indentLeftTwips) {
+    if (d.indentLeftTwips != null) {
       const s = `[data-style="${CSS.escape(info.styleId)}"]`
       const pt = (d.indentLeftTwips / 20).toFixed(1)
-      rules.push(`.doc-page ${s}:not(.doc-li) { margin-inline-start:${pt}pt }`)
-      rules.push(`.doc-page .doc-li${s} { --style-li-left:${pt}pt }`)
+      rules.push(`.doc-page ${s}:not(${LIST_LINES}) { margin-inline-start:${pt}pt }`)
+      rules.push(`.doc-page :is(${LIST_LINES})${s} { --style-li-left:${pt}pt }`)
     }
     // w:contextualSpacing: consecutive same-style paragraphs swallow the spacing
     // between them (ListParagraph/ListBullet carry this — Word lists are tight)
@@ -641,6 +908,24 @@ export function docStyleCss(parsed: ParsedDocFull): string {
     rules.push(`.doc-page ${s}.ctx-sp:has(+ ${s}) { margin-bottom:0 !important }`)
     rules.push(`.doc-page ${s} + ${s}.ctx-sp { margin-top:0 !important }`)
   }
+  // a defined Hyperlink character style paints its links (colour, underline or
+  // none); the .doc-link default only stands in when the document has none.
+  // Word's print layout hides that style's colour and underline on TOC field
+  // entries (TOC \h wraps them in w:hyperlink with the style): the entry keeps
+  // the TOC paragraph's ink while the style's face/size still apply.
+  const tocScopes = [
+    '.doc-toc-line',
+    ...[...parsed.styles.values()]
+      .filter((s) => s.type === 'paragraph' && tocLevelOf(s.styleId, parsed.styles) !== null)
+      .map((s) => `[data-style="${CSS.escape(s.styleId)}"]`),
+  ].join(',')
+  for (const info of parsed.styles.values()) {
+    if (info.type !== 'character' || !isHyperlinkStyle(info)) continue
+    const h = `[data-style="${CSS.escape(info.styleId)}"]`
+    rules.push(`.doc-page .doc-link:has(${h}) { color:inherit;text-decoration:none }`)
+    rules.push(`.doc-page :is(${tocScopes}) ${h} { color:inherit;text-decoration:none }`)
+    darkRules.push(`.page-dark .doc-page :is(${tocScopes}) ${h} { color:inherit }`)
+  }
   if (gridStrut) {
     // after every [data-style] family rule so the strut face wins the cascade;
     // the tail keeps each context's own inherited chain rendering the glyphs
@@ -648,5 +933,18 @@ export function docStyleCss(parsed: ParsedDocFull): string {
       `.doc-page .doc-grid-strut { font-family:'GenOffice Grid Strut',var(--doc-grid-strut-tail,serif) }`,
     )
   }
+  if (darkRules.length > 0) rules.push(`@media screen {\n${darkRules.join('\n')}\n}`)
   return rules.join('\n')
+}
+
+/** the style's w:basedOn chain ends at the default paragraph style (it inherits Normal) */
+function chainReachesDefault(styles: Map<string, StyleInfo>, info: StyleInfo): boolean {
+  const seen = new Set<string>()
+  let cur: StyleInfo | undefined = info
+  while (cur && !seen.has(cur.styleId)) {
+    if (cur.isDefault) return true
+    seen.add(cur.styleId)
+    cur = cur.basedOn ? styles.get(cur.basedOn) : undefined
+  }
+  return false
 }

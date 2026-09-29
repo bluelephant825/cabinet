@@ -13,6 +13,8 @@ export const ja = {
   ribbonTabLayout: 'レイアウト',
   ribbonTabReferences: '参考資料',
   ribbonTabReview: '校閲',
+  ribbonCollapse: 'リボンを折りたたむ',
+  ribbonPin: 'リボンの固定',
   ribbonTabView: '表示',
   ribbonTabTableDesign: 'テーブル デザイン',
   ribbonTabTableLayout: 'テーブル レイアウト',
@@ -76,6 +78,8 @@ export const ja = {
     '書式のコピー/貼り付けが有効:対象のテキストを選択すると適用(もう一度クリックで解除)',
   ribbonGroupClipboard: 'クリップボード',
   // Home · Font
+  ribbonFontEastAsia: '東アジアのフォント',
+  ribbonFontLatin: '英数字のフォント',
   ribbonFontFamilyTip: 'フォント',
   ribbonFontsCommon: 'よく使うフォント',
   ribbonFontsSystem: 'システムフォント',
@@ -104,7 +108,6 @@ export const ja = {
   ribbonThemeColorShadeTip: 'テーマの色 {r}-{c}',
   ribbonStandardColors: '標準の色',
   ribbonMoreColors: 'その他の色…',
-  ribbonGroupFont: 'フォント',
   // Home · Paragraph
   ribbonBullets: '箇条書き',
   ribbonNumbering: '段落番号',
@@ -309,6 +312,8 @@ export const ja = {
   ribbonChartAddSeries: '+ 系列',
   // Hyperlink dialog
   ribbonLinkInsertTitle: 'ハイパーリンクの挿入',
+  ribbonLinkEditTitle: 'ハイパーリンクの編集',
+  ribbonLinkRemove: 'リンクの削除',
   ribbonLinkText: '表示文字列',
   ribbonLinkTextPh: 'リンクの文字列(空欄の場合はアドレスを表示)',
   ribbonLinkAddress: 'アドレス',
@@ -594,6 +599,8 @@ export const ja = {
   ribbonEditorPrompt:
     '文書全体を校正してください：誤字、句読点、文法の誤りを修正し、元の意味と段落構成は変えないでください。',
   ribbonGroupProofing: '文章校正',
+  ribbonSpellcheckBtn: 'スペルチェック',
+  ribbonSpellcheckTip: '入力時にスペルをチェックし、誤りの可能性がある単語に赤い波線を表示します',
   ribbonTranslate: '翻訳',
   ribbonTranslateTip: 'AI がドキュメントを翻訳',
   ribbonTranslatePrompt:

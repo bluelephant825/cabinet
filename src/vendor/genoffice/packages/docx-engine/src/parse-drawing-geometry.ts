@@ -2,7 +2,7 @@
 // anchor metadata and page-position resolution, group transforms.
 import { attrsOf, childrenOf, findChild, nameOf, type XNode } from './xml-utils'
 import { EMU_PER_PX } from './parse-xml-text'
-import type { SectionSettings, TextboxDisplay, ThemeColors } from './types'
+import type { SectionSettings, TextGlow, TextOutline, TextboxDisplay, ThemeColors } from './types'
 
 /**
  * Display-only extraction of anchored textboxes: DrawingML (wps:wsp, converter
@@ -216,6 +216,9 @@ export interface DrawingAnchorMeta {
   /** wp:extent (drawing size) */
   extentXEmu?: number
   extentYEmu?: number
+  /** wp:anchor distL/distR: text clearance beside a side-wrapped drawing */
+  distLEmu?: number
+  distREmu?: number
   /** relativeHeight − Word's 251658240 base: paint order among overlapping anchors */
   z?: number
 }
@@ -275,6 +278,10 @@ export function drawingAnchorMeta(frag: string): DrawingAnchorMeta {
   }
   meta.offsetXEmu = posOf('H')
   meta.offsetYEmu = posOf('V')
+  for (const side of ['L', 'R'] as const) {
+    const v = parseInt(new RegExp(`\\bdist${side}="(\\d+)"`).exec(anchorTag)?.[1] ?? '', 10)
+    if (Number.isFinite(v)) meta[`dist${side}Emu`] = v
+  }
   for (const dir of ['H', 'V'] as const) {
     const m = new RegExp(`<wp:position${dir}\\b([^>]*)>([\\s\\S]*?)</wp:position${dir}>`).exec(frag)
     if (!m) continue
@@ -299,15 +306,17 @@ export function drawingAnchorMeta(frag: string): DrawingAnchorMeta {
     meta.extentXEmu = parseInt(extent[1], 10)
     meta.extentYEmu = parseInt(extent[2], 10)
   }
-  if (frag.includes('<wp:wrapNone') || /behindDoc="(?:1|true)"/.test(anchorTag)) meta.noWrap = true
-  if (/behindDoc="(?:1|true)"/.test(anchorTag)) meta.behind = true
-  const relHeight = Number(/relativeHeight="(\d+)"/.exec(anchorTag)?.[1] ?? NaN)
-  if (Number.isFinite(relHeight) && relHeight - 251658240 !== 0) meta.z = relHeight - 251658240
   // the anchor's own wrap element sits before a:graphic; a nested drawing's
-  // wrap must not leak up. behindDoc="1" + wrapTopAndBottom coexist in
-  // generated docs — Word still excludes the band (behindDoc is z-order only)
+  // wrap must not leak up. behindDoc is z-order only: a behind-text picture
+  // with wrapTight/wrapSquare/wrapTopAndBottom still excludes the text
   const graphicAt = frag.indexOf('<a:graphic')
   const ownXml = graphicAt === -1 ? frag : frag.slice(0, graphicAt)
+  const behind = /behindDoc="(?:1|true)"/.test(anchorTag)
+  const ownWrapped = /<wp:wrap(?:Square|Tight|Through|TopAndBottom)\b/.test(ownXml)
+  if (frag.includes('<wp:wrapNone') || (behind && !ownWrapped)) meta.noWrap = true
+  if (behind) meta.behind = true
+  const relHeight = Number(/relativeHeight="(\d+)"/.exec(anchorTag)?.[1] ?? NaN)
+  if (Number.isFinite(relHeight) && relHeight - 251658240 !== 0) meta.z = relHeight - 251658240
   if (ownXml.includes('<wp:wrapTopAndBottom')) meta.topBottom = true
   return meta
 }
@@ -316,6 +325,8 @@ export const EMU_PER_TWIP = 635
 
 /** narrowest column gap beside a float that Word still fills with text (36px) */
 export const MIN_WRAP_SLIVER_EMU = 36 * 9525
+/** Word's default distL/distR clearance (0.125 in) */
+export const DEFAULT_WRAP_DIST_EMU = 114300
 
 /** anchor position resolved to EMU offsets from the paragraph flow origin
  *  (column left / body top), page coordinates recoverable via the margins */
@@ -503,6 +514,49 @@ export function w14TextFillHex(rPr: XNode, theme?: ThemeColors | null): string |
     .filter((rgb): rgb is number[] => rgb !== null)
   if (stops.length === 0) return undefined
   return rgbHex([0, 1, 2].map((i) => stops.reduce((sum, rgb) => sum + rgb[i], 0) / stops.length))
+}
+
+/** w14:textOutline stroke (solid fills only; gradient/noFill outlines are not drawn) */
+export function w14TextOutlineOf(rPr: XNode, theme?: ThemeColors | null): TextOutline | undefined {
+  const outline = findChild(rPr, 'w14:textOutline')
+  if (!outline) return undefined
+  const solid = findChild(outline, 'w14:solidFill')
+  if (!solid) return undefined
+  const rgb = w14ColorRgb(solid, theme)
+  if (!rgb) return undefined
+  const widthEmu = parseInt(attrsOf(outline)['w14:w'] ?? '', 10)
+  if (!(widthEmu > 0)) return undefined
+  const colorNode = findChild(solid, 'w14:srgbClr') ?? findChild(solid, 'w14:schemeClr')
+  const alphaRaw = parseInt(
+    attrsOf(findChild(colorNode ?? {}, 'w14:alpha') ?? {})['w14:val'] ?? '',
+    10,
+  )
+  const alpha = alphaRaw >= 0 && alphaRaw < 100000 ? alphaRaw / 100000 : undefined
+  return {
+    color: rgbHex(rgb),
+    widthPt: Math.round((widthEmu / 12700) * 100) / 100,
+    ...(alpha !== undefined ? { alpha } : {}),
+  }
+}
+
+/** w14:glow halo (radius in EMU, color with optional alpha) */
+export function w14GlowOf(rPr: XNode, theme?: ThemeColors | null): TextGlow | undefined {
+  const glow = findChild(rPr, 'w14:glow')
+  if (!glow) return undefined
+  const rgb = w14ColorRgb(glow, theme)
+  const radEmu = parseInt(attrsOf(glow)['w14:rad'] ?? '', 10)
+  if (!rgb || !(radEmu > 0)) return undefined
+  const colorNode = findChild(glow, 'w14:srgbClr') ?? findChild(glow, 'w14:schemeClr')
+  const alphaRaw = parseInt(
+    attrsOf(findChild(colorNode ?? {}, 'w14:alpha') ?? {})['w14:val'] ?? '',
+    10,
+  )
+  const alpha = alphaRaw >= 0 && alphaRaw < 100000 ? alphaRaw / 100000 : undefined
+  return {
+    color: rgbHex(rgb),
+    radiusPt: Math.round((radEmu / 12700) * 100) / 100,
+    ...(alpha !== undefined ? { alpha } : {}),
+  }
 }
 
 export interface ExtractTextboxOpts {

@@ -1,19 +1,33 @@
 // DOM line-box sampling for page-crossing blocks (cached per element), the
 // line-split re-slice, table row cut positions and line anchors.
+import { rangeSlot } from './dom-range'
 import { applyBlockMeta } from './pagination-measure'
+import { CapacityWindows, SortedYs } from './pagination-index'
+import { blockInlineExtraPx } from './pagination-sections'
 import {
+  columnLineSplits,
   computeSectionedSlicesF2,
   insertParityBlanks,
   sectionFirstPages,
+  type SliceResume,
 } from './pagination-slices'
 import type {
   BlockBox,
   BlockMetaOf,
+  ColWrapRequest,
+  ColWrapTable,
   PageSlice,
+  RowCellBox,
+  RowSplitPatch,
   SectionGeom,
   SliceOutputs,
   TableRowBox,
 } from './pagination-types'
+
+const rowRange = rangeSlot()
+const lineRange = rangeSlot()
+const charRange = rangeSlot()
+const anchorRange = rangeSlot()
 
 /**
  * Two-pass slicing: slice by block first, then collect DOM line-box boundaries for
@@ -21,6 +35,31 @@ import type {
  * one page get line collection (at most one per page, negligible cost).
  * metaOf: docxIndex → parse-layer pagination constraints (keepNext/widow/table row flags).
  */
+/**
+ * Resume a pass from the first page whose slicing can differ from the previous
+ * pass: the pages above it are taken over unchanged and only the blocks from
+ * that page on are sliced (Word starts repagination at the changed page too).
+ */
+export interface PassResume {
+  /** the previous pass's slicing before parity blanks (SliceOutputs.preParity) */
+  prevSlices: PageSlice[]
+  /** index into prevSlices of the first page to slice again */
+  page: number
+  /** index into blocks of that page's first block (its top is the page start) */
+  block: number
+  /** the previous pass's outputs: patches for blocks above the page are kept */
+  prevOut?: SliceOutputs
+}
+
+const PATCH_KEYS = [
+  'rowFills',
+  'rowSplits',
+  'floatVShifts',
+  'floatFlows',
+  'floatSplits',
+  'oversizeClips',
+] as const
+
 export function sliceWithLineSplit(
   blocks: BlockBox[],
   geoms: SectionGeom[],
@@ -28,21 +67,286 @@ export function sliceWithLineSplit(
   zoomFactor: number,
   metaOf?: BlockMetaOf,
   out?: SliceOutputs,
+  resume?: PassResume,
 ): PageSlice[] {
   if (metaOf) applyBlockMeta(blocks, metaOf, zoomFactor)
-  let slices = computeSectionedSlicesF2(blocks, geoms, totalHeight, out)
+  const outs: SliceOutputs = out ?? {}
+  outs.colWrapRequests ??= []
+  const prefix = resume ? resume.prevSlices.slice(0, resume.page) : []
+  const run = resume ? blocks.slice(resume.block) : blocks
+  const seed = resume ? resumeSeed(resume.prevSlices, resume.page) : undefined
+  let slices = prefix.concat(computeSectionedSlicesF2(run, geoms, totalHeight, outs, seed))
   // re-slicing can surface new candidate blocks (a block pushed to a page top only
   // after an earlier block gained line data) — iterate to a fixed point, bounded.
   // The cascade can run one block per page boundary (a dense two-column grid doc
   // packs tighter on every pass: SAS prod_043 left whole paragraphs unsplit at
   // column bottoms with a bound of 3), so the bound follows the page count.
   const maxPasses = Math.max(3, Math.min(24, slices.length))
-  for (let i = 0; i < maxPasses; i++) {
-    const changed = fillLineBoxes(blocks, geoms, zoomFactor, slices, metaOf)
-    if (!changed) break
-    slices = computeSectionedSlicesF2(blocks, geoms, totalHeight, out)
+  outs.iterations = 1
+  outs.fillMs = 0
+  outs.sliceRunMs = 0
+  sigMemo = new Map()
+  try {
+    for (let i = 0; i < maxPasses; i++) {
+      const t0 = performance.now()
+      const changed = fillLineBoxes(run, geoms, zoomFactor, slices, metaOf)
+      const wrapped = fillColWraps(run, colWrapRequestsOf(run, slices, geoms, outs), zoomFactor)
+      outs.fillMs += performance.now() - t0
+      if (!changed && !wrapped) break
+      const t1 = performance.now()
+      slices = prefix.concat(computeSectionedSlicesF2(run, geoms, totalHeight, outs, seed))
+      outs.sliceRunMs += performance.now() - t1
+      outs.iterations++
+    }
+  } finally {
+    sigMemo = null
   }
+  if (resume?.prevOut) keepPatchesAbove(outs, resume.prevOut, resume.prevSlices[resume.page].start)
+  outs.preParity = slices
   return insertParityBlanks(slices, geoms)
+}
+
+/**
+ * Whether a pass can resume at page `page` of a previous slicing: a page of its
+ * own (a blank sharing its start with the page before it is re-created by the
+ * first block's extra breaks, so resuming there would double it) that opens
+ * neither inside a table nor under a lifted block.
+ */
+export function isResumePage(prev: PageSlice[], page: number): boolean {
+  const p = prev[page]
+  if (page < 1 || !p || p.end <= p.start + 0.01) return false
+  if (prev[page - 1].start >= p.start - 0.5) return false
+  return !p.repeatHeader && !p.liftTop
+}
+
+function resumeSeed(prev: PageSlice[], page: number): SliceResume {
+  const p = prev[page]
+  const continued = !!p.continuedSection
+  return {
+    y: p.start,
+    section: p.section,
+    firstOfSection: !continued && (page === 0 || prev[page - 1].section !== p.section),
+    continued,
+  }
+}
+
+/** patches of the previous pass for blocks above `y` stay; the resumed run only produced the rest */
+function keepPatchesAbove(outs: SliceOutputs, prev: SliceOutputs, y: number): void {
+  type Patches = Record<string, Array<{ blockTop: number }> | undefined>
+  const o = outs as Patches
+  const p = prev as Patches
+  for (const key of PATCH_KEYS) {
+    const kept = p[key]?.filter((patch) => patch.blockTop < y - 0.5)
+    if (kept?.length) o[key] = [...kept, ...(o[key] ?? [])]
+  }
+}
+
+/** Balance requests plus the tables every line-cut paragraph between unequal
+ *  columns needs for its split shape (tail height at the second width). */
+function colWrapRequestsOf(
+  blocks: BlockBox[],
+  slices: PageSlice[],
+  geoms: SectionGeom[],
+  out: SliceOutputs,
+): ColWrapRequest[] {
+  const reqs = [...(out.colWrapRequests ?? [])]
+  const colWidthsOf = (s: number) => geoms[Math.max(0, Math.min(s, geoms.length - 1))]?.colWidths
+  for (const sp of columnLineSplits(blocks, slices, colWidthsOf)) {
+    if (sp.tailBottom !== undefined) continue
+    reqs.push({
+      blockTop: blocks[sp.bi].top,
+      headWidthPx: sp.headWidthPx,
+      tailWidthPx: sp.tailWidthPx,
+    })
+  }
+  return reqs
+}
+
+const colWrapCache = new WeakMap<HTMLElement, { sig: string; tables: ColWrapTable[] }>()
+
+/** Formatting the probe depends on: the paragraph's own text properties and the
+ *  markup of its runs (inline sizes, indents); pagination widgets (the split
+ *  float, in-block gaps) are layout state, not formatting. Width and height are
+ *  deliberately absent: the split itself changes both. */
+function colWrapSig(el: HTMLElement, zoomFactor: number): string {
+  const cs = getComputedStyle(el)
+  const props = [
+    cs.fontFamily,
+    cs.fontSize,
+    cs.lineHeight,
+    cs.textIndent,
+    cs.textAlign,
+    cs.letterSpacing,
+    cs.wordSpacing,
+    cs.paddingLeft,
+    cs.paddingRight,
+    cs.paddingTop,
+    cs.paddingBottom,
+    cs.marginLeft,
+    cs.marginRight,
+    cs.direction,
+  ].join('|')
+  let h = 5381
+  for (const n of Array.from(el.childNodes)) {
+    if (
+      n instanceof Element &&
+      (n.classList.contains('doc-col-split-float') || n.classList.contains('page-gap'))
+    )
+      continue
+    const text = n instanceof Element ? n.outerHTML : (n.textContent ?? '')
+    for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0
+  }
+  return `${lineSampleFontEpoch}:${Math.round(zoomFactor * 1000)}:${props}:${h}`
+}
+
+const sameWraps = (t: { headWidthPx: number; tailWidthPx: number }, r: ColWrapRequest) =>
+  Math.abs(t.headWidthPx - r.headWidthPx) < 0.5 && Math.abs(t.tailWidthPx - r.tailWidthPx) < 0.5
+
+/**
+ * Attach the requested ColWrapTables (probeColWrap, cached per element and text
+ * until the text or fonts change). Returns whether any block gained a table (the
+ * caller re-slices).
+ */
+export function fillColWraps(
+  blocks: BlockBox[],
+  requests: ColWrapRequest[],
+  zoomFactor: number,
+  probe: typeof probeColWrap = probeColWrap,
+): boolean {
+  let changed = false
+  for (const req of requests) {
+    const b = blocks.find((x) => x.el && Math.abs(x.top - req.blockTop) < 0.5)
+    if (!b?.el) continue
+    if (b.colWraps?.some((t) => sameWraps(t, req))) continue
+    const sig = colWrapSig(b.el, zoomFactor)
+    let entry = colWrapCache.get(b.el)
+    if (!entry || entry.sig !== sig) {
+      entry = { sig, tables: [] }
+      colWrapCache.set(b.el, entry)
+    }
+    let table = entry.tables.find((t) => sameWraps(t, req))
+    if (!table) {
+      const probed = probe(b.el, req.headWidthPx, req.tailWidthPx, zoomFactor)
+      if (!probed) continue
+      table = probed
+      entry.tables.push(table)
+    }
+    b.colWraps = [...(b.colWraps ?? []), table]
+    changed = true
+  }
+  return changed
+}
+
+/** Hidden probe copy of the canvas page: same classes/inline vars as the
+ *  ProseMirror root (so the clone inherits every page rule), measuring state,
+ *  zero-height overflow box that contains the probe's oversized float. */
+function probeHost(pm: HTMLElement): HTMLElement | null {
+  const parent = pm.parentElement
+  if (!parent) return null
+  const wrap = document.createElement('div')
+  wrap.className = `${pm.className} measuring-columns doc-col-probe`
+  const style = pm.getAttribute('style')
+  if (style) wrap.setAttribute('style', style)
+  const dir = pm.getAttribute('dir')
+  if (dir) wrap.setAttribute('dir', dir)
+  wrap.setAttribute('aria-hidden', 'true')
+  Object.assign(wrap.style, {
+    position: 'absolute',
+    left: '0',
+    top: '0',
+    boxSizing: 'border-box',
+    width: `${pm.offsetWidth}px`,
+    height: '0',
+    overflow: 'hidden',
+    visibility: 'hidden',
+    pointerEvents: 'none',
+    columnCount: 'auto',
+  })
+  parent.appendChild(wrap)
+  return wrap
+}
+
+/** The float that rewraps part of a straddling paragraph (same element in the
+ *  probe and on the canvas, see setColumnLayout) */
+export function splitFloatStyle(
+  floatPx: number,
+  heightPx: number,
+  insetPx: number,
+  rtl: boolean | undefined,
+): string {
+  const r = (n: number) => Math.round(n * 100) / 100
+  return `float:${rtl ? 'left' : 'right'};width:${r(floatPx)}px;height:${r(heightPx)}px;shape-outside:inset(${r(insetPx)}px 0 0 0)`
+}
+
+const PROBE_FLOAT_H = 1e5
+
+/**
+ * Measure a paragraph split between two columns of different widths: a clone at
+ * the wider width carries the same leading float shape the canvas will use, so
+ * for every head line count k the probe reads the cut Y (lines wrapped at the
+ * head width) and the bottom of the remaining lines rewrapped at the tail width.
+ * Null when the paragraph has no measurable lines.
+ */
+export function probeColWrap(
+  el: HTMLElement,
+  headWidthPx: number,
+  tailWidthPx: number,
+  zoomFactor: number,
+): ColWrapTable | null {
+  const pm = el.parentElement
+  if (!pm) return null
+  const rtl = getComputedStyle(el).direction === 'rtl'
+  const wrap = probeHost(pm)
+  if (!wrap) return null
+  try {
+    const clone = el.cloneNode(true) as HTMLElement
+    clone.removeAttribute('data-col-patch')
+    clone.removeAttribute('data-idx')
+    for (const g of Array.from(
+      clone.querySelectorAll('.page-gap, .page-gap-inline, .page-float-host, .doc-col-split-float'),
+    ))
+      g.remove()
+    clone.classList.add('doc-col-block')
+    const wide = Math.max(headWidthPx, tailWidthPx)
+    clone.style.setProperty('--col-w', `${Math.max(0, wide - blockInlineExtraPx(el))}px`)
+    const fl = document.createElement('span')
+    fl.className = 'doc-col-split-float'
+    clone.insertBefore(fl, clone.firstChild)
+    wrap.appendChild(clone)
+    const cs = getComputedStyle(clone)
+    const padTop = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.borderTopWidth) || 0)
+    const padBottom = (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0)
+    const contentBottom = () => clone.getBoundingClientRect().height / zoomFactor - padBottom
+    const headNarrow = headWidthPx < tailWidthPx
+    const floatPx = Math.abs(headWidthPx - tailWidthPx)
+    const setFloat = (heightPx: number, insetPx: number) => {
+      fl.style.cssText = splitFloatStyle(floatPx, heightPx, insetPx, rtl)
+    }
+    setFloat(headNarrow ? PROBE_FLOAT_H : 0, 0)
+    const headLines = domLineRects(clone, zoomFactor)
+    const n = headLines.length
+    if (n === 0) return null
+    const bounds = lineBreakBoundaries(headLines)
+    if (bounds.length !== n - 1) return null
+    const headH = [0, ...bounds, contentBottom()]
+    // the float edge must not touch the line box on the other side of the cut
+    const shapeY = headH.map((_, k) =>
+      k === 0 ? 0 : k === n ? headH[n] : headNarrow ? headLines[k - 1].bottom : headLines[k].offset,
+    )
+    const tailH: number[] = new Array(n + 1).fill(0)
+    const tailBottom: number[] = new Array(n + 1).fill(headH[n])
+    for (let k = 0; k < n; k++) {
+      const at = Math.max(shapeY[k] - padTop, 0)
+      if (headNarrow) setFloat(at, 0)
+      else setFloat(PROBE_FLOAT_H, at)
+      const bottom = contentBottom()
+      tailBottom[k] = bottom
+      tailH[k] = Math.max(bottom - headH[k], 0)
+    }
+    return { headWidthPx, tailWidthPx, n, headH, tailH, tailBottom, shapeY }
+  } finally {
+    wrap.remove()
+  }
 }
 
 /**
@@ -71,7 +375,20 @@ export function bumpLineSampleFontEpoch(): void {
   lineSampleFontEpoch++
 }
 
+// the DOM does not change inside one slicing call, so its fixed-point iterations
+// share the per-element signature reads instead of repeating them
+let sigMemo: Map<HTMLElement, string> | null = null
+
 function lineSampleSig(el: HTMLElement, textH: number): string {
+  const memoKey = Math.round(textH * 4)
+  const memoHit = sigMemo?.get(el)
+  if (memoHit && memoHit.startsWith(`${memoKey}:`)) return memoHit.slice(memoHit.indexOf(':') + 1)
+  const sig = computeLineSampleSig(el, textH)
+  sigMemo?.set(el, `${memoKey}:${sig}`)
+  return sig
+}
+
+function computeLineSampleSig(el: HTMLElement, textH: number): string {
   // djb2 over the text: equal-length edits must still invalidate
   const text = el.textContent ?? ''
   let h = 5381
@@ -81,7 +398,14 @@ function lineSampleSig(el: HTMLElement, textH: number): string {
   // costs one re-sample, so quantization errs toward invalidating.
   const w = el.getBoundingClientRect().width
   const nodes = el.getElementsByTagName('*').length
-  return `${lineSampleFontEpoch}:${Math.round(textH * 4)}:${Math.round(w * 4)}:${nodes}:${h}`
+  // justify-shrink decorations move wrap points without changing text, height
+  // or (when a decoration migrates between lines) the descendant count (r177)
+  let js = 0
+  for (const sp of el.querySelectorAll<HTMLElement>('.doc-jshrink')) {
+    const per = Math.round((parseFloat(sp.style.wordSpacing) || 0) * -100)
+    js = (js * 33 + per + (sp.textContent?.length ?? 0)) | 0
+  }
+  return `${lineSampleFontEpoch}:${Math.round(textH * 4)}:${Math.round(w * 4)}:${nodes}:${h}:${js}`
 }
 
 export function fillLineBoxes(
@@ -94,15 +418,27 @@ export function fillLineBoxes(
   const geomOf = (s: number) => geoms[Math.max(0, Math.min(s, geoms.length - 1))]
   // cut bounds = page bounds + column bounds of multi-column pages (blocks crossing within a column also need line-level splits)
   const breaks: number[] = []
+  // column windows of mixed-column pages and titlePg first pages, by start with
+  // a running max end: a block top lies in at most the few windows the back
+  // scan visits before the max end drops below it
+  const windows: Array<{ start: number; end: number; cap: number }> = []
   ;(slices ?? []).forEach((s, i) => {
     if (i > 0) breaks.push(s.start)
     for (const r of s.regions ?? []) {
       for (const c of r.columns) {
-        if (c.start > 0.5 && !breaks.includes(c.start)) breaks.push(c.start)
+        if (c.start > 0.5) breaks.push(c.start)
+        windows.push({ start: c.start, end: c.end, cap: r.height })
       }
     }
   })
   const firsts = sectionFirstPages(slices ?? [])
+  slices?.forEach((s, si) => {
+    if (!firsts[si]) return
+    const fc = geomOf(s.section)?.firstContentHeight
+    if (fc !== undefined) windows.push({ start: s.start, end: s.end, cap: fc })
+  })
+  const capWindows = new CapacityWindows(windows)
+  const breakYs = new SortedYs(breaks)
   let changed = false
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
@@ -111,33 +447,23 @@ export function fillLineBoxes(
     // text lines (usually inside fixed, clipped boxes) are not page-break
     // points. Left line-less, an over-page block places whole and overlaps the
     // bottom margin; the next block turns the page (Word-like shape overflow).
-    if (block.el.classList.contains('doc-protected-textboxes')) continue
+    if (
+      block.el.classList.contains('doc-protected-textboxes') ||
+      block.el.classList.contains('img-wrap-band')
+    )
+      continue
     const contentH = geomOf(block.section ?? 0)?.contentHeight ?? 0
     if (contentH <= 0) continue
     const bottom = block.top + block.height
-    const crossing = breaks.some((y) => block.top < y && y < bottom)
-    const atPageTop = breaks.some((y) => Math.abs(block.top - y) < 0.5)
+    const crossing = breakYs.hasBetween(block.top, bottom)
+    const atPageTop = breakYs.hasNear(block.top, 0.5)
     // region-aware capacity: a block in a mixed-column page's later region has
     // only the region's height, not the full page — a table there must get row
     // data even when its height fits a page (otherwise the first pass places
     // it whole as an "over-page" block and the collapse becomes a fixed point:
-    // the ANSI table after a 3-col region, real_run2/61)
-    let capH = contentH
-    for (const s of slices ?? []) {
-      for (const r of s.regions ?? []) {
-        if (r.columns.some((c) => c.start - 0.5 <= block.top && block.top < c.end - 0.5)) {
-          capH = Math.min(capH, r.height)
-        }
-      }
-    }
-    // a block on a section's FIRST page has only the titlePg capacity: it must
-    // get line/row data even when it fits the default page height, or the first
-    // pass places it whole and the collapse becomes a fixed point
-    slices?.forEach((s, si) => {
-      if (!firsts[si] || block.top < s.start - 0.5 || block.top >= s.end - 0.5) return
-      const fc = geomOf(s.section)?.firstContentHeight
-      if (fc !== undefined) capH = Math.min(capH, fc)
-    })
+    // the ANSI table after a 3-col region). A block on a
+    // section's FIRST page likewise has only the titlePg capacity.
+    const capH = capWindows.capAt(block.top, contentH)
     // a block already carrying the renderer-baked oversize clip measures at the
     // clipped (fitting) height, so it must bypass the fit gates to re-qualify —
     // otherwise the flag drops, the clip clears, and the layout oscillates
@@ -147,6 +473,8 @@ export function fillLineBoxes(
       block.height <= capH &&
       !crossing &&
       !atPageTop &&
+      // a mid-paragraph page break splits the block at a line boundary
+      !block.innerBreaks?.length &&
       // chain anchors always need line/row data: the chain only keeps with the
       // anchor's first line(s)/row, so the whole-block height is misleading
       !(i > 0 && blocks[i - 1].keepNext && !block.keepNext)
@@ -187,8 +515,12 @@ export function fillLineBoxes(
             // before the document is saved and reopened.
             if (r.isHeader === undefined && flags[i]?.isHeader) r.isHeader = true
             if (flags[i]?.cantSplit) r.cantSplit = true
+            if (flags[i]?.keepNext) r.keepNext = true
             if (flags[i]?.minHPx) r.minHPx = flags[i].minHPx
           })
+        const bands =
+          block.docxIndex !== undefined ? metaOf?.(block.docxIndex)?.footnoteBands : undefined
+        if (bands) applyRowNotes(block.el, rows, bands)
         block.tableRows = rows
         changed = true
       }
@@ -225,6 +557,12 @@ export function fillLineBoxes(
       // synthesize cut points at page height, equivalent to hard pixel cuts
       for (let y = contentH; y < block.height; y += contentH) boundaries.push(y)
     }
+    // a leading page break's line has no text rect, so its cut (the first text
+    // line's ink top) lands inside the first sampled line box: make it a boundary
+    for (const y of block.innerBreaks ?? []) {
+      if (y > 0.5 && y < textH - 0.5 && (boundaries.length === 0 || y < boundaries[0] - 1.5))
+        boundaries.unshift(y)
+    }
     if (boundaries.length > 0) {
       block.lineBoxes = tileBoxes(boundaries, textH)
       changed = true
@@ -247,22 +585,84 @@ function tileBoxes(
 
 /** Table block: one line box per tr, heights tiling the block height (borders folded into first/last rows).
  *  In-table page gaps (table-break decoration rows) don't count as rows; their height is subtracted from the offsets of rows below */
+/** the outer table's real rows: nested-table trs are in-row content, and
+ *  decoration rows (page gaps / repeated tblHeader clones) are not page-split
+ *  units — counting them would add phantom boundaries and shift the
+ *  tableRowFlags index alignment */
+export function outerTableRows(el: HTMLElement): HTMLElement[] {
+  return Array.from(el.querySelectorAll<HTMLElement>('tr')).filter(
+    (tr) =>
+      !tr.closest('.doc-nested-table') &&
+      !tr.classList.contains('page-gap') &&
+      !tr.classList.contains('page-repeat-header'),
+  )
+}
+
+/** Preview rules for Word-style split rows: stamp each split tr (data-pv-split, cloned
+ *  with the block) and, on the page each fragment lands on, translate / clip / hide
+ *  the cells' children so only that fragment's lines show, at its top, while the
+ *  clone stays a plain clip of the canvas flow */
+export function rowSplitCss(
+  splits: RowSplitPatch[],
+  blocks: BlockBox[],
+  slices: Array<{ start: number }>,
+): string {
+  const root = blocks[0]?.el?.parentElement
+  for (const el of root?.querySelectorAll('[data-pv-split]') ?? [])
+    el.removeAttribute('data-pv-split')
+  const pageOf = (y: number) => {
+    let pg = 0
+    while (pg + 1 < slices.length && slices[pg + 1].start <= y + 0.5) pg++
+    return pg
+  }
+  const px = (v: number) => `${v.toFixed(1)}px`
+  const out: string[] = []
+  splits.forEach((split, n) => {
+    const block = blocks.find((b) => b.tableRows && Math.abs(b.top - split.blockTop) < 0.5)
+    const tr = block?.el ? outerTableRows(block.el)[split.row] : undefined
+    if (!tr) return
+    tr.dataset.pvSplit = String(n)
+    for (const r of split.rules) {
+      const decl =
+        r.dy !== undefined
+          ? `transform:translateY(${px(r.dy)})`
+          : r.clipTop !== undefined || r.clipBottom !== undefined
+            ? `clip-path:inset(${px(r.clipTop ?? 0)} 0 ${px(r.clipBottom ?? 0)} 0)`
+            : 'visibility:hidden'
+      out.push(
+        `.pv-page[data-pv-page="${pageOf(r.from)}"] .pv-content tr[data-pv-split="${n}"] > :nth-child(${r.cell + 1}) > :nth-child(${r.tail ? 'n+' : ''}${r.child + 1}){${decl}}`,
+      )
+    }
+  })
+  return out.join('\n')
+}
+
+/** Charge each footnote's height to the row holding its reference (bands and
+ *  refs are both in document order); a count mismatch keeps the block-level
+ *  reservation placed after the table */
+export function applyRowNotes(
+  el: HTMLElement,
+  rows: TableRowBox[],
+  bands: Array<{ heightPx: number }>,
+): void {
+  const refs = Array.from(
+    el.querySelectorAll('sup.doc-note-ref[data-note-kind="footnote"]'),
+  ).filter((ref) => !ref.closest('.page-gap, .page-float-host, .page-repeat-header'))
+  if (refs.length !== bands.length) return
+  const trs = outerTableRows(el)
+  refs.forEach((ref, i) => {
+    const ri = trs.findIndex((tr) => tr.contains(ref))
+    if (ri >= 0 && rows[ri]) rows[ri].notesPx = (rows[ri].notesPx ?? 0) + bands[i].heightPx
+  })
+}
+
 function domTableRows(el: HTMLElement, blockHeight: number, zoomFactor: number): TableRowBox[] {
   const gaps = Array.from(el.querySelectorAll('.page-gap-inline')).map((g) =>
     g.getBoundingClientRect(),
   )
   const gapAbove = (top: number) => gaps.reduce((s, g) => (g.top <= top ? s + g.height : s), 0)
   const elTop = el.getBoundingClientRect().top
-  // take only the outer table's real rows: trs of nested tables inside cells
-  // (.doc-nested-table) are in-row content, and decoration rows (page gaps /
-  // repeated tblHeader clones) are not page-split units — counting them would
-  // add phantom boundaries and shift the tableRowFlags index alignment
-  const trs = Array.from(el.querySelectorAll('tr')).filter(
-    (tr) =>
-      !tr.closest('.doc-nested-table') &&
-      !tr.classList.contains('page-gap') &&
-      !tr.classList.contains('page-repeat-header'),
-  )
+  const trs = outerTableRows(el)
   const tops: number[] = []
   // skip trs[0]: the first row starts at box 0 by definition — its measured
   // offset is just the collapsed-border half-width (1px at w:sz=12), and
@@ -274,7 +674,7 @@ function domTableRows(el: HTMLElement, blockHeight: number, zoomFactor: number):
   }
   return tileBoxes(tops, blockHeight).map((b, i) => {
     if (!trs[i]) return { height: b.height }
-    const { cuts, contentBottom } = rowCutYs(
+    const { cuts, contentBottom, cells } = rowCutYs(
       trs[i],
       b.offsetInBlock,
       b.height,
@@ -282,6 +682,7 @@ function domTableRows(el: HTMLElement, blockHeight: number, zoomFactor: number):
       gapAbove,
       zoomFactor,
     )
+    const splitExtra = parseFloat(trs[i].dataset.splitExtra ?? '')
     return {
       height: b.height,
       contentBottom,
@@ -289,13 +690,18 @@ function domTableRows(el: HTMLElement, blockHeight: number, zoomFactor: number):
         ? { isHeader: trs[i].getAttribute('data-repeat-header') === '1' }
         : {}),
       ...(cuts.length > 0 ? { cutYs: cuts } : {}),
+      ...(cells ? { cells } : {}),
+      ...(splitExtra > 0 ? { splitExtra } : {}),
     }
   })
 }
 
+const PARA_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, .doc-li'
+
 /** In-row safe cut points (relative to row top, px, ascending): line-level candidates
  *  per cell (Word breaks between any two lines), rejecting cuts that would cross a
- *  line box in another cell. Also reports the lowest content-band bottom. */
+ *  line box in another cell. Also reports the lowest content-band bottom and, for
+ *  multi-cell rows, each cell's own line geometry (per-cell Word-style splitting). */
 function rowCutYs(
   tr: Element,
   rowTop: number,
@@ -303,28 +709,55 @@ function rowCutYs(
   elTop: number,
   gapAbove: (top: number) => number,
   zoomFactor: number,
-): { cuts: number[]; contentBottom: number } {
+): { cuts: number[]; contentBottom: number; cells?: RowCellBox[] } {
   const cells = Array.from(tr.children).filter((c) => c.tagName === 'TD' || c.tagName === 'TH')
-  const range = document.createRange()
+  const range = rowRange()
   const cellBands: Array<Array<[number, number]>> = []
   const paraBands: Array<Array<[number, number]>> = []
+  const cellBoxes: RowCellBox[] = []
+  // exact-height clip boxes and vertical text are not line-splittable content
+  let cellsOk =
+    cells.length >= 2 && !tr.querySelector(':scope > * > .cell-clip, :scope > * > .cell-vert')
+  let paraSeq = 0
   for (const cell of cells) {
     const bands: Array<[number, number]> = []
     const byPara = new Map<Element, Array<[number, number]>>()
+    const paraIds = new Map<Element, number>()
+    const entries: Array<{ band: [number, number]; child: number; para: number }> = []
     const toBand = (r: DOMRect): [number, number] => [
       (r.top - elTop - gapAbove(r.top)) / zoomFactor - rowTop,
       (r.bottom - elTop - gapAbove(r.bottom)) / zoomFactor - rowTop,
     ]
+    const childIndexOf = (node: Node | null): number => {
+      let e: Node | null = node
+      while (e && e.parentNode !== cell) e = e.parentNode
+      return e ? Array.prototype.indexOf.call(cell.children, e) : -1
+    }
+    const paraIdOf = (para: Element | null, child: number) => {
+      if (!para) return -1 - child
+      let id = paraIds.get(para)
+      if (id === undefined) {
+        id = paraSeq++
+        paraIds.set(para, id)
+      }
+      return id
+    }
+    const addEntry = (band: [number, number], node: Node, para: Element | null) => {
+      const child = childIndexOf(node)
+      if (child < 0) cellsOk = false
+      else entries.push({ band, child, para: paraIdOf(para, child) })
+    }
     const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT)
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const parent = n.parentElement
       if (parent?.closest('.page-gap, .page-float-host')) continue
-      const para = parent?.closest('p, h1, h2, h3, h4, h5, h6, .doc-li')
+      const para = parent?.closest(PARA_SELECTOR) ?? null
       range.selectNodeContents(n)
       for (const r of range.getClientRects()) {
         if (r.height <= 0 || r.width <= 0) continue
         const band = toBand(r)
         bands.push(band)
+        addEntry(band, n, para)
         if (para) {
           const list = byPara.get(para) ?? []
           list.push(band)
@@ -336,16 +769,101 @@ function rowCutYs(
       // in-cell gap decorations may carry header/footer images: not row content
       if (obj.closest('.page-gap, .page-float-host')) continue
       const r = obj.getBoundingClientRect()
-      if (r.height > 0 && r.width > 0) bands.push(toBand(r))
+      if (r.height > 0 && r.width > 0) {
+        const band = toBand(r)
+        bands.push(band)
+        addEntry(band, obj, obj.closest(PARA_SELECTOR))
+      }
+    }
+    // empty paragraphs above the cell's content are lines Word breaks between;
+    // trailing empty marks stay band-less (they drive the over-page tail fill)
+    const contentB = bands.reduce((m, [, b]) => Math.max(m, b), -Infinity)
+    for (const para of cell.querySelectorAll(PARA_SELECTOR)) {
+      if (byPara.has(para) || para.closest('.page-gap, .page-float-host')) continue
+      if (para.textContent?.trim() || para.querySelector('img, svg, canvas')) continue
+      const r = para.getBoundingClientRect()
+      if (r.height <= 0 || r.width <= 0) continue
+      const band = toBand(r)
+      if (band[0] >= contentB - 0.5) continue
+      bands.push(band)
+      byPara.set(para, [band])
+      addEntry(band, para, para)
     }
     if (bands.length > 0) cellBands.push(bands)
     for (const list of byPara.values()) paraBands.push(list)
+    if (cellsOk) cellBoxes.push(cellBoxOf(cell as HTMLElement, entries, zoomFactor, toBand))
   }
   const contentBottom = cellBands.reduce(
     (max, bands) => bands.reduce((m, [, b]) => Math.max(m, b), max),
     0,
   )
-  return { cuts: cellCutYs(cellBands, rowHeight, paraBands), contentBottom }
+  return {
+    cuts: cellCutYs(cellBands, rowHeight, paraBands),
+    contentBottom,
+    ...(cellsOk && cellBoxes.some((c) => c.lines.length > 0) ? { cells: cellBoxes } : {}),
+  }
+}
+
+/** Per-cell line geometry in top-aligned coordinates: a middle/bottom-aligned cell's
+ *  content is measured where the canvas centered it, so the alignment offset is
+ *  removed here (Word aligns within each row fragment, not the whole row) */
+function cellBoxOf(
+  cell: HTMLElement,
+  entries: Array<{ band: [number, number]; child: number; para: number }>,
+  zoomFactor: number,
+  toBand: (r: DOMRect) => [number, number],
+): RowCellBox {
+  const va = cell.style.verticalAlign
+  let alignDy = 0
+  let alignFrac = 0
+  const first = cell.firstElementChild
+  if ((va === 'middle' || va === 'bottom') && first && entries.length > 0) {
+    alignFrac = va === 'middle' ? 0.5 : 1
+    // rects are zoomed, computed lengths are not
+    const cs = getComputedStyle(cell)
+    const off =
+      (first.getBoundingClientRect().top - cell.getBoundingClientRect().top) / zoomFactor -
+      (parseFloat(getComputedStyle(first).marginTop) || 0) -
+      (parseFloat(cs.paddingTop) || 0) -
+      (parseFloat(cs.borderTopWidth) || 0)
+    alignDy = Math.max(0, off)
+  }
+  const shifted = alignDy
+    ? entries.map((e) => ({
+        ...e,
+        band: [e.band[0] - alignDy, e.band[1] - alignDy] as [number, number],
+      }))
+    : entries
+  const childBox = Array.from(cell.children, (ch): [number, number] => {
+    const [t, b] = toBand(ch.getBoundingClientRect())
+    return [t - alignDy, b - alignDy]
+  })
+  return { ...cellLinesOf(shifted), childBox, alignDy, alignFrac }
+}
+
+/** Pure core of cellBoxOf: rect entries → clustered lines (same overlap rule as
+ *  clusterLineBands), each line keeping the child index / paragraph id of its
+ *  topmost rect */
+export function cellLinesOf(
+  entries: Array<{ band: [number, number]; child: number; para: number }>,
+): Pick<RowCellBox, 'lines' | 'childOf' | 'paraOf'> {
+  const sorted = [...entries].sort((a, b) => a.band[0] - b.band[0])
+  const lines: Array<[number, number]> = []
+  const childOf: number[] = []
+  const paraOf: number[] = []
+  for (const e of sorted) {
+    const [top, bottom] = e.band
+    const last = lines[lines.length - 1]
+    const overlap = last ? last[1] - top : 0
+    const minH = last ? Math.min(last[1] - last[0], bottom - top) : 0
+    if (last && overlap > 1 && overlap > 0.4 * minH) last[1] = Math.max(last[1], bottom)
+    else {
+      lines.push([top, bottom])
+      childOf.push(e.child)
+      paraOf.push(e.para)
+    }
+  }
+  return { lines, childOf, paraOf }
 }
 
 /** Rects sharing vertical overlap collapse into one line interval. Same-line rects
@@ -461,7 +979,7 @@ function domLineRects(el: HTMLElement, zoomFactor: number): DomLineRect[] {
   )
   const gapAbove = (top: number) => gaps.reduce((s, g) => (g.top <= top ? s + g.height : s), 0)
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-  const range = document.createRange()
+  const range = lineRange()
   const rects: Array<{ r: DOMRect; node: Text | Element }> = []
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     if (n.parentElement?.closest('.page-gap, .page-float-host')) continue
@@ -483,7 +1001,11 @@ function domLineRects(el: HTMLElement, zoomFactor: number): DomLineRect[] {
   const lines: DomLineRect[] = []
   let lineBottom = -Infinity
   for (const { r, node } of rects) {
-    if (r.top >= lineBottom - 1) {
+    // glyph boxes taller than the line pitch (Batang-class KR faces: 1.45em
+    // content area under a 1.3029 line) overlap the next line by a few px; a
+    // rect the open line covers less than half of starts a new line
+    const overlap = lineBottom - r.top
+    if (overlap <= 1 || overlap < r.height / 2) {
       lines.push({
         offset: (r.top - elTop - gapAbove(r.top)) / zoomFactor,
         bottom: (r.bottom - elTop - gapAbove(r.top)) / zoomFactor,
@@ -554,7 +1076,7 @@ export function anchorElement(a: LineAnchor): Element | null {
 function lineStartCharOffset(node: Text, lineTop: number): number {
   const len = node.length
   if (len === 0) return 0
-  const range = document.createRange()
+  const range = charRange()
   const topAt = (i: number): number => {
     range.setStart(node, i)
     range.setEnd(node, i + 1)
@@ -617,7 +1139,7 @@ export function nextLineAnchor(
 function anchorLineTop(a: LineAnchor): number | null {
   if (a.node instanceof Element) return a.node.getBoundingClientRect().top
   if (a.node.length > 0) {
-    const range = document.createRange()
+    const range = anchorRange()
     range.setStart(a.node, Math.min(a.charOffset, a.node.length - 1))
     range.setEnd(a.node, Math.min(a.charOffset + 1, a.node.length))
     // jsdom has no Range.getClientRects: fall through to the parent box

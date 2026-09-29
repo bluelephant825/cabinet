@@ -12,6 +12,8 @@ export const fr = {
   ribbonTabLayout: 'Mise en page',
   ribbonTabReferences: 'Références',
   ribbonTabReview: 'Révision',
+  ribbonCollapse: 'Réduire le ruban',
+  ribbonPin: 'Épingler le ruban',
   ribbonTabView: 'Affichage',
   ribbonTabTableDesign: 'Création de tableau',
   ribbonTabTableLayout: 'Disposition du tableau',
@@ -73,6 +75,8 @@ export const fr = {
   ribbonPainterActiveTip:
     "Reproduction de la mise en forme activée : sélectionnez le texte cible pour l'appliquer (cliquez à nouveau pour annuler)",
   ribbonGroupClipboard: 'Presse-papiers',
+  ribbonFontEastAsia: 'Police est-asiatique',
+  ribbonFontLatin: 'Police latine',
   ribbonFontFamilyTip: 'Police',
   ribbonFontsCommon: 'Polices courantes',
   ribbonFontsSystem: 'Polices système',
@@ -101,7 +105,6 @@ export const fr = {
   ribbonThemeColorShadeTip: 'Couleur du thème {r}-{c}',
   ribbonStandardColors: 'Couleurs standard',
   ribbonMoreColors: 'Autres couleurs…',
-  ribbonGroupFont: 'Police',
   ribbonBullets: 'Puces',
   ribbonNumbering: 'Numérotation',
   ribbonDecreaseIndent: 'Diminuer le retrait',
@@ -300,6 +303,8 @@ export const fr = {
   ribbonChartAddCategory: '+ Catégorie',
   ribbonChartAddSeries: '+ Série',
   ribbonLinkInsertTitle: 'Insérer un lien hypertexte',
+  ribbonLinkEditTitle: 'Modifier le lien hypertexte',
+  ribbonLinkRemove: 'Supprimer le lien',
   ribbonLinkText: 'Texte à afficher',
   ribbonLinkTextPh: "Texte du lien (laisser vide pour afficher l'adresse)",
   ribbonLinkAddress: 'Adresse',
@@ -581,6 +586,9 @@ export const fr = {
   ribbonEditorPrompt:
     "Relisez tout le document : corrigez les fautes de frappe, la ponctuation et la grammaire en conservant le sens d'origine et la structure des paragraphes.",
   ribbonGroupProofing: 'Vérification',
+  ribbonSpellcheckBtn: 'Orthographe',
+  ribbonSpellcheckTip:
+    "Vérifier l'orthographe au cours de la frappe — souligne en rouge les mots peut-être mal orthographiés",
   ribbonTranslate: 'Traduire',
   ribbonTranslateTip: "L'IA traduit le document",
   ribbonTranslatePrompt:

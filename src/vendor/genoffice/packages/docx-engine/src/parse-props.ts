@@ -23,18 +23,24 @@ import type {
   CellBorders,
   CellMargins,
   CharIndents,
+  ParaBorderLine,
+  ParaBorderSides,
   ParaFormat,
   RevisionInfo,
   Run,
   TableBorders,
   TableModel,
+  ThemeColors,
   ThemeFonts,
 } from './types'
+import { resolveThemeColor } from './theme'
+import { isOn } from './checkbox-control'
 
 /** No run un-hides itself and nothing anchors here (bookmarks, comments, sectPr,
  *  drawings, numbering): safe to collapse a style-vanished paragraph entirely */
 export function staysVanished(xml: string): boolean {
-  if (/<w:vanish\s[^>]*w:val="(?:0|false|off)"/.test(xml)) return false
+  if (/<w:vanish\s[^>]*w:val=(?:"(?:0|false|none|off)"|'(?:0|false|none|off)')/i.test(xml))
+    return false
   return !/<w:(?:drawing|pict|object|sectPr|bookmarkStart|commentRangeStart|commentRangeEnd|numPr)[\s/>]/.test(
     xml,
   )
@@ -105,8 +111,10 @@ export function rawPPrOf(xml: string): string | undefined {
   // the paragraph's own pPr must be the first child of w:p; a later match
   // would belong to nested content (textbox paragraphs)
   const openEnd = xml.indexOf('>') + 1
-  if (openEnd === 0 || !xml.startsWith('<w:pPr', openEnd)) return undefined
-  const start = openEnd
+  if (openEnd === 0) return undefined
+  // pretty-printed sources put whitespace between <w:p> and its pPr
+  const start = openEnd + (/^\s*/.exec(xml.slice(openEnd))?.[0].length ?? 0)
+  if (!xml.startsWith('<w:pPr', start)) return undefined
   const re = /<w:pPr(?=[\s/>])|<\/w:pPr>/g
   re.lastIndex = start
   let depth = 0
@@ -258,6 +266,11 @@ export const JC_ALIGN: Record<string, ParaFormat['align']> = {
   right: 'right',
   end: 'right',
   both: 'justify',
+  // kashida/Thai justification variants: plain justify for non-Arabic/Thai text
+  lowKashida: 'justify',
+  mediumKashida: 'justify',
+  highKashida: 'justify',
+  thaiDistribute: 'justify',
   distribute: 'distribute',
 }
 
@@ -318,6 +331,7 @@ export function ptabDisplayStops(pNode: XNode): import('./types').TabStop[] {
           leader === 'dot' ||
           leader === 'hyphen' ||
           leader === 'underscore' ||
+          leader === 'heavy' ||
           leader === 'middleDot'
         ) {
           stop.leader = leader
@@ -340,6 +354,9 @@ export function ptabDisplayStops(pNode: XNode): import('./types').TabStop[] {
 export const SIMPLE_INLINE_FIELD_RE =
   /^\s*(DATE|TIME|CREATEDATE|SAVEDATE|NUMPAGES|FILENAME|AUTHOR|PAGE)\b/
 
+/** Zotero Word fields. Their cached result is the visible citation/bibliography text. */
+export const ZOTERO_INLINE_FIELD_RE = /^\s*(?:ADDIN\s+)?(?:ZOTERO_|CSL_)(?:ITEM|BIBL|TEMP)\b/i
+
 /** HYPERLINK "url" (optional \o "tip"): the only field form folded into an editable link run;
  * any other switch (\l bookmark, \t frame...) keeps the protected-passthrough path */
 export function convertibleHyperlink(instr: string): { href: string; tooltip?: string } | null {
@@ -361,9 +378,19 @@ export function onlyOleFields(xml: string): boolean {
 }
 
 export function onlyXeFields(xml: string): boolean {
-  if (xml.includes('<w:fldSimple')) return false
+  // fldSimple instructions fold too (extractRuns turns XE / REF / simple
+  // fields into the same runs as the fldChar form); one without w:instr can't
+  const simple = [...xml.matchAll(/<w:fldSimple\b([^>]*)>/g)].map(
+    (m) => /\bw:instr="([^"]*)"/.exec(m[1])?.[1],
+  )
+  if (simple.some((instr) => instr === undefined)) return false
   const instrs = xml.match(/<w:instrText[^>]*>[\s\S]*?<\/w:instrText>/g) ?? []
-  if (instrs.length === 0) return false
+  if (instrs.length === 0 && simple.length === 0) return false
+  const simpleOk = simple.every((raw) => {
+    const text = decodeEntities(raw!)
+    return /^\s*XE[\s"]/.test(text) || /^\s*REF\s/.test(text) || SIMPLE_INLINE_FIELD_RE.test(text)
+  })
+  if (!simpleOk) return false
   let checkboxInstrs = 0
   const ok = instrs.every((fragment) => {
     const text = decodeEntities(fragment.replace(/<[^>]+>/g, ''))
@@ -374,6 +401,7 @@ export function onlyXeFields(xml: string): boolean {
     return (
       /^\s*XE[\s"]/.test(text) ||
       /^\s*REF\s/.test(text) ||
+      ZOTERO_INLINE_FIELD_RE.test(text) ||
       SIMPLE_INLINE_FIELD_RE.test(text) ||
       convertibleHyperlink(text) !== null
     )
@@ -396,7 +424,27 @@ export function checkboxStateOf(beginRun: XNode | null): { checked: boolean } | 
   const state = findChild(box, 'w:checked') ?? findChild(box, 'w:default')
   if (!state) return { checked: false }
   const val = attrsOf(state)['w:val']
-  return { checked: val === undefined || val === '1' || val === 'true' || val === 'on' }
+  return { checked: isOn(val) }
+}
+
+/**
+ * Twips attributes a w:ind specifies (hanging as a negative firstLine). Explicit
+ * zeros are kept: in Word a direct or child-style 0 cancels that component's
+ * inherited value (a style firstLine, a Normal left, a numbering-level left).
+ */
+export function indentTwipsOf(ind: XNode): { left?: number; right?: number; firstLine?: number } {
+  const a = attrsOf(ind)
+  const out: { left?: number; right?: number; firstLine?: number } = {}
+  const left = parseInt(a['w:left'] ?? a['w:start'] ?? '', 10)
+  if (Number.isFinite(left)) out.left = left
+  const right = parseInt(a['w:right'] ?? a['w:end'] ?? '', 10)
+  if (Number.isFinite(right)) out.right = right
+  const firstLine = parseInt(a['w:firstLine'] ?? '', 10)
+  const hanging = parseInt(a['w:hanging'] ?? '', 10)
+  if (hanging > 0) out.firstLine = -hanging
+  else if (firstLine > 0) out.firstLine = firstLine
+  else if (Number.isFinite(firstLine) || Number.isFinite(hanging)) out.firstLine = 0
+  return out
 }
 
 /**
@@ -514,12 +562,8 @@ export function resolveCharIndents(
   }
   if (hanging > 0) f.indentFirstLine = -hanging
   else if (firstLine > 0) f.indentFirstLine = firstLine
-  else delete f.indentFirstLine
-  if (chars.right !== undefined) {
-    const right = twips(chars.right, units.normal)
-    if (right !== 0) f.indentRight = right
-    else delete f.indentRight
-  }
+  else if (f.indentFirstLine) delete f.indentFirstLine
+  if (chars.right !== undefined) f.indentRight = twips(chars.right, units.normal)
   return f
 }
 
@@ -528,11 +572,15 @@ export function resolveCharIndents(
  * (pPr/w:rPr), else the last run's rPr — those runs are all empty and get
  * dropped, but Word still sizes the empty line by them (1pt spacer lines).
  */
-export function emptyParaSizeHalfPoints(pNode: XNode, pPr: XNode | undefined): number | undefined {
+export function emptyParaSizeHalfPoints(
+  pNode: XNode,
+  pPr: XNode | undefined,
+  markOnly = false,
+): number | undefined {
   let sz = pPr
     ? attrsOf(findChild(findChild(pPr, 'w:rPr') ?? {}, 'w:sz') ?? {})['w:val']
     : undefined
-  if (!sz) {
+  if (!sz && !markOnly) {
     for (const r of findChildren(pNode, 'w:r')) {
       const v = attrsOf(findChild(findChild(r, 'w:rPr') ?? {}, 'w:sz') ?? {})['w:val']
       if (v) sz = v
@@ -547,19 +595,39 @@ export function emptyParaSizeHalfPoints(pNode: XNode, pPr: XNode | undefined): n
  * emptyParaSizeHalfPoints — Word lays the empty line with the mark's face
  * metrics, not the document default face.
  */
-export function emptyParaMarkFont(pNode: XNode, pPr: XNode | undefined): string | undefined {
+export function emptyParaMarkFont(
+  pNode: XNode,
+  pPr: XNode | undefined,
+  themeFonts?: ThemeFonts | null,
+  markOnly = false,
+): string | undefined {
   const pick = (rPr: XNode | undefined): string | undefined => {
     const a = attrsOf(findChild(rPr ?? {}, 'w:rFonts') ?? {})
-    return a['w:ascii'] ?? a['w:hAnsi'] ?? a['w:eastAsia']
+    // Latin slots follow theme refs (an empty-cs majorBidi mark sizes the line in Times);
+    // an East Asian slot alone leaves the inherited Latin face in charge (Word probe
+    // 2026-09-05: a DengXian-only mark lays its line with the ascii face)
+    const rf = themedRFonts(a, themeFonts)
+    return rf.ascii ?? rf.hAnsi
   }
   let font = pPr ? pick(findChild(pPr, 'w:rPr')) : undefined
-  if (!font) {
+  if (!font && !markOnly) {
     for (const r of findChildren(pNode, 'w:r')) {
       const v = pick(findChild(r, 'w:rPr'))
       if (v) font = v
     }
   }
   return font
+}
+
+const SPACE_ONLY_RE = /^[ \u00a0\u3000]+$/
+
+/**
+ * Space-only runs never size a line (Word probe 2026-09-11: a 2pt/4pt/17pt
+ * space paragraph lays out exactly like an 11pt text line, sized by the mark),
+ * so such a paragraph takes the empty-paragraph mark rules, mark rPr only.
+ */
+export function spaceOnlyRuns(runs: ReadonlyArray<{ text: string }>): boolean {
+  return runs.length > 0 && runs.every((r) => SPACE_ONLY_RE.test(r.text))
 }
 
 export const IMAGE_RUN_CHILDREN = new Set([
@@ -585,6 +653,31 @@ export function splitImageRun(rNode: XNode): XNode[] {
   }
   if (current.length > (rPr ? 1 : 0)) parts.push(current)
   return parts.map((children) => ({ 'w:r': children, ...(attrs ? { ':@': attrs } : {}) }))
+}
+
+/**
+ * A run mixing w:sym with other text keeps each symbol in a run of its own
+ * (rPr copied), so the glyph renders in its symbol font: Run.sym is singular.
+ */
+export function splitSymRun(rNode: XNode): XNode[] {
+  const kids = childrenOf(rNode).filter((c) => nameOf(c) !== 'w:rPr')
+  if (kids.length < 2 || !kids.some((c) => nameOf(c) === 'w:sym')) return [rNode]
+  const attrs = rNode[':@']
+  const rPr = findChild(rNode, 'w:rPr')
+  const parts: XNode[][] = []
+  let current: XNode[] = []
+  for (const child of kids) {
+    if (nameOf(child) === 'w:sym') {
+      if (current.length > 0) parts.push(current)
+      parts.push([child])
+      current = []
+    } else current.push(child)
+  }
+  if (current.length > 0) parts.push(current)
+  return parts.map((children) => ({
+    'w:r': rPr ? [rPr, ...children] : children,
+    ...(attrs ? { ':@': attrs } : {}),
+  }))
 }
 
 /** exact <w:ruby> fragments in document order (w:ruby has no attributes and cannot nest) */
@@ -626,6 +719,51 @@ const EA_LANG_SCRIPT: Record<string, string> = {
   'zh-tw': 'Hant',
   'zh-hk': 'Hant',
   'zh-mo': 'Hant',
+}
+
+/** themeFontLang w:bidi → theme script-table tag (<a:font script=…>) */
+const BIDI_LANG_SCRIPT: Record<string, string> = {
+  ar: 'Arab',
+  fa: 'Arab',
+  ur: 'Arab',
+  ps: 'Arab',
+  ug: 'Arab',
+  he: 'Hebr',
+  yi: 'Hebr',
+  th: 'Thai',
+  syr: 'Syrc',
+  dv: 'Thaa',
+  hi: 'Deva',
+  mr: 'Deva',
+  ne: 'Deva',
+  bn: 'Beng',
+  pa: 'Guru',
+  gu: 'Gujr',
+  ta: 'Taml',
+  te: 'Telu',
+  kn: 'Knda',
+  ml: 'Mlym',
+  si: 'Sinh',
+  km: 'Khmr',
+  lo: 'Laoo',
+  bo: 'Tibt',
+  my: 'Mymr',
+  am: 'Ethi',
+  ti: 'Ethi',
+  ka: 'Geor',
+  hy: 'Armn',
+  mn: 'Mong',
+}
+
+/** Word's face for an empty complex-script theme slot (<a:cs typeface=""/>): the font
+ * group's script-table entry for themeFontLang w:bidi, else Times New Roman (Word probe
+ * 2026-09-03: majorBidi → Times New Roman with or without a bidi lang; minorBidi →
+ * the minorFont Arab entry under bidi=ar-SA, Times New Roman without one) */
+function emptyCsSlotFont(fonts: ThemeFonts, csRef: string): string {
+  const lang = fonts.bidiLang?.toLowerCase().split('-')[0]
+  const script = lang ? BIDI_LANG_SCRIPT[lang] : undefined
+  const table = csRef === 'majorBidi' ? fonts.majorScripts : fonts.minorScripts
+  return (script ? table?.[script] : undefined) ?? 'Times New Roman'
 }
 
 function emptyEaSlotFont(fonts: ThemeFonts, eaRef: string | undefined): string {
@@ -689,13 +827,23 @@ export function themedRFonts(
   const themedEa = themeVal(eaRef)
   const eaSlotEmpty =
     !themedEa && !!fonts && (eaRef === 'majorEastAsia' || eaRef === 'minorEastAsia')
-  const themedAscii = themeVal(attrs['w:asciiTheme'])
-  const themedHAnsi = themeVal(attrs['w:hAnsiTheme'])
+  // an empty cs or EA slot likewise keeps the theme's authority over the
+  // literal: a Latin slot pointing at minorEastAsia renders the language
+  // default EA face (Word probe 2026-09-17: MS Mincho digits under ja-JP)
+  const themedOrEmptySlot = (ref: string | undefined): string | undefined => {
+    const themed = themeVal(ref)
+    if (themed || !fonts) return themed
+    if (ref === 'majorBidi' || ref === 'minorBidi') return emptyCsSlotFont(fonts, ref)
+    if (ref === 'majorEastAsia' || ref === 'minorEastAsia') return emptyEaSlotFont(fonts, ref)
+    return undefined
+  }
+  const themedAscii = themedOrEmptySlot(attrs['w:asciiTheme'])
+  const themedHAnsi = themedOrEmptySlot(attrs['w:hAnsiTheme'])
   return {
     ascii: themedAscii ?? attrs['w:ascii'],
     hAnsi: themedHAnsi ?? attrs['w:hAnsi'],
     eastAsia: themedEa ?? (eaSlotEmpty ? emptyEaSlotFont(fonts!, eaRef) : attrs['w:eastAsia']),
-    cs: themeVal(attrs['w:cstheme']) ?? attrs['w:cs'],
+    cs: themedOrEmptySlot(attrs['w:cstheme']) ?? attrs['w:cs'],
     ...(eaSlotEmpty ? { eaSlotEmpty } : {}),
     themed: {
       ascii: themedAscii !== undefined,
@@ -710,7 +858,7 @@ export function themedRFonts(
  *  w:document/w:hdr instead of per element; Word honors the inheritance) */
 export function partXmlSpacePreserve(partXml: string, rootTag: string): boolean {
   const open = new RegExp(`<${rootTag}(\\s[^>]*)?>`).exec(partXml)?.[1] ?? ''
-  return /\sxml:space="preserve"/.test(open)
+  return /\sxml:space=(?:"preserve"|'preserve')/.test(open)
 }
 
 export function mergeRuns(runs: Run[]): Run[] {
@@ -728,7 +876,9 @@ function sameStyle(a: Run, b: Run): boolean {
   if (a.noteRef || b.noteRef || a.xeTerm !== undefined || b.xeTerm !== undefined) return false
   if (a.refField !== undefined || b.refField !== undefined) return false
   if (a.instrField !== undefined || b.instrField !== undefined) return false
+  if (a.sdtCheckboxXml !== undefined || b.sdtCheckboxXml !== undefined) return false
   if (a.math || b.math) return false
+  if (a.sym || b.sym) return false
   if (a.ruby || b.ruby) return false
   if (a.image || b.image) return false
   return (
@@ -776,17 +926,29 @@ function blendHex(fg: string, bg: string, ratio: number): string {
  * as the pattern color blended over the fill at the pattern's ink coverage —
  * Word's actual dot/stripe raster is out of scope for cell backgrounds.
  */
-export function shdDisplayFill(shd: XNode | undefined): string | undefined {
+export function shdDisplayFill(
+  shd: XNode | undefined,
+  theme?: ThemeColors | null,
+): string | undefined {
   if (!shd) return undefined
   const a = attrsOf(shd)
   const hex = (v: string | undefined) => {
     const s = v ? stripHash(v) : undefined
     return s && /^[0-9a-fA-F]{6}$/.test(s) ? s : undefined
   }
-  const fill = a['w:fill'] === 'auto' ? undefined : hex(a['w:fill'])
+  // Word re-resolves w:themeFill against the theme; the w:fill hex is only a cache
+  const themed = (slot: string, tint: string, shade: string): string | undefined =>
+    theme && a[slot]
+      ? (resolveThemeColor(a[slot], theme, a[tint], a[shade]) ?? undefined)
+      : undefined
+  const fill =
+    themed('w:themeFill', 'w:themeFillTint', 'w:themeFillShade') ??
+    (a['w:fill'] === 'auto' ? undefined : hex(a['w:fill']))
   const val = a['w:val'] ?? 'clear'
   if (val === 'clear' || val === 'nil') return fill
-  const ink = a['w:color'] === 'auto' ? undefined : hex(a['w:color'])
+  const ink =
+    themed('w:themeColor', 'w:themeTint', 'w:themeShade') ??
+    (a['w:color'] === 'auto' ? undefined : hex(a['w:color']))
   if (val === 'solid') return ink ?? '000000'
   let ratio: number | undefined
   if (val.startsWith('pct')) {
@@ -797,6 +959,15 @@ export function shdDisplayFill(shd: XNode | undefined): string | undefined {
   }
   if (ratio === undefined) return fill
   return blendHex(ink ?? '000000', fill ?? 'FFFFFF', ratio)
+}
+
+/** w:tblStyleRowBandSize of a tblPr (instance or style level); undefined when absent or not positive */
+export function rowBandSizeOf(tblPr: XNode | undefined): number | undefined {
+  const n = parseInt(
+    attrsOf(findChild(tblPr ?? {}, 'w:tblStyleRowBandSize') ?? {})['w:val'] ?? '',
+    10,
+  )
+  return n > 0 ? n : undefined
 }
 
 export function tableLookOf(tblPr: XNode | undefined): NonNullable<TableModel['tableLook']> {
@@ -846,6 +1017,94 @@ function borderLinesOf(node: XNode | undefined, withInside: boolean): TableBorde
     }
   }
   return Object.keys(borders).length > 0 ? borders : undefined
+}
+
+/**
+ * w:pBdr sides of a pPr. Duplicated containers merge per side (later wins);
+ * none/nil is an explicit reset (Word writes nil to cancel a style-level side).
+ * Theme colors resolve only when a palette is passed (display-only consumers);
+ * model consumers keep the literal so raw/model save comparisons still match.
+ */
+export function paraBorderSidesOf(
+  pPr: XNode,
+  theme?: ThemeColors | null,
+): ParaBorderSides | undefined {
+  const pBdrs = findChildren(pPr, 'w:pBdr')
+  if (pBdrs.length === 0) return undefined
+  const sides: ParaBorderSides = {}
+  for (const [side, ch] of [
+    ['top', 't'],
+    ['bottom', 'b'],
+    ['left', 'l'],
+    ['right', 'r'],
+  ] as const) {
+    let el: XNode | undefined
+    for (const pBdr of pBdrs) el = findChild(pBdr, `w:${side}`) ?? el
+    if (!el) continue
+    const a = attrsOf(el)
+    const val = a['w:val']
+    if (val === 'none' || val === 'nil') {
+      sides[ch] = null
+      continue
+    }
+    const line: ParaBorderLine = {}
+    const themed =
+      theme && a['w:themeColor']
+        ? resolveThemeColor(a['w:themeColor'], theme, a['w:themeTint'], a['w:themeShade'])
+        : undefined
+    if (themed) line.color = themed
+    else if (a['w:color'] && a['w:color'] !== 'auto') line.color = stripHash(a['w:color'])
+    const sz = parseInt(a['w:sz'] ?? '', 10)
+    if (Number.isFinite(sz) && sz > 0) line.szPt = sz / 8
+    const space = parseInt(a['w:space'] ?? '', 10)
+    if (Number.isFinite(space) && space > 0) line.spacePt = space
+    sides[ch] = line
+  }
+  return Object.keys(sides).length > 0 ? sides : undefined
+}
+
+/** model form of the sides: drawn "tblr" subset + declared look, reset sides apart */
+export function paraBordersOf(
+  sides: ParaBorderSides,
+): Pick<ParaFormat, 'borders' | 'borderLines' | 'borderReset'> {
+  const out: Pick<ParaFormat, 'borders' | 'borderLines' | 'borderReset'> = {}
+  let borders = ''
+  let reset = ''
+  const lines: NonNullable<ParaFormat['borderLines']> = {}
+  for (const ch of ['t', 'b', 'l', 'r'] as const) {
+    const line = sides[ch]
+    if (line === undefined) continue
+    if (line === null) {
+      reset += ch
+      continue
+    }
+    borders += ch
+    if (line.color !== undefined || line.szPt !== undefined || line.spacePt !== undefined)
+      lines[ch] = line
+  }
+  if (borders) out.borders = borders
+  if (borders && Object.keys(lines).length > 0) out.borderLines = lines
+  if (reset) out.borderReset = reset
+  return out
+}
+
+/**
+ * Word merges pBdr per side: every side the direct pPr declares (drawn or reset)
+ * wins, the style fills in the rest. Model form for consumers without a style
+ * CSS layer (header/footer paragraphs).
+ */
+export function mergeStyleBorders(
+  sides: ParaBorderSides,
+  direct: Pick<ParaFormat, 'borders' | 'borderLines' | 'borderReset'> | undefined,
+): Pick<ParaFormat, 'borders' | 'borderLines'> {
+  const declared = `${direct?.borders ?? ''}${direct?.borderReset ?? ''}`
+  const merged: ParaBorderSides = {}
+  for (const ch of ['t', 'b', 'l', 'r'] as const) {
+    if (direct?.borders?.includes(ch)) merged[ch] = direct.borderLines?.[ch] ?? {}
+    else if (sides[ch] && !declared.includes(ch)) merged[ch] = sides[ch]
+  }
+  const { borders, borderLines } = paraBordersOf(merged)
+  return { ...(borders ? { borders } : {}), ...(borderLines ? { borderLines } : {}) }
 }
 
 /** Duplicated border containers (two w:tcBorders in one tcPr etc.): Word merges per side, later wins */

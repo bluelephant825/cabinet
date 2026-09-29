@@ -12,6 +12,8 @@ export const es = {
   ribbonTabLayout: 'Disposición',
   ribbonTabReferences: 'Referencias',
   ribbonTabReview: 'Revisar',
+  ribbonCollapse: 'Contraer la cinta de opciones',
+  ribbonPin: 'Anclar la cinta de opciones',
   ribbonTabView: 'Vista',
   ribbonTabTableDesign: 'Diseño de tabla',
   ribbonTabTableLayout: 'Disposición de tabla',
@@ -73,6 +75,8 @@ export const es = {
   ribbonPainterActiveTip:
     'Copiar formato activado: seleccione el texto de destino para aplicarlo (haga clic de nuevo para cancelar)',
   ribbonGroupClipboard: 'Portapapeles',
+  ribbonFontEastAsia: 'Fuente de Asia oriental',
+  ribbonFontLatin: 'Fuente latina',
   ribbonFontFamilyTip: 'Fuente',
   ribbonFontsCommon: 'Fuentes comunes',
   ribbonFontsSystem: 'Fuentes del sistema',
@@ -101,7 +105,6 @@ export const es = {
   ribbonThemeColorShadeTip: 'Color del tema {r}-{c}',
   ribbonStandardColors: 'Colores estándar',
   ribbonMoreColors: 'Más colores…',
-  ribbonGroupFont: 'Fuente',
   ribbonBullets: 'Viñetas',
   ribbonNumbering: 'Numeración',
   ribbonDecreaseIndent: 'Disminuir sangría',
@@ -299,6 +302,8 @@ export const es = {
   ribbonChartAddCategory: '+ Categoría',
   ribbonChartAddSeries: '+ Serie',
   ribbonLinkInsertTitle: 'Insertar hipervínculo',
+  ribbonLinkEditTitle: 'Editar hipervínculo',
+  ribbonLinkRemove: 'Quitar vínculo',
   ribbonLinkText: 'Texto para mostrar',
   ribbonLinkTextPh: 'Texto del vínculo (déjelo en blanco para mostrar la dirección)',
   ribbonLinkAddress: 'Dirección',
@@ -580,6 +585,9 @@ export const es = {
   ribbonEditorPrompt:
     'Revisa todo el documento: corrige erratas, puntuación y errores gramaticales manteniendo el significado original y la estructura de los párrafos.',
   ribbonGroupProofing: 'Revisión',
+  ribbonSpellcheckBtn: 'Ortografía',
+  ribbonSpellcheckTip:
+    'Revisar la ortografía mientras escribe — subraya en rojo las palabras posiblemente mal escritas',
   ribbonTranslate: 'Traducir',
   ribbonTranslateTip: 'La IA traduce el documento',
   ribbonTranslatePrompt:

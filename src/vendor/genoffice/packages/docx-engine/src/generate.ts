@@ -1,3 +1,4 @@
+import { sdtCheckboxGlyphs, sdtCheckboxIsChecked, syncSdtCheckbox } from './checkbox-control'
 import type {
   CharIndents,
   GeneratedBlock,
@@ -164,7 +165,7 @@ export function applyImageZOrder(xml: string, zOrder?: number): string {
 export function applyImageWrap(
   xml: string,
   wrap: ImageWrap | null,
-  posOffset?: { x: number; y: number; relativeTo?: 'page' },
+  posOffset?: { x: number; y: number; relativeTo?: 'page' | 'margin' },
   marginAlign?: { h: 'left' | 'center' | 'right'; v: 'top' | 'center' | 'bottom' },
   zOrder?: number,
 ): string {
@@ -255,11 +256,24 @@ function decodeXmlText(text: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_m, dec: string) => {
+      const cp = Number(dec)
+      if (!Number.isFinite(cp) || cp < 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+        return _m
+      return String.fromCodePoint(cp)
+    })
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) => {
+      const cp = parseInt(hex, 16)
+      if (!Number.isFinite(cp) || cp < 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+        return _m
+      return String.fromCodePoint(cp)
+    })
     .replace(/&amp;/g, '&')
 }
 
 function textNodes(xml: string, tag: 'w:t' | 'm:t'): XmlTextNode[] {
   const nodes: XmlTextNode[] = []
+  // Paired text nodes: <w:t>text</w:t> (may carry xml:space)
   const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'g')
   let match: RegExpExecArray | null
   while ((match = re.exec(xml)) !== null) {
@@ -272,6 +286,22 @@ function textNodes(xml: string, tag: 'w:t' | 'm:t'): XmlTextNode[] {
       close: match[0].slice(closeStart),
       text: decodeXmlText(match[1]),
     })
+  }
+  // Self-closing empty <w:t/> (Word emits these for empty runs). Only for w:t:
+  // mathTokensOf tokenizes paired <m:t> only, so counting <m:t/> here would
+  // desync patchMathTokens' length check against the tokens it was given.
+  if (tag === 'w:t') {
+    const selfRe = /<w:t(?:\s[^>]*)?\/>/g
+    while ((match = selfRe.exec(xml)) !== null) {
+      nodes.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        open: match[0],
+        close: '',
+        text: '',
+      })
+    }
+    nodes.sort((a, b) => a.start - b.start)
   }
   return nodes
 }
@@ -298,7 +328,20 @@ function replaceTextNodes(
 ): string {
   let out = xml
   for (const { node, text } of [...replacements].sort((a, b) => b.node.start - a.node.start)) {
-    const replacement = node.open + escapeXmlText(text) + node.close
+    // wtText drops edge whitespace without xml:space="preserve": pin it when
+    // the replacement introduces leading/trailing whitespace. Word trims more
+    // than just tab/space (NBSP, zero-width, line breaks, CJK spaces).
+    const hasEdgeWs =
+      text.length > 0 &&
+      (/^\s|\s$/.test(text) || text.startsWith('\u200B') || text.endsWith('\u200B'))
+    const open =
+      /xml:space\s*=/.test(node.open) || !hasEdgeWs
+        ? node.open
+        : node.open.replace(/<w:t(?=[\s>/])/, '<w:t xml:space="preserve"')
+    // Self-closing empty run: expand to paired form so the replacement lands
+    const close = node.close || `</w:t>`
+    const openPaired = node.close ? open : open.replace(/\/>$/, '>')
+    const replacement = openPaired + escapeXmlText(text) + close
     out = out.slice(0, node.start) + replacement + out.slice(node.end)
   }
   return out
@@ -322,7 +365,9 @@ export function patchFieldParagraphXml(xml: string, patch: FieldTextPatch): stri
   // space-free first segment before ≥2 tabs is the outline-number cell (not
   // part of the editable title).
   const tabStarts: number[] = []
-  const tabRe = /<w:tab\/>/g
+  // attribute-less run tab only: spaced (<w:tab />) and paired
+  // (<w:tab></w:tab>) variants from non-Word producers count as well.
+  const tabRe = /<w:tab\s*\/>|<w:tab>\s*<\/w:tab>/g
   let tabMatch: RegExpExecArray | null
   while ((tabMatch = tabRe.exec(xml)) !== null) tabStarts.push(tabMatch.index)
   const lastTab = tabStarts.length > 0 ? tabStarts[tabStarts.length - 1] : -1
@@ -388,8 +433,11 @@ function xmlSegments(
   while (i < to) {
     const o = xml.indexOf(openPrefix, i)
     const c = xml.indexOf(closeTag, i)
-    if (c === -1 || c >= to) break
-    if (o !== -1 && o < c) {
+    const hasOpen = o !== -1 && o < to
+    const hasClose = c !== -1 && c < to
+    // a trailing self-closing element (Word's empty <w:p/>) has no close tag after it
+    if (!hasOpen && !hasClose) break
+    if (hasOpen && (!hasClose || o < c)) {
       const after = xml.charAt(o + openPrefix.length)
       if (after !== '>' && after !== ' ' && after !== '/') {
         i = o + openPrefix.length // prefix of a longer tag (w:tr vs w:trPr)
@@ -404,6 +452,8 @@ function xmlSegments(
       if (depth === 0) segStart = o
       depth++
       i = o + openPrefix.length
+    } else if (depth === 0) {
+      break
     } else {
       depth--
       if (depth === 0) segs.push({ start: segStart, end: c + closeTag.length })
@@ -508,9 +558,11 @@ function cellRunContentXml(text: string): string {
     '\n': '<w:br/>',
     '\f': '<w:br w:type="page"/>',
     '\v': '<w:br w:type="column"/>',
+    '\u2011': '<w:noBreakHyphen/>',
+    '\u00ad': '<w:softHyphen/>',
   }
   return text
-    .split(/([\t\n\f\v])/)
+    .split(/([\t\n\f\v\u2011\u00ad])/)
     .map((seg) =>
       seg === '' ? '' : (CONTROL[seg] ?? `<w:t xml:space="preserve">${escapeXmlText(seg)}</w:t>`),
     )
@@ -526,9 +578,9 @@ export type CellTextsPatch =
   | {
       /** this cell's own text (optional; rewriting the outer text of a cell containing a nested table is not supported yet) */
       paras?: readonly string[] | null
-      /** one cell-text grid per direct nested table (null = leave that nested table untouched) */
+      /** one cell grid per direct nested table (null = leave that nested table untouched) */
       nested?: ReadonlyArray<ReadonlyArray<
-        ReadonlyArray<readonly string[] | null | undefined> | null | undefined
+        ReadonlyArray<readonly CellParaPatch[] | null | undefined> | null | undefined
       > | null>
     }
 
@@ -555,7 +607,7 @@ export function patchTableCellTexts(
       if (entry == null) return
       const tcXml = tableXml.slice(tc.start, tc.end)
       const patched = Array.isArray(entry)
-        ? patchCellXml(tcXml, entry as string[])
+        ? patchCellXml(tcXml, entry as CellParaPatch[])
         : patchNestedInCell(tcXml, (entry as { nested?: unknown }).nested as never)
       if (patched === null) return
       out += tableXml.slice(cursor, tc.start) + patched
@@ -570,7 +622,7 @@ function patchNestedInCell(
   tcXml: string,
   nested:
     | ReadonlyArray<ReadonlyArray<
-        ReadonlyArray<readonly string[] | null | undefined> | null | undefined
+        ReadonlyArray<readonly CellParaPatch[] | null | undefined> | null | undefined
       > | null>
     | undefined,
 ): string | null {
@@ -607,10 +659,11 @@ export interface TextboxParaPatch {
 /** plain text of one w:p fragment (w:t + tabs/breaks), for change detection */
 function paraPlainText(pXml: string): string {
   let out = ''
-  const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\/>|<w:br\/>|<w:cr\/>/g
+  const re =
+    /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\s*\/>|<w:tab>\s*<\/w:tab>|<w:br\/>|<w:cr\/>/g
   let m: RegExpExecArray | null
   while ((m = re.exec(pXml)) !== null) {
-    if (m[0] === '<w:tab/>') out += '\t'
+    if (m[0].startsWith('<w:tab')) out += '\t'
     else if (m[0] === '<w:br/>' || m[0] === '<w:cr/>') out += '\n'
     else {
       out += m[1]
@@ -1124,13 +1177,18 @@ function formatPPrChildren(format: ParaFormat | undefined): PPrChild[] {
   if (format.borders) {
     const style = format.borderStyle
     const defaultSz = Math.max(2, Math.round(style?.szEighths ?? 4))
-    const space = Math.min(31, Math.max(0, Math.round(style?.spacePt ?? 1)))
+    // ECMA-376 17.3.4: an omitted w:space is 0; the renderer pads an undeclared side by the same 0
+    const space = Math.min(31, Math.max(0, Math.round(style?.spacePt ?? 0)))
     const defaultColor = style?.color ? escapeXmlAttr(style.color) : 'auto'
     const line = (side: string, ch: 't' | 'b' | 'l' | 'r') => {
       const declared = format.borderLines?.[ch]
       const sz = declared?.szPt ? Math.max(1, Math.round(declared.szPt * 8)) : defaultSz
       const color = declared?.color ? escapeXmlAttr(declared.color) : defaultColor
-      return `<w:${side} w:val="single" w:sz="${sz}" w:space="${space}" w:color="${color}"/>`
+      const sp =
+        declared?.spacePt !== undefined
+          ? Math.min(31, Math.max(0, Math.round(declared.spacePt)))
+          : space
+      return `<w:${side} w:val="single" w:sz="${sz}" w:space="${sp}" w:color="${color}"/>`
     }
     const sides: string[] = []
     // schema order inside pBdr: top, left, bottom, right
@@ -1153,12 +1211,12 @@ function formatPPrChildren(format: ParaFormat | undefined): PPrChild[] {
   // w:left/w:right are signed in OOXML — negative indents (text extending
   // into the margin) are valid and must survive a paragraph rebuild; the
   // old > 0 guard silently dropped them, shifting rebuilt paragraphs
-  // rightward on save (alpha ledger r116).
+  // rightward on save.
   // explicit w:left="0" must be written back: it cancels a numbering-level indent
   if (format.indentLeft !== undefined) indAttrs.push(`w:left="${Math.round(format.indentLeft)}"`)
-  if (format.indentRight) indAttrs.push(`w:right="${Math.round(format.indentRight)}"`)
-  if (format.indentFirstLine) {
-    if (format.indentFirstLine > 0)
+  if (format.indentRight !== undefined) indAttrs.push(`w:right="${Math.round(format.indentRight)}"`)
+  if (format.indentFirstLine !== undefined) {
+    if (format.indentFirstLine >= 0)
       indAttrs.push(`w:firstLine="${Math.round(format.indentFirstLine)}"`)
     else indAttrs.push(`w:hanging="${Math.round(-format.indentFirstLine)}"`)
   }
@@ -1169,8 +1227,8 @@ function formatPPrChildren(format: ParaFormat | undefined): PPrChild[] {
     if (format.bidi && (jc === 'left' || jc === 'right')) jc = jc === 'left' ? 'right' : 'left'
     out.push({ name: 'w:jc', xml: `<w:jc w:val="${jc}"/>` })
   }
-  // rel stops are display-only w:ptab mirrors: never written into w:tabs
-  const realStops = (format.tabStops ?? []).filter((ts) => !ts.rel)
+  // rel stops (w:ptab mirrors) and style-inherited stops are display-only: never written into w:tabs
+  const realStops = (format.tabStops ?? []).filter((ts) => !ts.rel && !ts.inherited)
   if (realStops.length > 0) {
     const tabXml = realStops
       .map((ts) => {
@@ -1180,6 +1238,9 @@ function formatPPrChildren(format: ParaFormat | undefined): PPrChild[] {
       })
       .join('')
     out.push({ name: 'w:tabs', xml: `<w:tabs>${tabXml}</w:tabs>` })
+  }
+  if (format.textDirection) {
+    out.push({ name: 'w:textDirection', xml: `<w:textDirection w:val="${format.textDirection}"/>` })
   }
   if (format.frame) {
     out.push({ name: 'w:framePr', xml: framePrXml(format.frame) })
@@ -1203,13 +1264,18 @@ function framePrXml(frame: ParaFrame): string {
   if (frame.hTwips !== undefined) {
     attrs.push(`w:h="${Math.round(frame.hTwips)}"`, `w:hRule="${frame.hRule ?? 'atLeast'}"`)
   }
+  if (frame.vSpaceTwips) attrs.push(`w:vSpace="${Math.round(frame.vSpaceTwips)}"`)
+  if (frame.hSpaceTwips) attrs.push(`w:hSpace="${Math.round(frame.hSpaceTwips)}"`)
   attrs.push(
     `w:wrap="${frame.wrap ?? 'none'}"`,
     `w:vAnchor="${frame.vAnchor ?? 'page'}"`,
     `w:hAnchor="${frame.hAnchor ?? 'page'}"`,
     `w:x="${Math.round(frame.xTwips)}"`,
-    `w:y="${Math.round(frame.yTwips)}"`,
   )
+  if (frame.xAlign) attrs.push(`w:xAlign="${frame.xAlign}"`)
+  attrs.push(`w:y="${Math.round(frame.yTwips)}"`)
+  if (frame.yAlign) attrs.push(`w:yAlign="${frame.yAlign}"`)
+  if (frame.anchorLock) attrs.push('w:anchorLock="1"')
   return `<w:framePr ${attrs.join(' ')}/>`
 }
 
@@ -1258,6 +1324,10 @@ const JC_TO_ALIGN: Record<string, ParaFormat['align']> = {
   right: 'right',
   end: 'right',
   both: 'justify',
+  lowKashida: 'justify',
+  mediumKashida: 'justify',
+  highKashida: 'justify',
+  thaiDistribute: 'justify',
   distribute: 'distribute',
 }
 
@@ -1291,14 +1361,22 @@ function rawIndUnchanged(raw: string | undefined, f: ParaFormat): boolean {
   const right = parseInt(rawAttr(raw, 'w:right') ?? rawAttr(raw, 'w:end') ?? '', 10)
   const firstLine = parseInt(rawAttr(raw, 'w:firstLine') ?? '', 10)
   const hanging = parseInt(rawAttr(raw, 'w:hanging') ?? '', 10)
-  // left mirrors the parse side: explicit 0 stays distinct from absent
+  // mirrors the parse side: an explicit 0 stays distinct from absent
   const rawLeft = Number.isFinite(left) ? left : undefined
-  const rawRight = Number.isFinite(right) && right !== 0 ? right : undefined
-  const rawFirst = hanging > 0 ? -hanging : firstLine > 0 ? firstLine : undefined
-  const norm = (v: number | undefined) => (v ? Math.round(v) : undefined)
-  const normLeft = f.indentLeft !== undefined ? Math.round(f.indentLeft) : undefined
+  const rawRight = Number.isFinite(right) ? right : undefined
+  const rawFirst =
+    hanging > 0
+      ? -hanging
+      : firstLine > 0
+        ? firstLine
+        : Number.isFinite(firstLine) || Number.isFinite(hanging)
+          ? 0
+          : undefined
+  const norm = (v: number | undefined) => (v !== undefined ? Math.round(v) : undefined)
   return (
-    rawLeft === normLeft && rawRight === norm(f.indentRight) && rawFirst === norm(f.indentFirstLine)
+    rawLeft === norm(f.indentLeft) &&
+    rawRight === norm(f.indentRight) &&
+    rawFirst === norm(f.indentFirstLine)
   )
 }
 
@@ -1325,7 +1403,10 @@ function rawPBdrUnchanged(raw: string | undefined, f: ParaFormat): boolean {
       const line: NonNullable<ParaFormat['borderLines']>[typeof ch] = {}
       if (color && color !== 'auto') line.color = color
       if (Number.isFinite(sz) && sz > 0) line.szPt = sz / 8
-      if (line.color !== undefined || line.szPt !== undefined) rawLines[ch] = line
+      const space = parseInt(rawAttr(el.xml, 'w:space') ?? '', 10)
+      if (Number.isFinite(space) && space > 0) line.spacePt = space
+      if (line.color !== undefined || line.szPt !== undefined || line.spacePt !== undefined)
+        rawLines[ch] = line
     }
   }
   const norm = (s: string | undefined) => (s ? [...new Set(s)].sort().join('') : '')
@@ -1335,14 +1416,15 @@ function rawPBdrUnchanged(raw: string | undefined, f: ParaFormat): boolean {
       (['t', 'b', 'l', 'r'] as const).map((ch) => [
         lines?.[ch]?.color ?? null,
         lines?.[ch]?.szPt ?? null,
+        lines?.[ch]?.spacePt ?? null,
       ]),
     )
   return normLines(rawLines) === normLines(f.borderLines)
 }
 
 function rawTabsUnchanged(raw: string | undefined, allStops: TabStop[]): boolean {
-  // display-only w:ptab mirrors are not part of w:tabs
-  const stops = allStops.filter((s) => !s.rel)
+  // display-only w:ptab mirrors and style-inherited stops are not part of w:tabs
+  const stops = allStops.filter((s) => !s.rel && !s.inherited)
   const rawStops: TabStop[] = []
   if (raw) {
     const inner = raw.replace(/^<w:tabs[^>]*>/, '').replace(/<\/w:tabs>$/, '')
@@ -1387,11 +1469,10 @@ function rawFramePrUnchanged(raw: string | undefined, f: ParaFormat): boolean {
  */
 function sameIndent(a: ParaFormat, b: ParaFormat): boolean {
   const norm = (v: number | undefined) => (v !== undefined ? Math.round(v) : undefined)
-  const nz = (v: number | undefined) => (v ? Math.round(v) : undefined)
   return (
     norm(a.indentLeft) === norm(b.indentLeft) &&
-    nz(a.indentRight) === nz(b.indentRight) &&
-    nz(a.indentFirstLine) === nz(b.indentFirstLine)
+    norm(a.indentRight) === norm(b.indentRight) &&
+    norm(a.indentFirstLine) === norm(b.indentFirstLine)
   )
 }
 
@@ -1512,6 +1593,7 @@ export function mergePPrFormat(
   const managedTags = new Set(FORMAT_MANAGED_TAGS)
   if (format?.tabStops !== undefined) managedTags.add('w:tabs')
   if (format?.dropCap !== undefined || format?.frame !== undefined) managedTags.add('w:framePr')
+  if (format?.textDirection !== undefined) managedTags.add('w:textDirection')
   // only when the model carries a size: otherwise the paragraph-mark rPr stays unmanaged
   if (format?.emptyRunSizeHalfPoints !== undefined) managedTags.add('w:rPr')
   const rawChildren = splitXmlChildren(inner)
@@ -1633,7 +1715,10 @@ export function generateParagraphXml(block: GeneratedBlock, ctx: GenerateContext
   let styleId: string | undefined
   if (block.type === 'heading') {
     const level = Math.min(Math.max(block.level ?? 1, 1), 9)
-    styleId = block.styleId ?? ctx.headingStyleIds.get(level)
+    if (block.outlineOnly) {
+      styleId = block.styleId
+      children.push({ name: 'w:outlineLvl', xml: `<w:outlineLvl w:val="${level - 1}"/>` })
+    } else styleId = block.styleId ?? ctx.headingStyleIds.get(level)
   } else if (block.type === 'listItem') {
     styleId = block.styleId ?? ctx.listParagraphStyleId
   } else {
@@ -2250,13 +2335,16 @@ function runsXml(runs: Run[], allocate: ((href: string) => string) | null): stri
     while (i < to) {
       const run = runs[i]
       if (run.link) {
-        // group consecutive runs sharing the same link target
+        // group consecutive runs sharing the same link target; runs parsed from
+        // distinct w:hyperlink elements (own rId) stay separate so no relationship is orphaned
         const group: Run[] = []
         const groupStart = i
         const href = run.link.href
         let rId = run.link.rId
         while (i < to && runs[i].link && runs[i].link!.href === href) {
-          rId = rId ?? runs[i].link!.rId
+          const next = runs[i].link!.rId
+          if (group.length > 0 && next !== undefined && rId !== undefined && next !== rId) break
+          rId = rId ?? next
           group.push(runs[i])
           i++
         }
@@ -2333,6 +2421,27 @@ function runsXml(runs: Run[], allocate: ((href: string) => string) | null): stri
  * One run's OOXML, including atomic constructs the plain-text run cannot
  * express: footnote/endnote reference markers and trailing XE index fields.
  */
+/** Runs whose text mixes box glyphs with typed characters: each glyph becomes
+ *  its own field / control, the characters between them plain runs. */
+function splitGlyphRuns(
+  run: Run,
+  isGlyph: (ch: string) => boolean,
+  glyphXml: (ch: string) => string,
+  plainXml: (text: string) => string,
+): string {
+  let out = ''
+  let plain = ''
+  for (const ch of run.text) {
+    if (isGlyph(ch)) {
+      if (plain) out += plainXml(plain)
+      plain = ''
+      out += glyphXml(ch)
+    } else plain += ch
+  }
+  if (plain) out += plainXml(plain)
+  return out
+}
+
 function runFragmentXml(run: Run, insideLink: boolean): string {
   // atomic inline formula: the stored <m:oMath> fragment is already valid
   // paragraph content (patch.ts adds the xmlns:m declaration when missing)
@@ -2342,7 +2451,13 @@ function runFragmentXml(run: Run, insideLink: boolean): string {
   // atomic cell picture: the exact <w:drawing> fragment re-wrapped in a run
   if (run.image) {
     const text = run.text === '' ? '' : generateRunXml({ ...run, image: undefined }, insideLink)
-    return `${text}<w:r>${run.image.xml}</w:r>`
+    return `${text}<w:r>${run.rawRPr ?? ''}${run.image.xml}</w:r>`
+  }
+  if (run.sym) {
+    return (
+      `<w:r>${runRPrXml(run, insideLink)}<w:sym w:font="${escapeXmlAttr(run.sym.font)}"` +
+      ` w:char="${escapeXmlAttr(run.sym.char)}"/></w:r>`
+    )
   }
   if (run.noteRef) {
     const tag = run.noteRef.kind === 'footnote' ? 'w:footnoteReference' : 'w:endnoteReference'
@@ -2357,11 +2472,27 @@ function runFragmentXml(run: Run, insideLink: boolean): string {
     const name = run.refField.replace(/"/g, '')
     const instr = run.refInstr ?? ` REF ${name} \\h `
     return (
-      '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
+      `<w:r><w:fldChar w:fldCharType="begin"${run.fldDirty ? ' w:dirty="true"' : ''}/></w:r>` +
       `<w:r><w:instrText xml:space="preserve">${escapeXmlText(instr)}</w:instrText></w:r>` +
       '<w:r><w:fldChar w:fldCharType="separate"/></w:r>' +
-      generateRunXml({ ...run, refField: undefined }, insideLink) +
+      generateRunXml({ ...run, refField: undefined, fldDirty: undefined }, insideLink) +
       '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
+    )
+  }
+  if (run.sdtCheckboxXml) {
+    // Each box glyph in the run is one control sharing the same w:sdtPr, with
+    // w14:checked set from the glyph; other characters are plain text beside it.
+    // No glyph left means the user typed over the box, and the control goes.
+    const glyphs = sdtCheckboxGlyphs(run.sdtCheckboxXml)
+    const inner = (text: string) =>
+      generateRunXml({ ...run, text, sdtCheckboxXml: undefined }, insideLink)
+    return splitGlyphRuns(
+      run,
+      (ch) => ch === glyphs.checked || ch === glyphs.unchecked,
+      (ch) =>
+        `<w:sdt>${syncSdtCheckbox(run.sdtCheckboxXml!, sdtCheckboxIsChecked(run.sdtCheckboxXml!, ch))}` +
+        `<w:sdtContent>${inner(ch)}</w:sdtContent></w:sdt>`,
+      inner,
     )
   }
   if (run.instrField !== undefined) {
@@ -2372,6 +2503,22 @@ function runFragmentXml(run: Run, insideLink: boolean): string {
       `<w:r><w:instrText xml:space="preserve"> ${escapeXmlText(run.instrField)} </w:instrText></w:r>` +
       '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
     const endXml = '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
+    if (run.zoteroFieldPart && run.zoteroFieldPart !== 'single') {
+      const cachedXml = generateRunXml(
+        {
+          ...run,
+          instrField: undefined,
+          zoteroFieldId: undefined,
+          zoteroFieldPart: undefined,
+        },
+        insideLink,
+      )
+      if (run.zoteroFieldPart === 'begin') {
+        return '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' + instrXml + cachedXml
+      }
+      if (run.zoteroFieldPart === 'end') return cachedXml + endXml
+      return cachedXml
+    }
     if (run.fldBeginXml) {
       // Adjacent identical checkboxes merge into one text node in the editor
       // (equal marks), so each ☐/☒ glyph in the run is one field sharing the
@@ -2387,31 +2534,23 @@ function runFragmentXml(run: Run, insideLink: boolean): string {
           begin = begin.replace(/<w:checkBox((?:\s[^>]*)?)\/>/, `<w:checkBox$1>${val}</w:checkBox>`)
         return begin + instrXml + endXml
       }
-      let out = ''
-      let plain = ''
-      const flush = () => {
-        if (!plain) return
-        out += generateRunXml(
-          { ...run, text: plain, instrField: undefined, fldBeginXml: undefined },
-          insideLink,
-        )
-        plain = ''
-      }
-      for (const ch of run.text) {
-        if (ch === '☐' || ch === '☒') {
-          flush()
-          out += syncedField(ch === '☒')
-        } else plain += ch
-      }
-      flush()
       // no glyph left = the user typed over / deleted the checkbox; Word also
       // removes the form field then, so only the replacement text survives
-      return out
+      return splitGlyphRuns(
+        run,
+        (ch) => ch === '☐' || ch === '☒',
+        (ch) => syncedField(ch === '☒'),
+        (plain) =>
+          generateRunXml(
+            { ...run, text: plain, instrField: undefined, fldBeginXml: undefined },
+            insideLink,
+          ),
+      )
     }
     return (
-      '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
+      `<w:r><w:fldChar w:fldCharType="begin"${run.fldDirty ? ' w:dirty="true"' : ''}/></w:r>` +
       instrXml +
-      generateRunXml({ ...run, instrField: undefined }, insideLink) +
+      generateRunXml({ ...run, instrField: undefined, fldDirty: undefined }, insideLink) +
       endXml
     )
   }
@@ -2506,11 +2645,17 @@ function freshRFontsXml(
   font: string | undefined,
   fontAscii: string | undefined,
   fontCs?: string,
+  eastAsiaFont?: string,
 ): string {
-  const a = escapeXmlAttr(fontAscii ?? font ?? fontCs ?? '')
-  const ea = font ? ` w:eastAsia="${escapeXmlAttr(font)}"` : ''
-  const cs = fontCs ? escapeXmlAttr(fontCs) : a
-  return `<w:rFonts w:ascii="${a}"${ea} w:hAnsi="${a}" w:cs="${cs}"/>`
+  // Older callers use a lone primary font for every slot. Explicit slot edits
+  // must leave the other slots absent so their style/theme inheritance survives.
+  const legacy = font && fontAscii === undefined && eastAsiaFont === undefined ? font : undefined
+  const ascii = fontAscii ?? legacy
+  // a Latin-only run carries the same face in both slots; writing it as eastAsia
+  // would pin CJK to the Latin font (see mergeRFontsXml)
+  const ea = eastAsiaFont ?? (fontAscii !== undefined && font === fontAscii ? undefined : font)
+  const cs = fontCs ?? legacy
+  return `<w:rFonts${ascii ? ` w:ascii="${escapeXmlAttr(ascii)}"` : ''}${ea ? ` w:eastAsia="${escapeXmlAttr(ea)}"` : ''}${ascii ? ` w:hAnsi="${escapeXmlAttr(ascii)}"` : ''}${cs ? ` w:cs="${escapeXmlAttr(cs)}"` : ''}/>`
 }
 
 /**
@@ -2535,7 +2680,11 @@ function mergeRFontsXml(rawXml: string, run: Run): string {
     set('w:ascii', 'w:asciiTheme', run.fontAscii)
     set('w:hAnsi', 'w:hAnsiTheme', run.fontAscii)
   }
-  if (run.font && run.font !== run.themeRFonts?.font && (hadEastAsia || run.font !== rawPrimary)) {
+  if (
+    run.font &&
+    run.font !== run.themeRFonts?.font &&
+    (hadEastAsia || run.font !== rawPrimary || run.eastAsiaFont !== undefined)
+  ) {
     set('w:eastAsia', 'w:eastAsiaTheme', run.font)
   }
   if (run.fontCs) set('w:cs', 'w:cstheme', run.fontCs)
@@ -2576,11 +2725,14 @@ function revisionRPrChangeXml(run: Run): string | null {
 /** Fresh rPr children for the modeled fields (one-to-one with what buildRun reads on the parse side) */
 function modelRPrChildren(run: Run, insideLink: boolean): PPrChild[] {
   const out: PPrChild[] = []
-  if (insideLink) out.push({ name: 'w:rStyle', xml: '<w:rStyle w:val="Hyperlink"/>' })
-  else if (run.styleId)
-    out.push({ name: 'w:rStyle', xml: `<w:rStyle w:val="${escapeXmlAttr(run.styleId)}"/>` })
+  // a link run keeps the document's own character style (localized ids like "ae")
+  const styleId = run.styleId ?? (insideLink ? 'Hyperlink' : undefined)
+  if (styleId) out.push({ name: 'w:rStyle', xml: `<w:rStyle w:val="${escapeXmlAttr(styleId)}"/>` })
   if (run.font || run.fontAscii || run.fontCs) {
-    out.push({ name: 'w:rFonts', xml: freshRFontsXml(run.font, run.fontAscii, run.fontCs) })
+    out.push({
+      name: 'w:rFonts',
+      xml: freshRFontsXml(run.font, run.fontAscii, run.fontCs, run.eastAsiaFont),
+    })
   }
   // the Cs twins carry the same flag for complex-script text; without them clicking Bold
   // on Arabic or Hebrew changes nothing on screen, which is what Word writes too
@@ -2649,10 +2801,9 @@ export function mergeRPrModel(rawRPr: string, run: Run, insideLink: boolean): st
     switch (key) {
       case 'rStyle': {
         const raw = rawAttr(rawOf('w:rStyle'), 'w:val')
-        const modeled = insideLink ? 'Hyperlink' : run.styleId
-        // The parse side does not store Hyperlink in styleId: raw=Hyperlink with an empty
-        // model counts as equal
-        return raw === modeled || (raw === 'Hyperlink' && !modeled)
+        if (run.styleId) return raw === run.styleId
+        // a run that already sat in the document's hyperlink (rId) stays unstyled if it was unstyled
+        return raw === undefined ? !insideLink || !!run.link?.rId : raw === 'Hyperlink'
       }
       case 'rFonts': {
         // mirrors the parse side: primary = eastAsia ?? ascii ?? hAnsi, latin = ascii ?? hAnsi,
@@ -2670,6 +2821,9 @@ export function mergeRPrModel(rawRPr: string, run: Run, insideLink: boolean): st
             (run.font !== undefined && run.font === run.themeRFonts?.font)) &&
           (ascii === run.fontAscii ||
             (run.fontAscii !== undefined && run.fontAscii === run.themeRFonts?.fontAscii)) &&
+          (run.eastAsiaFont === undefined ||
+            rawAttr(attrs, 'w:eastAsia') === run.eastAsiaFont ||
+            run.eastAsiaFont === run.themeRFonts?.font) &&
           (run.fontCs === undefined || rawAttr(attrs, 'w:cs') === run.fontCs)
         )
       }
@@ -2681,7 +2835,9 @@ export function mergeRPrModel(rawRPr: string, run: Run, insideLink: boolean): st
         return rawBool(rawOf('w:strike')) === !!run.strike
       case 'color': {
         const raw = rawAttr(rawOf('w:color'), 'w:val')
-        return (raw === 'auto' ? undefined : raw) === run.color
+        // a theme-resolved model value never equals the cached literal; rebuilding
+        // would materialize the theme link (same rule as rFonts above)
+        return raw === run.color || (run.themeColor !== undefined && run.color === run.themeColor)
       }
       case 'size': {
         const raw = rawAttr(rawOf(cs ? 'w:szCs' : 'w:sz'), 'w:val')
@@ -3192,16 +3348,16 @@ export function buildWordArtParagraphXml(opts: {
   return `<w:p><w:r>${alternateContent}</w:r></w:p>`
 }
 
-function generateRunXml(run: Run, insideLink: boolean): string {
+function runRPrXml(run: Run, insideLink: boolean): string {
   // OOXML requires rPr children in schema order:
   // rStyle < rFonts < b < i < strike < color < sz < highlight < u < vertAlign
-  let rPr: string
-  if (run.rawRPr !== undefined) {
-    rPr = mergeRPrModel(run.rawRPr, run, insideLink)
-  } else {
-    const props = modelRPrChildren(run, insideLink).map((c) => c.xml)
-    rPr = props.length > 0 ? `<w:rPr>${props.join('')}</w:rPr>` : ''
-  }
+  if (run.rawRPr !== undefined) return mergeRPrModel(run.rawRPr, run, insideLink)
+  const props = modelRPrChildren(run, insideLink).map((c) => c.xml)
+  return props.length > 0 ? `<w:rPr>${props.join('')}</w:rPr>` : ''
+}
+
+function generateRunXml(run: Run, insideLink: boolean): string {
+  const rPr = runRPrXml(run, insideLink)
 
   // Translate embedded control characters back to OOXML elements.
   // Deleted runs carry their text in w:delText instead of w:t.
@@ -3227,6 +3383,12 @@ function generateRunXml(run: Run, insideLink: boolean): string {
     } else if (ch === '\v') {
       flush()
       segments.push('<w:br w:type="column"/>')
+    } else if (ch === '\u2011') {
+      flush()
+      segments.push('<w:noBreakHyphen/>')
+    } else if (ch === '\u00ad') {
+      flush()
+      segments.push('<w:softHyphen/>')
     } else {
       buffer += ch
     }

@@ -2,7 +2,7 @@
 
 Selective vendor of [GenOffice](https://github.com/bluelephant825/genoffice)
 (fork of [genspark-ai/genoffice](https://github.com/genspark-ai/genoffice)),
-pinned to commit `f2c3d0879df29622d5a447935d2b4aeac033544d`. Apache-2.0; see
+pinned to commit `476e5023c9a4bc459ca6de7b1d697ab25d94850e`. Apache-2.0; see
 `LICENSE`, `NOTICE`, `LICENSE-UNICODE.txt` and `THIRD_PARTY_NOTICES.md` in this
 directory.
 
@@ -46,6 +46,15 @@ all workspace manifests/tests. No GenOffice/Genspark user-visible branding.
   host-side only, never the browser bundle.
 - `apps/pdf/main/atomic-write.ts`, `save-pdf.ts`, `text-edit.ts` use
   `node:fs` — server/daemon-side only.
+
+- `packages/ui/src/index.ts` (adapted) is a trimmed barrel: only the WordArt
+  presets, `shapeClipCss` and `foldCase`.
+- `apps/docs/src/shared/ipc.ts` (adapted) is reduced to the `AgentToolDef`
+  shape the vendored renderer `ai/style-ops.ts` needs. The renderer `ai/`
+  op modules are vendored because the editor's `indent.ts` calls `runUiOps`;
+  no AI provider, agent or shell IPC code is included.
+- `packages/pptx-engine/src/vendor/mtx/` is MPL-2.0 (libeot port); its
+  `LICENSE` is kept beside it and listed in `THIRD_PARTY_NOTICES.md`.
 
 ## Updating
 

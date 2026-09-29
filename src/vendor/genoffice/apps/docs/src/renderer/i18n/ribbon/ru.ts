@@ -12,6 +12,8 @@ export const ru = {
   ribbonTabLayout: 'Макет',
   ribbonTabReferences: 'Ссылки',
   ribbonTabReview: 'Рецензирование',
+  ribbonCollapse: 'Свернуть ленту',
+  ribbonPin: 'Закрепить ленту',
   ribbonTabView: 'Вид',
   ribbonTabTableDesign: 'Конструктор таблиц',
   ribbonTabTableLayout: 'Макет таблицы',
@@ -72,6 +74,8 @@ export const ru = {
   ribbonPainterActiveTip:
     'Формат по образцу включён: выделите целевой текст, чтобы применить (нажмите ещё раз для отмены)',
   ribbonGroupClipboard: 'Буфер обмена',
+  ribbonFontEastAsia: 'Восточноазиатский шрифт',
+  ribbonFontLatin: 'Латинский шрифт',
   ribbonFontFamilyTip: 'Шрифт',
   ribbonFontsCommon: 'Основные шрифты',
   ribbonFontsSystem: 'Системные шрифты',
@@ -100,7 +104,6 @@ export const ru = {
   ribbonThemeColorShadeTip: 'Цвет темы {r}-{c}',
   ribbonStandardColors: 'Стандартные цвета',
   ribbonMoreColors: 'Другие цвета…',
-  ribbonGroupFont: 'Шрифт',
   ribbonBullets: 'Маркеры',
   ribbonNumbering: 'Нумерация',
   ribbonDecreaseIndent: 'Уменьшить отступ',
@@ -297,6 +300,8 @@ export const ru = {
   ribbonChartAddCategory: '+ Категория',
   ribbonChartAddSeries: '+ Ряд',
   ribbonLinkInsertTitle: 'Вставка гиперссылки',
+  ribbonLinkEditTitle: 'Изменить гиперссылку',
+  ribbonLinkRemove: 'Удалить ссылку',
   ribbonLinkText: 'Отображаемый текст',
   ribbonLinkTextPh: 'Текст ссылки (оставьте пустым, чтобы показать адрес)',
   ribbonLinkAddress: 'Адрес',
@@ -576,6 +581,9 @@ export const ru = {
   ribbonEditorPrompt:
     'Вычитайте весь документ: исправьте опечатки, пунктуацию и грамматические ошибки, сохранив исходный смысл и структуру абзацев.',
   ribbonGroupProofing: 'Правописание',
+  ribbonSpellcheckBtn: 'Правописание',
+  ribbonSpellcheckTip:
+    'Проверять орфографию при вводе — подчёркивает красным слова с возможными ошибками',
   ribbonTranslate: 'Перевод',
   ribbonTranslateTip: 'ИИ переведёт документ',
   ribbonTranslatePrompt:

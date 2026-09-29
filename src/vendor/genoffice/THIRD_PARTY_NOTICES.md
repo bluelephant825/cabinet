@@ -1,7 +1,7 @@
 # Third-party notices for the vendored GenOffice sources
 
 Vendored from https://github.com/bluelephant825/genoffice @
-f2c3d0879df29622d5a447935d2b4aeac033544d (Apache-2.0, Copyright 2026 Mainfunc,
+476e5023c9a4bc459ca6de7b1d697ab25d94850e (Apache-2.0, Copyright 2026 Mainfunc,
 Inc.). See LICENSE and NOTICE in this directory.
 
 ## Unicode Character Database
@@ -20,6 +20,17 @@ the complete copyright and permission notice is reproduced in
 EMF/WMF → data-URL converter derived from pptx-viewer, Apache-2.0
 ("Copyright 2025-present pptx-viewer contributors"); its license is preserved
 at `packages/docx-engine/src/vendor/emf-converter/LICENSE`.
+
+## libeot (MicroType Express decoder)
+
+`packages/pptx-engine/src/vendor/mtx/` (`lzcomp.ts`, `ctf.ts`, `index.ts`) is a
+TypeScript port of the decompression side of libeot (MicroType Express LZ and
+Compact Table Format decoding, used to unpack embedded EOT fonts). libeot is
+licensed under MPL-2.0; the license text is preserved at
+`packages/pptx-engine/src/vendor/mtx/LICENSE` and the upstream README at
+`packages/pptx-engine/src/vendor/mtx/README.md`. MPL-2.0 file-level copyleft
+applies to those three source files: modifications to them must be made
+available under MPL-2.0.
 
 ## Runtime npm dependencies used by the vendored code
 

@@ -12,6 +12,8 @@ export const nl = {
   ribbonTabLayout: 'Indeling',
   ribbonTabReferences: 'Verwijzingen',
   ribbonTabReview: 'Controleren',
+  ribbonCollapse: 'Het lint samenvouwen',
+  ribbonPin: 'Het lint vastmaken',
   ribbonTabView: 'Beeld',
   ribbonTabTableDesign: 'Tabelontwerp',
   ribbonTabTableLayout: 'Tabelindeling',
@@ -74,6 +76,8 @@ export const nl = {
   ribbonPainterActiveTip:
     'Opmaak kopiëren/plakken is actief: selecteer de doeltekst om toe te passen (klik nogmaals om te annuleren)',
   ribbonGroupClipboard: 'Klembord',
+  ribbonFontEastAsia: 'Oost-Aziatisch lettertype',
+  ribbonFontLatin: 'Latijns lettertype',
   ribbonFontFamilyTip: 'Lettertype',
   ribbonFontsCommon: 'Veelgebruikte lettertypen',
   ribbonFontsSystem: 'Systeemlettertypen',
@@ -102,7 +106,6 @@ export const nl = {
   ribbonThemeColorShadeTip: 'Themakleur {r}-{c}',
   ribbonStandardColors: 'Standaardkleuren',
   ribbonMoreColors: 'Meer kleuren…',
-  ribbonGroupFont: 'Lettertype',
   ribbonBullets: 'Opsommingstekens',
   ribbonNumbering: 'Nummering',
   ribbonDecreaseIndent: 'Inspringing verkleinen',
@@ -299,6 +302,8 @@ export const nl = {
   ribbonChartAddCategory: '+ Categorie',
   ribbonChartAddSeries: '+ Reeks',
   ribbonLinkInsertTitle: 'Hyperlink invoegen',
+  ribbonLinkEditTitle: 'Hyperlink bewerken',
+  ribbonLinkRemove: 'Koppeling verwijderen',
   ribbonLinkText: 'Weer te geven tekst',
   ribbonLinkTextPh: 'Koppelingstekst (laat leeg om het adres weer te geven)',
   ribbonLinkAddress: 'Adres',
@@ -579,6 +584,9 @@ export const nl = {
   ribbonEditorPrompt:
     'Corrigeer het hele document: herstel typefouten, interpunctie en grammaticale fouten zonder de oorspronkelijke betekenis en alineastructuur te wijzigen.',
   ribbonGroupProofing: 'Controle',
+  ribbonSpellcheckBtn: 'Spelling',
+  ribbonSpellcheckTip:
+    'Spelling controleren tijdens het typen — onderstreept mogelijke fouten rood',
   ribbonTranslate: 'Vertalen',
   ribbonTranslateTip: 'AI vertaalt het document',
   ribbonTranslatePrompt:

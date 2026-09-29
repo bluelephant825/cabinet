@@ -12,6 +12,8 @@ export const pt = {
   ribbonTabLayout: 'Layout',
   ribbonTabReferences: 'Referências',
   ribbonTabReview: 'Revisão',
+  ribbonCollapse: 'Recolher a Faixa de Opções',
+  ribbonPin: 'Fixar a Faixa de Opções',
   ribbonTabView: 'Exibir',
   ribbonTabTableDesign: 'Design da Tabela',
   ribbonTabTableLayout: 'Layout da Tabela',
@@ -72,6 +74,8 @@ export const pt = {
   ribbonPainterActiveTip:
     'Pincel de Formatação ativado: selecione o texto de destino para aplicar (clique novamente para cancelar)',
   ribbonGroupClipboard: 'Área de Transferência',
+  ribbonFontEastAsia: 'Fonte do leste asiático',
+  ribbonFontLatin: 'Fonte latina',
   ribbonFontFamilyTip: 'Fonte',
   ribbonFontsCommon: 'Fontes comuns',
   ribbonFontsSystem: 'Fontes do sistema',
@@ -100,7 +104,6 @@ export const pt = {
   ribbonThemeColorShadeTip: 'Cor do tema {r}-{c}',
   ribbonStandardColors: 'Cores Padrão',
   ribbonMoreColors: 'Mais Cores…',
-  ribbonGroupFont: 'Fonte',
   ribbonBullets: 'Marcadores',
   ribbonNumbering: 'Numeração',
   ribbonDecreaseIndent: 'Diminuir Recuo',
@@ -297,6 +300,8 @@ export const pt = {
   ribbonChartAddCategory: '+ Categoria',
   ribbonChartAddSeries: '+ Série',
   ribbonLinkInsertTitle: 'Inserir Hiperlink',
+  ribbonLinkEditTitle: 'Editar hiperlink',
+  ribbonLinkRemove: 'Remover link',
   ribbonLinkText: 'Texto para exibição',
   ribbonLinkTextPh: 'Texto do link (deixe em branco para mostrar o endereço)',
   ribbonLinkAddress: 'Endereço',
@@ -575,6 +580,9 @@ export const pt = {
   ribbonEditorPrompt:
     'Revise todo o documento: corrija erros de digitação, pontuação e gramática mantendo o sentido original e a estrutura dos parágrafos.',
   ribbonGroupProofing: 'Revisão de Texto',
+  ribbonSpellcheckBtn: 'Ortografia',
+  ribbonSpellcheckTip:
+    'Verificar a ortografia ao digitar — sublinha em vermelho palavras possivelmente erradas',
   ribbonTranslate: 'Traduzir',
   ribbonTranslateTip: 'A IA traduz o documento',
   ribbonTranslatePrompt:

@@ -12,6 +12,8 @@ export const ms = {
   ribbonTabLayout: 'Tataletak',
   ribbonTabReferences: 'Rujukan',
   ribbonTabReview: 'Semakan',
+  ribbonCollapse: 'Runtuhkan Reben',
+  ribbonPin: 'Semat Reben',
   ribbonTabView: 'Pandangan',
   ribbonTabTableDesign: 'Reka Bentuk Jadual',
   ribbonTabTableLayout: 'Tataletak Jadual',
@@ -72,6 +74,8 @@ export const ms = {
   ribbonPainterActiveTip:
     'Penyalin Format aktif: pilih teks sasaran untuk menggunakannya (klik sekali lagi untuk membatalkan)',
   ribbonGroupClipboard: 'Papan Klip',
+  ribbonFontEastAsia: 'Fon Asia Timur',
+  ribbonFontLatin: 'Fon Latin',
   ribbonFontFamilyTip: 'Fon',
   ribbonFontsCommon: 'Fon biasa',
   ribbonFontsSystem: 'Fon sistem',
@@ -100,7 +104,6 @@ export const ms = {
   ribbonThemeColorShadeTip: 'Warna tema {r}-{c}',
   ribbonStandardColors: 'Warna Piawai',
   ribbonMoreColors: 'Lagi Warna…',
-  ribbonGroupFont: 'Fon',
   ribbonBullets: 'Bulet',
   ribbonNumbering: 'Penomboran',
   ribbonDecreaseIndent: 'Kurangkan Inden',
@@ -297,6 +300,8 @@ export const ms = {
   ribbonChartAddCategory: '+ Kategori',
   ribbonChartAddSeries: '+ Siri',
   ribbonLinkInsertTitle: 'Sisipkan Hiperpautan',
+  ribbonLinkEditTitle: 'Edit Hiperpautan',
+  ribbonLinkRemove: 'Alih Keluar Pautan',
   ribbonLinkText: 'Teks untuk dipaparkan',
   ribbonLinkTextPh: 'Teks pautan (biarkan kosong untuk memaparkan alamat)',
   ribbonLinkAddress: 'Alamat',
@@ -577,6 +582,9 @@ export const ms = {
   ribbonEditorPrompt:
     'Semak keseluruhan dokumen: betulkan kesalahan taip, tanda baca dan tatabahasa tanpa mengubah maksud asal dan struktur perenggan.',
   ribbonGroupProofing: 'Pembacaan Pruf',
+  ribbonSpellcheckBtn: 'Ejaan',
+  ribbonSpellcheckTip:
+    'Semak ejaan semasa menaip — menggariskan merah perkataan yang mungkin salah eja',
   ribbonTranslate: 'Terjemah',
   ribbonTranslateTip: 'AI menterjemah dokumen',
   ribbonTranslatePrompt:

@@ -45,11 +45,18 @@ export type AnimEffectKind =
   | 'zoomOut'
   // Motion path (move along a path)
   | 'motionPath'
+  // Media commands (video/audio targets): PowerPoint's Animations → Media group
+  | 'mediaPlay'
+  | 'mediaPause'
+  | 'mediaStop'
 
 export type AnimTrigger = 'onClick' | 'withPrev' | 'afterPrev'
+/** Side a fly/wipe effect comes from (entrance) or leaves towards (exit). */
+export type AnimDirection = 'top' | 'bottom' | 'left' | 'right'
+export const ANIM_DIRECTIONS: readonly AnimDirection[] = ['top', 'bottom', 'left', 'right']
 
 export const ANIM_TRIGGERS: readonly AnimTrigger[] = ['onClick', 'withPrev', 'afterPrev']
-export type AnimClass = 'entrance' | 'emphasis' | 'exit' | 'path'
+export type AnimClass = 'entrance' | 'emphasis' | 'exit' | 'path' | 'media'
 
 export interface SlideAnimation {
   /** Target shape's cNvPr id (<p:spTgt spid>) */
@@ -66,6 +73,26 @@ export interface SlideAnimation {
   motionPath?: string
   /** Per-paragraph animation: 0-based paragraph number (written as pgRg st/end); unset = whole shape */
   paragraph?: number
+  /** flyIn/flyOut/wipe/wipeOut only; unset = the effect's PowerPoint default side (bottom) */
+  direction?: AnimDirection
+  /**
+   * Verbatim effect <p:par> for presets the model has no writer for: read-back keeps
+   * the original bytes here (effect holds the closest modeled approximation) and the
+   * writer emits them unchanged, so editing another animation never downgrades this one.
+   */
+  presetXml?: string
+  /** presetID/presetClass/presetSubtype of a kept-verbatim effect (read-back, with presetXml) */
+  preset?: { id: number; cls: string; sub: number }
+  /**
+   * Media effects only: the target's media kind, so the writer can add the
+   * <p:video>/<p:audio> media node PowerPoint expects next to the main sequence.
+   */
+  mediaKind?: 'video' | 'audio'
+}
+
+/** Whether the effect is a media command (play/pause/stop on a video or audio shape). */
+export function isMediaEffect(effect: AnimEffectKind): boolean {
+  return effect === 'mediaPlay' || effect === 'mediaPause' || effect === 'mediaStop'
 }
 
 /** Effect → class (entrance/emphasis/exit/motion path). */
@@ -88,6 +115,10 @@ export function animClassOf(effect: AnimEffectKind): AnimClass {
       return 'emphasis'
     case 'motionPath':
       return 'path'
+    case 'mediaPlay':
+    case 'mediaPause':
+    case 'mediaStop':
+      return 'media'
     default:
       return 'exit'
   }
@@ -104,7 +135,7 @@ export function elementSpid(el: SlideElement): number | null {
 /** presetID/presetClass/presetSubtype (used by PowerPoint's animation pane to show effect names). */
 const PRESET: Record<
   AnimEffectKind,
-  { id: number; cls: 'entr' | 'emph' | 'exit' | 'path'; sub: number }
+  { id: number; cls: 'entr' | 'emph' | 'exit' | 'path' | 'mediacall'; sub: number }
 > = {
   appear: { id: 1, cls: 'entr', sub: 0 },
   fade: { id: 10, cls: 'entr', sub: 0 },
@@ -126,13 +157,49 @@ const PRESET: Record<
   shrink: { id: 30, cls: 'exit', sub: 0 }, // shrink and rotate (Shrink & Turn)
   zoomOut: { id: 23, cls: 'exit', sub: 16 },
   motionPath: { id: 0, cls: 'path', sub: 0 }, // custom path
+  mediaPause: { id: 1, cls: 'mediacall', sub: 0 },
+  mediaPlay: { id: 2, cls: 'mediacall', sub: 0 },
+  mediaStop: { id: 3, cls: 'mediacall', sub: 0 },
+}
+
+const MEDIA_CMD: Record<'mediaPlay' | 'mediaPause' | 'mediaStop', string> = {
+  mediaPlay: 'playFrom(0.0)',
+  mediaPause: 'togglePause',
+  mediaStop: 'stop',
+}
+
+/** Media effect from a <p:cmd cmd="…"> string; null for non-media commands. */
+function mediaEffectFromCmd(cmd: string): AnimEffectKind | null {
+  if (cmd.startsWith('playFrom')) return 'mediaPlay'
+  if (cmd === 'togglePause') return 'mediaPause'
+  if (cmd === 'stop') return 'mediaStop'
+  return null
 }
 
 /** presetClass:presetID(:presetSubtype) → effect (read-back mapping; unmodeled ones map to a same-class approximation). */
 export const ANIM_EFFECTS = Object.keys(PRESET) as readonly AnimEffectKind[]
 
-function effectFromPreset(cls: string, id: number, sub: number): AnimEffectKind {
+const DIRECTIONAL: ReadonlySet<AnimEffectKind> = new Set(['flyIn', 'flyOut', 'wipe', 'wipeOut'])
+/** PowerPoint's presetSubtype per side: fly uses 1/4/8/2 (top/bottom/left/right), wipe 4/1/8/2. */
+const FLY_SUB: Record<AnimDirection, number> = { top: 1, bottom: 4, left: 8, right: 2 }
+const WIPE_SUB: Record<AnimDirection, number> = { top: 4, bottom: 1, left: 8, right: 2 }
+
+function presetSubtypeOf(a: SlideAnimation): number {
+  if (!a.direction || !DIRECTIONAL.has(a.effect)) return PRESET[a.effect].sub
+  return a.effect === 'flyIn' || a.effect === 'flyOut'
+    ? FLY_SUB[a.direction]
+    : WIPE_SUB[a.direction]
+}
+
+function directionFromPreset(effect: AnimEffectKind, sub: number): AnimDirection | undefined {
+  if (!DIRECTIONAL.has(effect)) return undefined
+  const table = effect === 'flyIn' || effect === 'flyOut' ? FLY_SUB : WIPE_SUB
+  return (Object.keys(table) as AnimDirection[]).find((d) => table[d] === sub)
+}
+
+function modeledEffect(cls: string, id: number, sub: number): AnimEffectKind | null {
   if (cls === 'path') return 'motionPath'
+  if (cls === 'mediacall') return id === 1 ? 'mediaPause' : id === 3 ? 'mediaStop' : 'mediaPlay'
   // Effects sharing a presetID distinguished by subtype (e.g. wipe direction)
   const bySub: Record<string, AnimEffectKind> = {
     'entr:22:1': 'wipe',
@@ -158,7 +225,11 @@ function effectFromPreset(cls: string, id: number, sub: number): AnimEffectKind 
     'exit:30': 'shrink',
     'exit:23': 'zoomOut',
   }
-  const hit = bySub[`${cls}:${id}:${sub}`] ?? exact[`${cls}:${id}`]
+  return bySub[`${cls}:${id}:${sub}`] ?? exact[`${cls}:${id}`] ?? null
+}
+
+function effectFromPreset(cls: string, id: number, sub: number): AnimEffectKind {
+  const hit = modeledEffect(cls, id, sub)
   if (hit) return hit
   if (cls === 'exit') return 'fadeOut'
   if (cls === 'emph') return 'pulse'
@@ -237,6 +308,33 @@ function moveAnimXml(
 /** Default motionPath (straight line to the right, 1/4 of the slide width). */
 export const DEFAULT_MOTION_PATH = 'M 0 0 L 0.25 0'
 
+/** Off-slide position a fly effect starts from / ends at, per side. */
+function flyOffscreen(d: AnimDirection): { x: string; y: string } {
+  switch (d) {
+    case 'top':
+      return { x: '#ppt_x', y: '0-#ppt_h/2' }
+    case 'left':
+      return { x: '0-#ppt_w/2', y: '#ppt_y' }
+    case 'right':
+      return { x: '1+#ppt_w/2', y: '#ppt_y' }
+    default:
+      return { x: '#ppt_x', y: '1+#ppt_h/2' }
+  }
+}
+/** animEffect wipe filter: the reveal moves away from the side it comes from; exits run the reverse. */
+const WIPE_IN_FILTER: Record<AnimDirection, string> = {
+  top: 'down',
+  bottom: 'up',
+  left: 'right',
+  right: 'left',
+}
+const WIPE_OUT_FILTER: Record<AnimDirection, string> = {
+  top: 'up',
+  bottom: 'down',
+  left: 'left',
+  right: 'right',
+}
+
 /** Move along a path (<p:animMotion>); the path gets the " E" end marker per OOXML convention. */
 function motionAnimXml(gen: IdGen, tgt: string, dur: number, path: string): string {
   const p = path.trim() || DEFAULT_MOTION_PATH
@@ -257,6 +355,13 @@ function effectBehaviorsXml(gen: IdGen, a: SlideAnimation): string {
   const show = setVisibilityXml(gen, target, true, 0)
   const hideAtEnd = setVisibilityXml(gen, target, false, Math.max(0, dur - 1))
   switch (a.effect) {
+    case 'mediaPlay':
+    case 'mediaPause':
+    case 'mediaStop':
+      return (
+        `<p:cmd type="call" cmd="${MEDIA_CMD[a.effect]}"><p:cBhvr>` +
+        `<p:cTn id="${gen.next()}" dur="1" fill="hold"/>${target}</p:cBhvr></p:cmd>`
+      )
     case 'appear':
       return show
     case 'fade':
@@ -264,16 +369,18 @@ function effectBehaviorsXml(gen: IdGen, a: SlideAnimation): string {
         show +
         `<p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="${gen.next()}" dur="${dur}"/>${target}</p:cBhvr></p:animEffect>`
       )
-    case 'flyIn':
+    case 'flyIn': {
+      const off = flyOffscreen(a.direction ?? 'bottom')
       return (
         show +
-        moveAnimXml(gen, target, dur, 'ppt_x', '#ppt_x', '#ppt_x') +
-        moveAnimXml(gen, target, dur, 'ppt_y', '1+#ppt_h/2', '#ppt_y')
+        moveAnimXml(gen, target, dur, 'ppt_x', off.x, '#ppt_x') +
+        moveAnimXml(gen, target, dur, 'ppt_y', off.y, '#ppt_y')
       )
+    }
     case 'wipe':
       return (
         show +
-        `<p:animEffect transition="in" filter="wipe(up)"><p:cBhvr><p:cTn id="${gen.next()}" dur="${dur}"/>${target}</p:cBhvr></p:animEffect>`
+        `<p:animEffect transition="in" filter="wipe(${WIPE_IN_FILTER[a.direction ?? 'bottom']})"><p:cBhvr><p:cTn id="${gen.next()}" dur="${dur}"/>${target}</p:cBhvr></p:animEffect>`
       )
     case 'wipeDown':
       return (
@@ -344,15 +451,17 @@ function effectBehaviorsXml(gen: IdGen, a: SlideAnimation): string {
         `<p:animEffect transition="out" filter="fade"><p:cBhvr><p:cTn id="${gen.next()}" dur="${dur}"/>${target}</p:cBhvr></p:animEffect>` +
         hideAtEnd
       )
-    case 'flyOut':
+    case 'flyOut': {
+      const off = flyOffscreen(a.direction ?? 'bottom')
       return (
-        moveAnimXml(gen, target, dur, 'ppt_x', '#ppt_x', '#ppt_x') +
-        moveAnimXml(gen, target, dur, 'ppt_y', '#ppt_y', '1+#ppt_h/2') +
+        moveAnimXml(gen, target, dur, 'ppt_x', '#ppt_x', off.x) +
+        moveAnimXml(gen, target, dur, 'ppt_y', '#ppt_y', off.y) +
         hideAtEnd
       )
+    }
     case 'wipeOut':
       return (
-        `<p:animEffect transition="out" filter="wipe(down)"><p:cBhvr><p:cTn id="${gen.next()}" dur="${dur}"/>${target}</p:cBhvr></p:animEffect>` +
+        `<p:animEffect transition="out" filter="wipe(${WIPE_OUT_FILTER[a.direction ?? 'bottom']})"><p:cBhvr><p:cTn id="${gen.next()}" dur="${dur}"/>${target}</p:cBhvr></p:animEffect>` +
         hideAtEnd
       )
     case 'shrink':
@@ -409,8 +518,9 @@ function placeAnims(
     }
     const base = a.trigger === 'afterPrev' ? prevEnd : a.trigger === 'withPrev' ? prevStart : 0
     const start = base + Math.max(0, Math.round(a.delayMs))
+    // Media steps carry no bldP, so they do not consume a build group id (bldPsXml counts the same way)
     const grpId = grpCount.get(a.spid) ?? 0
-    grpCount.set(a.spid, grpId + 1)
+    if (!isMediaEffect(a.effect)) grpCount.set(a.spid, grpId + 1)
     groups[groups.length - 1]!.items.push({ a, startMs: start, grpId })
     prevStart = start
     prevEnd = start + Math.max(1, Math.round(a.durationMs))
@@ -420,14 +530,33 @@ function placeAnims(
 
 /** One effect's <p:par> (cTn with presetID/presetClass + start + behaviors). */
 function effectParXml(gen: IdGen, p: Placed): string {
+  if (p.a.presetXml) return placePresetXml(gen, p)
   const preset = PRESET[p.a.effect]
   return (
     '<p:par>' +
-    `<p:cTn id="${gen.next()}" presetID="${preset.id}" presetClass="${preset.cls}" presetSubtype="${preset.sub}" fill="hold" grpId="${p.grpId}" nodeType="${NODE_TYPE[p.a.trigger]}">` +
+    `<p:cTn id="${gen.next()}" presetID="${preset.id}" presetClass="${preset.cls}" presetSubtype="${presetSubtypeOf(p.a)}" fill="hold" grpId="${p.grpId}" nodeType="${NODE_TYPE[p.a.trigger]}">` +
     `<p:stCondLst><p:cond delay="${p.startMs}"/></p:stCondLst>` +
     `<p:childTnLst>${effectBehaviorsXml(gen, p.a)}</p:childTnLst>` +
     '</p:cTn></p:par>'
   )
+}
+
+/**
+ * A verbatim effect <p:par> re-placed in the rebuilt sequence: cTn ids are renumbered
+ * into the slide's id space and the outer cTn takes the list's trigger, group and
+ * start; the behaviors inside keep their original bytes.
+ */
+function placePresetXml(gen: IdGen, p: Placed): string {
+  let xml = p.a.presetXml!.replace(
+    /(<p:cTn\b[^>]*?\bid=")\d+(")/g,
+    (_m, a, b) => `${a}${gen.next()}${b}`,
+  )
+  xml = xml.replace(/<p:cTn\b[^>]*>/, (open) => {
+    let o = open.replace(/\s(?:grpId|nodeType)="[^"]*"/g, '')
+    o = o.replace(/>$/, ` grpId="${p.grpId}" nodeType="${NODE_TYPE[p.a.trigger]}">`)
+    return o
+  })
+  return xml.replace(/(<p:stCondLst><p:cond delay=")[^"]*(")/, (_m, a, b) => `${a}${p.startMs}${b}`)
 }
 
 /** The two-level <p:par> wrapper of one "click group". */
@@ -448,7 +577,8 @@ function groupParXml(gen: IdGen, g: { auto: boolean; items: Placed[] }): string 
  * bldP list for a full rebuild (shapes with paragraph animation get a single
  * summarizing build="p" bldP instead of one plain bldP per grpId).
  */
-function bldPsXml(anims: SlideAnimation[]): string {
+function bldPsXml(all: SlideAnimation[]): string {
+  const anims = all.filter((a) => !isMediaEffect(a.effect))
   const paraSpids = new Set(anims.filter((a) => a.paragraph != null).map((a) => a.spid))
   const bldSeen = new Set<string>()
   return anims
@@ -470,6 +600,35 @@ function bldPsXml(anims: SlideAnimation[]): string {
     .join('')
 }
 
+/**
+ * <p:video>/<p:audio> media timeline node PowerPoint keeps beside the main sequence for
+ * every media shape driven by media commands (the cmd alone does not start playback).
+ */
+function mediaNodeXml(gen: IdGen, spid: number, kind: 'video' | 'audio'): string {
+  const tag = kind === 'video' ? 'p:video' : 'p:audio'
+  return (
+    `<${tag}><p:cMediaNode vol="80000">` +
+    `<p:cTn id="${gen.next()}" fill="hold" display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst>` +
+    '<p:endCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:endCondLst></p:cTn>' +
+    `<p:tgtEl><p:spTgt spid="${spid}"/></p:tgtEl></p:cMediaNode></${tag}>`
+  )
+}
+
+/** Media nodes missing from `existing` (tmRoot childTnLst content) for the media effects in anims. */
+function missingMediaNodesXml(gen: IdGen, anims: SlideAnimation[], existing: string): string {
+  const seen = new Set<number>()
+  let out = ''
+  for (const a of anims) {
+    if (!isMediaEffect(a.effect) || !a.mediaKind || seen.has(a.spid)) continue
+    seen.add(a.spid)
+    const has = [...existing.matchAll(/<p:(?:video|audio)>[\s\S]*?<\/p:(?:video|audio)>/g)].some(
+      (m) => new RegExp(`<p:spTgt spid="${a.spid}"`).test(m[0]),
+    )
+    if (!has) out += mediaNodeXml(gen, a.spid, a.mediaKind)
+  }
+  return out
+}
+
 export function buildTimingXml(anims: SlideAnimation[]): string {
   if (anims.length === 0) return ''
   let idCounter = 0
@@ -482,6 +641,7 @@ export function buildTimingXml(anims: SlideAnimation[]): string {
     .join('')
 
   const bldPs = bldPsXml(anims)
+  const mediaNodes = missingMediaNodesXml(gen, anims, '')
 
   return (
     '<p:timing><p:tnLst><p:par>' +
@@ -490,9 +650,10 @@ export function buildTimingXml(anims: SlideAnimation[]): string {
     `<p:cTn id="${seqId}" dur="indefinite" nodeType="mainSeq"><p:childTnLst>${groupXml}</p:childTnLst></p:cTn>` +
     '<p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst>' +
     '<p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst>' +
-    '</p:seq></p:childTnLst></p:cTn>' +
+    `</p:seq>${mediaNodes}</p:childTnLst></p:cTn>` +
     '</p:par></p:tnLst>' +
-    `<p:bldLst>${bldPs}</p:bldLst></p:timing>`
+    (bldPs ? `<p:bldLst>${bldPs}</p:bldLst>` : '') +
+    '</p:timing>'
   )
 }
 
@@ -585,7 +746,19 @@ function rebuildTimingPreservingXml(timing: string, anims: SlideAnimation[]): st
       '</p:seq>'
     newTiming = timing.slice(0, childClose) + seqXml + timing.slice(childClose)
   }
+  newTiming = appendMissingMediaNodes(newTiming, anims, gen)
   return rebuildBldLst(newTiming, anims)
+}
+
+function appendMissingMediaNodes(timing: string, anims: SlideAnimation[], gen: IdGen): string {
+  const rootM = /<p:cTn\b[^>]*\bnodeType="tmRoot"[^>]*>/.exec(timing)
+  if (!rootM) return timing
+  const childOpen = timing.indexOf('<p:childTnLst>', rootM.index + rootM[0].length)
+  if (childOpen < 0) return timing
+  const childClose = findBalancedClose(timing, childOpen, 'p:childTnLst')
+  if (childClose < 0) return timing
+  const add = missingMediaNodesXml(gen, anims, timing.slice(childOpen, childClose))
+  return add ? timing.slice(0, childClose) + add + timing.slice(childClose) : timing
 }
 
 /**
@@ -678,8 +851,18 @@ export function readSlideTimingXml(bodySuffix: string): SlideAnimation[] {
     while ((dm = durRe.exec(body)) !== null) durationMs = Math.max(durationMs, Number(dm[1]))
     // pulse with autoRev: actual duration = dur*2
     if (/\bautoRev="1"/.test(body)) durationMs *= 2
-    const effect = effectFromPreset(cls, pid, psub)
-    if (effect === 'appear' || effect === 'disappear') durationMs = 0
+    let effect = effectFromPreset(cls, pid, psub)
+    let modeled = modeledEffect(cls, pid, psub) != null
+    if (cls === 'mediacall') {
+      // The command string is authoritative over presetID; a playFrom offset (bookmark/trim
+      // start) has no model, so those bytes are kept verbatim
+      const cmd = /<p:cmd\b[^>]*\bcmd="([^"]*)"/.exec(body)?.[1] ?? ''
+      effect = mediaEffectFromCmd(cmd) ?? effect
+      if (cmd.startsWith('playFrom') && cmd !== MEDIA_CMD.mediaPlay) modeled = false
+    }
+    if (effect === 'appear' || effect === 'disappear' || isMediaEffect(effect)) durationMs = 0
+    const parStart = timing.lastIndexOf('<p:par', m.index)
+    const parClose = parStart >= 0 ? findBalancedClose(timing, parStart, 'p:par') : -1
 
     if (trigger === 'onClick') {
       prevStart = 0
@@ -691,6 +874,12 @@ export function readSlideTimingXml(bodySuffix: string): SlideAnimation[] {
     prevEnd = startMs + Math.max(1, durationMs)
 
     const anim: SlideAnimation = { spid, effect, trigger, durationMs, delayMs }
+    const direction = directionFromPreset(effect, psub)
+    if (direction && psub !== PRESET[effect].sub) anim.direction = direction
+    if (!modeled && parStart >= 0 && parClose >= 0) {
+      anim.presetXml = timing.slice(parStart, parClose + '</p:par>'.length)
+      anim.preset = { id: pid, cls, sub: psub }
+    }
     const pgM = /<p:pgRg\s[^>]*\bst="(\d+)"/.exec(body)
     if (pgM) anim.paragraph = Number(pgM[1])
     if (effect === 'motionPath') {
@@ -713,7 +902,9 @@ function animEq(x: SlideAnimation, y: SlideAnimation): boolean {
     x.durationMs === y.durationMs &&
     x.delayMs === y.delayMs &&
     (x.motionPath ?? null) === (y.motionPath ?? null) &&
-    (x.paragraph ?? null) === (y.paragraph ?? null)
+    (x.paragraph ?? null) === (y.paragraph ?? null) &&
+    (x.direction ?? null) === (y.direction ?? null) &&
+    (x.presetXml ?? null) === (y.presetXml ?? null)
   )
 }
 
@@ -859,13 +1050,16 @@ export function patchSlideTimingIncrementalXml(
 
     const gen = makeGenAfterMaxId(timing)
     const grpBase = new Map<number, number>()
-    for (const a of old) grpBase.set(a.spid, (grpBase.get(a.spid) ?? 0) + 1)
+    for (const a of old) {
+      if (!isMediaEffect(a.effect)) grpBase.set(a.spid, (grpBase.get(a.spid) ?? 0) + 1)
+    }
     const groups = placeAnims(added, grpBase)
     const groupsXml = groups.map((g) => groupParXml(gen, g)).join('')
     let newTiming = timing.slice(0, childClose) + groupsXml + timing.slice(childClose)
+    newTiming = appendMissingMediaNodes(newTiming, added, gen)
     newTiming = appendBldPs(
       newTiming,
-      groups.flatMap((g) => g.items),
+      groups.flatMap((g) => g.items.filter((p) => !isMediaEffect(p.a.effect))),
     )
     return splice(newTiming)
   }
@@ -890,7 +1084,7 @@ export function patchSlideTimingIncrementalXml(
     const grpId =
       origGrpId != null
         ? Number(origGrpId)
-        : anims.slice(0, i).filter((x) => x.spid === a.spid).length
+        : anims.slice(0, i).filter((x) => x.spid === a.spid && !isMediaEffect(x.effect)).length
     const par = effectParXml(gen, { a, startMs: absStarts(anims)[i]!, grpId })
     return splice(timing.slice(0, span.start) + par + timing.slice(span.end))
   }

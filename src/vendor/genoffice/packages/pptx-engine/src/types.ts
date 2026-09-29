@@ -57,6 +57,8 @@ export type Fill =
       path?: 'circle' | 'rect' | 'shape'
       /** <a:fillToRect> insets as fractions (may exceed 0..1); defines the gradient focus */
       fillTo?: { l: number; t: number; r: number; b: number }
+      /** <a:tileRect> insets as fractions; negative values grow the gradient tile past the shape */
+      tileRect?: { l: number; t: number; r: number; b: number }
     }
   | {
       type: 'image'
@@ -72,6 +74,8 @@ export type Fill =
       clrChange?: { from: string; to: string }
       /** <a:blip><a:lum>: legacy brightness/contrast picture adjustment (-1..1 each) */
       lum?: { bright: number; contrast: number }
+      /** <a:blip><a:biLevel thresh>: luminance >= thresh (0-1) renders white, below black */
+      biLevel?: number
       /** <a:tile>: offsets (EMU), scale fractions and anchor alignment of the tile grid */
       tile?: { tx: number; ty: number; sx: number; sy: number; algn: string }
     }
@@ -148,8 +152,25 @@ export interface ShadowEffect {
 // ── Text ───────────────────────────────────────────────────────────────
 
 /** A run of contiguous same-format text (maps to <a:r>); line breaks/soft returns split into separate runs or paragraphs */
+/** Where a run's displayed style values were inherited from (`slides read` reports them). */
+export interface RunStyleSource {
+  fontSize: string
+  fontFamily: string
+  color: string
+  bold: string
+  italic: string
+}
+
 export interface TextRun {
   text: string
+  /**
+   * Verbatim paragraph child that is not an <a:r> (an <mc:AlternateContent> math
+   * block); `text` is its plain-text fallback for layout and display, save emits
+   * these bytes unchanged.
+   */
+  rawXml?: string
+  /** provenance of fontSize / fontFamily / color / bold / italic: 'run', 'paragraph defRPr', 'shape lstStyle', 'layout placeholder', 'master bodyStyle', 'theme minor', … */
+  styleSrc?: RunStyleSource
   bold?: boolean
   /** Run has no explicit b (bold resolved from inheritance); rebuild/patch omits b to keep the master/layout linkage */
   boldImplicit?: boolean
@@ -183,6 +204,9 @@ export interface TextRun {
   kern?: number
   /** Font family (final font name after theme inheritance, for render/editor display) */
   fontFamily?: string
+  /** Resolved a:latin family when fontFamily came from the ea/cs bucket: PowerPoint draws the
+   *  run's Latin characters with it (prod_026: "ISO 45001" inside Hangul runs sets in Calibri) */
+  latinFamily?: string
   /**
    * CJK script hint for substituting fontFamily when it is missing, mirroring
    * PowerPoint: the run's altLang/lang CJK tag wins (prod_043: KR font declared
@@ -204,6 +228,8 @@ export interface TextRun {
   csFont?: string
   /** Run has no explicit font declaration (inherits/theme); patches don't inject latin/ea when the font is unchanged */
   fontImplicit?: boolean
+  /** Textless marker synthesized from <a:endParaRPr> (empty paragraph): its props belong to the paragraph mark and are never written back as run props */
+  paraMark?: boolean
   /**
    * Effective character casing ('all' | 'small', explicit rPr cap or inherited from
    * placeholder styles). Display-only: the render layer uppercases; never written back.
@@ -249,9 +275,32 @@ export interface TextRun {
 
 export type TextAlign = 'left' | 'center' | 'right' | 'justify'
 
+/**
+ * Modeled subset of <a:pPr><a:defRPr> (see Paragraph.defRPr). Typefaces keep the raw
+ * attribute (incl. +mn-lt/+mj-ea theme references); the color is resolved for display
+ * and materialized as srgbClr on rebuild, like run colors.
+ */
+export interface ParagraphDefaultRunProps {
+  /** sz (pt) */
+  fontSize?: number
+  bold?: boolean
+  italic?: boolean
+  /** cap: 'all' | 'small' | 'none' */
+  cap?: string
+  color?: ResolvedColor
+  /** Raw <a:solidFill> child (schemeClr/prstClr/srgbClr+mods) captured verbatim so a rebuild
+   *  re-emits the theme link and modifiers instead of baking the computed srgbClr. */
+  colorNodeXml?: string
+  latinFont?: string
+  eaFont?: string
+  csFont?: string
+}
+
 export interface Paragraph {
   runs: TextRun[]
   align?: TextAlign
+  /** provenance of align: 'paragraph' or the inheritance layer */
+  alignSrc?: string
   /** Paragraph base direction (a:pPr rtl): true = RTL base, false = explicit LTR base, absent = inferred from the first strong character */
   rtl?: boolean
   /** Indent level (bullet level) */
@@ -265,13 +314,22 @@ export interface Paragraph {
   spaceBeforePct?: number
   spaceAfterPct?: number
   bullet?: {
-    type: 'none' | 'char' | 'number'
+    type: 'none' | 'char' | 'number' | 'blip'
     char?: string
+    /** <a:buBlip> picture bullet: media zip path (resolved through the part's rels) */
+    mediaRef?: string
+    /** <a:buBlip><a:blip r:embed>: kept so a rebuild re-emits the same relationship */
+    blipEmbedId?: string
     color?: ResolvedColor
+    /** Raw <a:buClr> child captured verbatim (schemeClr/prstClr/srgbClr+mods) so a rebuild
+     *  keeps the theme link instead of baking the computed srgbClr. */
+    colorNodeXml?: string
     /** <a:buFont> typeface (symbol fonts like Wingdings) */
     font?: string
     /** <a:buSzPct> (%, 100 = same size as text) */
     sizePct?: number
+    /** <a:buSzPts> absolute glyph size (pt); wins over sizePct */
+    sizePt?: number
     /** <a:buAutoNum type> (arabicPeriod/romanLcParen…) */
     numType?: string
     /** <a:buAutoNum startAt>: first number of the sequence (default 1) */
@@ -287,6 +345,14 @@ export interface Paragraph {
   tabStops?: Array<{ pos: number; algn?: string }>
   /** <a:pPr defTabSz>: default tab grid (EMU, PowerPoint default 914400 = 1") */
   defTabSz?: number
+  /**
+   * Paragraph-level default run properties <a:pPr><a:defRPr>. PowerPoint resolves a
+   * run attribute as run rPr → this node → lstStyle/placeholder/master chain, so
+   * runs missing sz/b/fill take them from here (python-pptx `paragraph.font`, WPS
+   * exports). Parsed for display inheritance and written back by the rebuild path
+   * so the runs keep their look after a structural edit.
+   */
+  defRPr?: ParagraphDefaultRunProps
   /**
    * Which paragraph properties come from an explicit <a:pPr> (rather than display
    * values inherited from lstStyle/placeholder/master). The rebuild path writes
@@ -465,6 +531,8 @@ export interface TextElement extends ElementBase {
   adjust?: Record<string, number>
   /** Custom geometry (mutually exclusive with presetGeometry) */
   customGeometry?: CustomGeometry
+  /** spPr carried neither a:prstGeom nor a:custGeom (non-placeholder): PowerPoint draws only the text */
+  noGeometry?: true
   fill?: Fill
   /** <p:sp useBgFill="1">: painted with the slide's effective background fill (fill is only a fallback) */
   useBgFill?: boolean
@@ -513,6 +581,8 @@ export interface PictureElement extends ElementBase {
   clrChange?: { from: string; to: string }
   /** <a:blip><a:lum> brightness/contrast on the picture blip (-1..1 each) */
   lum?: { bright: number; contrast: number }
+  /** <a:blip><a:biLevel> threshold (0-1) on the picture blip */
+  biLevel?: number
   stroke?: Stroke
   shadow?: ShadowEffect
   glow?: GlowEffect
@@ -558,6 +628,8 @@ export interface TableCell {
   /** Cell fill (explicit tcPr fill; table-style inheritance not yet supported) */
   fill?: Fill
   borders?: TableCellBorders
+  /** <a:tcPr><a:cell3D>: bevelled cell (width EMU from a:bevel@w, default 76200) */
+  bevel?: { widthEmu: number; preset?: string; lightDir?: string }
   /** Horizontal merge span in columns (gridSpan, default 1) */
   gridSpan?: number
   /** Vertical merge span in rows (rowSpan, default 1) */
@@ -574,8 +646,17 @@ export interface TableElement extends ElementBase {
   rowHeights: number[]
   /** rows[r][c], aligned with rowHeights/colWidths */
   rows: TableCell[][]
-  /** tblPr's header-row/banded-rows toggles (echoed in the Ribbon's "Table Design") */
-  styleFlags?: { firstRow: boolean; bandRow: boolean }
+  /** a:tblPr/a:tableStyleId (built-in GUID or a custom style in ppt/tableStyles.xml) */
+  styleId?: string
+  /** tblPr's region toggles (echoed in the Ribbon's "Table Design") */
+  styleFlags?: {
+    firstRow: boolean
+    bandRow: boolean
+    lastRow?: boolean
+    firstCol?: boolean
+    lastCol?: boolean
+    bandCol?: boolean
+  }
   /** tblPr rtl="1": PowerPoint mirrors the grid horizontally (logical column 1 renders rightmost) */
   rtl?: boolean
   /** Table-style <a:tblBg>: drawn under the cells (alpha band fills composite over it) */

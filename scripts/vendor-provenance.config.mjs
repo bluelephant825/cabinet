@@ -23,7 +23,7 @@ export const VENDORS = {
   genoffice: {
     upstream: 'https://github.com/bluelephant825/genoffice',
     parent: 'https://github.com/genspark-ai/genoffice',
-    commit: 'f2c3d0879df29622d5a447935d2b4aeac033544d',
+    commit: '476e5023c9a4bc459ca6de7b1d697ab25d94850e',
     dir: 'src/vendor/genoffice',
     upstreamPathFor: genofficeUpstreamPathFor,
     adapted: {
@@ -32,7 +32,7 @@ export const VENDORS = {
       'apps/pdf/main/font-locate.ts':
         'workspace import @genoffice/font-metrics rewritten to a relative path',
       'apps/pdf/main/text-edit.ts':
-        'color-only edits with unchanged text set the fill color in place instead of rebuilding the run (keeps the original font); edit font ids may be installed family names resolved through the font index, and the newFont branch wraps subsets in identityCffCharset',
+        'color-only edits with unchanged text set the fill color in place instead of rebuilding the run (keeps the original font; applied inside applyPageEdits); edit font ids may be installed family names resolved through the font index, and the newFont branch wraps subsets in identityCffCharset',
       'apps/pdf/main/image-edit.ts':
         "electron nativeImage import replaced with the host codec adapter '../../../host/image-codec'",
       'apps/pdf/main/wasm-path.ts':
@@ -44,7 +44,11 @@ export const VENDORS = {
       'apps/pdf/renderer/view-config.ts':
         'ASSET_BASE rewritten to the absolute same-origin path /document-editor/pdfjs/ (assets copied by scripts/postinstall.mjs)',
       'apps/docs/src/renderer/i18n/strings.ts':
-        'aggregator rewritten to merge only the vendored string domains (editor + ribbon + table); the app/, ai/ and other shell domains are not vendored',
+        'aggregator rewritten to merge only the vendored string domains (ribbon + table + editor + zotero, upstream precedence); the app/ and ai/ shell domains are not vendored',
+      'apps/docs/src/shared/ipc.ts':
+        "upstream's docs IPC contract (DesktopApi, AI channels, agent-core/ai-provider/electron-utils types) is shell-facing and not vendored; trimmed to the AgentToolDef shape the vendored renderer ai/style-ops.ts needs",
+      'packages/ui/src/index.ts':
+        'upstream barrel re-exports the whole shared UI kit (AiComposer, Dropdown, Markdown, find panel, ribbon collapse, dialogs…); the vendored editors only need the WordArt presets, the shape-clip helper and foldCase (PDF search), so the barrel exports just those',
       'apps/pdf/renderer/ImageEditLayer.tsx':
         "as-CSSProperties cast on the veil style — upstream's local Box type lacks the `--*` index signature current @types/react requires",
     },

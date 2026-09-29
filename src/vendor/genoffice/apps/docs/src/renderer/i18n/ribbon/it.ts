@@ -12,6 +12,8 @@ export const it = {
   ribbonTabLayout: 'Layout',
   ribbonTabReferences: 'Riferimenti',
   ribbonTabReview: 'Revisione',
+  ribbonCollapse: 'Riduci a icona la barra multifunzione',
+  ribbonPin: 'Aggiungi la barra multifunzione',
   ribbonTabView: 'Visualizza',
   ribbonTabTableDesign: 'Progettazione tabella',
   ribbonTabTableLayout: 'Layout tabella',
@@ -73,6 +75,8 @@ export const it = {
   ribbonPainterActiveTip:
     'Copia formato attivo: seleziona il testo di destinazione per applicare (fai clic di nuovo per annullare)',
   ribbonGroupClipboard: 'Appunti',
+  ribbonFontEastAsia: 'Carattere asiatico orientale',
+  ribbonFontLatin: 'Carattere latino',
   ribbonFontFamilyTip: 'Tipo di carattere',
   ribbonFontsCommon: 'Caratteri comuni',
   ribbonFontsSystem: 'Caratteri di sistema',
@@ -101,7 +105,6 @@ export const it = {
   ribbonThemeColorShadeTip: 'Colore tema {r}-{c}',
   ribbonStandardColors: 'Colori standard',
   ribbonMoreColors: 'Altri colori…',
-  ribbonGroupFont: 'Carattere',
   ribbonBullets: 'Elenchi puntati',
   ribbonNumbering: 'Elenchi numerati',
   ribbonDecreaseIndent: 'Riduci rientro',
@@ -298,6 +301,8 @@ export const it = {
   ribbonChartAddCategory: '+ Categoria',
   ribbonChartAddSeries: '+ Serie',
   ribbonLinkInsertTitle: 'Inserisci collegamento ipertestuale',
+  ribbonLinkEditTitle: 'Modifica collegamento ipertestuale',
+  ribbonLinkRemove: 'Rimuovi collegamento',
   ribbonLinkText: 'Testo da visualizzare',
   ribbonLinkTextPh: "Testo del collegamento (lascia vuoto per mostrare l'indirizzo)",
   ribbonLinkAddress: 'Indirizzo',
@@ -579,6 +584,9 @@ export const it = {
   ribbonEditorPrompt:
     "Correggi l'intero documento: sistema refusi, punteggiatura ed errori grammaticali mantenendo il significato originale e la struttura dei paragrafi.",
   ribbonGroupProofing: 'Strumenti di correzione',
+  ribbonSpellcheckBtn: 'Ortografia',
+  ribbonSpellcheckTip:
+    "Controlla l'ortografia durante la digitazione — sottolinea in rosso le parole forse errate",
   ribbonTranslate: 'Traduci',
   ribbonTranslateTip: "L'IA traduce il documento",
   ribbonTranslatePrompt:

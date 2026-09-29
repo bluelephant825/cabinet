@@ -12,6 +12,8 @@ export const zh = {
   ribbonTabLayout: '布局',
   ribbonTabReferences: '引用',
   ribbonTabReview: '审阅',
+  ribbonCollapse: '折叠功能区',
+  ribbonPin: '固定功能区',
   ribbonTabView: '视图',
   ribbonTabTableDesign: '表格设计',
   ribbonTabTableLayout: '表格布局',
@@ -74,6 +76,8 @@ export const zh = {
   ribbonPainterActiveTip: '格式刷已激活:选中目标文本即可应用(再次点击取消)',
   ribbonGroupClipboard: '剪贴板',
   // Home · Font
+  ribbonFontEastAsia: '东亚字体',
+  ribbonFontLatin: '西文字体',
   ribbonFontFamilyTip: '字体',
   ribbonFontsCommon: '常用字体',
   ribbonFontsSystem: '系统字体',
@@ -102,7 +106,6 @@ export const zh = {
   ribbonThemeColorShadeTip: '主题颜色 {r}-{c}',
   ribbonStandardColors: '标准色',
   ribbonMoreColors: '其他颜色…',
-  ribbonGroupFont: '字体',
   // Home · Paragraph
   ribbonBullets: '项目符号',
   ribbonNumbering: '编号',
@@ -305,6 +308,8 @@ export const zh = {
   ribbonChartAddSeries: '+ 系列',
   // Hyperlink dialog
   ribbonLinkInsertTitle: '插入超链接',
+  ribbonLinkEditTitle: '编辑超链接',
+  ribbonLinkRemove: '移除链接',
   ribbonLinkText: '要显示的文字',
   ribbonLinkTextPh: '链接文字(留空则显示地址)',
   ribbonLinkAddress: '地址',
@@ -585,6 +590,8 @@ export const zh = {
   ribbonEditorTip: 'AI 检查拼写、语法和标点',
   ribbonEditorPrompt: '校对全文:修正错别字、标点和语法错误,保持原意和段落结构不变。',
   ribbonGroupProofing: '校对',
+  ribbonSpellcheckBtn: '拼写检查',
+  ribbonSpellcheckTip: '键入时检查拼写——用红色波浪线标出可能拼错的单词',
   ribbonTranslate: '翻译',
   ribbonTranslateTip: 'AI 翻译文档',
   ribbonTranslatePrompt: '把全文翻译成{lang},保持段落结构和标题层级不变。',

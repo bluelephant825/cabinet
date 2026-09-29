@@ -69,20 +69,30 @@ function srgbClrXml(color: string): string {
   return `<a:srgbClr val="${rgb}"/>`
 }
 
+/**
+ * Effective autofit: a text box defaults to spAutoFit like PowerPoint's own ("resize shape to
+ * fit text"), otherwise typing past the frame overflows a box that never grows; preset shapes
+ * keep PowerPoint's "do not autofit" default.
+ */
+function effectiveAutoFit(
+  bodyPr: NewElementBodyPr | undefined,
+  isTextbox: boolean,
+): NewElementBodyPr['autoFit'] {
+  return bodyPr?.autoFit ?? (isTextbox ? 'resize' : undefined)
+}
+
 /** <a:bodyPr> for generated sp fragments (defaults match the historical output). */
-function buildBodyPrXml(bodyPr: NewElementBodyPr | undefined): string {
-  if (!bodyPr) return '<a:bodyPr wrap="square" rtlCol="0"/>'
-  const ins = bodyPr.insetsEmu
+function buildBodyPrXml(bodyPr: NewElementBodyPr | undefined, isTextbox: boolean): string {
+  const ins = bodyPr?.insetsEmu
   const attrs =
-    `<a:bodyPr wrap="${bodyPr.wrap ?? 'square'}" rtlCol="0"` +
+    `<a:bodyPr wrap="${bodyPr?.wrap ?? 'square'}" rtlCol="0"` +
     (ins
       ? ` lIns="${Math.round(ins.l)}" tIns="${Math.round(ins.t)}" rIns="${Math.round(ins.r)}" bIns="${Math.round(ins.b)}"`
       : '') +
-    (bodyPr.anchor ? ` anchor="${bodyPr.anchor}"` : '')
-  if (!bodyPr.autoFit) return attrs + '/>'
-  return (
-    attrs + `>${bodyPr.autoFit === 'shrink' ? '<a:normAutofit/>' : '<a:spAutoFit/>'}</a:bodyPr>`
-  )
+    (bodyPr?.anchor ? ` anchor="${bodyPr.anchor}"` : '')
+  const autoFit = effectiveAutoFit(bodyPr, isTextbox)
+  if (!autoFit) return attrs + '/>'
+  return attrs + `>${autoFit === 'shrink' ? '<a:normAutofit/>' : '<a:spAutoFit/>'}</a:bodyPr>`
 }
 
 function buildAvLstXml(adjustments: Record<string, number> | undefined): string {
@@ -165,7 +175,7 @@ export function buildSpXml(slide: Slide, opts: NewElementOptions): string {
     : `<a:prstGeom prst="${escapeXmlAttr(opts.kind)}">${buildAvLstXml(opts.adjustments)}</a:prstGeom>`
   const fill = opts.fillColor ? `<a:solidFill>${srgbClrXml(opts.fillColor)}</a:solidFill>` : ''
   const ln = opts.stroke
-    ? `<a:ln w="${Math.round(opts.stroke.widthEmu)}"><a:solidFill><a:srgbClr val="${opts.stroke.color.replace(/^#/, '').slice(0, 6).toUpperCase()}"/></a:solidFill></a:ln>`
+    ? `<a:ln w="${Math.round(opts.stroke.widthEmu)}"><a:solidFill>${srgbClrXml(opts.stroke.color)}</a:solidFill></a:ln>`
     : ''
   const paras = (opts.paragraphs?.length ? opts.paragraphs : [{ runs: [{ text: '' }] }])
     .map((p) => generateParagraphXml(p))
@@ -174,7 +184,7 @@ export function buildSpXml(slide: Slide, opts: NewElementOptions): string {
     `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${escapeXmlAttr(name)}">${creationIdXml()}</p:cNvPr>` +
     `<p:cNvSpPr${isTextbox ? ' txBox="1"' : ''}/><p:nvPr/></p:nvSpPr>` +
     `<p:spPr>${xfrm}${geom}${fill}${ln}</p:spPr>` +
-    `<p:txBody>${buildBodyPrXml(opts.bodyPr)}<a:lstStyle/>${paras}</p:txBody></p:sp>`
+    `<p:txBody>${buildBodyPrXml(opts.bodyPr, isTextbox)}<a:lstStyle/>${paras}</p:txBody></p:sp>`
   )
 }
 
@@ -207,6 +217,7 @@ export function addElement(slide: Slide, opts: NewElementOptions): TextElement {
     return el
   }
   const xml = buildSpXml(slide, opts)
+  const autoFit = effectiveAutoFit(opts.bodyPr, opts.kind === 'textbox')
   const el: TextElement = {
     id: `spnew_${(insertCounter++).toString(36)}_${Date.now().toString(36)}`,
     type: opts.kind === 'textbox' ? 'text' : 'shape',
@@ -225,7 +236,8 @@ export function addElement(slide: Slide, opts: NewElementOptions): TextElement {
       : {}),
     text: {
       paragraphs: opts.paragraphs?.length ? opts.paragraphs : [{ runs: [{ text: '' }] }],
-      ...(opts.bodyPr?.autoFit ? { autofit: opts.bodyPr.autoFit } : {}),
+      ...(autoFit ? { autofit: autoFit } : {}),
+      ...(opts.bodyPr?.wrap === 'none' ? { wrap: false } : {}),
     },
   }
   slide.elements.push(el)
@@ -456,6 +468,12 @@ export interface NewPictureOptions {
  * Returns the new relationship id and media path (shared by picture insertion /
  * shape picture fill).
  */
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength !== b.byteLength) return false
+  for (let i = 0; i < a.byteLength; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
 export function addImageMediaAndRel(
   opened: OpenedPptx,
   slide: Slide,
@@ -467,21 +485,36 @@ export function addImageMediaAndRel(
   const mime = IMAGE_MIME[ext]
   if (!mime) return null
 
-  // 1) media part: number = current max + 1
+  // 1) media part: identical bytes already in the package (a logo on every
+  // slide, a converter re-embedding one scan twice) share the part; otherwise
+  // number = current max + 1
   let maxNum = 0
-  for (const path of archive.entries.keys()) {
+  let mediaPath: string | undefined
+  for (const [path, existing] of archive.entries) {
     const m = /^ppt\/media\/image(\d+)\./.exec(path)
-    if (m) maxNum = Math.max(maxNum, Number(m[1]))
+    if (!m) continue
+    maxNum = Math.max(maxNum, Number(m[1]))
+    if (mediaPath === undefined && path.endsWith(`.${ext}`) && sameBytes(existing, bytes)) {
+      mediaPath = path
+    }
   }
-  const mediaPath = `ppt/media/image${maxNum + 1}.${ext}`
-  archive.entries.set(mediaPath, bytes)
+  if (mediaPath === undefined) {
+    mediaPath = `ppt/media/image${maxNum + 1}.${ext}`
+    archive.entries.set(mediaPath, bytes)
+  }
 
   // 2) [Content_Types] Default (added the first time this extension appears)
   const ctPath = '[Content_Types].xml'
   const ct = archive.readText(ctPath)
   if (ct && !new RegExp(`<Default Extension="${ext}"`).test(ct)) {
     const dflt = `<Default Extension="${ext}" ContentType="${mime}"/>`
-    archive.entries.set(ctPath, Buffer.from(ct.replace('</Types>', `${dflt}</Types>`), 'utf8'))
+    archive.entries.set(
+      ctPath,
+      Buffer.from(
+        ct.replace('</Types>', () => `${dflt}</Types>`),
+        'utf8',
+      ),
+    )
   }
 
   // 3) slide rels: new rId (the rels file may not exist)
@@ -492,10 +525,13 @@ export function addImageMediaAndRel(
   let maxRid = 0
   for (const m of rels.matchAll(/Id="rId(\d+)"/g)) maxRid = Math.max(maxRid, Number(m[1]))
   const rid = `rId${maxRid + 1}`
-  const relXml = `<Relationship Id="${rid}" Type="${IMAGE_REL_TYPE}" Target="../media/image${maxNum + 1}.${ext}"/>`
+  const relXml = `<Relationship Id="${rid}" Type="${IMAGE_REL_TYPE}" Target="../media/${mediaPath.slice('ppt/media/'.length)}"/>`
   archive.entries.set(
     relsPath,
-    Buffer.from(rels.replace('</Relationships>', `${relXml}</Relationships>`), 'utf8'),
+    Buffer.from(
+      rels.replace('</Relationships>', () => `${relXml}</Relationships>`),
+      'utf8',
+    ),
   )
   return { rid, mediaPath }
 }

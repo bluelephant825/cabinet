@@ -2,6 +2,7 @@ export const PDF_CHANNELS = {
   consumePending: 'pdf:consume-pending',
   readFile: 'pdf:read-file',
   save: 'pdf:save',
+  requestRedactionCopy: 'pdf:request-redaction-copy',
   autoRename: 'pdf:auto-rename',
   isUntitled: 'pdf:is-untitled',
   validateTextEdits: 'pdf:validate-text-edits',
@@ -37,10 +38,13 @@ export const PDF_CHANNELS = {
   saveAsResult: 'pdf:save-as-result',
   saveAsFlow: 'pdf:save-as-flow',
   printRequest: 'pdf:print-request',
+  fileRenamed: 'pdf:file-renamed',
   getLanguage: 'app:get-language',
   languageChanged: 'app:language-changed',
   getTheme: 'app:get-theme',
   themeChanged: 'app:theme-changed',
+  getAiPanelPrefs: 'app:get-ai-panel-prefs',
+  aiPanelPrefsChanged: 'app:ai-panel-prefs-changed',
 } as const
 
 export const VISUAL_SIGNATURE_CONTENT_PREFIX = 'GenOffice visual signature field: '
@@ -73,7 +77,7 @@ export interface SavedSignature {
 export type PdfConvertFormat = 'docx' | 'xlsx' | 'pptx'
 
 /** target file type of the AI create_document tool (mirrors the docs app's contract) */
-export type CreateDocumentType = 'docx' | 'pdf' | 'md'
+export type CreateDocumentType = 'docx' | 'pdf' | 'md' | 'html'
 
 export interface CreateDocumentRequest {
   type: CreateDocumentType
@@ -327,6 +331,11 @@ export interface TextEditValidation {
 /** Curated fonts selectable for rebuilt text runs. Single-face .ttf on every platform we
     ship — the subsetter cannot read .ttc collections, which rules out the macOS CJK faces.
     Availability is machine-dependent: the main process reports the usable subset. */
+/** Stroke width of a synthetic-bold run as a fraction of the em. Bold on the document's
+    own face is a same-color fill+stroke (advances unchanged, layout survives); only an
+    explicit edit font loads a real bold face. Shared by the engine and the preview. */
+export const SYNTHETIC_BOLD_STROKE_EM = 0.035
+
 export const EDIT_FONTS = [
   { id: 'arial', label: 'Arial', css: "Arial, 'Helvetica Neue', sans-serif" },
   { id: 'times', label: 'Times New Roman', css: "'Times New Roman', Times, serif" },
@@ -404,6 +413,12 @@ export interface StaticFormFillRecord {
   align?: 'left' | 'center' | 'right'
 }
 
+/** A pending area selected for permanent native PDF redaction. PDF user space, y up. */
+export interface RedactionInput {
+  pageIndex: number
+  rect: [number, number, number, number]
+}
+
 /** One OCR line from the system engine: normalized bottom-left boxes relative to
     the submitted image ([x0,y0,x1,y1], 0..1), with optional word-level char boxes. */
 export interface PdfOcrLine {
@@ -422,12 +437,23 @@ export interface PagePreviewRequest {
   /** Saved annotations to erase. Full identity data is required because object numbers
       may be stale after a save rewrites the PDF. */
   excludeAnnots?: AnnotDeleteInput[]
+  /** Text runs being edited, to erase before rendering (same probe shape the open
+      validation sends; newText is ignored). The editor then sits transparent over
+      the page instead of covering the original run with a paper box. */
+  excludeText?: TextEditInput[]
   /** Region to render, in display coords at scale 1 (after total rotation, y down) */
   clip: { x: number; y: number; width: number; height: number }
   /** Output bitmap width in px (height follows the clip aspect) */
   pxWidth: number
   /** Extra unsaved display rotation on top of the page's /Rotate: 0-3 quarter turns cw */
   rotate: number
+}
+
+export interface PagePreviewResult {
+  /** Base64 PNG of the clip */
+  png: string
+  /** Per entry of excludeText: whether the run was erased from the render */
+  textErased: boolean[]
 }
 
 /** An image edit that could not be matched to the document at save time and was skipped */
@@ -469,6 +495,8 @@ export interface SavePdfRequest {
   textInserts?: TextInsertInput[]
   /** Content-stream image operations, applied right after textEdits (same pdfium stage) */
   imageEdits?: ImageEditInput[]
+  /** Permanent redactions are accepted only for an explicitly authorized Save As copy. */
+  redactions?: RedactionInput[]
   /** Complete resulting set; omitted means preserve existing embedded metadata. */
   staticFormFills?: StaticFormFillRecord[]
   /** Page rotation deltas (original page index → multiple of 90 clockwise) */
@@ -518,7 +546,7 @@ export interface ValidateTextEditsRequest {
 /** Extract pages into a new PDF written to the GenOffice save dir and opened in a new tab */
 export interface ExtractPagesRequest {
   path: string
-  /** Original page indices */
+  /** Page indices in the file as saved (the renderer flushes first, so visible positions) */
   pages: number[]
   suggestedName: string
 }

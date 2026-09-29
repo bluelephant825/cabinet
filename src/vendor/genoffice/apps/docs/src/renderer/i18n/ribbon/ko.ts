@@ -13,6 +13,8 @@ export const ko = {
   ribbonTabLayout: '레이아웃',
   ribbonTabReferences: '참조',
   ribbonTabReview: '검토',
+  ribbonCollapse: '리본 축소',
+  ribbonPin: '리본 고정',
   ribbonTabView: '보기',
   ribbonTabTableDesign: '테이블 디자인',
   ribbonTabTableLayout: '테이블 레이아웃',
@@ -75,6 +77,8 @@ export const ko = {
     '서식 복사가 켜져 있음: 대상 텍스트를 선택하면 적용됩니다(다시 클릭하면 취소)',
   ribbonGroupClipboard: '클립보드',
   // Home · Font
+  ribbonFontEastAsia: '동아시아 글꼴',
+  ribbonFontLatin: '영문 글꼴',
   ribbonFontFamilyTip: '글꼴',
   ribbonFontsCommon: '자주 쓰는 글꼴',
   ribbonFontsSystem: '시스템 글꼴',
@@ -103,7 +107,6 @@ export const ko = {
   ribbonThemeColorShadeTip: '테마 색 {r}-{c}',
   ribbonStandardColors: '표준 색',
   ribbonMoreColors: '다른 색…',
-  ribbonGroupFont: '글꼴',
   // Home · Paragraph
   ribbonBullets: '글머리 기호',
   ribbonNumbering: '번호 매기기',
@@ -307,6 +310,8 @@ export const ko = {
   ribbonChartAddSeries: '+ 계열',
   // Hyperlink dialog
   ribbonLinkInsertTitle: '하이퍼링크 삽입',
+  ribbonLinkEditTitle: '하이퍼링크 편집',
+  ribbonLinkRemove: '링크 제거',
   ribbonLinkText: '표시할 텍스트',
   ribbonLinkTextPh: '링크 텍스트(비워 두면 주소 표시)',
   ribbonLinkAddress: '주소',
@@ -590,6 +595,9 @@ export const ko = {
   ribbonEditorPrompt:
     '문서 전체를 교정해 주세요: 오탈자, 문장 부호, 문법 오류를 수정하되 원래 의미와 단락 구조는 유지해 주세요.',
   ribbonGroupProofing: '언어 교정',
+  ribbonSpellcheckBtn: '맞춤법 검사',
+  ribbonSpellcheckTip:
+    '입력하는 동안 맞춤법을 검사하여 잘못 입력된 것으로 보이는 단어에 빨간 밑줄을 표시합니다',
   ribbonTranslate: '번역',
   ribbonTranslateTip: 'AI가 문서 번역',
   ribbonTranslatePrompt:
