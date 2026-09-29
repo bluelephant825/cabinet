@@ -1,7 +1,7 @@
 schemaVersion: 1
 id: home
 name: Test Home
-kind: home
+kind: root
 version: 0.1.0
 description: Cabinet home for the test suite (root manifest).
 entry: index.md
