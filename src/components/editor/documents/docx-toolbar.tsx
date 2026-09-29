@@ -18,6 +18,7 @@ import {
   List,
   ListOrdered,
   MessageSquare,
+  PenLine,
   Outdent,
   Indent,
   Redo2,
@@ -129,6 +130,8 @@ export function DocxToolbar({
   commentsOpen,
   commentCount,
   onToggleComments,
+  changesOpen,
+  onToggleChanges,
 }: {
   editor: Editor | null;
   readOnly: boolean;
@@ -144,6 +147,8 @@ export function DocxToolbar({
   commentsOpen?: boolean;
   commentCount?: number;
   onToggleComments?: () => void;
+  changesOpen?: boolean;
+  onToggleChanges?: () => void;
 }) {
   const { t, locale } = useLocale();
   const fs = formatState;
@@ -204,6 +209,15 @@ export function DocxToolbar({
         >
           <MessageSquare size={14} />
           {commentCount ? <span data-testid="docx-tb-comments-count">{commentCount}</span> : null}
+        </ToolButton>
+        <ToolButton
+          testId="docx-tb-changes"
+          title={t("docxEditor:tbChanges")}
+          pressed={changesOpen}
+          disabled={!editor}
+          onClick={() => onToggleChanges?.()}
+        >
+          <PenLine size={14} />
         </ToolButton>
         <ToolButton
           testId="docx-tb-undo"

@@ -271,6 +271,75 @@ test("docx comments panel: read thread, reply and resolve, persists across reloa
   await expect(thread2).toContainText("Resolved");
 });
 
+test("docx tracked changes: list, accept/reject, track toggle, persists", async ({ page }) => {
+  const doc = await parseDocx(await buildBlankDocx());
+  const rev = { author: "Ada Lovelace", date: "2026-09-01T09:00:00Z" };
+  const bytes = Buffer.from(
+    await saveDocx(doc, [
+      {
+        kind: "generated",
+        block: {
+          type: "paragraph",
+          runs: [
+            { text: "Keep " },
+            { text: "added", ins: rev },
+            { text: " removed", del: rev },
+            { text: " end" },
+          ],
+        },
+      },
+    ] as SaveBlock[]),
+  );
+  expect((await putDocument("changes.docx", bytes)).ok).toBe(true);
+
+  const frame = await openDocx(page, "changes.docx");
+  const editor = frame.locator(".ProseMirror").first();
+  await frame.locator('[data-testid="docx-tb-changes"]').click();
+  const panel = frame.locator('[data-testid="docx-changes-panel"]');
+  await expect(panel).toBeVisible();
+  const items = panel.locator('[data-testid="docx-change-item"]');
+  await expect(items).toHaveCount(2);
+  await expect(items.nth(0)).toContainText("Inserted");
+  await expect(items.nth(0)).toContainText("Ada Lovelace");
+  await expect(items.nth(0)).toContainText("added");
+  await expect(items.nth(1)).toContainText("Deleted");
+
+  // Markup view "final" hides deletions visually without touching the doc.
+  await panel.locator('[data-testid="docx-markup-view"]').selectOption("final");
+  await expect(frame.locator(".doc-editor-body.rev-display-none")).toHaveCount(1);
+  await panel.locator('[data-testid="docx-markup-view"]').selectOption("all");
+
+  // Accept the insertion, reject the deletion.
+  await items.nth(0).locator('[data-testid="docx-change-accept"]').click();
+  await expect(items).toHaveCount(1);
+  await items.nth(0).locator('[data-testid="docx-change-reject"]').click();
+  await expect(items).toHaveCount(0);
+  await expect(editor).toContainText("Keep added removed end");
+
+  // Track toggle: a typed insertion becomes a pending change attributed to the user.
+  await panel.locator('[data-testid="docx-track-toggle"]').check();
+  await editor.getByText("Keep added removed end").click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" NEW");
+  await expect(items).toHaveCount(1);
+  await expect(items.nth(0)).toContainText("Inserted");
+  await expect(items.nth(0)).toContainText("NEW");
+  await panel.locator('[data-testid="docx-track-toggle"]').uncheck();
+
+  await frame.locator('[data-testid="docx-tb-save"]').click();
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 15_000 });
+
+  // Reload: the accepted/rejected changes are gone, the tracked insertion remains pending.
+  const frame2 = await openDocx(page, "changes.docx");
+  await frame2.locator('[data-testid="docx-tb-changes"]').click();
+  const items2 = frame2.locator('[data-testid="docx-change-item"]');
+  await expect(items2).toHaveCount(1, { timeout: 30_000 });
+  await expect(items2.nth(0)).toContainText("NEW");
+  await expect(frame2.locator(".ProseMirror").first()).toContainText("Keep added removed end NEW");
+  await frame2.locator('[data-testid="docx-accept-all"]').click();
+  await expect(items2).toHaveCount(0);
+});
+
 test("docx save clears the dirty badge — including a second edit+save cycle", async ({
   page,
 }) => {

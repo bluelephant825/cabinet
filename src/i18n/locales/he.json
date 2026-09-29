@@ -2241,7 +2241,22 @@
     "commentsEmpty": "",
     "commentsShowResolved": "",
     "commentsTitle": "",
-    "tbComments": ""
+    "tbComments": "",
+    "changeAccept": "",
+    "changeAcceptAll": "",
+    "changeNext": "",
+    "changePrev": "",
+    "changeReject": "",
+    "changeRejectAll": "",
+    "changesClose": "",
+    "changesEmpty": "",
+    "changesTitle": "",
+    "changesTrack": "",
+    "changesView": "",
+    "changesViewAll": "",
+    "changesViewFinal": "",
+    "changesViewOriginal": "",
+    "tbChanges": ""
   },
   "pdfEditor": {
     "bold": "",

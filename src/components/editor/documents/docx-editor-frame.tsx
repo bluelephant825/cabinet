@@ -27,6 +27,7 @@ import {
 import { setModuleLang } from "../../../vendor/genoffice/apps/docs/src/renderer/i18n/locale";
 import { strings as editorStrings } from "../../../vendor/genoffice/apps/docs/src/renderer/i18n/strings";
 import { setDocFontTable } from "../../../vendor/genoffice/apps/docs/src/renderer/line-metrics";
+import { DocxChangesPanel, type MarkupView } from "./docx-changes-panel";
 import { DocxCommentsPanel } from "./docx-comments-panel";
 import type { DocxComment } from "./docx-comments";
 import { DocxFindPanel } from "./docx-find-panel";
@@ -103,7 +104,8 @@ export default function DocxEditorFrame() {
   const [uiState, setUiState] = useState({ dirty: false, saving: false, readOnly: false });
   const [installedFonts, setInstalledFonts] = useState<string[]>([]);
   const [findOpen, setFindOpen] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [sidePanel, setSidePanel] = useState<"comments" | "changes" | null>(null);
+  const [markupView, setMarkupView] = useState<MarkupView>("all");
   const [comments, setComments] = useState<DocxComment[]>([]);
   const [author, setAuthor] = useState("");
 
@@ -544,9 +546,11 @@ export default function DocxEditorFrame() {
           installedFonts={installedFonts}
           findOpen={findOpen}
           onToggleFind={() => setFindOpen((v) => !v)}
-          commentsOpen={commentsOpen}
+          commentsOpen={sidePanel === "comments"}
           commentCount={comments.length}
-          onToggleComments={() => setCommentsOpen((v) => !v)}
+          onToggleComments={() => setSidePanel((v) => (v === "comments" ? null : "comments"))}
+          changesOpen={sidePanel === "changes"}
+          onToggleChanges={() => setSidePanel((v) => (v === "changes" ? null : "changes"))}
         />
       )}
       {status === "ready" && findOpen && (
@@ -559,16 +563,26 @@ export default function DocxEditorFrame() {
           }}
         />
       )}
-      <div className="doc-editor-body">
+      <div className={`doc-editor-body${markupView === "all" ? "" : ` rev-display-${markupView === "final" ? "none" : "original"}`}`}>
         <div ref={scrollRef} className="doc-editor-scroll" />
-        {status === "ready" && commentsOpen && (
+        {status === "ready" && sidePanel === "comments" && (
           <DocxCommentsPanel
             editor={editorInstance}
             comments={comments}
             readOnly={uiState.readOnly}
             author={author || t("docxEditor:commentDefaultAuthor")}
             onChange={updateComments}
-            onClose={() => setCommentsOpen(false)}
+            onClose={() => setSidePanel(null)}
+          />
+        )}
+        {status === "ready" && sidePanel === "changes" && (
+          <DocxChangesPanel
+            editor={editorInstance}
+            readOnly={uiState.readOnly}
+            author={author || t("docxEditor:commentDefaultAuthor")}
+            view={markupView}
+            onViewChange={setMarkupView}
+            onClose={() => setSidePanel(null)}
           />
         )}
       </div>
