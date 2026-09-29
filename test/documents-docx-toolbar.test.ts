@@ -8,9 +8,14 @@ import { CellSelection, isInTable, mergeCells, splitCell } from "@tiptap/pm/tabl
 import { editorExtensions } from "../src/vendor/genoffice/apps/docs/src/renderer/editor/extensions";
 import {
   findNumIdOfKindInDoc,
+  lineSpacingOf,
+  lineSpacingPatch,
   linkHrefAllowed,
   makePendingNumberingDef,
   nextNumId,
+  nextVertAlign,
+  paragraphAttrsTransaction,
+  paragraphSpacingPatch,
 } from "../src/components/editor/documents/docx-toolbar-commands";
 
 const schema = getSchema(editorExtensions);
@@ -155,4 +160,77 @@ test("splitCell allowed only on a colSpan cell", () => {
   });
   const state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, 3) });
   assert.equal(splitCell(state), true);
+});
+
+// ── superscript / subscript, line + paragraph spacing ──────────────────────
+
+test("nextVertAlign toggles the same script off and swaps between scripts", () => {
+  assert.equal(nextVertAlign(null, "superscript"), "superscript");
+  assert.equal(nextVertAlign("superscript", "superscript"), null);
+  assert.equal(nextVertAlign("superscript", "subscript"), "subscript");
+  assert.equal(nextVertAlign("subscript", "subscript"), null);
+});
+
+test("lineSpacingOf reads auto multiples and ignores fixed-height rules", () => {
+  assert.equal(lineSpacingOf({}), null);
+  assert.equal(lineSpacingOf({ lineSpacing: 1.5, lineRule: "auto" }), 1.5);
+  assert.equal(lineSpacingOf({ lineRule: "auto", lineRawTwips: 276 }), 1.15);
+  assert.equal(lineSpacingOf({ lineSpacing: 1, lineRule: "exact", lineRawTwips: 300 }), null);
+  assert.equal(lineSpacingOf({ lineRule: "atLeast", lineRawTwips: 300 }), null);
+});
+
+test("lineSpacingPatch mirrors what parse emits for an auto rule", () => {
+  assert.deepEqual(lineSpacingPatch(1.5), {
+    lineSpacing: 1.5,
+    lineRule: "auto",
+    lineRawTwips: 360,
+  });
+  assert.equal(lineSpacingPatch(1.15).lineRawTwips, 276);
+});
+
+test("paragraphSpacingPatch writes twips and clears an inherited auto flag only when set", () => {
+  assert.deepEqual(paragraphSpacingPatch("before", 6)({}), { spaceBefore: 120 });
+  assert.deepEqual(paragraphSpacingPatch("after", 12)({ spaceAfterAuto: true }), {
+    spaceAfter: 240,
+    spaceAfterAuto: false,
+  });
+  assert.deepEqual(paragraphSpacingPatch("after", 0)({}), { spaceAfter: 0 });
+});
+
+test("paragraphAttrsTransaction patches every touched paragraph and skips no-ops", () => {
+  const doc = docWith(para("one"), para("two"), para("three"));
+  // Selection spans paragraphs one and two.
+  const state = EditorState.create({
+    schema,
+    doc,
+    selection: TextSelection.create(doc, 2, 8),
+  });
+  const tr = paragraphAttrsTransaction(state, lineSpacingPatch(2));
+  assert.ok(tr);
+  const attrs = [0, 1, 2].map((i) => tr!.doc.child(i).attrs);
+  assert.equal(attrs[0]!.lineSpacing, 2);
+  assert.equal(attrs[1]!.lineSpacing, 2);
+  assert.equal(attrs[1]!.lineRawTwips, 480);
+  assert.equal(attrs[2]!.lineSpacing, null, "untouched paragraph stays as it was");
+
+  // Re-applying identical values changes nothing.
+  const again = EditorState.create({
+    schema,
+    doc: tr!.doc,
+    selection: TextSelection.create(tr!.doc, 2, 8),
+  });
+  assert.equal(paragraphAttrsTransaction(again, lineSpacingPatch(2)), null);
+});
+
+test("paragraphSpacingPatch applies through a transaction and keeps other attrs", () => {
+  const doc = docWith({
+    type: "docParagraph",
+    attrs: { align: "center" },
+    content: [{ type: "text", text: "x" }],
+  });
+  const state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, 1) });
+  const tr = paragraphAttrsTransaction(state, paragraphSpacingPatch("before", 24));
+  assert.ok(tr);
+  assert.equal(tr!.doc.child(0).attrs.spaceBefore, 480);
+  assert.equal(tr!.doc.child(0).attrs.align, "center");
 });

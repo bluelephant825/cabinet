@@ -125,6 +125,48 @@ test("docx toolbar formats text and lists; save persists across reload", async (
   await expect(editor2.locator(".doc-li").first()).toBeVisible();
 });
 
+test("docx toolbar script, spacing and page break survive save + reload", async ({ page }) => {
+  const res = await putDocument("spacing.docx", await makeDocx("Spacing target", "Second block"));
+  expect(res.ok).toBe(true);
+
+  const frame = await openDocx(page, "spacing.docx");
+  const editor = frame.locator(".ProseMirror").first();
+
+  // First paragraph: superscript, 2x line spacing, 12pt before / 18pt after.
+  await editor.getByText("Spacing target").click({ clickCount: 3 });
+  await frame.locator('[data-testid="docx-tb-superscript"]').click();
+  const raised = (root: typeof editor) =>
+    root.locator("span").filter({ hasText: "Spacing target" }).last();
+  await expect(raised(editor)).toHaveAttribute("style", /vertical-align:\s*super/);
+  await frame.locator('[data-testid="docx-tb-line-spacing"]').selectOption("2");
+  await frame.locator('[data-testid="docx-tb-space-before"]').selectOption("12");
+  await frame.locator('[data-testid="docx-tb-space-after"]').selectOption("18");
+
+  // Page break before the second paragraph (caret at its start).
+  await editor.getByText("Second block").click();
+  await page.keyboard.press("Home");
+  await frame.locator('[data-testid="docx-tb-page-break"]').click();
+
+  await frame.locator('[data-testid="docx-tb-save"]').click();
+  await expect(page.getByText("Unsaved changes")).toBeHidden({ timeout: 15_000 });
+
+  const frame2 = await openDocx(page, "spacing.docx");
+  const editor2 = frame2.locator(".ProseMirror").first();
+  await expect(raised(editor2)).toHaveAttribute("style", /vertical-align:\s*super/, {
+    timeout: 30_000,
+  });
+  await editor2.getByText("Spacing target").click();
+  await expect(frame2.locator('[data-testid="docx-tb-line-spacing"]')).toHaveValue("2");
+  await expect(frame2.locator('[data-testid="docx-tb-space-before"]')).toHaveValue("12");
+  await expect(frame2.locator('[data-testid="docx-tb-space-after"]')).toHaveValue("18");
+  await expect(frame2.locator('[data-testid="docx-tb-superscript"]')).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  // The page break landed on the paragraph after the caret.
+  await expect(editor2.locator(".page-break-before").first()).toBeAttached();
+});
+
 test("docx save clears the dirty badge — including a second edit+save cycle", async ({
   page,
 }) => {

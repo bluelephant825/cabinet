@@ -21,7 +21,10 @@ import {
   Indent,
   Redo2,
   Save,
+  SeparatorHorizontal,
   Strikethrough,
+  Subscript,
+  Superscript,
   Table,
   Trash2,
   Underline,
@@ -33,9 +36,15 @@ import { useLocalFonts } from "./use-local-fonts";
 import { fontFamiliesFor } from "../../../vendor/genoffice/apps/docs/src/renderer/font-list";
 import { HIGHLIGHT_CSS } from "../../../vendor/genoffice/apps/docs/src/renderer/editor/marks";
 import {
+  LINE_SPACING_OPTIONS,
+  PARA_SPACING_PT_OPTIONS,
+  applyParagraphAttrs,
   applyParagraphStyle,
   changeIndent,
+  insertBreak,
   insertTable,
+  lineSpacingPatch,
+  paragraphSpacingPatch,
   setAlign,
   setLink,
   setTextStyle,
@@ -47,6 +56,7 @@ import {
   tableMergeCells,
   tableSplitCell,
   toggleList,
+  toggleVertAlign,
   type AlignKey,
   type DocxFormatState,
   type ListKind,
@@ -293,6 +303,24 @@ export function DocxToolbar({
         >
           <Strikethrough size={14} />
         </ToolButton>
+        <ToolButton
+          testId="docx-tb-superscript"
+          title={t("docxEditor:tbSuperscript")}
+          pressed={fs?.vertAlign === "superscript"}
+          disabled={disabled}
+          onClick={act((e) => toggleVertAlign(e, "superscript"))}
+        >
+          <Superscript size={14} />
+        </ToolButton>
+        <ToolButton
+          testId="docx-tb-subscript"
+          title={t("docxEditor:tbSubscript")}
+          pressed={fs?.vertAlign === "subscript"}
+          disabled={disabled}
+          onClick={act((e) => toggleVertAlign(e, "subscript"))}
+        >
+          <Subscript size={14} />
+        </ToolButton>
         <input
           type="color"
           data-testid="docx-tb-color"
@@ -359,6 +387,60 @@ export function DocxToolbar({
       </div>
       <span className="doc-frame-sep" />
       <div className="doc-frame-group">
+        <select
+          data-testid="docx-tb-line-spacing"
+          className="doc-frame-select doc-frame-select-narrow"
+          title={t("docxEditor:tbLineSpacing")}
+          aria-label={t("docxEditor:tbLineSpacing")}
+          disabled={disabled}
+          value={fs?.lineSpacing != null ? String(fs.lineSpacing) : ""}
+          onChange={(e) => {
+            const mult = Number(e.target.value);
+            if (editor && mult > 0) applyParagraphAttrs(editor, lineSpacingPatch(mult));
+          }}
+        >
+          <option value="">–</option>
+          {(fs?.lineSpacing != null && !LINE_SPACING_OPTIONS.some((m) => m === fs.lineSpacing)
+            ? [fs.lineSpacing, ...LINE_SPACING_OPTIONS]
+            : LINE_SPACING_OPTIONS
+          ).map((m) => (
+            <option key={m} value={String(m)}>
+              {m}
+            </option>
+          ))}
+        </select>
+        {(["before", "after"] as const).map((which) => {
+          const current = which === "before" ? fs?.spaceBeforePt : fs?.spaceAfterPt;
+          const label = t(which === "before" ? "docxEditor:tbSpaceBefore" : "docxEditor:tbSpaceAfter");
+          return (
+            <select
+              key={which}
+              data-testid={`docx-tb-space-${which}`}
+              className="doc-frame-select doc-frame-select-narrow"
+              title={label}
+              aria-label={label}
+              disabled={disabled}
+              value={current != null ? String(current) : ""}
+              onChange={(e) => {
+                if (e.target.value === "") return;
+                if (editor) applyParagraphAttrs(editor, paragraphSpacingPatch(which, Number(e.target.value)));
+              }}
+            >
+              <option value="">{which === "before" ? "↑" : "↓"}</option>
+              {(current != null && !PARA_SPACING_PT_OPTIONS.some((v) => v === current)
+                ? [current, ...PARA_SPACING_PT_OPTIONS]
+                : PARA_SPACING_PT_OPTIONS
+              ).map((pt) => (
+                <option key={pt} value={String(pt)}>
+                  {pt}
+                </option>
+              ))}
+            </select>
+          );
+        })}
+      </div>
+      <span className="doc-frame-sep" />
+      <div className="doc-frame-group">
         <ToolButton
           testId="docx-tb-bullets"
           title={t("docxEditor:tbBullets")}
@@ -405,6 +487,14 @@ export function DocxToolbar({
       </div>
       <span className="doc-frame-sep" />
       <div className="doc-frame-group">
+        <ToolButton
+          testId="docx-tb-page-break"
+          title={t("docxEditor:tbPageBreak")}
+          disabled={disabled}
+          onClick={act(insertBreak)}
+        >
+          <SeparatorHorizontal size={14} />
+        </ToolButton>
         <ToolButton
           testId="docx-tb-table-insert"
           title={t("docxEditor:tbInsertTable")}

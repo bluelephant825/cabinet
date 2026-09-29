@@ -6,7 +6,7 @@
  * vendored schema in apps/docs/src/renderer/editor/extensions.ts).
  */
 import type { Editor } from "@tiptap/core";
-import { TextSelection, type Command } from "@tiptap/pm/state";
+import { TextSelection, type Command, type EditorState, type Transaction } from "@tiptap/pm/state";
 import type { Node as PmNode } from "@tiptap/pm/model";
 import {
   addColumnAfter,
@@ -23,6 +23,7 @@ import {
 
 import { setSelectionAlign } from "../../../vendor/genoffice/apps/docs/src/renderer/editor/direction";
 import { stepParagraphIndent } from "../../../vendor/genoffice/apps/docs/src/renderer/editor/indent";
+import { insertPageBreak } from "../../../vendor/genoffice/apps/docs/src/renderer/editor/page-break";
 import { tableModelToPmNode } from "../../../vendor/genoffice/apps/docs/src/renderer/editor/convert";
 import { isEastAsianFontName } from "../../../vendor/genoffice/apps/docs/src/renderer/font-list";
 
@@ -32,6 +33,12 @@ type TableModel = Parameters<typeof tableModelToPmNode>[0];
 export type ParagraphStyleKey = "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 export type AlignKey = "left" | "center" | "right" | "justify";
 export type ListKind = "bullet" | "ordered";
+export type VertAlign = "superscript" | "subscript";
+
+/** Line-spacing multiples offered by the toolbar (Word's list). */
+export const LINE_SPACING_OPTIONS = [1, 1.15, 1.5, 2, 2.5, 3] as const;
+/** Paragraph space-before/after choices in points. */
+export const PARA_SPACING_PT_OPTIONS = [0, 6, 8, 10, 12, 18, 24] as const;
 
 export interface DocxFormatState {
   bold: boolean;
@@ -46,6 +53,12 @@ export interface DocxFormatState {
   color: string | null;
   /** OOXML highlight name (see HIGHLIGHT_CSS) or null. */
   highlight: string | null;
+  vertAlign: VertAlign | null;
+  /** Line-spacing multiple of the caret paragraph; null when unset or a fixed (atLeast/exact) rule. */
+  lineSpacing: number | null;
+  /** Space before/after the caret paragraph in points; null when unset. */
+  spaceBeforePt: number | null;
+  spaceAfterPt: number | null;
   align: AlignKey | null;
   listKind: ListKind | null;
   inTable: boolean;
@@ -57,6 +70,18 @@ export interface DocxFormatState {
 }
 
 const PARA_BLOCKS = new Set(["docParagraph", "docHeading", "docListItem"]);
+
+/** Line-spacing multiple carried by a paragraph's attrs, or null (unset / fixed-height rule). */
+export function lineSpacingOf(attrs: Record<string, unknown>): number | null {
+  if (attrs.lineRule === "exact" || attrs.lineRule === "atLeast") return null;
+  const mult = Number(attrs.lineSpacing);
+  if (mult > 0) return mult;
+  const raw = Number(attrs.lineRawTwips);
+  return raw > 0 ? Math.round((raw / 240) * 100) / 100 : null;
+}
+
+const twipsToPt = (v: unknown): number | null =>
+  v == null || Number.isNaN(Number(v)) ? null : Number(v) / 20;
 
 export function readFormatState(editor: Editor): DocxFormatState {
   const state = editor.state;
@@ -74,6 +99,9 @@ export function readFormatState(editor: Editor): DocxFormatState {
     }
   }
   const inTable = isInTable(state);
+  const caretPara = state.selection.$from.parent;
+  const paraAttrs: Record<string, unknown> =
+    caretPara.isTextblock && "lineSpacing" in caretPara.attrs ? caretPara.attrs : {};
   return {
     bold: editor.isActive("bold"),
     italic: editor.isActive("italic"),
@@ -84,6 +112,10 @@ export function readFormatState(editor: Editor): DocxFormatState {
     sizeHalfPoints: (style.sizeHalfPoints as number | null) ?? null,
     color: (style.color as string | null) ?? null,
     highlight: (style.highlight as string | null) ?? null,
+    vertAlign: (style.vertAlign as VertAlign | null) ?? null,
+    lineSpacing: lineSpacingOf(paraAttrs),
+    spaceBeforePt: twipsToPt(paraAttrs.spaceBefore),
+    spaceAfterPt: twipsToPt(paraAttrs.spaceAfter),
     align,
     listKind: editor.isActive("docListItem")
       ? ((editor.getAttributes("docListItem").kind as ListKind) ?? "bullet")
@@ -167,6 +199,7 @@ export function setTextStyle(
     sizeHalfPoints: number | null;
     color: string | null;
     highlight: string | null;
+    vertAlign: VertAlign | null;
   }>,
 ): boolean {
   const current = editor.getAttributes("docTextStyle") as Record<string, unknown>;
@@ -186,6 +219,77 @@ export function setTextStyle(
     merged[key] = value;
   }
   return editor.chain().focus().setMark("docTextStyle", merged).run();
+}
+
+/** Clicking the active script again clears it; the two scripts are mutually exclusive. */
+export function nextVertAlign(current: VertAlign | null, requested: VertAlign): VertAlign | null {
+  return current === requested ? null : requested;
+}
+
+export function toggleVertAlign(editor: Editor, requested: VertAlign): boolean {
+  const current = editor.getAttributes("docTextStyle").vertAlign as VertAlign | null | undefined;
+  return setTextStyle(editor, { vertAlign: nextVertAlign(current ?? null, requested) });
+}
+
+/** Word's Insert → Page Break (the vendored helper marks the paragraph after the caret). */
+export function insertBreak(editor: Editor): boolean {
+  return insertPageBreak(editor);
+}
+
+type ParaAttrs = Record<string, unknown>;
+
+/**
+ * Patch the paragraph-level attrs of every textblock the selection touches
+ * (pure: EditorState in, Transaction out; null when nothing changed). `patch`
+ * may be a function of the block's current attrs.
+ */
+export function paragraphAttrsTransaction(
+  state: EditorState,
+  patch: ParaAttrs | ((attrs: ParaAttrs) => ParaAttrs),
+): Transaction | null {
+  const { from, to } = state.selection;
+  const tr = state.tr;
+  let changed = false;
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.isTextblock || !("lineSpacing" in node.attrs)) return true;
+    const next = typeof patch === "function" ? patch(node.attrs) : patch;
+    const attrs = { ...node.attrs, ...next };
+    if (Object.keys(next).some((k) => node.attrs[k] !== attrs[k])) {
+      tr.setNodeMarkup(pos, undefined, attrs);
+      changed = true;
+    }
+    return false;
+  });
+  return changed ? tr : null;
+}
+
+export function applyParagraphAttrs(
+  editor: Editor,
+  patch: ParaAttrs | ((attrs: ParaAttrs) => ParaAttrs),
+): boolean {
+  const tr = paragraphAttrsTransaction(editor.state, patch);
+  if (!tr) return false;
+  editor.view.dispatch(tr);
+  editor.view.focus();
+  return true;
+}
+
+/** Multiple line spacing exactly as parse emits it (auto rule, raw twips = multiple × 240). */
+export function lineSpacingPatch(multiple: number): ParaAttrs {
+  return { lineSpacing: multiple, lineRule: "auto", lineRawTwips: Math.round(multiple * 240) };
+}
+
+/** Space before/after in points; a style-chain auto flag is overridden explicitly. */
+export function paragraphSpacingPatch(
+  which: "before" | "after",
+  pt: number,
+): (attrs: ParaAttrs) => ParaAttrs {
+  const key = which === "before" ? "spaceBefore" : "spaceAfter";
+  const autoKey = `${key}Auto`;
+  return (attrs) => ({
+    [key]: Math.round(pt * 20),
+    ...(attrs[autoKey] ? { [autoKey]: false } : {}),
+  });
 }
 
 export function setAlign(editor: Editor, align: AlignKey): boolean {
