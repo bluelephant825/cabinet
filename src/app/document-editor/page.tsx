@@ -13,6 +13,10 @@ const PdfEditorFrame = dynamic(
   () => import("@/components/editor/documents/pdf-editor-frame"),
   { ssr: false },
 );
+const XlsxSpikeFrame = dynamic(
+  () => import("@/components/editor/documents/xlsx-spike-frame"),
+  { ssr: false },
+);
 
 function formatFromHash(): string {
   if (typeof window === "undefined") return "docx";
@@ -30,7 +34,13 @@ export default function DocumentEditorPage() {
           sheet, served as static assets. */}
       <link rel="stylesheet" href="/document-editor/fonts/fonts.css" />
       <link rel="stylesheet" href="/document-editor/tokens.css" />
-      {format === "pdf" ? <PdfEditorFrame /> : <DocxEditorFrame />}
+      {format === "pdf" ? (
+        <PdfEditorFrame />
+      ) : format === "xlsx" ? (
+        <XlsxSpikeFrame />
+      ) : (
+        <DocxEditorFrame />
+      )}
     </>
   );
 }
