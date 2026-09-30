@@ -7,6 +7,8 @@ import path from "node:path";
 
 import { handleBrowserRequest, type BrowserFacade } from "../server/browser/http";
 import { BrowserError } from "../server/browser/types";
+import { BrowserSession } from "../server/browser/browser-session";
+import type { CDPClient } from "../server/browser/cdp-client";
 import { ChromiumManager, buildChromiumArgs } from "../server/browser/chromium-manager";
 
 process.env.CABINET_DAEMON_TOKEN ??= "test-browser-token";
@@ -176,6 +178,67 @@ test("app origin falls back to CABINET_APP_PORT then 4000", () => {
   } finally {
     restore();
   }
+});
+
+test("host shell probe and reload use the browser_ui target", async () => {
+  const calls: Array<{ method: string; sessionId?: string }> = [];
+  const cdp = {
+    onEvent() {},
+    async send(method: string, _params?: unknown, sessionId?: string) {
+      calls.push({ method, sessionId });
+      if (method === "Target.getTargets") {
+        return {
+          targetInfos: [
+            {
+              targetId: "page-1",
+              type: "page",
+              url: "https://example.com/",
+              title: "Example",
+            },
+            {
+              targetId: "shell-1",
+              type: "browser_ui",
+              url: "http://127.0.0.1:4555/",
+              title: "Cabinet",
+            },
+          ],
+        };
+      }
+      if (method === "Target.attachToTarget") return { sessionId: "shell-session" };
+      if (method === "Runtime.evaluate") {
+        assert.equal(sessionId, "shell-session");
+        return {
+          result: {
+            value: {
+              href: "http://127.0.0.1:4555/",
+              readyState: "complete",
+              hasHost: true,
+              bodyChildren: 3,
+              bodyTextLength: 42,
+            },
+          },
+        };
+      }
+      if (method === "Page.reload") {
+        assert.equal(sessionId, "shell-session");
+        return {};
+      }
+      return {};
+    },
+  } as unknown as CDPClient;
+
+  const session = new BrowserSession(cdp);
+  await session.start();
+  const probe = await session.inspectHostShell("http://127.0.0.1:4555");
+  assert.equal(probe?.targetId, "shell-1");
+  assert.equal(probe?.ready, true);
+  assert.equal(probe?.bodyTextLength, 42);
+  assert.equal(await session.reloadHostShell("http://127.0.0.1:4555"), true);
+  assert.ok(
+    calls.some(
+      (call) => call.method === "Page.reload" && call.sessionId === "shell-session",
+    ),
+  );
 });
 
 test("hostMode is on with browser.hostMode in cabinet-config.json", () => {

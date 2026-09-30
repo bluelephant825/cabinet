@@ -29,7 +29,11 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import { Browser, computeExecutablePath, install } from "@puppeteer/browsers";
 import { CDPClient } from "./cdp-client";
-import { BrowserSession, type BrowserSessionOptions } from "./browser-session";
+import {
+  BrowserSession,
+  type BrowserSessionOptions,
+  type HostShellProbe,
+} from "./browser-session";
 import { BrowserError, type BrowserStatus } from "./types";
 import {
   browserBinDir,
@@ -221,6 +225,7 @@ export class ChromiumManager extends EventEmitter {
   private hostExtensionId: string | null = null;
   private inFlight: Promise<BrowserSession> | null = null;
   private relaunchedAt = 0;
+  private hostShellRecoveryAt = 0;
   private stopping = false;
   private onLaunched:
     | ((session: BrowserSession) => Promise<void> | void)
@@ -540,7 +545,82 @@ export class ChromiumManager extends EventEmitter {
     } catch (err) {
       console.warn("[browser] post-launch hook failed:", err instanceof Error ? err.message : err);
     }
+    if (this.hostMode) {
+      void this.monitorHostShell(session).catch((err) => {
+        console.warn(
+          "[browser] host shell monitor failed:",
+          err instanceof Error ? err.message : err,
+        );
+      });
+    }
     return session;
+  }
+
+  private async monitorHostShell(session: BrowserSession): Promise<void> {
+    const expectedOrigin = cabinetAppOrigin();
+    const startedAt = Date.now();
+    let nextReloadAt = 10_000;
+    let reported = false;
+
+    while (this.session === session && !this.stopping) {
+      const elapsed = Date.now() - startedAt;
+      let probe: HostShellProbe | null = null;
+      try {
+        probe = await session.inspectHostShell(expectedOrigin);
+      } catch (err) {
+        if (!reported) {
+          console.warn(
+            "[browser] host shell probe failed:",
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
+      if (probe?.ready) {
+        if (reported) console.log("[browser] host shell recovered");
+        return;
+      }
+      if (!reported) {
+        console.warn(
+          "[browser] host shell not ready",
+          probe ? JSON.stringify(probe) : "(browser_ui target missing)",
+        );
+        reported = true;
+      }
+
+      if (probe && elapsed >= nextReloadAt) {
+        nextReloadAt = elapsed + 15_000;
+        console.warn("[browser] reloading stalled host shell");
+        try {
+          await session.reloadHostShell(expectedOrigin);
+        } catch (err) {
+          console.warn(
+            "[browser] host shell reload failed:",
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
+      if (
+        elapsed >= 45_000 &&
+        Date.now() - this.hostShellRecoveryAt >= 120_000
+      ) {
+        this.hostShellRecoveryAt = Date.now();
+        console.warn("[browser] host shell stayed unhealthy; relaunching Chromium");
+        try {
+          await this.shutdown();
+          await this.ensureRunning();
+        } catch (err) {
+          console.warn(
+            "[browser] host shell relaunch failed:",
+            err instanceof Error ? err.message : err,
+          );
+        }
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
   }
 
   ensureRunning(initialUrl?: string): Promise<BrowserSession> {

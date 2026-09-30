@@ -59,6 +59,17 @@ type WindowBounds = {
   visible?: boolean;
 };
 
+export type HostShellProbe = {
+  targetId: string;
+  url: string;
+  href: string | null;
+  readyState: string | null;
+  hasHost: boolean;
+  bodyChildren: number;
+  bodyTextLength: number;
+  ready: boolean;
+};
+
 function isInternalTarget(info: TargetInfo): boolean {
   if (info.type !== "page") return true;
   const url = info.url || "";
@@ -190,7 +201,10 @@ export class BrowserSession extends EventEmitter {
     };
   }
 
-  private async sessionFor(targetId: string): Promise<string> {
+  private async sessionFor(
+    targetId: string,
+    preparePage = true,
+  ): Promise<string> {
     const cached = this.sessions.get(targetId);
     if (cached) return cached;
     const result = (await this.cdp.send("Target.attachToTarget", {
@@ -202,7 +216,7 @@ export class BrowserSession extends EventEmitter {
       throw new BrowserError("cdp", `Could not attach to target ${targetId}`);
     }
     this.sessions.set(targetId, sessionId);
-    void this.preparePageSession(sessionId).catch(() => {});
+    if (preparePage) void this.preparePageSession(sessionId).catch(() => {});
     return sessionId;
   }
 
@@ -273,6 +287,79 @@ export class BrowserSession extends EventEmitter {
     if (prevTab) this.emit("tab-updated", prevTab);
     if (nextTab) this.emit("tab-updated", nextTab);
     this.schedulePersist();
+  }
+
+  /** Find the fork's browser_ui target and evaluate a small readiness probe.
+   *  Page-target filtering intentionally does not track this target, so this
+   *  attaches separately and skips the ordinary page-session setup. */
+  async inspectHostShell(expectedOrigin: string): Promise<HostShellProbe | null> {
+    const target = await this.hostShellTarget(expectedOrigin);
+    if (!target) return null;
+    const sessionId = await this.sessionFor(target.targetId, false);
+    const result = (await this.cdp.send(
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
+          const body = document.body;
+          return {
+            href: location.href,
+            readyState: document.readyState,
+            hasHost: Boolean(window.cabinetHost),
+            bodyChildren: body?.children.length ?? 0,
+            bodyTextLength: body?.innerText.trim().length ?? 0,
+          };
+        })()`,
+        returnByValue: true,
+      },
+      sessionId,
+    )) as { result?: { value?: unknown } } | undefined;
+    const value = (result?.result?.value ?? {}) as Partial<HostShellProbe>;
+    const ready =
+      value.readyState === "complete" &&
+      value.hasHost === true &&
+      (value.bodyChildren ?? 0) > 0 &&
+      (value.bodyTextLength ?? 0) > 0;
+    return {
+      targetId: target.targetId,
+      url: target.url,
+      href: typeof value.href === "string" ? value.href : null,
+      readyState: typeof value.readyState === "string" ? value.readyState : null,
+      hasHost: value.hasHost === true,
+      bodyChildren: value.bodyChildren ?? 0,
+      bodyTextLength: value.bodyTextLength ?? 0,
+      ready,
+    };
+  }
+
+  async reloadHostShell(expectedOrigin: string): Promise<boolean> {
+    const target = await this.hostShellTarget(expectedOrigin);
+    if (!target) return false;
+    const sessionId = await this.sessionFor(target.targetId, false);
+    await this.cdp.send("Page.reload", { ignoreCache: false }, sessionId);
+    return true;
+  }
+
+  private async hostShellTarget(expectedOrigin: string): Promise<TargetInfo | null> {
+    const result = (await this.cdp.send("Target.getTargets")) as
+      | { targetInfos?: TargetInfo[] }
+      | undefined;
+    const shells = (result?.targetInfos ?? []).filter(
+      (info) => info.type === "browser_ui",
+    );
+    if (shells.length === 0) return null;
+    let expected: string | null = null;
+    try {
+      expected = new URL(expectedOrigin).origin;
+    } catch {}
+    return (
+      shells.find((info) => {
+        try {
+          return new URL(info.url).origin === expected;
+        } catch {
+          return false;
+        }
+      }) ?? shells[0]
+    );
   }
 
   /** listTabs() with a visibility refresh first — use when the caller needs
