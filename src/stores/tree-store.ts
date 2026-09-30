@@ -52,6 +52,8 @@ interface TreeState {
   setDriveNode: (node: TreeNode | null) => void;
   setDriveLoading: (loading: boolean) => void;
   loadTree: (opts?: { fresh?: boolean }) => Promise<void>;
+  /** Clear the cached tree before a whole-app cabinet restart. */
+  resetForCabinetSwitch: () => void;
   selectPage: (path: string | null) => void;
   /** Expand all ancestor paths, select the leaf, and bump focusTick. */
   focusPath: (path: string) => void;
@@ -247,6 +249,25 @@ export const useTreeStore = create<TreeState>((set, get) => ({
 
   setDriveNode: (node) => set({ driveNode: node }),
   setDriveLoading: (loading) => set({ driveLoading: loading }),
+
+  resetForCabinetSwitch: () => {
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(TREE_CACHE_KEY);
+      }
+    } catch {
+      // ignore storage failures
+    }
+    set({
+      nodes: [],
+      rawNodes: [],
+      selectedPath: null,
+      driveNode: null,
+      driveLoading: false,
+      loading: true,
+      recentlyChanged: new Set<string>(),
+    });
+  },
 
   loadTree: async (opts) => {
     const { showHiddenFiles, nodes: existing, sortAlphabetical, foldersFirst } = get();

@@ -18,6 +18,8 @@ interface HealthState {
   lastDaemonOkAt: number | null;
   lastAppPollAt: number | null;
   lastAppOkAt: number | null;
+  /** Content root reported by the app server; changes after a cabinet restart. */
+  dataDir: string | null;
   installKind: InstallKind;
   bannerDismissedAt: number | null; // ms; reappears after 60s if still down
   subscribers: number;
@@ -52,6 +54,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
   lastDaemonOkAt: null,
   lastAppPollAt: null,
   lastAppOkAt: null,
+  dataDir: null,
   installKind: "source-custom",
   bannerDismissedAt: null,
   subscribers: 0,
@@ -65,19 +68,29 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     const appOk = appRes.status === "fulfilled" && appRes.value.ok;
     const daemonOk = daemonRes.status === "fulfilled" && daemonRes.value.ok;
     const now = Date.now();
+    const previousDataDir = get().dataDir;
 
     let nextInstallKind: InstallKind | null = null;
+    let nextDataDir: string | null = null;
     if (appOk && appRes.status === "fulfilled") {
       try {
         const data = await appRes.value.clone().json();
         if (data && typeof data.installKind === "string") {
           nextInstallKind = data.installKind as InstallKind;
         }
+        if (data && typeof data.dataDir === "string") {
+          nextDataDir = data.dataDir;
+        }
         // The active cabinet was switched on disk but this process still points
         // at the old one. Some read paths (tree/overview) serve stale content
         // silently, so proactively recover here rather than waiting for a page
         // fetch to hit the 503. Idempotent — safe to call every poll.
-        if (data && data.stale === true) {
+        // A changed dataDir covers hosted restart cycles where the previous
+        // server never emitted its stale marker before the process exited.
+        if (
+          (data && data.stale === true) ||
+          (previousDataDir !== null && nextDataDir !== null && nextDataDir !== previousDataDir)
+        ) {
           beginStaleRecovery();
         }
       } catch {
@@ -92,6 +105,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       lastDaemonPollAt: now,
       lastAppOkAt: appOk ? now : s.lastAppOkAt,
       lastDaemonOkAt: daemonOk ? now : s.lastDaemonOkAt,
+      dataDir: nextDataDir ?? s.dataDir,
       installKind: nextInstallKind ?? s.installKind,
     }));
   },

@@ -18,6 +18,18 @@ async function makePdf(line1 = "Hello editable world", line2 = "Second pdf line"
   return Buffer.from(await doc.save({ useObjectStreams: false }));
 }
 
+const PNG_B64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+/** PDF with a real embedded image so the Images tool has a hit target. */
+async function makePdfWithImage(): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([595, 842]);
+  const image = await doc.embedPng(Buffer.from(PNG_B64, "base64"));
+  page.drawImage(image, { x: 80, y: 500, width: 160, height: 90 });
+  return Buffer.from(await doc.save({ useObjectStreams: false }));
+}
+
 async function putDocument(pathname: string, bytes: Buffer, baseRevision?: string) {
   const qs = new URLSearchParams({ path: pathname });
   if (baseRevision) qs.set("baseRevision", baseRevision);
@@ -68,6 +80,45 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await cabinet?.close();
+});
+
+test("pdf select and images modes expose the right image targets", async ({ page }) => {
+  const res = await putDocument("image-mode.pdf", await makePdfWithImage());
+  expect(res.ok).toBe(true);
+
+  const frame = await openPdf(page, "image-mode.pdf");
+  const selectButton = frame.getByRole("button", { name: "Select", exact: true });
+  const imageButton = frame.getByRole("button", { name: "Images", exact: true });
+
+  await expect(selectButton).toHaveAttribute("aria-pressed", "true");
+  await expect(frame.locator(".pdf-imgedit-hit")).toHaveCount(0);
+
+  await imageButton.click();
+  await expect(imageButton).toHaveAttribute("aria-pressed", "true");
+  await expect(frame.locator(".pdf-tool-hint")).toContainText("Images mode is on");
+  await expect(frame.locator(".pdf-imgedit-hit")).toHaveCount(1);
+
+  await frame.locator(".pdf-imgedit-hit").first().click();
+  await expect(frame.locator(".pdf-imgmenu")).toBeVisible();
+
+  await frame.locator('[data-testid="pdf-image-input"]').setInputFiles({
+    name: "insert.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(PNG_B64, "base64"),
+  });
+  await expect(frame.locator(".pdf-tool-hint")).toContainText(
+    "Click the PDF page where the image should appear",
+  );
+  await frame.locator(".pdf-page").first().click({ position: { x: 50, y: 50 } });
+  await expect(frame.locator(".pdf-imgedit-img")).toHaveCount(1);
+  await expect(frame.locator(".pdf-imgedit-img.pdf-imgedit-selected")).toBeVisible();
+
+  await selectButton.click();
+  await expect(selectButton).toHaveAttribute("aria-pressed", "true");
+  await expect(frame.locator(".pdf-tool-hint")).toContainText("Select mode is on");
+  await expect(frame.locator(".pdf-imgedit-hit")).toHaveCount(0);
+  await expect(frame.locator(".pdf-imgedit-selected")).toHaveCount(0);
+  await expect(frame.locator(".pdf-imgmenu")).toHaveCount(0);
 });
 
 test("pdf editor renders pages, edits a text line, saves and persists", async ({

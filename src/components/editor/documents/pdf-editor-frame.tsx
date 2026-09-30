@@ -217,6 +217,7 @@ export default function PdfEditorFrame() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [conflict, setConflict] = useState<{ currentRevision?: string } | null>(null);
   const [tool, setTool] = useState<Tool>("select");
+  const [toolHint, setToolHint] = useState<string | null>(null);
   const [scale, setScale] = useState(1.25);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [geometry, setGeometry] = useState<PdfGeometryResult | null>(null);
@@ -237,6 +238,7 @@ export default function PdfEditorFrame() {
   const [textInserts, setTextInserts] = useState<LocalTextInsert[]>([]);
   const [imageEdits, setImageEdits] = useState<LocalImageEdit[]>([]);
   const [selImage, setSelImage] = useState<{ pageIndex: number; rect: Rect4 } | null>(null);
+  const [selEdit, setSelEdit] = useState<{ pageIndex: number; id: string } | null>(null);
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [diag, setDiag] = useState<Diag | null>(null);
   const [signedDismissed, setSignedDismissed] = useState(false);
@@ -421,6 +423,7 @@ export default function PdfEditorFrame() {
     setDraft(null);
     setInsertDraft(null);
     setSelImage(null);
+    setSelEdit(null);
     setHoverBlock(null);
     setDiag(null);
   }, [doc]);
@@ -433,6 +436,7 @@ export default function PdfEditorFrame() {
     setDraft(null);
     setInsertDraft(null);
     setSelImage(null);
+    setSelEdit(null);
     clearHistory();
   }, [clearHistory]);
 
@@ -803,6 +807,7 @@ export default function PdfEditorFrame() {
       // A click inside an open draft bubbles up — don't re-open the block.
       if (draft || insertDraft) return;
       const [x, y] = pagePointToPdf(pageIndex, e, e.currentTarget);
+      if (tool === "select") return;
       if (tool === "insertText") {
         setInsertDraft({
           pageIndex,
@@ -833,7 +838,10 @@ export default function PdfEditorFrame() {
           rotate: ((geom.rot % 360) + 360) % 360,
         };
         pushHistory();
-        setImageEdits((prev) => [...prev, { id: newId(), input: input as LocalImageEdit["input"] }]);
+        const editId = newId();
+        setImageEdits((prev) => [...prev, { id: editId, input: input as LocalImageEdit["input"] }]);
+        setSelImage(null);
+        setSelEdit({ pageIndex, id: editId });
         setPendingImage(null);
         markDirty();
         return;
@@ -910,6 +918,7 @@ export default function PdfEditorFrame() {
         ];
       });
       setSelImage({ pageIndex: ref.pageIndex, rect });
+      setSelEdit(null);
       markDirty();
     },
     [markDirty, pushHistory],
@@ -953,6 +962,7 @@ export default function PdfEditorFrame() {
       ]);
     }
     setSelImage(null);
+    setSelEdit(null);
     markDirty();
   }, [imageEdits, markDirty, pushHistory, selImage]);
 
@@ -991,6 +1001,7 @@ export default function PdfEditorFrame() {
         },
       ]);
       setSelImage(null);
+      setSelEdit(null);
       markDirty();
     },
     [imageEdits, markDirty, pushHistory, readImageFile, selImage, t],
@@ -1158,7 +1169,15 @@ export default function PdfEditorFrame() {
           <button
             type="button"
             className={tool === "select" ? "active" : ""}
-            onClick={() => setTool("select")}
+            aria-pressed={tool === "select"}
+            onClick={() => {
+              setTool("select");
+              setSelImage(null);
+              setSelEdit(null);
+              setHoverBlock(null);
+              setPendingImage(null);
+              setToolHint(t("pdfEditor:hintSelect"));
+            }}
             disabled={ro}
           >
             {t("pdfEditor:toolSelect")}
@@ -1166,7 +1185,12 @@ export default function PdfEditorFrame() {
           <button
             type="button"
             className={tool === "editText" ? "active" : ""}
-            onClick={() => setTool("editText")}
+            onClick={() => {
+              setTool("editText");
+              setSelImage(null);
+              setSelEdit(null);
+              setToolHint(null);
+            }}
             disabled={ro}
           >
             {t("pdfEditor:toolEditText")}
@@ -1174,7 +1198,12 @@ export default function PdfEditorFrame() {
           <button
             type="button"
             className={tool === "insertText" ? "active" : ""}
-            onClick={() => setTool("insertText")}
+            onClick={() => {
+              setTool("insertText");
+              setSelImage(null);
+              setSelEdit(null);
+              setToolHint(null);
+            }}
             disabled={ro}
           >
             {t("pdfEditor:toolInsertText")}
@@ -1182,7 +1211,18 @@ export default function PdfEditorFrame() {
           <button
             type="button"
             className={tool === "image" ? "active" : ""}
-            onClick={() => setTool("image")}
+            aria-pressed={tool === "image"}
+            onClick={() => {
+              setTool("image");
+              setSelImage(null);
+              setSelEdit(null);
+              setHoverBlock(null);
+              const imageCount =
+                geometry?.pages.reduce((count, page) => count + page.images.length, 0) ?? 0;
+              setToolHint(
+                t(imageCount > 0 ? "pdfEditor:hintImages" : "pdfEditor:hintImagesEmpty"),
+              );
+            }}
             disabled={ro}
           >
             {t("pdfEditor:toolImages")}
@@ -1191,6 +1231,10 @@ export default function PdfEditorFrame() {
             type="button"
             onClick={() => {
               setTool("image");
+              setSelImage(null);
+              setSelEdit(null);
+              setHoverBlock(null);
+              setToolHint(t("pdfEditor:hintInsertImage"));
               imageFileRef.current?.click();
             }}
             disabled={ro}
@@ -1236,6 +1280,18 @@ export default function PdfEditorFrame() {
           </button>
         </div>
       </div>
+      {toolHint && !ro && (
+        <div className="pdf-tool-hint" role="status">
+          <span>{toolHint}</span>
+          <button
+            type="button"
+            aria-label={t("pdfEditor:dismissHint")}
+            onClick={() => setToolHint(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       {geometry?.signed && !signedDismissed && dirtyEdits && (
         <div className="doc-conflict-banner pdf-sign-banner" role="alert" style={{ position: "static" }}>
           <span>{t("pdfEditor:signedWarning")}</span>
@@ -1485,54 +1541,64 @@ export default function PdfEditorFrame() {
                   );
                 })()}
                 {/* image edit layer (select/move/resize handles) */}
-                <ImageEditLayer
-                  geom={geom}
-                  scale={scale}
-                  edits={pageImageEdits.map((e) => ({
-                    ...e,
-                    input:
-                      "rect" in e.input
-                        ? { ...e.input, rect: cropRect(e.input.rect as Rect4, crop) }
-                        : "oldRect" in e.input
-                          ? { ...e.input, oldRect: cropRect(e.input.oldRect as Rect4, crop) }
-                          : e.input,
-                  }))}
-                  existing={existing.map((r) => ({ ...r, rect: cropRect(r.rect, crop) }))}
-                  selectedId={null}
-                  selectedKey={
-                    selImage && selImage.pageIndex === page.index
-                      ? selImage.rect.map((v) => v.toFixed(2)).join(",")
-                      : null
-                  }
-                  editHint=""
-                  onSelectEdit={() => setSelImage(null)}
-                  onSelectExisting={(ref) =>
-                    setSelImage({
-                      pageIndex: page.index,
-                      rect: [ref.rect[0] + crop[0], ref.rect[1] + crop[1], ref.rect[2] + crop[0], ref.rect[3] + crop[1]],
-                    })
-                  }
-                  onRect={
-                    ro
-                      ? undefined
-                      : (id, rect) =>
-                          onPendingImageRect(id, [
-                            rect[0] + crop[0],
-                            rect[1] + crop[1],
-                            rect[2] + crop[0],
-                            rect[3] + crop[1],
-                          ])
-                  }
-                  onExistingRect={
-                    ro || tool !== "image"
-                      ? undefined
-                      : (ref, rect) =>
-                          onExistingRect(
-                            { ...ref, rect: [ref.rect[0] + crop[0], ref.rect[1] + crop[1], ref.rect[2] + crop[0], ref.rect[3] + crop[1]] },
-                            [rect[0] + crop[0], rect[1] + crop[1], rect[2] + crop[0], rect[3] + crop[1]],
-                          )
-                  }
-                />
+                <div className={tool === "image" ? "" : "pdf-imgedit-passive"}>
+                  <ImageEditLayer
+                    geom={geom}
+                    scale={scale}
+                    edits={pageImageEdits.map((e) => ({
+                      ...e,
+                      input:
+                        "rect" in e.input
+                          ? { ...e.input, rect: cropRect(e.input.rect as Rect4, crop) }
+                          : "oldRect" in e.input
+                            ? { ...e.input, oldRect: cropRect(e.input.oldRect as Rect4, crop) }
+                            : e.input,
+                    }))}
+                    existing={
+                      tool === "image"
+                        ? existing.map((r) => ({ ...r, rect: cropRect(r.rect, crop) }))
+                        : []
+                    }
+                    selectedId={selEdit?.pageIndex === page.index ? selEdit.id : null}
+                    selectedKey={
+                      selImage && selImage.pageIndex === page.index
+                        ? selImage.rect.map((v) => v.toFixed(2)).join(",")
+                        : null
+                    }
+                    editHint=""
+                    onSelectEdit={(id) => {
+                      setSelEdit({ pageIndex: page.index, id });
+                      setSelImage(null);
+                    }}
+                    onSelectExisting={(ref) => {
+                      setSelEdit(null);
+                      setSelImage({
+                        pageIndex: page.index,
+                        rect: [ref.rect[0] + crop[0], ref.rect[1] + crop[1], ref.rect[2] + crop[0], ref.rect[3] + crop[1]],
+                      });
+                    }}
+                    onRect={
+                      ro || tool !== "image"
+                        ? undefined
+                        : (id, rect) =>
+                            onPendingImageRect(id, [
+                              rect[0] + crop[0],
+                              rect[1] + crop[1],
+                              rect[2] + crop[0],
+                              rect[3] + crop[1],
+                            ])
+                    }
+                    onExistingRect={
+                      ro || tool !== "image"
+                        ? undefined
+                        : (ref, rect) =>
+                            onExistingRect(
+                              { ...ref, rect: [ref.rect[0] + crop[0], ref.rect[1] + crop[1], ref.rect[2] + crop[0], ref.rect[3] + crop[1]] },
+                              [rect[0] + crop[0], rect[1] + crop[1], rect[2] + crop[0], rect[3] + crop[1]],
+                            )
+                    }
+                  />
+                </div>
                 {/* floating menu for a selected existing image */}
                 {tool === "image" && selImage && selImage.pageIndex === page.index && (
                   <div
@@ -1564,6 +1630,7 @@ export default function PdfEditorFrame() {
         ref={imageFileRef}
         type="file"
         accept="image/png,image/jpeg"
+        data-testid="pdf-image-input"
         hidden
         onChange={async (e) => {
           const file = e.target.files?.[0];
@@ -1571,7 +1638,10 @@ export default function PdfEditorFrame() {
           if (!file) return;
           const img = await readImageFile(file);
           if (!img) setDiag({ message: t("pdfEditor:imageInvalid") });
-          else setPendingImage(img);
+          else {
+            setPendingImage(img);
+            setToolHint(t("pdfEditor:hintPlaceImage"));
+          }
         }}
       />
       <input

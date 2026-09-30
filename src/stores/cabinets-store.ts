@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { getHost } from "@/lib/host";
+import { beginStaleRecovery } from "@/lib/api/stale-process-client";
+import { useTreeStore } from "@/stores/tree-store";
 
 export interface CabinetMetaClient {
   /** Folder name = display name (Obsidian-style: the cabinet IS its folder). */
@@ -83,6 +85,9 @@ export const useCabinetsStore = create<CabinetsState>((set, get) => ({
       body: JSON.stringify({ name }),
     });
     if (!res.ok) return;
+    // The `kb-tree-cache` is shared by the stable shell origin. Drop it before the
+    // restart so the new cabinet cannot briefly repaint the previous tree.
+    useTreeStore.getState().resetForCabinetSwitch();
     // Server has persisted the new active cabinet. Rebind the content root by
     // restarting: relaunch the desktop shell when running in one, else
     // fall back to a full page reload (dev still needs a manual server restart
@@ -90,6 +95,10 @@ export const useCabinetsStore = create<CabinetsState>((set, get) => ({
     if (typeof window !== "undefined") {
       const host = getHost();
       if (host.kind === "chromium") {
+        // The app may exit before the restart response reaches this document.
+        // Start recovery first so either an OK response or a dropped request
+        // leads to the same reload once the new cabinet's server is healthy.
+        beginStaleRecovery();
         try {
           const restart = await fetch("/api/system/restart", {
             method: "POST",
@@ -98,6 +107,7 @@ export const useCabinetsStore = create<CabinetsState>((set, get) => ({
           });
           if (restart.ok) return;
         } catch {}
+        await useTreeStore.getState().loadTree({ fresh: true }).catch(() => {});
         alert(`Cabinet switched to "${name}". Please quit and reopen Cabinet to apply the change.`);
         return;
       }
