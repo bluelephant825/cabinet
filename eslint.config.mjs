@@ -32,6 +32,7 @@ const eslintConfig = defineConfig([
       "src/vendor/**",
       "server/documents/worker.ts",
       "server/documents/worker-ops.ts",
+      "server/documents/xlsx-worker.ts",
       "server/documents/markdown/**",
       "server/documents/pdf-generation.tsx",
       "test/fixtures/pdfcn-gate-render.tsx",

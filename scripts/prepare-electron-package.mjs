@@ -421,6 +421,19 @@ async function main() {
     console.warn(`[cabinet] ocr:build failed (continuing without helpers): ${error.message}`);
   }
 
+  // XLSX editing is a shipped capability, so unlike optional OCR this fails
+  // packaging when the host build (or an explicit cross-platform prebuilt)
+  // cannot be staged.
+  execFileSync(process.execPath, [path.join(projectRoot, "scripts", "build-xlsx-sidecar.mjs")], {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      CABINET_ELECTRON_TARGET_PLATFORM: targetPlatform,
+      CABINET_ELECTRON_TARGET_ARCH:
+        process.env.CABINET_ELECTRON_TARGET_ARCH || process.env.npm_config_arch || process.arch,
+    },
+  });
+
   await removePath(outDir);
 
   await Promise.all([

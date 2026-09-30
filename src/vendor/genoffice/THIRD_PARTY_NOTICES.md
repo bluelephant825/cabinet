@@ -46,6 +46,16 @@ available under MPL-2.0.
 | pngjs | 7.0.0 | MIT |
 | utif2 | 4.1.0 | MIT |
 
+## XLSX sidecar Rust dependencies
+
+`apps/sheets/native/xlsx-engine/` is Apache-2.0 and builds the `xlsx-sidecar`
+binary. Its pinned `Cargo.lock` includes Calamine, IronCalc, quick-xml,
+roxmltree, serde, uuid, zip and their transitive dependencies. The vendored
+`deny.toml` is the upstream license gate and permits only MIT, Apache-2.0,
+Apache-2.0 WITH LLVM-exception, BSD-2-Clause, BSD-3-Clause, 0BSD, Zlib,
+Unicode-3.0, Unlicense, CC0-1.0 and BSL-1.0. Run `cargo deny check licenses`
+from that engine directory when updating the lockfile.
+
 Verify license fields with `npm view <pkg> license` when bumping versions;
 upstream generates a full THIRD-PARTY-NOTICES.txt at packaging time via
 `tools/gen-third-party-notices.mjs`.

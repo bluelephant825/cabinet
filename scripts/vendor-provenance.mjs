@@ -39,6 +39,9 @@ export function runVendorProvenance(argv, vendorKey) {
   const VENDOR = join(ROOT, cfg.dir)
   const MANIFEST = join(VENDOR, 'PROVENANCE.json')
   const EXCLUDED = new Set(['PROVENANCE.json', ...(cfg.excluded ?? [])])
+  const EXCLUDED_PREFIXES = cfg.excludedPrefixes ?? []
+  const isExcluded = (rel) =>
+    EXCLUDED.has(rel) || EXCLUDED_PREFIXES.some((prefix) => rel.startsWith(prefix))
   const upstreamPathFor = cfg.upstreamPathFor ?? ((rel) => rel)
   // Optional byte normalization applied before hashing/comparing — used for
   // mechanical import-path rewrites so only semantic changes need `adapted`.
@@ -49,7 +52,7 @@ export function runVendorProvenance(argv, vendorKey) {
     const files = []
     for (const abs of walk(VENDOR)) {
       const rel = relative(VENDOR, abs).split('\\').join('/')
-      if (EXCLUDED.has(rel)) continue
+      if (isExcluded(rel)) continue
       const localSha = localHash(abs)
       const upstreamPath = cfg.cabinetOwned.has(rel) ? null : upstreamPathFor(rel)
       let upstreamSha256 = null
@@ -104,7 +107,7 @@ export function runVendorProvenance(argv, vendorKey) {
     const listed = new Set(manifest.files.map((f) => f.path))
     for (const abs of walk(VENDOR)) {
       const rel = relative(VENDOR, abs).split('\\').join('/')
-      if (EXCLUDED.has(rel)) continue
+      if (isExcluded(rel)) continue
       if (!listed.has(rel)) {
         console.error(`UNLISTED vendored file: ${rel}`)
         failures++

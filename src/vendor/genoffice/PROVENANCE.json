@@ -27,13 +27,13 @@
     {
       "path": "README.md",
       "upstreamPath": null,
-      "sha256": "c8fc963e64a44579ec3a182bc1fe05e2ba7622a3f7285db3921f8b3c1d9a6c99",
+      "sha256": "aae6e7116f6576d28b182ed1e30a08b9a59d9092e210f6380b2f5c1165c9bb53",
       "adapted": false
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
       "upstreamPath": null,
-      "sha256": "3772cf84fe5fcec0f0ba5c070aa202739e579186bab5c49d0560f1de9f520629",
+      "sha256": "45c134473259c2c02570548e2a79844b5199aa1c109a46e01d0f90c8fd02c5cc",
       "adapted": false
     },
     {
@@ -1046,6 +1046,202 @@
       "sha256": "b4207c97c41dc63b6190e3e74eccda182bab6a93e0c66321ab927d22e02225c0",
       "adapted": false,
       "upstreamSha256": "b4207c97c41dc63b6190e3e74eccda182bab6a93e0c66321ab927d22e02225c0"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/.cargo/config.toml",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/.cargo/config.toml",
+      "sha256": "c3a093cf61eef5d13557ff523a352ba778755b193af8a6b345a988ed71cc9d6c",
+      "adapted": false,
+      "upstreamSha256": "c3a093cf61eef5d13557ff523a352ba778755b193af8a6b345a988ed71cc9d6c"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/Cargo.lock",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/Cargo.lock",
+      "sha256": "5bbbcda56985f1ec168c7ac6c32ca76e5d923484deb5e1cd8d1c391cbddc6b81",
+      "adapted": false,
+      "upstreamSha256": "5bbbcda56985f1ec168c7ac6c32ca76e5d923484deb5e1cd8d1c391cbddc6b81"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/Cargo.toml",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/Cargo.toml",
+      "sha256": "5b127be0d8e44744ec00d8856f2e436ffc88d0db56d874694eb9f253263acdf3",
+      "adapted": false,
+      "upstreamSha256": "5b127be0d8e44744ec00d8856f2e436ffc88d0db56d874694eb9f253263acdf3"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/deny.toml",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/deny.toml",
+      "sha256": "faba9ff9c51b0c8362016593ccd21603bbfd7925e401c1bbaf0fe0727ca2e313",
+      "adapted": false,
+      "upstreamSha256": "faba9ff9c51b0c8362016593ccd21603bbfd7925e401c1bbaf0fe0727ca2e313"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/archive.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/archive.rs",
+      "sha256": "1dac18ab65d93346dabdb8da8969d0984a86befe5f8d28e9199879e8cd227959",
+      "adapted": false,
+      "upstreamSha256": "1dac18ab65d93346dabdb8da8969d0984a86befe5f8d28e9199879e8cd227959"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/cell_images.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/cell_images.rs",
+      "sha256": "54cbd141befa3cb5e632b5b241c40c227a3dcd68c764631509d34425e4c5bd52",
+      "adapted": false,
+      "upstreamSha256": "54cbd141befa3cb5e632b5b241c40c227a3dcd68c764631509d34425e4c5bd52"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/convert.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/convert.rs",
+      "sha256": "ef586099d5de9f8c1405bfdf5993b509d33f374b1c0add57e09df3d6325ce607",
+      "adapted": false,
+      "upstreamSha256": "ef586099d5de9f8c1405bfdf5993b509d33f374b1c0add57e09df3d6325ce607"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/lib.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/lib.rs",
+      "sha256": "5ae7f84cac562146e1a646a36ae6cdf7da6c5d5a7128235d82cd33e77153f6e3",
+      "adapted": false,
+      "upstreamSha256": "5ae7f84cac562146e1a646a36ae6cdf7da6c5d5a7128235d82cd33e77153f6e3"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/main.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/main.rs",
+      "sha256": "9abf129c763097f16c8164973542079638c82d80138e36c5db4e082dd0e8dc99",
+      "adapted": false,
+      "upstreamSha256": "9abf129c763097f16c8164973542079638c82d80138e36c5db4e082dd0e8dc99"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/recalc.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/recalc.rs",
+      "sha256": "9bd1ed73e554c185e4310e2b9cb65e79aa8f3864fb8b177b2f7a0dfaf53f751c",
+      "adapted": false,
+      "upstreamSha256": "9bd1ed73e554c185e4310e2b9cb65e79aa8f3864fb8b177b2f7a0dfaf53f751c"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/refs.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/refs.rs",
+      "sha256": "0862a7a76d9c6b8466861bcc89385dcf001ef3010b5e5b5f9dcc1bcfe0b2c239",
+      "adapted": false,
+      "upstreamSha256": "0862a7a76d9c6b8466861bcc89385dcf001ef3010b5e5b5f9dcc1bcfe0b2c239"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/richdata.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/richdata.rs",
+      "sha256": "0dab6a69cfcfa41861f607773fc8a665d167d87897d8da89fe3ac599c63a2bbc",
+      "adapted": false,
+      "upstreamSha256": "0dab6a69cfcfa41861f607773fc8a665d167d87897d8da89fe3ac599c63a2bbc"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/shared_formulas.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/shared_formulas.rs",
+      "sha256": "3a20a8627bfa605d2e815ecd33d1cb25f959595df29c5aa2c805bceaacbc9df4",
+      "adapted": false,
+      "upstreamSha256": "3a20a8627bfa605d2e815ecd33d1cb25f959595df29c5aa2c805bceaacbc9df4"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/sparklines.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/sparklines.rs",
+      "sha256": "b98327f0a77604eadcb3cf723a7a7f6944b772a37e42ddcf692f14519f8e41e0",
+      "adapted": false,
+      "upstreamSha256": "b98327f0a77604eadcb3cf723a7a7f6944b772a37e42ddcf692f14519f8e41e0"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/table_styles.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/table_styles.rs",
+      "sha256": "715f0a0f4f23e6005b6ea4aaca63e2b6190910e7bb30a5c83e6f21ab5c83f0d2",
+      "adapted": false,
+      "upstreamSha256": "715f0a0f4f23e6005b6ea4aaca63e2b6190910e7bb30a5c83e6f21ab5c83f0d2"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/tests.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/tests.rs",
+      "sha256": "43a6ce20f47fdb09f17f2c435595210e941284e898f5c1687c008e2c7bca1ff5",
+      "adapted": false,
+      "upstreamSha256": "43a6ce20f47fdb09f17f2c435595210e941284e898f5c1687c008e2c7bca1ff5"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/types.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/types.rs",
+      "sha256": "7b285f87a217d70d7e5986ec20f3fbf3ecee3bc9e26abcf178aa4c8ce8fde46d",
+      "adapted": false,
+      "upstreamSha256": "7b285f87a217d70d7e5986ec20f3fbf3ecee3bc9e26abcf178aa4c8ce8fde46d"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/visuals/charts.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/visuals/charts.rs",
+      "sha256": "7fa8c0e98b3bb2d9ab83c1d70c36f2ce1e8dc503372abe37b004be66c536f617",
+      "adapted": false,
+      "upstreamSha256": "7fa8c0e98b3bb2d9ab83c1d70c36f2ce1e8dc503372abe37b004be66c536f617"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/visuals/colors.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/visuals/colors.rs",
+      "sha256": "29a15291ff7b2dbfcf2ac8023406f2d778dda4b63f11e7fd3bb886fb610d0ea6",
+      "adapted": false,
+      "upstreamSha256": "29a15291ff7b2dbfcf2ac8023406f2d778dda4b63f11e7fd3bb886fb610d0ea6"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/visuals/drawing.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/visuals/drawing.rs",
+      "sha256": "329b5e1e4efce6f7887befa444bc0d39349f0441e5e98ebcefa911dfeae3c1c0",
+      "adapted": false,
+      "upstreamSha256": "329b5e1e4efce6f7887befa444bc0d39349f0441e5e98ebcefa911dfeae3c1c0"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/visuals/source_formats.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/visuals/source_formats.rs",
+      "sha256": "cd42dc333aebedea1ce48b5e972309209928838c99776d9cc8f98c0b7ccab6e1",
+      "adapted": false,
+      "upstreamSha256": "cd42dc333aebedea1ce48b5e972309209928838c99776d9cc8f98c0b7ccab6e1"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/visuals/styles.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/visuals/styles.rs",
+      "sha256": "73f48c375e285e0eb6b40b297e8252fa1287707d98f5abd9a44ae2165c690b8f",
+      "adapted": false,
+      "upstreamSha256": "73f48c375e285e0eb6b40b297e8252fa1287707d98f5abd9a44ae2165c690b8f"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/visuals/tests.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/visuals/tests.rs",
+      "sha256": "f8113c022a1717ab9d69560486f9acf17230b95bccb6333443d0949e3e343212",
+      "adapted": false,
+      "upstreamSha256": "f8113c022a1717ab9d69560486f9acf17230b95bccb6333443d0949e3e343212"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/visuals.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/visuals.rs",
+      "sha256": "2f08fba9dec9a4f0fe92ebf6b96879036f65dd4be73402e095dbe7422d03c5b3",
+      "adapted": false,
+      "upstreamSha256": "2f08fba9dec9a4f0fe92ebf6b96879036f65dd4be73402e095dbe7422d03c5b3"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/workbook.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/workbook.rs",
+      "sha256": "c2833e50e6276e8731daf2c65b678f6bc1171c9e3fdf0ca2c2fa3cef408bad3d",
+      "adapted": false,
+      "upstreamSha256": "c2833e50e6276e8731daf2c65b678f6bc1171c9e3fdf0ca2c2fa3cef408bad3d"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/worksheet.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/worksheet.rs",
+      "sha256": "3a96e96058e2e2ee1059aa8ff0f544f43e4b32970c63ef403f750c8e8c7680b0",
+      "adapted": false,
+      "upstreamSha256": "3a96e96058e2e2ee1059aa8ff0f544f43e4b32970c63ef403f750c8e8c7680b0"
+    },
+    {
+      "path": "apps/sheets/native/xlsx-engine/src/xml_util.rs",
+      "upstreamPath": "apps/sheets/native/xlsx-engine/src/xml_util.rs",
+      "sha256": "caf0b87c9bdd3e9c2b6ffeb7223aed91c1d932b67d2357b658ae49dac9612741",
+      "adapted": false,
+      "upstreamSha256": "caf0b87c9bdd3e9c2b6ffeb7223aed91c1d932b67d2357b658ae49dac9612741"
+    },
+    {
+      "path": "apps/sheets/src/main/xlsx-sidecar-client.ts",
+      "upstreamPath": "apps/sheets/src/main/xlsx-sidecar-client.ts",
+      "sha256": "8eda243682256798b38cd1621658c5e8af30fd703e3147c3d2f0df2e16c3366f",
+      "adapted": false,
+      "upstreamSha256": "8eda243682256798b38cd1621658c5e8af30fd703e3147c3d2f0df2e16c3366f"
     },
     {
       "path": "host/image-codec.ts",
@@ -2153,6 +2349,356 @@
       "sha256": "5ff2e934a4a3893963f8464ccb869d3e762f324e854ed7d5762c986e079f94eb",
       "adapted": false,
       "upstreamSha256": "5ff2e934a4a3893963f8464ccb869d3e762f324e854ed7d5762c986e079f94eb"
+    },
+    {
+      "path": "packages/xlsx-gateway/package.json",
+      "upstreamPath": "packages/xlsx-gateway/package.json",
+      "sha256": "abe0bb86096989244ef649f1aeaab43ea456691daf95741c31f5d9fe15c38730",
+      "adapted": false,
+      "upstreamSha256": "abe0bb86096989244ef649f1aeaab43ea456691daf95741c31f5d9fe15c38730"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/cell-address.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/cell-address.ts",
+      "sha256": "5814c556eb9e86d8450436955ff7718e95580db12ecb6caff5e7be2c45655f3c",
+      "adapted": false,
+      "upstreamSha256": "5814c556eb9e86d8450436955ff7718e95580db12ecb6caff5e7be2c45655f3c"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/chart-recommend.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/chart-recommend.ts",
+      "sha256": "b32fd92686c18498ba872046956f66936ff59fb2a5e38cfe1cbb00c9c5dcd38c",
+      "adapted": false,
+      "upstreamSha256": "b32fd92686c18498ba872046956f66936ff59fb2a5e38cfe1cbb00c9c5dcd38c"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/chart-visual.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/chart-visual.ts",
+      "sha256": "bd67da3c31b0d47c9034a3f83f7a1642609cef07bb096cd141e746b731c894d9",
+      "adapted": false,
+      "upstreamSha256": "bd67da3c31b0d47c9034a3f83f7a1642609cef07bb096cd141e746b731c894d9"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/flash-fill.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/flash-fill.ts",
+      "sha256": "cd21d6dd61918ae7e6f91ed8bb72a3a94f4fb0b3a814b38364f701ee6e27873f",
+      "adapted": false,
+      "upstreamSha256": "cd21d6dd61918ae7e6f91ed8bb72a3a94f4fb0b3a814b38364f701ee6e27873f"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/formula-shift.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/formula-shift.ts",
+      "sha256": "38dc1f99fdc281792fbd31370fc4b9f3d557dec9fe997e0d18bc0e9824457cce",
+      "adapted": false,
+      "upstreamSha256": "38dc1f99fdc281792fbd31370fc4b9f3d557dec9fe997e0d18bc0e9824457cce"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/in-memory-workbook.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/in-memory-workbook.ts",
+      "sha256": "65e9aaade5bedc69ee3ebc88e27fa1429b4eed0bd7c89b74dd0b6a723fff7fbf",
+      "adapted": false,
+      "upstreamSha256": "65e9aaade5bedc69ee3ebc88e27fa1429b4eed0bd7c89b74dd0b6a723fff7fbf"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/pivot-chart.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/pivot-chart.ts",
+      "sha256": "6b00dbb8ee23f9f05db2b715be84676feb9f8dccd6b1a9f6215f33f85ccbbd68",
+      "adapted": false,
+      "upstreamSha256": "6b00dbb8ee23f9f05db2b715be84676feb9f8dccd6b1a9f6215f33f85ccbbd68"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/pivot-engine.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/pivot-engine.ts",
+      "sha256": "c9f8f7ed86d85c434cf312e1debda611b13875be6dfef26f5b3ae431a4d1e133",
+      "adapted": false,
+      "upstreamSha256": "c9f8f7ed86d85c434cf312e1debda611b13875be6dfef26f5b3ae431a4d1e133"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/pivot-filters.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/pivot-filters.ts",
+      "sha256": "00d895e911d74990b6d31447ad54803d5ee97dc5d0c034fc4d58dcd6eed06a69",
+      "adapted": false,
+      "upstreamSha256": "00d895e911d74990b6d31447ad54803d5ee97dc5d0c034fc4d58dcd6eed06a69"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/pivot-formula.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/pivot-formula.ts",
+      "sha256": "76133dfb81a671e5b7435110c84239034d76653dc05cf2a22f42fdf89e9d63a3",
+      "adapted": false,
+      "upstreamSha256": "76133dfb81a671e5b7435110c84239034d76653dc05cf2a22f42fdf89e9d63a3"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/pivot-grouping.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/pivot-grouping.ts",
+      "sha256": "02987ec51f532cc59e28fb92feaed42dc6193711c7a7836184d6bcbd9cbb93cd",
+      "adapted": false,
+      "upstreamSha256": "02987ec51f532cc59e28fb92feaed42dc6193711c7a7836184d6bcbd9cbb93cd"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/pivot-layout.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/pivot-layout.ts",
+      "sha256": "3dbb5e6131b0809d785501345fe9343148a254c9f834bd3a616de759ea709ffe",
+      "adapted": false,
+      "upstreamSha256": "3dbb5e6131b0809d785501345fe9343148a254c9f834bd3a616de759ea709ffe"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/pivot-timeline.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/pivot-timeline.ts",
+      "sha256": "62d64ea6074b396b27e1fc418849ba29eeb4144f50c8f09ac59b89a984b3c631",
+      "adapted": false,
+      "upstreamSha256": "62d64ea6074b396b27e1fc418849ba29eeb4144f50c8f09ac59b89a984b3c631"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/sort-range.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/sort-range.ts",
+      "sha256": "84c632a4752cc41a068bc717f37cc71a1579962cfee5e1639d7675b794be55f9",
+      "adapted": false,
+      "upstreamSha256": "84c632a4752cc41a068bc717f37cc71a1579962cfee5e1639d7675b794be55f9"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/style-color.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/style-color.ts",
+      "sha256": "147fb5a63082d52d0e14c0419bf682b23a669a85800dd2a22cd870910cf00ab3",
+      "adapted": false,
+      "upstreamSha256": "147fb5a63082d52d0e14c0419bf682b23a669a85800dd2a22cd870910cf00ab3"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/workbook-dsl.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/workbook-dsl.ts",
+      "sha256": "a8ecd91306dd5e22b7d93f477e6b2447b1471606d3b4c83bb194281fce0df2dd",
+      "adapted": false,
+      "upstreamSha256": "a8ecd91306dd5e22b7d93f477e6b2447b1471606d3b4c83bb194281fce0df2dd"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/domain/workbook.types.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/domain/workbook.types.ts",
+      "sha256": "07e62df6b3774bb01fe81b871be2fe901429e14194e01a1bbdfdc6854b43b5ec",
+      "adapted": false,
+      "upstreamSha256": "07e62df6b3774bb01fe81b871be2fe901429e14194e01a1bbdfdc6854b43b5ec"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/csv-import.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/csv-import.ts",
+      "sha256": "62052ea57d20e9e7f63d4f0299b93e395f2c7312c59a105dd998f8e3e6df5e41",
+      "adapted": false,
+      "upstreamSha256": "62052ea57d20e9e7f63d4f0299b93e395f2c7312c59a105dd998f8e3e6df5e41"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/future-functions.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/future-functions.ts",
+      "sha256": "3b20e12760303ef6de806f944f91991c2076297c1835a4e4a14701f921f6a9bb",
+      "adapted": false,
+      "upstreamSha256": "3b20e12760303ef6de806f944f91991c2076297c1835a4e4a14701f921f6a9bb"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-cf.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-cf.ts",
+      "sha256": "e50c7a15976d5ac6cf71af177ce29b9df8571396ff477e49c5194a737d5f57f5",
+      "adapted": false,
+      "upstreamSha256": "e50c7a15976d5ac6cf71af177ce29b9df8571396ff477e49c5194a737d5f57f5"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-chart.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-chart.ts",
+      "sha256": "d262ef13d1dcece32856832d68e5b6eef54f98a1645c74338b70b3897d11ba1b",
+      "adapted": false,
+      "upstreamSha256": "d262ef13d1dcece32856832d68e5b6eef54f98a1645c74338b70b3897d11ba1b"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-default-styles.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-default-styles.ts",
+      "sha256": "c88952f226e705e7e4f4d48b3a7ec6d0019f5efecf7dc3d84a0c53e4c427ae99",
+      "adapted": false,
+      "upstreamSha256": "c88952f226e705e7e4f4d48b3a7ec6d0019f5efecf7dc3d84a0c53e4c427ae99"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-default-theme.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-default-theme.ts",
+      "sha256": "63765c3226b67c9b70918e430b7f3bc684ee81083eeb6cbe50aacd6cf88d1d82",
+      "adapted": false,
+      "upstreamSha256": "63765c3226b67c9b70918e430b7f3bc684ee81083eeb6cbe50aacd6cf88d1d82"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-defined-names.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-defined-names.ts",
+      "sha256": "1ca8c41972a52f178613abc81fe655fa4a37d7c3dcccf166f94b1f3bbffe0f1d",
+      "adapted": false,
+      "upstreamSha256": "1ca8c41972a52f178613abc81fe655fa4a37d7c3dcccf166f94b1f3bbffe0f1d"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-drawing-add.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-drawing-add.ts",
+      "sha256": "c994a8b1a3d34ae257b9a549027bc7fe213340499106880fe68b9df626cdf86e",
+      "adapted": false,
+      "upstreamSha256": "c994a8b1a3d34ae257b9a549027bc7fe213340499106880fe68b9df626cdf86e"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-drawing-edit.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-drawing-edit.ts",
+      "sha256": "c691a6be92e94ad75861009b85ea2a2d6e53b03b164dfa919d59286ae91d82ca",
+      "adapted": false,
+      "upstreamSha256": "c691a6be92e94ad75861009b85ea2a2d6e53b03b164dfa919d59286ae91d82ca"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-dv.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-dv.ts",
+      "sha256": "a928e5c56d61d1d514b1b2be46781b23bbe0ba9c8c5cd6fbfb8a1f627a618b7c",
+      "adapted": false,
+      "upstreamSha256": "a928e5c56d61d1d514b1b2be46781b23bbe0ba9c8c5cd6fbfb8a1f627a618b7c"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-escapes.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-escapes.ts",
+      "sha256": "1ff3ab6c4c32f2e224cbb818bb35d97717853ea6e4970e670daae252539478e3",
+      "adapted": false,
+      "upstreamSha256": "1ff3ab6c4c32f2e224cbb818bb35d97717853ea6e4970e670daae252539478e3"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-filter.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-filter.ts",
+      "sha256": "e71041d635311802ed15c8902c7b7d94d489a036749a5e27b5cffadd69c9e653",
+      "adapted": false,
+      "upstreamSha256": "e71041d635311802ed15c8902c7b7d94d489a036749a5e27b5cffadd69c9e653"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-gateway.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-gateway.ts",
+      "sha256": "f8541ac7ccf3d243268080f693d4106f7720b45c7f37a97f3cea85833f5d4ad4",
+      "adapted": false,
+      "upstreamSha256": "f8541ac7ccf3d243268080f693d4106f7720b45c7f37a97f3cea85833f5d4ad4"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-hyperlinks.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-hyperlinks.ts",
+      "sha256": "5e296ed3a31db8fb9f28087f25fd95320e84e5b6660bac86741a8bd22559e812",
+      "adapted": false,
+      "upstreamSha256": "5e296ed3a31db8fb9f28087f25fd95320e84e5b6660bac86741a8bd22559e812"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-namespace.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-namespace.ts",
+      "sha256": "0f792f355f1135d3b873c791e9ae57d258a49b31c364ce287549da8bc070c557",
+      "adapted": false,
+      "upstreamSha256": "0f792f355f1135d3b873c791e9ae57d258a49b31c364ce287549da8bc070c557"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-notes.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-notes.ts",
+      "sha256": "2a443aa192baad5eed8d18141319d11d240172a96a8511e1d38338938afc7b6f",
+      "adapted": false,
+      "upstreamSha256": "2a443aa192baad5eed8d18141319d11d240172a96a8511e1d38338938afc7b6f"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-package-io.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-package-io.ts",
+      "sha256": "09729b62ad360f7a4b1bcbf771bc1e7fdc515ee8ba1e6551d8f42f58d533b2ba",
+      "adapted": false,
+      "upstreamSha256": "09729b62ad360f7a4b1bcbf771bc1e7fdc515ee8ba1e6551d8f42f58d533b2ba"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-page-setup.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-page-setup.ts",
+      "sha256": "11cdef15ad85d9126d56d8e321ff2d79e6b971a6ac50689ea0f3cb2d3c8495b6",
+      "adapted": false,
+      "upstreamSha256": "11cdef15ad85d9126d56d8e321ff2d79e6b971a6ac50689ea0f3cb2d3c8495b6"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-pivot-add.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-pivot-add.ts",
+      "sha256": "63fb95a29c392c6bd7b0659877062465378dd87825babaa41f37ef0f6add80c8",
+      "adapted": false,
+      "upstreamSha256": "63fb95a29c392c6bd7b0659877062465378dd87825babaa41f37ef0f6add80c8"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-pivot-expand.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-pivot-expand.ts",
+      "sha256": "cb4124e0eaf0b7ac3981ea44b777a41178b2dd8987211c00b767450dd77e8803",
+      "adapted": false,
+      "upstreamSha256": "cb4124e0eaf0b7ac3981ea44b777a41178b2dd8987211c00b767450dd77e8803"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-pivot.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-pivot.ts",
+      "sha256": "b789ecffa8899bc22ebb88083d1e44496c3217ebbc7d77b53e292e90e0b42421",
+      "adapted": false,
+      "upstreamSha256": "b789ecffa8899bc22ebb88083d1e44496c3217ebbc7d77b53e292e90e0b42421"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-protection.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-protection.ts",
+      "sha256": "b2202e9c3818a0081de59ea9ed1a3055e283194e81cf085356e3288d5cf61f61",
+      "adapted": false,
+      "upstreamSha256": "b2202e9c3818a0081de59ea9ed1a3055e283194e81cf085356e3288d5cf61f61"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-sheets.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-sheets.ts",
+      "sha256": "29025a22791bd37627f7fcc9e66acbbc2848b59746c3106032f6b0175f93f345",
+      "adapted": false,
+      "upstreamSha256": "29025a22791bd37627f7fcc9e66acbbc2848b59746c3106032f6b0175f93f345"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-sparkline.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-sparkline.ts",
+      "sha256": "edbd15fa9a9be89819a8f897720018df112de219b97c341920747e2fc69bf7f3",
+      "adapted": false,
+      "upstreamSha256": "edbd15fa9a9be89819a8f897720018df112de219b97c341920747e2fc69bf7f3"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-structure.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-structure.ts",
+      "sha256": "e92ee6b03913f2e539ffb8fa93798b02d3003c2556fdc6007f0c46f85ebd8951",
+      "adapted": false,
+      "upstreamSha256": "e92ee6b03913f2e539ffb8fa93798b02d3003c2556fdc6007f0c46f85ebd8951"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-style-read.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-style-read.ts",
+      "sha256": "5d0d8e2a9e505c818d17f4fbfba2c8e1058fa7ce8f69a5e250f9823c002d34f6",
+      "adapted": false,
+      "upstreamSha256": "5d0d8e2a9e505c818d17f4fbfba2c8e1058fa7ce8f69a5e250f9823c002d34f6"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-styles.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-styles.ts",
+      "sha256": "bfb22825b3096ea6fedfe9d08b9fd4df3369fe6abc3be90b963cfa54e6ebdf9c",
+      "adapted": false,
+      "upstreamSha256": "bfb22825b3096ea6fedfe9d08b9fd4df3369fe6abc3be90b963cfa54e6ebdf9c"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-table-add.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-table-add.ts",
+      "sha256": "554f1c5c8535625ecb945abe4d2e0566039301e46d8d31fb66ee0fcc18e23624",
+      "adapted": false,
+      "upstreamSha256": "554f1c5c8535625ecb945abe4d2e0566039301e46d8d31fb66ee0fcc18e23624"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/gateway/xlsx-theme.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/gateway/xlsx-theme.ts",
+      "sha256": "52bcd595f706edb273f943a518e6fcd5d4dd6b3bffba51769fbe0fa0864c1926",
+      "adapted": false,
+      "upstreamSha256": "52bcd595f706edb273f943a518e6fcd5d4dd6b3bffba51769fbe0fa0864c1926"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/shared/edit-schemas.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/shared/edit-schemas.ts",
+      "sha256": "ca5420892f510a8c31fbd8da6ba48a85643c3cfcce02b046efd6bea6aa2ce510",
+      "adapted": false,
+      "upstreamSha256": "ca5420892f510a8c31fbd8da6ba48a85643c3cfcce02b046efd6bea6aa2ce510"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/shared/shape-types.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/shared/shape-types.ts",
+      "sha256": "7c3ed0303f97ada7f6a900c9053c634449d8aaf228988f31cac78cd369855469",
+      "adapted": false,
+      "upstreamSha256": "7c3ed0303f97ada7f6a900c9053c634449d8aaf228988f31cac78cd369855469"
+    },
+    {
+      "path": "packages/xlsx-gateway/src/shared/short-date.ts",
+      "upstreamPath": "packages/xlsx-gateway/src/shared/short-date.ts",
+      "sha256": "dc121a308fa582dd7c86ff7dfd6f516ce937f0341ec7a29c62ad0d1299c54efe",
+      "adapted": false,
+      "upstreamSha256": "dc121a308fa582dd7c86ff7dfd6f516ce937f0341ec7a29c62ad0d1299c54efe"
     }
   ]
 }

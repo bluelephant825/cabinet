@@ -58,6 +58,7 @@ import type {
 } from "../../src/vendor/genoffice/apps/pdf/shared/ipc";
 import { DocumentError } from "../../src/lib/documents/errors";
 import { summarizeHeaderFooter } from "../../src/lib/documents/docx-header-footer";
+import { inspectXlsx, loadXlsx, prewarmXlsxSidecar, readXlsx, saveXlsx } from "./xlsx-worker";
 import type {
   DocumentFormat,
   DocumentPatchOp,
@@ -69,6 +70,7 @@ import type {
   PdfInspectResult,
   PatchDiagnostic,
   PdfGeometryResult,
+  XlsxSavePlan,
 } from "../../src/lib/documents/types";
 
 /** Faces carrying only color bitmaps cannot embed as PDF text objects. */
@@ -571,6 +573,7 @@ async function readOp(args: {
     const slice = range ? paras.slice(range[0], range[1]) : paras;
     return { text: slice.map(blockText).join("\n") };
   }
+  if (args.format === "xlsx") return readXlsx(args.inputPath);
   const bytes = new Uint8Array(await readFile(args.inputPath));
   const m = (await pdfium()) as PdfiumExt;
   return chainPdfium(() =>
@@ -627,6 +630,11 @@ async function searchOp(args: {
       }
       if (matches.length >= SEARCH_MATCH_CAP) break;
     }
+    return { matches };
+  }
+  if (args.format === "xlsx") {
+    const { text } = await readXlsx(args.inputPath);
+    text.split("\n").forEach((line, index) => pushMatch(`xlsx-line-${index}`, line));
     return { matches };
   }
   const bytes = new Uint8Array(await readFile(args.inputPath));
@@ -785,6 +793,9 @@ async function applyPatchOp(args: {
   ops: DocumentPatchOp[];
 }): Promise<{ applied: number; diagnostics: PatchDiagnostic[] }> {
   if (!args.ops?.length) throw new DocumentError("invalid", "Patch contains no operations");
+  if (args.format === "xlsx") {
+    throw new DocumentError("unsupported", "Generic patches are not supported for XLSX documents");
+  }
   return args.format === "docx"
     ? patchDocx(args.inputPath, args.outputPath, args.ops)
     : patchPdf(args.inputPath, args.outputPath, args.ops);
@@ -1184,7 +1195,9 @@ export async function runOp(
     case "inspect":
       return args.format === "docx"
         ? inspectDocx(args.inputPath as string)
-        : inspectPdf(args.inputPath as string);
+        : args.format === "xlsx"
+          ? inspectXlsx(args.inputPath as string)
+          : inspectPdf(args.inputPath as string);
     case "read":
       return readOp(args as never);
     case "search":
@@ -1201,6 +1214,16 @@ export async function runOp(
       return docxLoadOp(args as never);
     case "docxSave":
       return docxSaveOp(args as never);
+    case "xlsxPrewarm":
+      return prewarmXlsxSidecar();
+    case "xlsxLoad":
+      return loadXlsx(args.inputPath as string);
+    case "xlsxSave":
+      return saveXlsx(
+        args.inputPath as string,
+        args.outputPath as string,
+        args.plan as XlsxSavePlan,
+      );
     case "pdfPageGeometry":
       return pdfPageGeometryOp(args as never);
     case "listFonts":

@@ -34,6 +34,7 @@ import path from "path";
 import { execFileSync, spawn, spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { runChecks } from "./smoke-checks.mjs";
+import * as XLSX from "xlsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -293,6 +294,12 @@ const DOC_REQUIRED = [
   path.join("server", "document-tool.mjs"),
   path.join("server", "browser-tool.mjs"),
   path.join("documents", "pdf-fonts", "LiberationSans-Regular.ttf"),
+  path.join(
+    "documents",
+    "xlsx",
+    `${process.platform}-${process.arch}`,
+    process.platform === "win32" ? "xlsx-sidecar.exe" : "xlsx-sidecar",
+  ),
   path.join("node_modules", "takumi-pdf", "pkg", "takumi_pdf_wasm_bg.wasm"),
   path.join("node_modules", "@embedpdf", "pdfium", "dist", "pdfium.wasm"),
   path.join("node_modules", "harfbuzzjs", "hb-subset.wasm"),
@@ -384,7 +391,17 @@ for (const [extension, content] of Object.entries({
   fs.writeFileSync(path.join(ISO_CABINET, `smoke.${extension}`), content);
 }
 fs.writeFileSync(path.join(ISO_CABINET, "smoke.pdf"), await makePdfBytes("Bundle isolated smoke"));
-for (const extension of ["html", "ipynb", "tex", "typ", "pdf", "docx"]) {
+const smokeWorkbook = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(
+  smokeWorkbook,
+  XLSX.utils.aoa_to_sheet([["Bundle XLSX smoke"], [42]]),
+  "Sheet1",
+);
+fs.writeFileSync(
+  path.join(ISO_CABINET, "smoke.xlsx"),
+  XLSX.write(smokeWorkbook, { type: "buffer", bookType: "xlsx" }),
+);
+for (const extension of ["html", "ipynb", "tex", "typ", "pdf", "docx", "xlsx"]) {
   const route = `http://127.0.0.1:${isoAppPort}/room/Cabinet/smoke.${extension}`;
   const response = await fetch(route, { signal: AbortSignal.timeout(15_000) });
   if (response.status !== 200) {
@@ -455,6 +472,17 @@ function docTool(args, label) {
   }
   return parsed;
 }
+
+step("documents: xlsx inspect + read (native sidecar)...");
+const xlsxInspect = docTool(["inspect", "--path", "smoke.xlsx"], "xlsx inspect");
+if (xlsxInspect.format !== "xlsx" || xlsxInspect.sheets?.[0]?.name !== "Sheet1") {
+  fail(`xlsx inspect returned unexpected shape: ${JSON.stringify(xlsxInspect).slice(0, 300)}`);
+}
+const xlsxRead = docTool(["read", "--path", "smoke.xlsx"], "xlsx read");
+if (!xlsxRead.text?.includes("Bundle XLSX smoke")) {
+  fail(`xlsx read returned unexpected text: ${JSON.stringify(xlsxRead).slice(0, 300)}`);
+}
+ok("xlsx sidecar inspect + read ok");
 
 step("documents: pdf inspect + patch (pdfium + harfbuzz wasm)...");
 const pdfInspect = docTool(["inspect", "--path", "smoke.pdf"], "inspect");

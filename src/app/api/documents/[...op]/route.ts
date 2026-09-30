@@ -124,6 +124,23 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       }
       return res;
     }
+    case "xlsx": {
+      if (op[1] === "load") return forwardJson("xlsx/load", req);
+      if (op[1] !== "save") {
+        return NextResponse.json({ error: "Unknown document route" }, { status: 404 });
+      }
+      const res = await forwardJson("xlsx/save", req);
+      if (res.ok) {
+        const clone = res.clone();
+        try {
+          const json = (await clone.json()) as { virtualPath?: string };
+          recordDocMutation("write", json.virtualPath);
+        } catch {
+          /* non-JSON response */
+        }
+      }
+      return res;
+    }
     case "pdf": {
       if (op[1] === "geometry") return forwardJson("pdf/geometry", req);
       return NextResponse.json({ error: "Unknown document route" }, { status: 404 });

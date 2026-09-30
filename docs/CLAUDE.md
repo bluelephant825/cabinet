@@ -72,7 +72,7 @@ data/                        → Content directory (KB pages, tasks, jobs)
 10. **Version restore** — users can restore any page to a previous git commit via the Version History panel
 11. **Embedded apps** — dirs with `index.html` + no `index.md` render as iframes. Add `.app` marker for full-screen mode (sidebar + AI panel auto-collapse)
 12. **Linked repos** — `.repo.yaml` in a data dir links it to a Git repo (local path + remote URL). Agents use this to read/search source code in context. See `data/CLAUDE.md` for full spec.
-13. **Office documents** — `.docx` and `.pdf` are editable through the document service (see "Documents (DOCX/PDF/PDFCN)" below); docx-preview and the browser PDF view remain the read-only fallbacks when editing is unavailable. `.xlsx`/`.xlsm`, `.pptx` render inline via dynamically-imported read-only viewers (SheetJS, pptx-preview). "Download" + "Reveal" actions in the viewer header. Legacy binary formats (`.doc`, `.xls`, `.ppt`) keep the Fallback viewer.
+13. **Office documents** — `.docx`, `.xlsx` and `.pdf` are editable through the document service (see "Documents (DOCX/XLSX/PDF/PDFCN)" below); docx-preview, SheetJS and the browser PDF view remain read-only fallbacks when editing is unavailable. `.xlsm` and `.pptx` render inline via dynamically-imported read-only viewers. "Download" + "Reveal" actions remain in the viewer header. Legacy binary formats (`.doc`, `.xls`, `.ppt`) keep the Fallback viewer.
 14. **Google Workspace pages** — a markdown page with a `google:` frontmatter key (`url`, optional `kind` / `embedUrl`) is rendered by `GoogleDocViewer` instead of the Tiptap editor. The iframe needs "Anyone with the link" or "Publish to Web" on Google's side. OAuth-based sync is not yet implemented.
 15. **Skills** — Anthropic-format skill bundles (`SKILL.md` + frontmatter + optional `references/`/`scripts/`/`assets/`). Resolved across four origins with precedence: cabinet-scoped (`data/<cabinet>/.agents/skills/`) > cabinet-root (`<repo>/.agents/skills/`) > linked-repo > system (`~/.claude/skills/`, `~/.agents/skills/`) > legacy-home (`~/.cabinet/skills/`). Personas reference skills by key in `skills:` (persistent attachment) and `recommendedSkills:` (template defaults shown as preselected toggles in the new-agent flow). Trust gating evaluates each skill at mount time using auto-detected trust level × verified-publisher × author `trust-policy:` frontmatter; operator decisions persist in `.cabinet/skills-trust.json`. Compose `@skill-name` to attach a skill run-only without persisting to the persona. Plan: `docs/SKILLS_PLAN.md`.
 16. **Registry templates come from the cabinets manifest** — the home carousel and the *Cabinets / AI teams, off the shelf* page (`registry-browser.tsx`) read from `https://raw.githubusercontent.com/cabinetai/cabinets/HEAD/manifest.json`, which is auto-built by the `build-manifest.yml` GitHub Action in the [`cabinets`](https://github.com/cabinetai/cabinets) registry on every push. The fetch is cached in-process for 10 minutes (`src/lib/registry/registry-manifest.ts`) and falls back to a small bundled list if offline. Cover images are fetched directly from `…/HEAD/<slug>/cover.jpg`. **Do not** hand-edit registry-manifest.ts to add new cabinets — add them to the registry repo and CI rebuilds the manifest.
@@ -136,7 +136,7 @@ Both npm packages ship from this monorepo, not separate repos:
 
 4. **When fixing a crash anywhere in the bootstrap/install path, trace what happens *before* the crash.** If the crash is the only thing stopping a worse silent outcome (HOME pollution, data loss, unrecoverable state), fix the root cause upstream instead of removing the crash.
 
-## Documents (DOCX/PDF/PDFCN)
+## Documents (DOCX/XLSX/PDF/PDFCN)
 
 ### Architecture
 
@@ -145,14 +145,14 @@ Browser  → Next /api/documents/[...op] → daemon /documents/* (server/documen
          → DocumentService (service.ts: sessions, jobs, revisions, recovery, pdf-composition)
          → DocumentBroker (broker.ts: per-path mutex, worker pool, job registry)
          → worker child process (worker.ts → worker-ops.ts)
-             → vendored engines: src/vendor/genoffice/** (docx/pdf/pdf2docx), src/vendor/pdfcn/** + takumi-pdf
+             → vendored engines: src/vendor/genoffice/** (docx/xlsx/pdf/pdf2docx), src/vendor/pdfcn/** + takumi-pdf
 Electron frame → document bridge (documents-frame-bridge) → same service
 Agents → `cabinet-documents` CLI (scripts/document-tool.ts → shim in <data-parent>/.cabinet-state/bin/)
 ```
 
 ### Invariants
 
-- Every write goes `authorizeDocumentPath` → per-path lock → `commitBytes` (atomic temp+rename, `expectedRevision` conflict check, signature checks; `.pdf.source.json` uses `signatureCheck:"json"`).
+- Every write goes `authorizeDocumentPath` → per-path lock → `commitBytes` (atomic temp+rename, `expectedRevision` conflict check, signature checks; XLSX additionally uses the gateway's entry-preserving sidecar save; `.pdf.source.json` uses `signatureCheck:"json"`).
 - Engines run ONLY inside the worker process — never in the Next app or daemon in-process.
 - Client code may not import `src/vendor/genoffice/**` or `src/vendor/pdfcn/**` (lint-enforced; allowed only in `server/documents/pdf-generation.tsx`, `worker-ops.ts`, tests).
 - `.pdf.source.json` compositions are data-only: validated against `pdf-component-catalog.ts` (`validateComposition`); node types map through a fixed registry — never dynamic import by user string.
@@ -173,17 +173,18 @@ Agents → `cabinet-documents` CLI (scripts/document-tool.ts → shim in <data-p
 | DOCX editor fonts | `public/document-editor/fonts/` | `<standalone>/public/...` | static assets |
 | PDF generation fonts | `resources/documents/pdf-fonts/` | `<standalone>/documents/pdf-fonts/` | `server/documents/resource-paths.ts` |
 | OCR helpers | `resources/documents/ocr/<plat>-<arch>/` | `<standalone>/documents/ocr/`; on macOS Electron extracted to `userData/documents-ocr/` | `CABINET_OCR_HELPER_DIR` → `docResourceDir("ocr")` |
+| XLSX sidecar | generated `resources/documents/xlsx/<plat>-<arch>/xlsx-sidecar[.exe]` | `<standalone>/documents/xlsx/` | `CABINET_XLSX_SIDECAR` → `docResourceDir("xlsx")`; built by `build-xlsx-sidecar.mjs` |
 | Worker bundle | `server/documents/worker.ts` (tsx) | `server/document-worker.mjs` (esbuild) | `workerEntry()`: `CABINET_DOC_WORKER_ENTRY` → sibling → `.ts` |
 | `cabinet-documents` helper | `dist/document-tool.mjs` / tsx source | `server/document-tool.mjs` | `tool-shim.ts` `documentToolArgv()` |
 
 ### Env vars
 
-`CABINET_DOC_WORKERS` (pool size, default 2) · `CABINET_DOC_MAX_BYTES` · `CABINET_DOC_RECOVERY_MAX_MB` · `CABINET_OCR_PROVIDER` (`auto|none|fake|vision-macos|windows`) · `CABINET_OCR_HELPER_DIR` · `CABINET_OCR_TIMEOUT_MS` · `CABINET_DOC_RESOURCES_DIR` (parent of `pdf-fonts/`/`ocr/`/`documents` resource tree) · `CABINET_WASM_DIR` (parent of `wasm/` — fallback only; staged node_modules normally wins) · `CABINET_DOC_WORKER_ENTRY` (bundled worker path) · `CABINET_DOC_TEST_OPS` (`1` enables `__crash`/failure-injection ops — never set in production) · `CABINET_DOCUMENT_TOOL` (helper bundle override).
+`CABINET_DOC_WORKERS` (pool size, default 2) · `CABINET_DOC_MAX_BYTES` · `CABINET_DOC_RECOVERY_MAX_MB` · `CABINET_XLSX_SIDECAR` (native helper override) · `CABINET_XLSX_SIDECAR_PREBUILT` (cross-package staging input) · `CABINET_XLSX_UNIVERSAL=1` (macOS dual-target + lipo build) · `CABINET_OCR_PROVIDER` (`auto|none|fake|vision-macos|windows`) · `CABINET_OCR_HELPER_DIR` · `CABINET_OCR_TIMEOUT_MS` · `CABINET_DOC_RESOURCES_DIR` (parent of `pdf-fonts/`/`ocr/`/`documents` resource tree) · `CABINET_WASM_DIR` (parent of `wasm/` — fallback only; staged node_modules normally wins) · `CABINET_DOC_WORKER_ENTRY` (bundled worker path) · `CABINET_DOC_TEST_OPS` (`1` enables `__crash`/failure-injection ops — never set in production) · `CABINET_DOCUMENT_TOOL` (helper bundle override).
 
 ### Verification
 
 - Unit: `test/documents-*.test.ts`, `test/pdf-composition.test.ts`, `test/pdf-generation.test.ts`, `test/pdf-composer-store.test.ts`, `test/document-tool.test.ts`, gates `test/documents-gate.test.ts` + `test/pdf-generation-gate.test.ts`.
-- E2E: `e2e/documents{,-pdf,-convert,-agent}.spec.ts`, `e2e/pdf-composition.spec.ts` (Playwright, `next start` — needs a production build).
+- E2E: `e2e/documents{,-xlsx,-pdf,-convert,-agent}.spec.ts`, `e2e/pdf-composition.spec.ts` (Playwright, `next start` — needs a production build).
 - `npm run test:bundle` — boots the standalone bundle, then re-boots an isolated copy with no repo `node_modules` and drives inspect/patch/convert/pdf-render/ocr through `document-tool.mjs`.
 - `node scripts/vendor-provenance.mjs --check` — both vendor trees.
 - `npm run ocr:build` — rebuilds platform OCR helpers into `resources/documents/ocr/`.

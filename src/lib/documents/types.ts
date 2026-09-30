@@ -11,7 +11,7 @@ import type { DocumentErrorCode } from "./errors";
  * straight through, while keeping this module free of vendor imports.
  */
 
-export type DocumentFormat = "docx" | "pdf";
+export type DocumentFormat = "docx" | "pdf" | "xlsx";
 
 export type DocumentActor =
   | { kind: "user" }
@@ -72,7 +72,15 @@ export interface PdfInspectResult {
   truncated?: boolean;
 }
 
-export type InspectResult = DocxInspectResult | PdfInspectResult;
+export interface XlsxInspectResult {
+  format: "xlsx";
+  name: string;
+  sheets: { id: string; name: string; rows: number; columns: number }[];
+  cellCount: number;
+  truncated?: boolean;
+}
+
+export type InspectResult = DocxInspectResult | PdfInspectResult | XlsxInspectResult;
 
 // ── pdf page geometry (Step 5 editor overlay) ──────────────────────────────
 
@@ -419,6 +427,129 @@ export interface DocxHeaderFooterInfo {
   watermark: string | null;
   differentFirstPage: boolean;
   differentOddEven: boolean;
+}
+
+export type XlsxCellValue = string | number | boolean | null;
+
+export interface XlsxCellModel {
+  row: number;
+  column: number;
+  value: XlsxCellValue;
+  formula?: string;
+  styleIndex?: number;
+}
+
+export interface XlsxStyleModel {
+  fontFamily?: string;
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  fontColor?: string;
+  fillColor?: string;
+  numberFormat?: string;
+  horizontalAlignment?: string;
+  verticalAlignment?: string;
+  wrapText?: boolean;
+  textRotation?: number;
+  indent?: number;
+  borderTop?: { style: string; color?: string };
+  borderBottom?: { style: string; color?: string };
+  borderLeft?: { style: string; color?: string };
+  borderRight?: { style: string; color?: string };
+}
+
+export interface XlsxSheetModel {
+  id: string;
+  name: string;
+  rowCount: number;
+  columnCount: number;
+  cells: XlsxCellModel[];
+  merges: { startRow: number; startColumn: number; endRow: number; endColumn: number }[];
+  rows: { row: number; height?: number; hidden: boolean }[];
+  columnWidths: {
+    startColumn: number;
+    endColumn: number;
+    width?: number;
+    hidden: boolean;
+  }[];
+  hidden: boolean;
+  showGridLines: boolean;
+}
+
+export interface XlsxDocumentModel {
+  format: "xlsx";
+  name: string;
+  activeTab: number;
+  styles: XlsxStyleModel[];
+  sheets: XlsxSheetModel[];
+  /** True when the safety cap prevented loading every used cell. */
+  truncated: boolean;
+}
+
+export interface XlsxCellEdit {
+  sheetId: string;
+  row: number;
+  column: number;
+  writeValue: boolean;
+  value: XlsxCellValue;
+  formula?: string;
+  style?: Record<string, unknown>;
+  styleReset?: boolean;
+}
+
+export interface XlsxSheetPlan {
+  renames: { sheetName: string; newName: string }[];
+  additions: { sheetId: string; name: string; sourceSheetName?: string }[];
+  removals: string[];
+  hiddenChanges: { sheetName: string; hidden: boolean }[];
+  orderChanged: boolean;
+  order: string[];
+}
+
+export interface XlsxStructuralOps {
+  sheetId: string;
+  ops: (
+    | {
+        kind: "merge-cells" | "unmerge-cells";
+        range: { startRow: number; endRow: number; startColumn: number; endColumn: number };
+      }
+    | {
+        kind: "set-row-size" | "set-col-size";
+        start: number;
+        end: number;
+        size: number | null;
+      }
+    | {
+        kind: "set-rows-hidden" | "set-cols-hidden";
+        start: number;
+        end: number;
+        hidden: boolean;
+      }
+  )[];
+}
+
+export interface XlsxSavePlan {
+  edits: XlsxCellEdit[];
+  structuralOps?: XlsxStructuralOps[];
+  sheetPlan?: XlsxSheetPlan;
+}
+
+export interface XlsxLoadRequest {
+  sessionId: string;
+}
+
+export interface XlsxSaveRequest {
+  sessionId: string;
+  baseRevision: string;
+  plan: XlsxSavePlan;
+  actor?: DocumentActor;
+}
+
+export interface XlsxSaveResult {
+  revision: string;
+  virtualPath: string;
 }
 
 export interface DocxDocumentModel {

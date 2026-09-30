@@ -6,6 +6,7 @@ test("isBinaryDocumentWrite", () => {
   assert.equal(isBinaryDocumentWrite(".docx", "text/plain"), true);
   assert.equal(isBinaryDocumentWrite(".docx", null), true);
   assert.equal(isBinaryDocumentWrite(".pdf", null), true);
+  assert.equal(isBinaryDocumentWrite(".xlsx", null), true);
   assert.equal(isBinaryDocumentWrite(".md", "image/svg+xml"), false);
   assert.equal(isBinaryDocumentWrite(".svg", "image/svg+xml"), false);
   assert.equal(isBinaryDocumentWrite(".md", "application/octet-stream"), true);

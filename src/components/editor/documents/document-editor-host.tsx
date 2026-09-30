@@ -16,7 +16,7 @@ import { useDaemonChannel } from "@/hooks/use-daemon-channel";
 
 interface Props {
   path: string;
-  format: "docx" | "pdf";
+  format: "docx" | "pdf" | "xlsx";
   /** Rendered instead of the iframe when editing is unavailable. */
   fallback: (reason?: string) => React.ReactNode;
   /** Live status forwarded into the toolbar slot by the parent. */

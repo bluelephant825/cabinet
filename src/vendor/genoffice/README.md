@@ -8,7 +8,7 @@ directory.
 
 ## What is vendored
 
-The minimal transitive source closure needed for DOCX editing, PDF content
+The minimal transitive source closure needed for DOCX/XLSX editing, PDF content
 editing and local PDF→DOCX conversion:
 
 - `packages/docx-engine/` — OOXML parse/patch/save engine
@@ -17,6 +17,11 @@ editing and local PDF→DOCX conversion:
 - `packages/pdf2docx/` — bytes-in/bytes-out `convertPdfToDocx` pipeline plus the
   `OcrEngine` interface types (OCR helpers are not vendored yet)
 - `packages/font-metrics/` — installed-font location/measurement (Node fs)
+- `packages/xlsx-gateway/` — server-side, entry-preserving OOXML XLSX patch planner
+- `apps/sheets/native/xlsx-engine/` — Rust JSON-lines sidecar source for bounded
+  archive reads, workbook metadata/ranges, raw-copy archive assembly and formula
+  recalculation; build output is staged outside the vendor tree
+- `apps/sheets/src/main/xlsx-sidecar-client.ts` — supervised Node child-process client
 - `apps/pdf/main/` — PDFium-based content-stream text/image edit, save and
   verification pipeline (`text-edit`, `image-edit`, `save-pdf`, `font-cmap`,
   `font-subset`, `wasm-path`, plus the helpers they import)
@@ -29,10 +34,10 @@ editing and local PDF→DOCX conversion:
 
 ## What is deliberately excluded
 
-Everything under upstream `ee/`, the Electron shell, preload/renderer UI, AI
-provider/agent/search/i18n packages, telemetry, updaters, OCR helper binaries
-(`ocr-vision.ts`, `ocr-helper/`, `win-ocr.cs`), the pdf.js renderer layer, and
-all workspace manifests/tests. No GenOffice/Genspark user-visible branding.
+Everything under upstream `ee/`, the Electron shell, Sheets preload/custom
+ribbon/AI renderer, AI provider/agent/search packages, telemetry, updaters, OCR
+helper binaries (`ocr-vision.ts`, `ocr-helper/`, `win-ocr.cs`), the pdf.js
+renderer layer, and workspace tests. No GenOffice/Genspark user-visible branding.
 
 ## Host seams
 

@@ -44,6 +44,7 @@ import {
 } from "./recovery";
 import { DocumentBroker, type DocumentSession } from "./broker";
 import { selectOcrProvider } from "./ocr/registry";
+import { xlsxSidecarAvailable } from "./xlsx-sidecar-path";
 import type {
   ConvertPlanResult,
   ConvertRequest,
@@ -66,6 +67,10 @@ import type {
   DocxSaveRequest,
   DocxSaveResult,
   PdfGeometryResult,
+  XlsxDocumentModel,
+  XlsxLoadRequest,
+  XlsxSaveRequest,
+  XlsxSaveResult,
 } from "../../src/lib/documents/types";
 
 /** Cheap trailer/head scan for a PDF /Encrypt dictionary — good enough to
@@ -92,7 +97,7 @@ interface ResolvedTarget {
   session?: DocumentSession;
   virtualPath: string;
   absPath: string;
-  format: "docx" | "pdf";
+  format: "docx" | "pdf" | "xlsx";
 }
 
 export interface DocumentChangeEvent {
@@ -150,6 +155,9 @@ export class DocumentService {
     validateActor(input.actor);
     const auth = await authorizeDocumentPath(input.virtualPath, { write: false });
     const { bytes, revision } = await readWithRevision(auth.absPath);
+    if (auth.format === "xlsx" && xlsxSidecarAvailable()) {
+      await this.broker.run("xlsxPrewarm", {});
+    }
     const session = this.broker.openSession({
       virtualPath: input.virtualPath,
       absPath: auth.absPath,
@@ -164,7 +172,9 @@ export class DocumentService {
       auth.readOnlyReason ??
       (auth.format === "pdf" && looksEncryptedPdf(bytes)
         ? "PDF is encrypted or password-protected"
-        : undefined);
+        : auth.format === "xlsx" && !xlsxSidecarAvailable()
+          ? `XLSX editing helper is unavailable for ${process.platform}-${process.arch}`
+          : undefined);
     return {
       sessionId: session.sessionId,
       virtualPath: input.virtualPath,
@@ -336,6 +346,55 @@ export class DocumentService {
       // The worker re-parses inputPath and applies the plan to CURRENT bytes;
       // commitBytes then rejects the write if they no longer match baseRevision.
       await this.broker.run("docxSave", {
+        inputPath: session.absPath,
+        outputPath,
+        plan: input.plan,
+      });
+      try {
+        const committed = await commitBytes({
+          absPath: session.absPath,
+          tempPath: outputPath,
+          expectedRevision: input.baseRevision,
+        });
+        session.revision = committed.revision;
+        session.lastSeenAt = new Date();
+        await this.broker.recordCommit(session.absPath, committed.revision, committed.size);
+        this.changed({
+          virtualPath: session.virtualPath,
+          revision: committed.revision,
+          actor,
+          op: "save",
+        });
+        return { revision: committed.revision, virtualPath: session.virtualPath };
+      } finally {
+        await fs.rm(outputPath, { force: true }).catch(() => {});
+      }
+    });
+  }
+
+  // ── XLSX editor model / save plan ──────────────────────────────────────
+
+  async xlsxLoad(input: XlsxLoadRequest): Promise<XlsxDocumentModel> {
+    const session = this.broker.touchSession(input.sessionId);
+    if (session.format !== "xlsx") {
+      throw new DocumentError("unsupported", "xlsx load is only available for .xlsx sessions");
+    }
+    return this.broker.withPathLock(session.absPath, () =>
+      this.broker.run("xlsxLoad", { inputPath: session.absPath }),
+    ) as Promise<XlsxDocumentModel>;
+  }
+
+  async xlsxSave(input: XlsxSaveRequest): Promise<XlsxSaveResult> {
+    const actor = validateActor(input.actor);
+    const session = this.broker.touchSession(input.sessionId);
+    if (session.format !== "xlsx") {
+      throw new DocumentError("unsupported", "xlsx save is only available for .xlsx sessions");
+    }
+    if (!input.baseRevision) throw new DocumentError("invalid", "baseRevision is required");
+    await authorizeDocumentPath(session.virtualPath, { write: true });
+    return this.broker.withPathLock(session.absPath, async () => {
+      const outputPath = this.broker.tempPathFor(session.absPath);
+      await this.broker.run("xlsxSave", {
         inputPath: session.absPath,
         outputPath,
         plan: input.plan,

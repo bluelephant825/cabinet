@@ -263,6 +263,17 @@ export async function handleDocumentsRequest(
         }
         sendJson(res, 404, { error: "Unknown docx route", code: "not-found" });
         return true;
+      case "xlsx":
+        if (parts[2] === "load") {
+          sendJson(res, 200, await service.xlsxLoad(body as never));
+          return true;
+        }
+        if (parts[2] === "save") {
+          sendJson(res, 200, await service.xlsxSave(body as never));
+          return true;
+        }
+        sendJson(res, 404, { error: "Unknown xlsx route", code: "not-found" });
+        return true;
       case "pdf":
         if (parts[2] === "geometry") {
           sendJson(res, 200, await service.pdfPageGeometry(body as never));

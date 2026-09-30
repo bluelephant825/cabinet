@@ -134,7 +134,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // revalidation so in-app edits/replacements aren't served stale.
         // Binary documents (docx/pdf) get no-cache + a weak ETag so editors
         // can cheaply detect external changes.
-        const isDocAsset = ext === ".docx" || ext === ".pdf";
+        const isDocAsset = ext === ".docx" || ext === ".xlsx" || ext === ".pdf";
         const cacheControl = isDocAsset
           ? "private, no-cache"
           : NO_CACHE_EXTS.has(ext)
@@ -236,7 +236,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // until the cache expired. Force revalidation on every fetch for the
     // editable text types (see NO_CACHE_EXTS) — the payload is small and the
     // win on developer/UX feedback is large. Binary assets keep the long cache.
-    const isDocAsset = ext === ".docx" || ext === ".pdf";
+    const isDocAsset = ext === ".docx" || ext === ".xlsx" || ext === ".pdf";
     const cacheControl = isDocAsset
       ? "private, no-cache"
       : NO_CACHE_EXTS.has(ext)

@@ -215,14 +215,14 @@ function requiredPath(flags: Map<string, string>): string {
 
 // ── help ─────────────────────────────────────────────────────────────────
 
-const HELP = `cabinet-documents — read, edit, and convert Cabinet .docx/.pdf documents.
+const HELP = `cabinet-documents — read Cabinet .docx/.xlsx/.pdf documents and edit/convert supported formats.
 
 Paths: --path takes a cabinet virtual path (e.g. "notes/report.docx") or a
 relative/absolute filesystem path inside the cabinet — relative paths resolve
 against your current working directory.
 
 Commands:
-  inspect    --path                          Structure: docx paragraphs (stable ids), pdf pages/lines
+  inspect    --path                          Structure: docx paragraphs, xlsx sheets, pdf pages/lines
   read       --path [--page N | --paragraphs A-B]
                                              Text content (whole doc, one page, or paragraph range)
   search     --path --query TEXT             Matches with locations/snippets

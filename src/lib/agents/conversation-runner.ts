@@ -288,7 +288,7 @@ function buildDiagramOutputInstructions(): string[] {
 
 function buildDocumentToolInstructions(): string[] {
   return [
-    "For .docx and .pdf files use the `cabinet-documents` command (run `cabinet-documents --help` first for the exact flags).",
+    "For .docx, .xlsx and .pdf files use the `cabinet-documents` command (run `cabinet-documents --help` first for the exact flags). XLSX is inspect/read-only for agents; do not attempt byte-level edits.",
     "Always `cabinet-documents inspect` or `read` a document before editing it — never rewrite document bytes by hand.",
     "Edits go through `cabinet-documents patch` / `docx-save`; they are revision-checked and all-or-nothing. If an operation reports unsupported, say so instead of working around it.",
     "`cabinet-documents convert --wait` turns a PDF into a new .docx and reports per-page outcomes (including OCR-recovered pages). `convert --to md` (or `--to mdx`) turns a PDF or DOCX into a Cabinet Markdown page — images land in a sibling `-assets` folder and the page's `source` frontmatter points back at the original; report every created path to the user.",
@@ -363,7 +363,7 @@ async function buildMentionContext(mentionedPaths: string[]): Promise<string> {
         const ext = path.extname(pagePath).toLowerCase();
         if (NON_INLINE_MENTION_EXT.has(ext)) {
           const hint =
-            ext === ".docx" || ext === ".pdf"
+            ext === ".docx" || ext === ".xlsx" || ext === ".pdf"
               ? "open it with `cabinet-documents inspect` / `cabinet-documents read`"
               : "open it with the Read tool at this path";
           return `--- ${pagePath} (file attachment — ${hint}) ---`;
@@ -413,7 +413,7 @@ function buildAttachmentContext(
 
   const lineFor = (rel: string): string => {
     const ext = path.extname(rel).toLowerCase();
-    if (ext === ".docx" || ext === ".pdf") {
+    if (ext === ".docx" || ext === ".xlsx" || ext === ".pdf") {
       return `- ${rel} (document — use \`cabinet-documents inspect\` / \`cabinet-documents read\`)`;
     }
     return `- ${rel}`;

@@ -53,6 +53,7 @@ export const VENDORS = {
         "as-CSSProperties cast on the veil style — upstream's local Box type lacks the `--*` index signature current @types/react requires",
     },
     cabinetOwned: new Set(['host/image-codec.ts', 'THIRD_PARTY_NOTICES.md', 'README.md']),
+    excludedPrefixes: ['apps/sheets/native/xlsx-engine/target/'],
   },
 
   pdfcn: {

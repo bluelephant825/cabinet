@@ -350,6 +350,30 @@ Release/CI (so the manifest can't lie):
 6. Make the Electron build part of the automated release (or block manifest publish until it runs) so the advertised version always has an installable build.
 7. Verify macOS signing/notarization end-to-end, or `update-electron-app` keeps emitting `error → failed` and re-pinning the modal.
 
+## XLSX sidecar packaging
+
+XLSX editing requires the pinned Rust source under
+`src/vendor/genoffice/apps/sheets/native/xlsx-engine/`. `npm run electron:prep`
+runs `scripts/build-xlsx-sidecar.mjs` before document resources are staged.
+A native host build lands at
+`resources/documents/xlsx/<platform>-<arch>/xlsx-sidecar[.exe]`, then under
+`<standalone>/documents/xlsx/...` in the application bundle.
+
+- Native macOS arm64/x64, Windows x64/arm64 and Linux x64/arm64 runners can
+  build their own target with Cargo.
+- A cross-packaging job must provide a runnable binary through
+  `CABINET_XLSX_SIDECAR_PREBUILT` and set `CABINET_ELECTRON_TARGET_PLATFORM`
+  plus `CABINET_ELECTRON_TARGET_ARCH`. Packaging fails rather than silently
+  shipping an XLSX editor that cannot save.
+- A macOS universal release binary is built in the GenOffice release process
+  by compiling `x86_64-apple-darwin` and `aarch64-apple-darwin` and merging
+  them with `lipo`; set `CABINET_XLSX_UNIVERSAL=1` to run that path. Cabinet may
+  also pass a universal file as the prebuilt for both macOS package
+  architectures. Local `electron:prep` builds only the host
+  architecture so contributors do not need both Rust targets.
+- Linux CI needs Cargo/Rust installed. Cache `build/xlsx-sidecar-target/`, but
+  never commit it or the generated binaries under `resources/documents/xlsx/`.
+
 ## Release Troubleshooting: Desktop Packaging Failures (from the v0.5.0 ship, 2026-07-04)
 
 The `electron-release.yml` desktop build hit three separate failures shipping v0.5.0. All are now fixed or documented; keep this as the runbook.

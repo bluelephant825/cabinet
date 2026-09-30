@@ -492,7 +492,7 @@ test("read-only inline source: open works with reason, patch → read-only", asy
   }
 });
 
-test("path traversal → unauthorized; symlink escape → unauthorized; .xlsx → unsupported", async () => {
+test("path traversal → unauthorized; symlink escape → unauthorized; .pptx → unsupported", async () => {
   const svc = makeService();
   await assert.rejects(svc.open({ virtualPath: "../escape.docx" }), (e) => {
     return e instanceof DocumentError && e.code === "unauthorized";
@@ -510,8 +510,8 @@ test("path traversal → unauthorized; symlink escape → unauthorized; .xlsx �
     await fs.rm(outside, { recursive: true, force: true });
   }
 
-  await writeFixture("docs/sheet.xlsx", new Uint8Array([1, 2, 3]));
-  await assert.rejects(svc.open({ virtualPath: "docs/sheet.xlsx" }), (e) => {
+  await writeFixture("docs/slides.pptx", new Uint8Array([1, 2, 3]));
+  await assert.rejects(svc.open({ virtualPath: "docs/slides.pptx" }), (e) => {
     return e instanceof DocumentError && e.code === "unsupported";
   });
 });

@@ -79,18 +79,24 @@ async function validateSignature(absPath: string, bytes: Uint8Array): Promise<vo
     }
     return;
   }
-  if (ext === ".docx") {
+  if (ext === ".docx" || ext === ".xlsx") {
     if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b || bytes[2] !== 0x03 || bytes[3] !== 0x04) {
       throw new DocumentError("invalid", "File is not a ZIP container (missing PK signature)");
     }
     try {
       const zip = await JSZip.loadAsync(bytes);
       if (!zip.file("[Content_Types].xml")) {
-        throw new DocumentError("invalid", "ZIP container lacks [Content_Types].xml — not a DOCX");
+        throw new DocumentError("invalid", "ZIP container lacks [Content_Types].xml");
+      }
+      if (ext === ".docx" && !zip.file("word/document.xml")) {
+        throw new DocumentError("invalid", "ZIP container lacks word/document.xml — not a DOCX");
+      }
+      if (ext === ".xlsx" && !zip.file("xl/workbook.xml")) {
+        throw new DocumentError("invalid", "ZIP container lacks xl/workbook.xml — not an XLSX");
       }
     } catch (err) {
       if (err instanceof DocumentError) throw err;
-      throw new DocumentError("invalid", "File is not a readable DOCX package");
+      throw new DocumentError("invalid", `File is not a readable ${ext.slice(1).toUpperCase()} package`);
     }
     return;
   }
