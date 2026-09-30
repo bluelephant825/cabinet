@@ -34,6 +34,7 @@ import path from "path";
 import { execFileSync, spawn, spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { runChecks } from "./smoke-checks.mjs";
+import JSZip from "jszip";
 import * as XLSX from "xlsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -153,6 +154,16 @@ async function makePdfBytes(text) {
   for (let i = 1; i <= objs.length; i++) pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
   pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(pdf, "latin1");
+}
+
+async function makePptxBytes(text) {
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/><Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/></Types>`);
+  zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>`);
+  zip.file("ppt/presentation.xml", `<?xml version="1.0" encoding="UTF-8"?><p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+  zip.file("ppt/_rels/presentation.xml.rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>`);
+  zip.file("ppt/slides/slide1.xml", `<?xml version="1.0" encoding="UTF-8"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Text 1"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="5486400" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>${text}</a:t></a:r><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`);
+  return zip.generateAsync({ type: "nodebuffer" });
 }
 
 async function pollHealth(url, timeoutMs) {
@@ -391,6 +402,7 @@ for (const [extension, content] of Object.entries({
   fs.writeFileSync(path.join(ISO_CABINET, `smoke.${extension}`), content);
 }
 fs.writeFileSync(path.join(ISO_CABINET, "smoke.pdf"), await makePdfBytes("Bundle isolated smoke"));
+fs.writeFileSync(path.join(ISO_CABINET, "smoke.pptx"), await makePptxBytes("Bundle PPTX smoke"));
 const smokeWorkbook = XLSX.utils.book_new();
 XLSX.utils.book_append_sheet(
   smokeWorkbook,
@@ -401,7 +413,7 @@ fs.writeFileSync(
   path.join(ISO_CABINET, "smoke.xlsx"),
   XLSX.write(smokeWorkbook, { type: "buffer", bookType: "xlsx" }),
 );
-for (const extension of ["html", "ipynb", "tex", "typ", "pdf", "docx", "xlsx"]) {
+for (const extension of ["html", "ipynb", "tex", "typ", "pdf", "docx", "xlsx", "pptx"]) {
   const route = `http://127.0.0.1:${isoAppPort}/room/Cabinet/smoke.${extension}`;
   const response = await fetch(route, { signal: AbortSignal.timeout(15_000) });
   if (response.status !== 200) {
@@ -483,6 +495,17 @@ if (!xlsxRead.text?.includes("Bundle XLSX smoke")) {
   fail(`xlsx read returned unexpected text: ${JSON.stringify(xlsxRead).slice(0, 300)}`);
 }
 ok("xlsx sidecar inspect + read ok");
+
+step("documents: pptx inspect + read (vendored worker engine)...");
+const pptxInspect = docTool(["inspect", "--path", "smoke.pptx"], "pptx inspect");
+if (pptxInspect.format !== "pptx" || pptxInspect.slideCount !== 1) {
+  fail(`pptx inspect returned unexpected shape: ${JSON.stringify(pptxInspect).slice(0, 300)}`);
+}
+const pptxRead = docTool(["read", "--path", "smoke.pptx"], "pptx read");
+if (!pptxRead.text?.includes("Bundle PPTX smoke")) {
+  fail(`pptx read returned unexpected text: ${JSON.stringify(pptxRead).slice(0, 300)}`);
+}
+ok("pptx worker inspect + read ok");
 
 step("documents: pdf inspect + patch (pdfium + harfbuzz wasm)...");
 const pdfInspect = docTool(["inspect", "--path", "smoke.pdf"], "inspect");

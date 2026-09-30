@@ -374,6 +374,16 @@ A native host build lands at
 - Linux CI needs Cargo/Rust installed. Cache `build/xlsx-sidecar-target/`, but
   never commit it or the generated binaries under `resources/documents/xlsx/`.
 
+## PPTX packaging
+
+PPTX text and speaker-notes editing uses the existing bundled document worker,
+the vendored TypeScript `pptx-engine`, trimmed `pptx-ops` text mapper and
+`pptx-render` coordinate mapper. It has no native helper or Electron IPC
+requirement. The lazy browser frame uses the already packaged `pptx-preview`
+asset as its visual layer, while all writes remain in the worker/service path.
+No platform-specific release artifact is required beyond the normal worker
+bundle.
+
 ## Release Troubleshooting: Desktop Packaging Failures (from the v0.5.0 ship, 2026-07-04)
 
 The `electron-release.yml` desktop build hit three separate failures shipping v0.5.0. All are now fixed or documented; keep this as the runbook.

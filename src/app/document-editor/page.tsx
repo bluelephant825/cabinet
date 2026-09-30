@@ -17,6 +17,10 @@ const XlsxSpikeFrame = dynamic(
   () => import("@/components/editor/documents/xlsx-spike-frame"),
   { ssr: false },
 );
+const PptxEditorFrame = dynamic(
+  () => import("@/components/editor/documents/pptx-editor-frame"),
+  { ssr: false },
+);
 
 function formatFromHash(): string {
   if (typeof window === "undefined") return "docx";
@@ -38,6 +42,8 @@ export default function DocumentEditorPage() {
         <PdfEditorFrame />
       ) : format === "xlsx" ? (
         <XlsxSpikeFrame />
+      ) : format === "pptx" ? (
+        <PptxEditorFrame />
       ) : (
         <DocxEditorFrame />
       )}

@@ -27,7 +27,7 @@
     {
       "path": "README.md",
       "upstreamPath": null,
-      "sha256": "aae6e7116f6576d28b182ed1e30a08b9a59d9092e210f6380b2f5c1165c9bb53",
+      "sha256": "d5cd94c8f2f97f00d9f6badb0678f17876e44311dd418f2855302cb23a22540a",
       "adapted": false
     },
     {
@@ -2306,6 +2306,46 @@
       "sha256": "6605b26c8eb1ea432abc1aa2f964259406fbc44195be063cc7ad23cbf59837ec",
       "adapted": false,
       "upstreamSha256": "6605b26c8eb1ea432abc1aa2f964259406fbc44195be063cc7ad23cbf59837ec"
+    },
+    {
+      "path": "packages/pptx-ops/package.json",
+      "upstreamPath": "packages/pptx-ops/package.json",
+      "sha256": "ed2b8e9f3b9de32e04f7ddb3ae6d0e024c1a64b0db9d09875524b8dc3d1673f6",
+      "adapted": true,
+      "upstreamSha256": "7a2db857ff4a5186a8d9f59108d49def4b08b3ede9fa3ed6ad1f8375d66a84f2",
+      "adaptationNote": "trimmed to the Apache text-edit subset used by Cabinet; scripts, dev dependencies and unrelated op-layer exports are omitted"
+    },
+    {
+      "path": "packages/pptx-ops/src/edit-text.ts",
+      "upstreamPath": "packages/pptx-ops/src/edit-text.ts",
+      "sha256": "40ae45b6238c6cf9b66776194961adbf18ed0251a98aac5e408bebd689b1cae4",
+      "adapted": true,
+      "upstreamSha256": "01fb6e2e4136cf2966e78e889c1647365f4bb4817d5d2d525c47f80c9e03225d",
+      "adaptationNote": "trimmed to applyEditParagraphs; paragraph-format collection and level-change helpers are not needed by the Phase 4 text/notes surface"
+    },
+    {
+      "path": "packages/pptx-ops/src/index.ts",
+      "upstreamPath": "packages/pptx-ops/src/index.ts",
+      "sha256": "1dbd1bbe49716518c289ca4c79127bba51e8cb532f3bcc759a0244e43438f9f1",
+      "adapted": true,
+      "upstreamSha256": "bfd55593d6eec31ce16aa3ba5358b6e205a68e5f0f71ab274480e99730fe4b77",
+      "adaptationNote": "trimmed to applyEditParagraphs and its public text-edit payload types; deck-generation and structural op exports remain deferred to the skill path"
+    },
+    {
+      "path": "packages/pptx-ops/src/types.ts",
+      "upstreamPath": "packages/pptx-ops/src/types.ts",
+      "sha256": "6b57dd2996f762f5fdfd27905a5e9b1cd782b042a1ecfcf3bf21ad155a34c00a",
+      "adapted": true,
+      "upstreamSha256": "3b749f6c4df8bdf3931b001831b2e6302271a384023b76d5fc7900086b1fa798",
+      "adaptationNote": "trimmed to text-edit payload types and their script/link dependencies; comments and unrelated app IPC payloads are omitted"
+    },
+    {
+      "path": "packages/pptx-render/src/coords.ts",
+      "upstreamPath": "packages/pptx-render/src/coords.ts",
+      "sha256": "9c0c25c0a50e272fb5c9445cdde4217c1e29054c590d37596018b7b47fc53665",
+      "adapted": true,
+      "upstreamSha256": "b3186908918fd6c67e7cad0626eda487de8994b4755bad7d32f60e37ee2d5b7f",
+      "adaptationNote": "trimmed comments only; EMU/viewport/placement behavior is unchanged and used by the Cabinet worker model"
     },
     {
       "path": "packages/pptx-render/src/preset-geometry.ts",

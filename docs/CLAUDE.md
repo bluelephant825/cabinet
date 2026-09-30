@@ -35,7 +35,7 @@ src/
   stores/                    → Zustand (tree, editor, ai-panel, task, app)
   components/sidebar/        → Tree navigation, drag-and-drop, context menu
   components/editor/         → Tiptap WYSIWYG + toolbar, website/PDF/CSV/office viewers
-  components/editor/office/  → Read-only viewers for .docx, .xlsx, .pptx
+  components/editor/office/  → Editable document hosts plus read-only fallbacks
   components/ai-panel/       → Right-side AI chat panel
   components/tasks/          → Task board + task detail panel
   components/agents/         → Agents workspace + live/result conversation views
@@ -72,7 +72,7 @@ data/                        → Content directory (KB pages, tasks, jobs)
 10. **Version restore** — users can restore any page to a previous git commit via the Version History panel
 11. **Embedded apps** — dirs with `index.html` + no `index.md` render as iframes. Add `.app` marker for full-screen mode (sidebar + AI panel auto-collapse)
 12. **Linked repos** — `.repo.yaml` in a data dir links it to a Git repo (local path + remote URL). Agents use this to read/search source code in context. See `data/CLAUDE.md` for full spec.
-13. **Office documents** — `.docx`, `.xlsx` and `.pdf` are editable through the document service (see "Documents (DOCX/XLSX/PDF/PDFCN)" below); docx-preview, SheetJS and the browser PDF view remain read-only fallbacks when editing is unavailable. `.xlsm` and `.pptx` render inline via dynamically-imported read-only viewers. "Download" + "Reveal" actions remain in the viewer header. Legacy binary formats (`.doc`, `.xls`, `.ppt`) keep the Fallback viewer.
+13. **Office documents** — `.docx`, `.xlsx`, `.pptx` and `.pdf` are editable through the document service (see "Documents (DOCX/XLSX/PPTX/PDF/PDFCN)" below); docx-preview, SheetJS, pptx-preview and the browser PDF view remain read-only fallbacks when editing is unavailable. `.xlsm` remains read-only. "Download" + "Reveal" actions remain in the viewer header. Legacy binary formats (`.doc`, `.xls`, `.ppt`) keep the Fallback viewer.
 14. **Google Workspace pages** — a markdown page with a `google:` frontmatter key (`url`, optional `kind` / `embedUrl`) is rendered by `GoogleDocViewer` instead of the Tiptap editor. The iframe needs "Anyone with the link" or "Publish to Web" on Google's side. OAuth-based sync is not yet implemented.
 15. **Skills** — Anthropic-format skill bundles (`SKILL.md` + frontmatter + optional `references/`/`scripts/`/`assets/`). Resolved across four origins with precedence: cabinet-scoped (`data/<cabinet>/.agents/skills/`) > cabinet-root (`<repo>/.agents/skills/`) > linked-repo > system (`~/.claude/skills/`, `~/.agents/skills/`) > legacy-home (`~/.cabinet/skills/`). Personas reference skills by key in `skills:` (persistent attachment) and `recommendedSkills:` (template defaults shown as preselected toggles in the new-agent flow). Trust gating evaluates each skill at mount time using auto-detected trust level × verified-publisher × author `trust-policy:` frontmatter; operator decisions persist in `.cabinet/skills-trust.json`. Compose `@skill-name` to attach a skill run-only without persisting to the persona. Plan: `docs/SKILLS_PLAN.md`.
 16. **Registry templates come from the cabinets manifest** — the home carousel and the *Cabinets / AI teams, off the shelf* page (`registry-browser.tsx`) read from `https://raw.githubusercontent.com/cabinetai/cabinets/HEAD/manifest.json`, which is auto-built by the `build-manifest.yml` GitHub Action in the [`cabinets`](https://github.com/cabinetai/cabinets) registry on every push. The fetch is cached in-process for 10 minutes (`src/lib/registry/registry-manifest.ts`) and falls back to a small bundled list if offline. Cover images are fetched directly from `…/HEAD/<slug>/cover.jpg`. **Do not** hand-edit registry-manifest.ts to add new cabinets — add them to the registry repo and CI rebuilds the manifest.
@@ -136,7 +136,7 @@ Both npm packages ship from this monorepo, not separate repos:
 
 4. **When fixing a crash anywhere in the bootstrap/install path, trace what happens *before* the crash.** If the crash is the only thing stopping a worse silent outcome (HOME pollution, data loss, unrecoverable state), fix the root cause upstream instead of removing the crash.
 
-## Documents (DOCX/XLSX/PDF/PDFCN)
+## Documents (DOCX/XLSX/PPTX/PDF/PDFCN)
 
 ### Architecture
 
@@ -152,7 +152,7 @@ Agents → `cabinet-documents` CLI (scripts/document-tool.ts → shim in <data-p
 
 ### Invariants
 
-- Every write goes `authorizeDocumentPath` → per-path lock → `commitBytes` (atomic temp+rename, `expectedRevision` conflict check, signature checks; XLSX additionally uses the gateway's entry-preserving sidecar save; `.pdf.source.json` uses `signatureCheck:"json"`).
+- Every write goes `authorizeDocumentPath` → per-path lock → `commitBytes` (atomic temp+rename, `expectedRevision` conflict check, signature checks; XLSX additionally uses the gateway's entry-preserving sidecar save; PPTX uses element-level text patches and archive notes surgery; `.pdf.source.json` uses `signatureCheck:"json"`).
 - Engines run ONLY inside the worker process — never in the Next app or daemon in-process.
 - Client code may not import `src/vendor/genoffice/**` or `src/vendor/pdfcn/**` (lint-enforced; allowed only in `server/documents/pdf-generation.tsx`, `worker-ops.ts`, tests).
 - `.pdf.source.json` compositions are data-only: validated against `pdf-component-catalog.ts` (`validateComposition`); node types map through a fixed registry — never dynamic import by user string.

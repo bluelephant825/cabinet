@@ -59,6 +59,7 @@ import type {
 import { DocumentError } from "../../src/lib/documents/errors";
 import { summarizeHeaderFooter } from "../../src/lib/documents/docx-header-footer";
 import { inspectXlsx, loadXlsx, prewarmXlsxSidecar, readXlsx, saveXlsx } from "./xlsx-worker";
+import { inspectPptx, loadPptx, readPptx, savePptxPlan } from "./pptx-worker";
 import type {
   DocumentFormat,
   DocumentPatchOp,
@@ -71,6 +72,7 @@ import type {
   PatchDiagnostic,
   PdfGeometryResult,
   XlsxSavePlan,
+  PptxSavePlan,
 } from "../../src/lib/documents/types";
 
 /** Faces carrying only color bitmaps cannot embed as PDF text objects. */
@@ -574,6 +576,7 @@ async function readOp(args: {
     return { text: slice.map(blockText).join("\n") };
   }
   if (args.format === "xlsx") return readXlsx(args.inputPath);
+  if (args.format === "pptx") return readPptx(args.inputPath);
   const bytes = new Uint8Array(await readFile(args.inputPath));
   const m = (await pdfium()) as PdfiumExt;
   return chainPdfium(() =>
@@ -632,9 +635,9 @@ async function searchOp(args: {
     }
     return { matches };
   }
-  if (args.format === "xlsx") {
-    const { text } = await readXlsx(args.inputPath);
-    text.split("\n").forEach((line, index) => pushMatch(`xlsx-line-${index}`, line));
+  if (args.format === "xlsx" || args.format === "pptx") {
+    const { text } = args.format === "xlsx" ? await readXlsx(args.inputPath) : await readPptx(args.inputPath);
+    text.split("\n").forEach((line, index) => pushMatch(`${args.format}-line-${index}`, line));
     return { matches };
   }
   const bytes = new Uint8Array(await readFile(args.inputPath));
@@ -793,8 +796,11 @@ async function applyPatchOp(args: {
   ops: DocumentPatchOp[];
 }): Promise<{ applied: number; diagnostics: PatchDiagnostic[] }> {
   if (!args.ops?.length) throw new DocumentError("invalid", "Patch contains no operations");
-  if (args.format === "xlsx") {
-    throw new DocumentError("unsupported", "Generic patches are not supported for XLSX documents");
+  if (args.format === "xlsx" || args.format === "pptx") {
+    throw new DocumentError(
+      "unsupported",
+      `Generic patches are not supported for ${args.format.toUpperCase()} documents`,
+    );
   }
   return args.format === "docx"
     ? patchDocx(args.inputPath, args.outputPath, args.ops)
@@ -1197,7 +1203,9 @@ export async function runOp(
         ? inspectDocx(args.inputPath as string)
         : args.format === "xlsx"
           ? inspectXlsx(args.inputPath as string)
-          : inspectPdf(args.inputPath as string);
+          : args.format === "pptx"
+            ? inspectPptx(args.inputPath as string)
+            : inspectPdf(args.inputPath as string);
     case "read":
       return readOp(args as never);
     case "search":
@@ -1223,6 +1231,14 @@ export async function runOp(
         args.inputPath as string,
         args.outputPath as string,
         args.plan as XlsxSavePlan,
+      );
+    case "pptxLoad":
+      return loadPptx(args.inputPath as string);
+    case "pptxSave":
+      return savePptxPlan(
+        args.inputPath as string,
+        args.outputPath as string,
+        args.plan as PptxSavePlan,
       );
     case "pdfPageGeometry":
       return pdfPageGeometryOp(args as never);

@@ -8,12 +8,16 @@ directory.
 
 ## What is vendored
 
-The minimal transitive source closure needed for DOCX/XLSX editing, PDF content
+The minimal transitive source closure needed for DOCX/XLSX/PPTX editing, PDF content
 editing and local PDF→DOCX conversion:
 
 - `packages/docx-engine/` — OOXML parse/patch/save engine
-- `packages/pptx-engine/` — only the files the closure needs (docx-engine and
-  pdf2docx import parts of it; no PPTX editing surface is wired up)
+- `packages/pptx-engine/` — OOXML parse/patch/save engine used for PPTX text and
+  speaker-notes editing, plus the files docx-engine and pdf2docx import
+- `packages/pptx-ops/` — trimmed rich-text mapping subset used by the PPTX worker;
+  deck-generation and structural operations remain excluded
+- `packages/pptx-render/` — viewport and placement mapping used by the PPTX model;
+  the browser keeps the existing lazy `pptx-preview` renderer as its visual layer
 - `packages/pdf2docx/` — bytes-in/bytes-out `convertPdfToDocx` pipeline plus the
   `OcrEngine` interface types (OCR helpers are not vendored yet)
 - `packages/font-metrics/` — installed-font location/measurement (Node fs)

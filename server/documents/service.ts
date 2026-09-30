@@ -71,6 +71,10 @@ import type {
   XlsxLoadRequest,
   XlsxSaveRequest,
   XlsxSaveResult,
+  PptxDocumentModel,
+  PptxLoadRequest,
+  PptxSaveRequest,
+  PptxSaveResult,
 } from "../../src/lib/documents/types";
 
 /** Cheap trailer/head scan for a PDF /Encrypt dictionary — good enough to
@@ -97,7 +101,7 @@ interface ResolvedTarget {
   session?: DocumentSession;
   virtualPath: string;
   absPath: string;
-  format: "docx" | "pdf" | "xlsx";
+  format: "docx" | "pdf" | "xlsx" | "pptx";
 }
 
 export interface DocumentChangeEvent {
@@ -395,6 +399,53 @@ export class DocumentService {
     return this.broker.withPathLock(session.absPath, async () => {
       const outputPath = this.broker.tempPathFor(session.absPath);
       await this.broker.run("xlsxSave", {
+        inputPath: session.absPath,
+        outputPath,
+        plan: input.plan,
+      });
+      try {
+        const committed = await commitBytes({
+          absPath: session.absPath,
+          tempPath: outputPath,
+          expectedRevision: input.baseRevision,
+        });
+        session.revision = committed.revision;
+        session.lastSeenAt = new Date();
+        await this.broker.recordCommit(session.absPath, committed.revision, committed.size);
+        this.changed({
+          virtualPath: session.virtualPath,
+          revision: committed.revision,
+          actor,
+          op: "save",
+        });
+        return { revision: committed.revision, virtualPath: session.virtualPath };
+      } finally {
+        await fs.rm(outputPath, { force: true }).catch(() => {});
+      }
+    });
+  }
+
+  async pptxLoad(input: PptxLoadRequest): Promise<PptxDocumentModel> {
+    const session = this.broker.touchSession(input.sessionId);
+    if (session.format !== "pptx") {
+      throw new DocumentError("unsupported", "pptx load is only available for .pptx sessions");
+    }
+    return this.broker.withPathLock(session.absPath, () =>
+      this.broker.run("pptxLoad", { inputPath: session.absPath }),
+    ) as Promise<PptxDocumentModel>;
+  }
+
+  async pptxSave(input: PptxSaveRequest): Promise<PptxSaveResult> {
+    const actor = validateActor(input.actor);
+    const session = this.broker.touchSession(input.sessionId);
+    if (session.format !== "pptx") {
+      throw new DocumentError("unsupported", "pptx save is only available for .pptx sessions");
+    }
+    if (!input.baseRevision) throw new DocumentError("invalid", "baseRevision is required");
+    await authorizeDocumentPath(session.virtualPath, { write: true });
+    return this.broker.withPathLock(session.absPath, async () => {
+      const outputPath = this.broker.tempPathFor(session.absPath);
+      await this.broker.run("pptxSave", {
         inputPath: session.absPath,
         outputPath,
         plan: input.plan,

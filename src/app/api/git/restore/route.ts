@@ -9,7 +9,7 @@ import { readWithRevision } from "../../../../../server/documents/persistence";
 import { invalidateTreeCache } from "@/lib/storage/tree-builder";
 import { recordMutation } from "@/lib/history/engine";
 
-const DOC_EXTS = new Set([".docx", ".xlsx", ".pdf"]);
+const DOC_EXTS = new Set([".docx", ".xlsx", ".pptx", ".pdf"]);
 
 export async function POST(req: NextRequest) {
   try {

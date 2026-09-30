@@ -51,6 +51,16 @@ export const VENDORS = {
         'upstream barrel re-exports the whole shared UI kit (AiComposer, Dropdown, Markdown, find panel, ribbon collapse, dialogs…); the vendored editors only need the WordArt presets, the shape-clip helper and the find-text helpers (foldCase for PDF search; findInText/FindOptions also used by the Cabinet DOCX find panel), so the barrel exports just those',
       'apps/pdf/renderer/ImageEditLayer.tsx':
         "as-CSSProperties cast on the veil style — upstream's local Box type lacks the `--*` index signature current @types/react requires",
+      'packages/pptx-ops/package.json':
+        'trimmed to the Apache text-edit subset used by Cabinet; scripts, dev dependencies and unrelated op-layer exports are omitted',
+      'packages/pptx-ops/src/index.ts':
+        'trimmed to applyEditParagraphs and its public text-edit payload types; deck-generation and structural op exports remain deferred to the skill path',
+      'packages/pptx-ops/src/types.ts':
+        'trimmed to text-edit payload types and their script/link dependencies; comments and unrelated app IPC payloads are omitted',
+      'packages/pptx-ops/src/edit-text.ts':
+        'trimmed to applyEditParagraphs; paragraph-format collection and level-change helpers are not needed by the Phase 4 text/notes surface',
+      'packages/pptx-render/src/coords.ts':
+        'trimmed comments only; EMU/viewport/placement behavior is unchanged and used by the Cabinet worker model',
     },
     cabinetOwned: new Set(['host/image-codec.ts', 'THIRD_PARTY_NOTICES.md', 'README.md']),
     excludedPrefixes: ['apps/sheets/native/xlsx-engine/target/'],

@@ -37,7 +37,7 @@ const BINARY_DOCUMENT_CONTENT_TYPES = new Set([
  * through unchanged.
  */
 export function isBinaryDocumentWrite(ext: string, contentType: string | null): boolean {
-  if (ext === ".docx" || ext === ".pdf" || ext === ".xlsx") return true;
+  if (ext === ".docx" || ext === ".pdf" || ext === ".xlsx" || ext === ".pptx") return true;
   const ct = (contentType ?? "").split(";")[0]!.trim().toLowerCase();
   if (!ct) return false;
   return (
@@ -51,9 +51,10 @@ function formatForPath(absPath: string): DocumentFormat {
   if (ext === ".docx") return "docx";
   if (ext === ".pdf") return "pdf";
   if (ext === ".xlsx") return "xlsx";
+  if (ext === ".pptx") return "pptx";
   throw new DocumentError(
     "unsupported",
-    `Unsupported document format '${ext || "(none)"}' — only .docx, .xlsx and .pdf are supported`,
+    `Unsupported document format '${ext || "(none)"}' — only .docx, .xlsx, .pptx and .pdf are supported`,
   );
 }
 

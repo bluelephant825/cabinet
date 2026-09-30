@@ -79,7 +79,7 @@ async function validateSignature(absPath: string, bytes: Uint8Array): Promise<vo
     }
     return;
   }
-  if (ext === ".docx" || ext === ".xlsx") {
+  if (ext === ".docx" || ext === ".xlsx" || ext === ".pptx") {
     if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b || bytes[2] !== 0x03 || bytes[3] !== 0x04) {
       throw new DocumentError("invalid", "File is not a ZIP container (missing PK signature)");
     }
@@ -93,6 +93,9 @@ async function validateSignature(absPath: string, bytes: Uint8Array): Promise<vo
       }
       if (ext === ".xlsx" && !zip.file("xl/workbook.xml")) {
         throw new DocumentError("invalid", "ZIP container lacks xl/workbook.xml — not an XLSX");
+      }
+      if (ext === ".pptx" && !zip.file("ppt/presentation.xml")) {
+        throw new DocumentError("invalid", "ZIP container lacks ppt/presentation.xml — not a PPTX");
       }
     } catch (err) {
       if (err instanceof DocumentError) throw err;

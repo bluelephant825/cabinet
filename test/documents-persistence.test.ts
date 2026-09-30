@@ -97,6 +97,27 @@ test("xlsx signature requires the workbook part", async () => {
   );
 });
 
+test("pptx signature requires the presentation part", async () => {
+  const valid = new JSZip();
+  valid.file("[Content_Types].xml", "<Types/>");
+  valid.file("ppt/presentation.xml", "<presentation/>");
+  const bytes = await valid.generateAsync({ type: "uint8array" });
+  const result = await commitBytes({
+    absPath: path.join(dir, "slides.pptx"),
+    bytes,
+    expectedRevision: null,
+  });
+  assert.equal(result.revision, revisionOf(bytes));
+
+  const invalid = new JSZip();
+  invalid.file("[Content_Types].xml", "<Types/>");
+  const bad = await invalid.generateAsync({ type: "uint8array" });
+  await assert.rejects(
+    commitBytes({ absPath: path.join(dir, "bad.pptx"), bytes: bad, expectedRevision: null }),
+    (error) => error instanceof DocumentError && error.code === "invalid",
+  );
+});
+
 test("bad signature: .pdf path with docx bytes → invalid", async () => {
   const bytes = await realDocx();
   const target = path.join(dir, "notreally.pdf");

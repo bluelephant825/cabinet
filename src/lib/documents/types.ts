@@ -11,7 +11,7 @@ import type { DocumentErrorCode } from "./errors";
  * straight through, while keeping this module free of vendor imports.
  */
 
-export type DocumentFormat = "docx" | "pdf" | "xlsx";
+export type DocumentFormat = "docx" | "pdf" | "xlsx" | "pptx";
 
 export type DocumentActor =
   | { kind: "user" }
@@ -80,7 +80,18 @@ export interface XlsxInspectResult {
   truncated?: boolean;
 }
 
-export type InspectResult = DocxInspectResult | PdfInspectResult | XlsxInspectResult;
+export interface PptxInspectResult {
+  format: "pptx";
+  slideCount: number;
+  slides: { index: number; title: string; text: string; notes: string }[];
+  truncated?: boolean;
+}
+
+export type InspectResult =
+  | DocxInspectResult
+  | PdfInspectResult
+  | XlsxInspectResult
+  | PptxInspectResult;
 
 // ── pdf page geometry (Step 5 editor overlay) ──────────────────────────────
 
@@ -548,6 +559,83 @@ export interface XlsxSaveRequest {
 }
 
 export interface XlsxSaveResult {
+  revision: string;
+  virtualPath: string;
+}
+
+export interface PptxRunModel {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  fontSize?: number;
+  fontFamily?: string;
+  color?: string;
+}
+
+export interface PptxParagraphModel {
+  runs: PptxRunModel[];
+  align?: "left" | "center" | "right" | "justify";
+}
+
+export interface PptxTextElementModel {
+  id: string;
+  groupId?: string;
+  name?: string;
+  type: "text" | "shape";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  fill?: string;
+  stroke?: string;
+  paragraphs: PptxParagraphModel[];
+}
+
+export interface PptxSlideModel {
+  index: number;
+  width: number;
+  height: number;
+  background?: string;
+  elements: PptxTextElementModel[];
+  notes: string;
+}
+
+export interface PptxDocumentModel {
+  format: "pptx";
+  slides: PptxSlideModel[];
+  truncated: boolean;
+}
+
+export interface PptxTextEdit {
+  slideIndex: number;
+  elementId: string;
+  paragraphs: PptxParagraphModel[];
+}
+
+export interface PptxNotesEdit {
+  slideIndex: number;
+  text: string;
+}
+
+export interface PptxSavePlan {
+  textEdits: PptxTextEdit[];
+  notesEdits: PptxNotesEdit[];
+}
+
+export interface PptxLoadRequest {
+  sessionId: string;
+}
+
+export interface PptxSaveRequest {
+  sessionId: string;
+  baseRevision: string;
+  plan: PptxSavePlan;
+  actor?: DocumentActor;
+}
+
+export interface PptxSaveResult {
   revision: string;
   virtualPath: string;
 }
