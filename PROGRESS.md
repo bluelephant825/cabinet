@@ -1,5 +1,7 @@
 # Progress
 
+[2026-09-30] Prepared the Chromium-hosted v0.6.3 draft release on `genoffice-staged-upgrade`: bumped the root, `cabinetai`, and `create-cabinet` package versions to 0.6.3, refreshed the lockfile, and regenerated `cabinet-release.json`. Rebuilt the standalone app, staged the XLSX sidecar and GenOffice CLI, packaged the release Chromium build into a 1.9 GB `dist/Cabinet.app`, and archived it as `Cabinet-0.6.3-macos-arm64.zip` (571 MB, SHA-256 `25d7ca647fdf69072ab88b02d5efb6463fdc0a3532b9e2aa9bb1d3245791d2b0`). Verified the bundle signature and required app resources; the isolated bundle smoke passed, including app/daemon health, XLSX/PPTX document paths, guarded GenOffice ownership, PDF editing/rendering, and OCR capabilities.
+
 [2026-09-29] Added Monaco Editor to the README tech stack to reflect the existing source and document editors.
 
 [2026-09-29] Fixed reopening Draw.io and Excalidraw after editor save messages. The exit handler now selects the containing folder before switching to edit mode and clears the stale browse URL, so reselecting the same drawing reopens its iframe. Added isolated Playwright regressions for both editor types; both failed against the old behavior and pass with the fix. Production build, TypeScript, and targeted ESLint pass.
