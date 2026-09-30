@@ -384,6 +384,32 @@ asset as its visual layer, while all writes remain in the worker/service path.
 No platform-specific release artifact is required beyond the normal worker
 bundle.
 
+## GenOffice agent CLI packaging
+
+Phase 5 ships a guarded `genoffice` launcher and a read-only bundled skill. The
+upstream CLI is a separate 40 MB runtime (`genoffice.cjs` plus its external
+`jsdom` closure), so packaging stages it under
+`resources/documents/genoffice/cli/` and then
+`<standalone>/documents/genoffice/cli/`.
+
+- `npm run genoffice:stage` uses `CABINET_GENOFFICE_PREBUILT` when set. The
+  value may be a GenOffice Resources directory, its `cli/` directory, or the
+  `genoffice.cjs` file.
+- Without an explicit prebuilt, the staging script checks the normal installed
+  GenOffice Resources location for the host platform. Packaging fails when
+  neither source exists instead of shipping a skill whose command is missing.
+- Cross-platform release jobs must supply a prebuilt CLI Resources directory.
+  The JavaScript CLI is architecture-neutral; Cabinet supplies its own target
+  XLSX sidecar through `XLSX_SIDECAR_PATH`.
+- The launcher sets `GENOFFICE_ALLOWED_ROOTS` to the active Cabinet's real data
+  root. Symlinks into read-only knowledge mounts resolve outside that root and
+  are rejected by the upstream guard.
+- Rendering and PDF export still require an installed GenOffice desktop app.
+  Headless hosts retain XLSX/PPTX read/apply/check commands and return
+  `app_not_available` clearly for renderer-dependent operations.
+- The manual skill installation equivalent is
+  `npx skills add genspark-ai/genoffice`; Cabinet never runs it automatically.
+
 ## Release Troubleshooting: Desktop Packaging Failures (from the v0.5.0 ship, 2026-07-04)
 
 The `electron-release.yml` desktop build hit three separate failures shipping v0.5.0. All are now fixed or documented; keep this as the runbook.

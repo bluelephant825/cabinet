@@ -27,13 +27,13 @@
     {
       "path": "README.md",
       "upstreamPath": null,
-      "sha256": "d5cd94c8f2f97f00d9f6badb0678f17876e44311dd418f2855302cb23a22540a",
+      "sha256": "a1e1c58d5a639c4fd8edb3f51ea54bfe56d1d6e53a238cc1c404181230f25c9d",
       "adapted": false
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
       "upstreamPath": null,
-      "sha256": "45c134473259c2c02570548e2a79844b5199aa1c109a46e01d0f90c8fd02c5cc",
+      "sha256": "aea6dfc30f3fe5b2782ae116f7b9335c2b56b6a49387f23faa2779ee6bb016d3",
       "adapted": false
     },
     {
@@ -2739,6 +2739,14 @@
       "sha256": "dc121a308fa582dd7c86ff7dfd6f516ce937f0341ec7a29c62ad0d1299c54efe",
       "adapted": false,
       "upstreamSha256": "dc121a308fa582dd7c86ff7dfd6f516ce937f0341ec7a29c62ad0d1299c54efe"
+    },
+    {
+      "path": "skills/genoffice/SKILL.md",
+      "upstreamPath": "skills/genoffice/SKILL.md",
+      "sha256": "360e2fa70908373100d12cad52fd2aa4f220bd663ec12f9bf074fe0e010b0845",
+      "adapted": true,
+      "upstreamSha256": "f8aaae07c76adb6cf5f13329f6985b5a0d37ad0b0cc3c41d07fff9212c6bc0ce",
+      "adaptationNote": "condensed for Cabinet format ownership and trust-gated mounting: xlsx/pptx/render plus read-only docs checks; directs docx/pdf/pdfcn/markdown writes to cabinet-documents and removes online search/media instructions"
     }
   ]
 }

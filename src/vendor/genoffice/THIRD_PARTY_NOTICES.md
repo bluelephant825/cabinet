@@ -46,6 +46,13 @@ available under MPL-2.0.
 | pngjs | 7.0.0 | MIT |
 | utif2 | 4.1.0 | MIT |
 
+## GenOffice agent CLI prebuilt
+
+Phase 5 packaging stages the upstream Apache-2.0 GenOffice CLI from an explicit
+prebuilt Resources directory (or an installed GenOffice app for local builds).
+The staged `THIRD-PARTY-NOTICES.txt` accompanies `genoffice.cjs` and its
+external `jsdom` dependency closure under `documents/genoffice/`.
+
 ## XLSX sidecar Rust dependencies
 
 `apps/sheets/native/xlsx-engine/` is Apache-2.0 and builds the `xlsx-sidecar`

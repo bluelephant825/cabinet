@@ -45,6 +45,24 @@ test("readSkill returns the bundle including body", async () => {
   });
 });
 
+test("bundled GenOffice skill is a read-only system skill with Cabinet ownership rules", async () => {
+  await withTempHome(async () => {
+    const bundle = await readSkill("genoffice");
+    assert.ok(bundle);
+    assert.equal(bundle.origin, "system");
+    assert.equal(bundle.editable, false);
+    assert.equal(bundle.trustLevel, "markdown_only");
+    assert.match(bundle.body, /Use `cabinet-documents` for/);
+    assert.match(bundle.body, /npx skills add genspark-ai\/genoffice/);
+  });
+});
+
+test("bundled GenOffice skill resolves only when explicitly selected", async () => {
+  assert.deepEqual(await resolveDesiredSkills([]), []);
+  const selected = await resolveDesiredSkills(["genoffice"]);
+  assert.deepEqual(selected.map((skill) => skill.key), ["genoffice"]);
+});
+
 test("readSkill returns null for unknown key", async () => {
   await withTempHome(async () => {
     const bundle = await readSkill("does-not-exist", { includeSystem: false });

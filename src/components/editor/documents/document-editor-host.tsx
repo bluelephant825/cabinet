@@ -61,6 +61,14 @@ export function DocumentEditorHost({ path, format, fallback, onStatus, onNavigat
     bridgeRef.current?.send(type, payload);
   }, []);
 
+  const forwardRevision = useCallback((revision: unknown) => {
+    if (typeof revision !== "string" || !revision) return;
+    const session = sessionRef.current;
+    if (!session || session.revision === revision) return;
+    session.revision = revision;
+    send("revision-changed", { revision });
+  }, [send]);
+
   // `init` payload — sent on iframe load and again when the frame asks for it.
   const sendInit = useCallback(() => {
     const session = sessionRef.current;
@@ -208,21 +216,42 @@ export function DocumentEditorHost({ path, format, fallback, onStatus, onNavigat
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { path?: string; revision?: string };
-      if (detail?.path === path) send("revision-changed", { revision: detail.revision });
+      if (detail?.path === path) forwardRevision(detail.revision);
     };
     window.addEventListener("cabinet:document-revision-changed", handler);
     return () => window.removeEventListener("cabinet:document-revision-changed", handler);
-  }, [send, path]);
+  }, [forwardRevision, path]);
 
   useDaemonChannel("documents", (data) => {
-    if (
-      data.type === "document:changed" &&
-      data.virtualPath === path &&
-      data.revision !== sessionRef.current?.revision
-    ) {
-      send("revision-changed", { revision: data.revision });
+    if (data.type === "document:changed" && data.virtualPath === path) {
+      forwardRevision(data.revision);
     }
   });
+
+  useEffect(() => {
+    if (mode !== "edit") return;
+    let stopped = false;
+    let running = false;
+    const poll = async () => {
+      if (stopped || running || !sessionRef.current) return;
+      running = true;
+      try {
+        const response = await fetch(`/api/documents/revision?path=${encodeURIComponent(path)}`, {
+          cache: "no-store",
+        });
+        if (!response.ok || stopped) return;
+        const result = (await response.json()) as { revision?: string };
+        forwardRevision(result.revision);
+      } catch {} finally {
+        running = false;
+      }
+    };
+    const timer = setInterval(() => void poll(), 2_000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [forwardRevision, mode, path]);
 
   if (mode === "readonly") return <>{fallback(reason)}</>;
   return (

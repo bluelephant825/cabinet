@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 import { bootCabinet, type CabinetInstance } from "../test/support/harness";
 import {
@@ -11,12 +13,12 @@ import {
 
 let cabinet: CabinetInstance;
 
-async function presentationBytes(): Promise<Buffer> {
+async function presentationBytes(title = "Original slide title"): Promise<Buffer> {
   const opened = await openPptx(await createBlankPptx());
   addElement(opened.deck.slides[0]!, {
     kind: "textbox",
     offset: { x: 914400, y: 914400, cx: 5486400, cy: 914400 },
-    paragraphs: [{ runs: [{ text: "Original slide title", bold: true }] }],
+    paragraphs: [{ runs: [{ text: title, bold: true }] }],
   });
   setSlideNotes(opened, 0, "Original speaker note");
   return Buffer.from(await savePptx(opened));
@@ -74,4 +76,20 @@ test("pptx editor changes slide text and speaker notes and persists both", async
   const body = (await read.json()) as { text: string };
   expect(body.text).toContain("Edited slide title");
   expect(body.text).toContain("Edited speaker note");
+});
+
+test("direct GenOffice-style write is detected by revision polling while local edits stay dirty", async ({ page }) => {
+  await putDocument("presentation-conflict.pptx", await presentationBytes("Conflict base"));
+  const frame = await openPptxEditor(page, "presentation-conflict.pptx");
+  const text = frame.getByLabel(/Slide 1 .* run 1/).first();
+  await text.fill("Unsaved local title");
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+  await fs.writeFile(
+    path.join(cabinet.dataDir, "presentation-conflict.pptx"),
+    await presentationBytes("External GenOffice title"),
+  );
+
+  await expect(page.getByText("Document changed on disk")).toBeVisible({ timeout: 15_000 });
+  await expect(text).toHaveValue("Unsaved local title");
 });

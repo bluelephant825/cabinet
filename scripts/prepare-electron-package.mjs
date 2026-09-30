@@ -253,7 +253,7 @@ async function stageDaemonRuntime() {
       });
     },
   };
-  for (const tool of ["document-tool", "browser-tool"]) {
+  for (const tool of ["document-tool", "browser-tool", "genoffice-tool"]) {
     await bundle({
       entryPoints: [path.join(projectRoot, "scripts", `${tool}.ts`)],
       bundle: true,
@@ -314,6 +314,11 @@ async function stageDaemonRuntime() {
   // Document resources: PDFCN fonts + built OCR helpers. The worker resolves
   // this as <standalone>/documents/<subdir> (see server/documents/resource-paths.ts).
   await copyDirectory(path.join(resourcesDir, "documents"), stagedDocsDir);
+
+  await copyDirectory(
+    path.join(projectRoot, "src", "vendor", "genoffice", "skills", "genoffice"),
+    path.join(standaloneDir, "skills", "genoffice")
+  );
 
   // Third-party notices ship with every packaged artifact.
   await copyFileIfExists(
@@ -432,6 +437,9 @@ async function main() {
       CABINET_ELECTRON_TARGET_ARCH:
         process.env.CABINET_ELECTRON_TARGET_ARCH || process.env.npm_config_arch || process.arch,
     },
+  });
+  execFileSync(process.execPath, [path.join(projectRoot, "scripts", "stage-genoffice-cli.mjs")], {
+    stdio: "inherit",
   });
 
   await removePath(outDir);

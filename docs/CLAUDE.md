@@ -154,6 +154,7 @@ Agents → `cabinet-documents` CLI (scripts/document-tool.ts → shim in <data-p
 
 - Every write goes `authorizeDocumentPath` → per-path lock → `commitBytes` (atomic temp+rename, `expectedRevision` conflict check, signature checks; XLSX additionally uses the gateway's entry-preserving sidecar save; PPTX uses element-level text patches and archive notes surgery; `.pdf.source.json` uses `signatureCheck:"json"`).
 - Engines run ONLY inside the worker process — never in the Next app or daemon in-process.
+- Agent format ownership is enforced twice: prompt/skill guidance and the guarded `genoffice` launcher. `cabinet-documents` owns DOCX/PDF/PDFCN/Markdown writes; `genoffice` is limited to XLSX/PPTX, render/merge, and read-only DOCX checks, with `GENOFFICE_ALLOWED_ROOTS` pinned to the active Cabinet.
 - Client code may not import `src/vendor/genoffice/**` or `src/vendor/pdfcn/**` (lint-enforced; allowed only in `server/documents/pdf-generation.tsx`, `worker-ops.ts`, tests).
 - `.pdf.source.json` compositions are data-only: validated against `pdf-component-catalog.ts` (`validateComposition`); node types map through a fixed registry — never dynamic import by user string.
 - The composer preview is always the REAL worker-rendered PDF (never a React approximation).
@@ -179,7 +180,7 @@ Agents → `cabinet-documents` CLI (scripts/document-tool.ts → shim in <data-p
 
 ### Env vars
 
-`CABINET_DOC_WORKERS` (pool size, default 2) · `CABINET_DOC_MAX_BYTES` · `CABINET_DOC_RECOVERY_MAX_MB` · `CABINET_XLSX_SIDECAR` (native helper override) · `CABINET_XLSX_SIDECAR_PREBUILT` (cross-package staging input) · `CABINET_XLSX_UNIVERSAL=1` (macOS dual-target + lipo build) · `CABINET_OCR_PROVIDER` (`auto|none|fake|vision-macos|windows`) · `CABINET_OCR_HELPER_DIR` · `CABINET_OCR_TIMEOUT_MS` · `CABINET_DOC_RESOURCES_DIR` (parent of `pdf-fonts/`/`ocr/`/`documents` resource tree) · `CABINET_WASM_DIR` (parent of `wasm/` — fallback only; staged node_modules normally wins) · `CABINET_DOC_WORKER_ENTRY` (bundled worker path) · `CABINET_DOC_TEST_OPS` (`1` enables `__crash`/failure-injection ops — never set in production) · `CABINET_DOCUMENT_TOOL` (helper bundle override).
+`CABINET_DOC_WORKERS` (pool size, default 2) · `CABINET_DOC_MAX_BYTES` · `CABINET_DOC_RECOVERY_MAX_MB` · `CABINET_XLSX_SIDECAR` (native helper override) · `CABINET_XLSX_SIDECAR_PREBUILT` (cross-package staging input) · `CABINET_XLSX_UNIVERSAL=1` (macOS dual-target + lipo build) · `CABINET_GENOFFICE_PREBUILT` (CLI Resources/cli/cjs staging input) · `CABINET_GENOFFICE_CLI` (guarded launcher runtime override) · `CABINET_GENOFFICE_TOOL` (Cabinet wrapper bundle override) · `CABINET_BUNDLED_SKILLS_DIR` (packaged skill root override) · `CABINET_OCR_PROVIDER` (`auto|none|fake|vision-macos|windows`) · `CABINET_OCR_HELPER_DIR` · `CABINET_OCR_TIMEOUT_MS` · `CABINET_DOC_RESOURCES_DIR` (parent of `pdf-fonts/`/`ocr/`/`documents` resource tree) · `CABINET_WASM_DIR` (parent of `wasm/` — fallback only; staged node_modules normally wins) · `CABINET_DOC_WORKER_ENTRY` (bundled worker path) · `CABINET_DOC_TEST_OPS` (`1` enables `__crash`/failure-injection ops — never set in production) · `CABINET_DOCUMENT_TOOL` (helper bundle override).
 
 ### Verification
 

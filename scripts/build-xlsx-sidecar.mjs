@@ -21,11 +21,18 @@ const output = path.join(
   `xlsx-sidecar${suffix}`,
 );
 
+function signMacBinary(file) {
+  if (platform === "darwin" && process.platform === "darwin") {
+    execFileSync("codesign", ["--force", "--sign", "-", file], { stdio: "inherit" });
+  }
+}
+
 await fs.mkdir(path.dirname(output), { recursive: true });
 const prebuilt = process.env.CABINET_XLSX_SIDECAR_PREBUILT?.trim();
 if (prebuilt) {
   await fs.copyFile(prebuilt, output);
   if (platform !== "win32") await fs.chmod(output, 0o755);
+  signMacBinary(output);
   console.log(`[xlsx-sidecar] staged prebuilt ${platform}-${arch} → ${output}`);
   process.exit(0);
 }
@@ -63,6 +70,7 @@ if (platform === "darwin" && process.env.CABINET_XLSX_UNIVERSAL === "1") {
     { stdio: "inherit" },
   );
   await fs.chmod(output, 0o755);
+  signMacBinary(output);
   console.log(`[xlsx-sidecar] built universal macOS binary → ${output}`);
   process.exit(0);
 }
@@ -81,4 +89,5 @@ execFileSync(
 const built = path.join(targetDir, "release", `xlsx-sidecar${suffix}`);
 await fs.copyFile(built, output);
 if (platform !== "win32") await fs.chmod(output, 0o755);
+signMacBinary(output);
 console.log(`[xlsx-sidecar] built ${os.platform()}-${os.arch()} → ${output}`);

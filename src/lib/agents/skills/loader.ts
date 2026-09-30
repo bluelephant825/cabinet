@@ -43,6 +43,15 @@ function systemSkillsDirs(): string[] {
   ];
 }
 
+function bundledSkillsDirs(): string[] {
+  const explicit = process.env.CABINET_BUNDLED_SKILLS_DIR?.trim();
+  return [
+    ...(explicit ? [explicit] : []),
+    path.join(PROJECT_ROOT, "skills"),
+    path.join(PROJECT_ROOT, "src", "vendor", "genoffice", "skills"),
+  ];
+}
+
 function legacyHomeSkillsDir(): string {
   return path.join(homeDir(), ".cabinet", "skills");
 }
@@ -348,6 +357,9 @@ export async function listSkills(opts: ListSkillsOptions = {}): Promise<SkillEnt
     // for any of its runs, so they belong in the system tier alongside
     // ~/.claude/skills/. Tagged with `pluginSource` for UI labeling.
     collected.push(...listClaudePluginSkills());
+    for (const dir of bundledSkillsDirs()) {
+      collected.push(...listSkillsAtRoot(dir, "system", null));
+    }
   }
 
   if (includeLegacy) {
@@ -405,6 +417,9 @@ export async function readSkill(
   if (includeSystem) {
     for (const sysDir of systemSkillsDirs()) {
       candidates.push({ dir: path.join(sysDir, key), origin: "system", scope: null });
+    }
+    for (const bundledDir of bundledSkillsDirs()) {
+      candidates.push({ dir: path.join(bundledDir, key), origin: "system", scope: null });
     }
   }
   if (includeLegacy) {

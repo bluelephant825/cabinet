@@ -43,6 +43,10 @@ function copyAssets(standaloneDir) {
     path.join(standaloneDir, ".next", "static")
   );
   copyDir(path.join(ROOT, "public"), path.join(standaloneDir, "public"));
+  copyDir(
+    path.join(ROOT, "src", "vendor", "genoffice", "skills", "genoffice"),
+    path.join(standaloneDir, "skills", "genoffice")
+  );
   console.log(`[cabinet] Standalone assets copied to ${standaloneDir}`);
 }
 

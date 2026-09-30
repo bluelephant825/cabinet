@@ -53,6 +53,7 @@ import { DocumentService, type DocumentChangeEvent } from "./documents/service";
 import { handleBrowserRequest } from "./browser/http";
 import { createBrowserDaemon } from "./browser/facade";
 import { ensureDocumentToolShim } from "../src/lib/documents/tool-shim";
+import { ensureGenofficeToolShim } from "../src/lib/documents/genoffice-tool-shim";
 import { ensureBrowserToolShim } from "../src/lib/browser/tool-shim";
 import { cabinetRootForVirtualPath, recordMutation } from "../src/lib/history/engine";
 import { DATA_DIR } from "../src/lib/storage/path-utils";
@@ -2345,6 +2346,7 @@ wssJupyter.on("connection", async (ws, req) => {
 // the whole integration for spawned CLIs.
 try {
   ensureDocumentToolShim();
+  ensureGenofficeToolShim();
   ensureBrowserToolShim();
 } catch (err) {
   console.warn("[documents] failed to write cabinet-documents shim:", err);

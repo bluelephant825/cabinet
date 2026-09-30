@@ -61,6 +61,8 @@ export const VENDORS = {
         'trimmed to applyEditParagraphs; paragraph-format collection and level-change helpers are not needed by the Phase 4 text/notes surface',
       'packages/pptx-render/src/coords.ts':
         'trimmed comments only; EMU/viewport/placement behavior is unchanged and used by the Cabinet worker model',
+      'skills/genoffice/SKILL.md':
+        'condensed for Cabinet format ownership and trust-gated mounting: xlsx/pptx/render plus read-only docs checks; directs docx/pdf/pdfcn/markdown writes to cabinet-documents and removes online search/media instructions',
     },
     cabinetOwned: new Set(['host/image-codec.ts', 'THIRD_PARTY_NOTICES.md', 'README.md']),
     excludedPrefixes: ['apps/sheets/native/xlsx-engine/target/'],

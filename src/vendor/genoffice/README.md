@@ -26,6 +26,8 @@ editing and local PDF→DOCX conversion:
   archive reads, workbook metadata/ranges, raw-copy archive assembly and formula
   recalculation; build output is staged outside the vendor tree
 - `apps/sheets/src/main/xlsx-sidecar-client.ts` — supervised Node child-process client
+- `skills/genoffice/SKILL.md` — upstream skill condensed for Cabinet's guarded
+  XLSX/PPTX/render scope and authoritative `cabinet-documents` ownership
 - `apps/pdf/main/` — PDFium-based content-stream text/image edit, save and
   verification pipeline (`text-edit`, `image-edit`, `save-pdf`, `font-cmap`,
   `font-subset`, `wasm-path`, plus the helpers they import)

@@ -188,6 +188,9 @@ step("Checking for a built bundle at .next/standalone...");
 const REQUIRED = [
   "server.js",
   path.join("server", "cabinet-daemon.cjs"),
+  path.join("server", "genoffice-tool.mjs"),
+  path.join("skills", "genoffice", "SKILL.md"),
+  path.join("documents", "genoffice", "cli", "genoffice.cjs"),
   path.join(".next", "static"),
   path.join(".native", "node-pty", "package.json"),
 ];
@@ -413,6 +416,10 @@ fs.writeFileSync(
   path.join(ISO_CABINET, "smoke.xlsx"),
   XLSX.write(smokeWorkbook, { type: "buffer", bookType: "xlsx" }),
 );
+fs.writeFileSync(
+  path.join(ISO_CABINET, "genoffice-cells.json"),
+  JSON.stringify([{ cell: "A2", value: "GenOffice guarded edit" }]),
+);
 for (const extension of ["html", "ipynb", "tex", "typ", "pdf", "docx", "xlsx", "pptx"]) {
   const route = `http://127.0.0.1:${isoAppPort}/room/Cabinet/smoke.${extension}`;
   const response = await fetch(route, { signal: AbortSignal.timeout(15_000) });
@@ -456,6 +463,32 @@ const pdfOpen = await fetch(`http://127.0.0.1:${isoAppPort}/api/documents/open`,
 });
 if (pdfOpen.status !== 200) fail(`isolated PDF open returned ${pdfOpen.status}: ${await pdfOpen.text()}`);
 ok("isolated HTML, notebook, LaTeX, Typst and PDF assets + PDF editor open → 200");
+
+function genofficeTool(args, label, expectedStatus = 0) {
+  const r = spawnSync(
+    isoNode,
+    [path.join(ISO_APP, "server", "genoffice-tool.mjs"), ...args],
+    {
+      encoding: "utf8",
+      timeout: 120_000,
+      cwd: ISO_CABINET,
+      env: {
+        ...process.env,
+        HOME: os.homedir(),
+        CABINET_DATA_DIR: ISO_DATA,
+        CABINET_DOC_RESOURCES_DIR: path.join(ISO_APP, "documents"),
+      },
+    },
+  );
+  if (r.status !== expectedStatus) {
+    fail(`genoffice ${label} returned ${r.status}:\n${r.stdout}\n${r.stderr}`);
+  }
+  try {
+    return JSON.parse(r.stdout);
+  } catch {
+    fail(`genoffice ${label} did not return JSON:\n${r.stdout.slice(0, 800)}`);
+  }
+}
 
 function docTool(args, label) {
   const r = spawnSync(
@@ -506,6 +539,47 @@ if (!pptxRead.text?.includes("Bundle PPTX smoke")) {
   fail(`pptx read returned unexpected text: ${JSON.stringify(pptxRead).slice(0, 300)}`);
 }
 ok("pptx worker inspect + read ok");
+
+step("agents: guarded GenOffice CLI + bundled skill...");
+const genofficeVersion = genofficeTool(["--version", "--json"], "version");
+if (genofficeVersion.status !== "ok" || !genofficeVersion.version) {
+  fail(`genoffice version returned unexpected shape: ${JSON.stringify(genofficeVersion)}`);
+}
+const genofficeInfo = genofficeTool(["info", "smoke.pptx", "--json"], "pptx info");
+if (genofficeInfo.status !== "ok") {
+  fail(`genoffice info returned unexpected shape: ${JSON.stringify(genofficeInfo).slice(0, 300)}`);
+}
+const genofficeApply = genofficeTool(
+  ["sheet", "apply", "smoke.xlsx", "--cells", "genoffice-cells.json", "--json"],
+  "xlsx apply",
+);
+if (genofficeApply.status !== "ok") {
+  fail(`genoffice xlsx apply returned unexpected shape: ${JSON.stringify(genofficeApply).slice(0, 300)}`);
+}
+const genofficeRead = genofficeTool(
+  ["sheet", "read", "smoke.xlsx", "--max-rows", "2", "--json"],
+  "xlsx read",
+);
+if (!JSON.stringify(genofficeRead).includes("GenOffice guarded edit")) {
+  fail(`genoffice xlsx read missed the applied edit: ${JSON.stringify(genofficeRead).slice(0, 500)}`);
+}
+const genofficeBlocked = genofficeTool(
+  ["docs", "apply", "smoke.docx", "--ops", "ops.json", "--json"],
+  "ownership guard",
+  1,
+);
+if (genofficeBlocked.error !== "ownership_guard") {
+  fail(`genoffice ownership guard returned unexpected shape: ${JSON.stringify(genofficeBlocked)}`);
+}
+const genofficeOutside = genofficeTool(
+  ["info", path.join(path.dirname(ISO_DATA), "outside.pptx"), "--json"],
+  "root guard",
+  2,
+);
+if (genofficeOutside.error !== "outside_allowed_roots") {
+  fail(`genoffice root guard returned unexpected shape: ${JSON.stringify(genofficeOutside)}`);
+}
+ok("guarded GenOffice CLI, ownership/root guards and bundled skill ok");
 
 step("documents: pdf inspect + patch (pdfium + harfbuzz wasm)...");
 const pdfInspect = docTool(["inspect", "--path", "smoke.pdf"], "inspect");

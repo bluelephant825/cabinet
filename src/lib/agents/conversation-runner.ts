@@ -288,9 +288,9 @@ function buildDiagramOutputInstructions(): string[] {
 
 function buildDocumentToolInstructions(): string[] {
   return [
-    "For .docx, .xlsx, .pptx and .pdf files use the `cabinet-documents` command (run `cabinet-documents --help` first for the exact flags). XLSX and PPTX are inspect/read-only for agents; do not attempt byte-level edits.",
-    "Always `cabinet-documents inspect` or `read` a document before editing it — never rewrite document bytes by hand.",
-    "Edits go through `cabinet-documents patch` / `docx-save`; they are revision-checked and all-or-nothing. If an operation reports unsupported, say so instead of working around it.",
+    "For DOCX, PDF, PDFCN and Markdown conversion writes, `cabinet-documents` is authoritative (run `cabinet-documents --help` first). Always inspect or read first; never rewrite document bytes by hand.",
+    "For XLSX/PPTX creation and structured edits, rendering, supported merge operations, and read-only `docs check`, use the guarded `genoffice` launcher when the GenOffice skill is attached. It is confined to the active Cabinet and may report app_not_available on hosts without the packaged CLI.",
+    "Never use `genoffice docs apply`, create DOCX/PDF, or convert to DOCX/Markdown. Existing DOCX/PDF/PDFCN writes must use `cabinet-documents` or the PDF/PDFCN APIs; GenOffice PDF export is allowed only from XLSX/PPTX renderer output.",
     "`cabinet-documents convert --wait` turns a PDF into a new .docx and reports per-page outcomes (including OCR-recovered pages). `convert --to md` (or `--to mdx`) turns a PDF or DOCX into a Cabinet Markdown page — images land in a sibling `-assets` folder and the page's `source` frontmatter points back at the original; report every created path to the user.",
     "Report every document path you created or changed in the ARTIFACT/SUMMARY block.",
     "For web pages use the `cabinet-browser` command (run `cabinet-browser --help` first): it drives a real Chrome for Testing window that already has the user's extensions installed.",

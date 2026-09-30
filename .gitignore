@@ -93,3 +93,4 @@ skills-lock.json
 /resources/documents/ocr/darwin-*/
 /resources/documents/ocr/win32-*/
 /resources/documents/xlsx/*/
+/resources/documents/genoffice/
