@@ -204,34 +204,34 @@ export default function PptxEditorFrame() {
 
   const slide = model?.slides[activeSlide];
   return (
-    <main className="h-screen min-h-0 bg-[var(--surface)] text-[var(--text)] flex">
-      <aside className="w-72 shrink-0 border-r border-[var(--border)] flex flex-col bg-[var(--surface-raised)]">
-        <div className="px-3 py-2 border-b border-[var(--border)] text-sm font-medium">Slides</div>
+    <main className="h-screen min-h-0 bg-(--surface) text-(--text) flex">
+      <aside className="w-72 shrink-0 border-r border-(--border) flex flex-col bg-(--surface-raised)">
+        <div className="px-3 py-2 border-b border-(--border) text-sm font-medium">Slides</div>
         <div className="flex-1 overflow-auto p-2 space-y-1">
           {model?.slides.map((item) => (
             <button
               type="button"
               key={item.index}
               onClick={() => setActiveSlide(item.index)}
-              className={`w-full text-left rounded px-3 py-2 text-sm ${item.index === activeSlide ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--hover)]"}`}
+              className={`w-full text-left rounded px-3 py-2 text-sm ${item.index === activeSlide ? "bg-(--accent-soft)" : "hover:bg-(--hover)"}`}
             >
               Slide {item.index + 1}
             </button>
           ))}
         </div>
       </aside>
-      <section className="flex-1 min-w-0 overflow-auto bg-[var(--canvas)] p-4">
+      <section className="flex-1 min-w-0 overflow-auto bg-(--canvas) p-4">
         {error ? <div className="mb-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm">{error}</div> : null}
         <div ref={previewRef} className="mx-auto max-w-6xl" data-pptx-preview />
       </section>
-      <aside className="w-80 shrink-0 border-l border-[var(--border)] bg-[var(--surface-raised)] flex flex-col">
-        <div className="px-3 py-2 border-b border-[var(--border)] text-sm font-medium">
+      <aside className="w-80 shrink-0 border-l border-(--border) bg-(--surface-raised) flex flex-col">
+        <div className="px-3 py-2 border-b border-(--border) text-sm font-medium">
           Slide {activeSlide + 1} text and notes
         </div>
         <div className="flex-1 overflow-auto p-3 space-y-4">
           {slide?.elements.map((element, elementIndex) => (
-            <section key={element.id} className="rounded border border-[var(--border)] p-2 space-y-2">
-              <div className="text-xs font-medium text-[var(--text-muted)]">{element.name || `Text ${elementIndex + 1}`}</div>
+            <section key={element.id} className="rounded border border-(--border) p-2 space-y-2">
+              <div className="text-xs font-medium text-(--text-muted)">{element.name || `Text ${elementIndex + 1}`}</div>
               {element.paragraphs.map((paragraph, paragraphIndex) =>
                 paragraph.runs.map((run, runIndex) => (
                   <textarea
@@ -244,7 +244,7 @@ export default function PptxEditorFrame() {
                       next.slides[activeSlide]!.elements[elementIndex]!.paragraphs[paragraphIndex]!.runs[runIndex]!.text = event.target.value;
                       markDirty(next);
                     }}
-                    className="w-full min-h-16 resize-y rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm"
+                    className="w-full min-h-16 resize-y rounded border border-(--border) bg-(--surface) px-2 py-1.5 text-sm"
                   />
                 )),
               )}
@@ -252,7 +252,7 @@ export default function PptxEditorFrame() {
           ))}
           {slide ? (
             <label className="block space-y-2">
-              <span className="text-xs font-medium text-[var(--text-muted)]">Speaker notes</span>
+              <span className="text-xs font-medium text-(--text-muted)">Speaker notes</span>
               <textarea
                 value={slide.notes}
                 aria-label={`Slide ${activeSlide + 1} speaker notes`}
@@ -262,7 +262,7 @@ export default function PptxEditorFrame() {
                   next.slides[activeSlide]!.notes = event.target.value;
                   markDirty(next);
                 }}
-                className="w-full min-h-32 resize-y rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm"
+                className="w-full min-h-32 resize-y rounded border border-(--border) bg-(--surface) px-2 py-1.5 text-sm"
               />
             </label>
           ) : null}
