@@ -692,6 +692,7 @@ function TreeNodeImpl({
     (s) => hasChildren && s.expandedPaths.has(node.path)
   );
   const focusTick = useTreeStore((s) => s.focusTick);
+  const focusTargetPath = useTreeStore((s) => s.focusTargetPath);
   const isChanged = useTreeStore((s) => s.recentlyChanged.has(node.path));
   const toggleExpand = useTreeStore((s) => s.toggleExpand);
   const expandPath = useTreeStore((s) => s.expandPath);
@@ -852,14 +853,28 @@ function TreeNodeImpl({
   );
 
   useEffect(() => {
-    if (!isSelected || focusTick === 0) return;
+    if (!isSelected || focusTargetPath !== node.path || focusTick === 0) return;
     const el = rowRef.current;
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const viewport = el.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+    if (viewport) {
+      const rowRect = el.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
+      const centeredTop =
+        viewport.scrollTop +
+        rowRect.top -
+        viewportRect.top -
+        (viewport.clientHeight - rowRect.height) / 2;
+      const maxTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      viewport.scrollTo({
+        top: Math.max(0, Math.min(centeredTop, maxTop)),
+        behavior: "smooth",
+      });
+    }
     setBlink(true);
     const t = setTimeout(() => setBlink(false), 1400);
     return () => clearTimeout(t);
-  }, [isSelected, focusTick]);
+  }, [isSelected, focusTick, focusTargetPath, node.path]);
 
   // File-explorer keys for the selected row: F2 → rename, Cmd+Backspace
   // (macOS) / Del → delete. Gated on isSelected so exactly one row's

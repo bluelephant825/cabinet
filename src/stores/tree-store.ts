@@ -43,6 +43,8 @@ interface TreeState {
   } | null;
   /** Bumped whenever we want the sidebar to scroll to + blink the selected row. */
   focusTick: number;
+  /** The last path `focusPath()` asked the sidebar to reveal. */
+  focusTargetPath: string | null;
   /** Tree paths an agent task recently created/changed — highlighted in the
    *  sidebar (tint + dot) until the user opens them. */
   recentlyChanged: Set<string>;
@@ -243,6 +245,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
   foldersFirst: loadFoldersFirst(),
   pendingMove: null,
   focusTick: 0,
+  focusTargetPath: null,
   recentlyChanged: new Set<string>(),
 
   setPendingMove: (move) => set({ pendingMove: move }),
@@ -262,6 +265,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
       nodes: [],
       rawNodes: [],
       selectedPath: null,
+      focusTargetPath: null,
       driveNode: null,
       driveLoading: false,
       loading: true,
@@ -293,7 +297,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
   },
 
   selectPage: (path: string | null) => {
-    set({ selectedPath: path });
+    set({ selectedPath: path, focusTargetPath: null });
     if (path) get().clearChanged(path);
   },
 
@@ -319,7 +323,12 @@ export const useTreeStore = create<TreeState>((set, get) => ({
     for (let i = 1; i < parts.length; i++) {
       next.add(parts.slice(0, i).join("/"));
     }
-    set({ selectedPath: path, expandedPaths: next, focusTick: focusTick + 1 });
+    set({
+      selectedPath: path,
+      expandedPaths: next,
+      focusTick: focusTick + 1,
+      focusTargetPath: path,
+    });
     saveExpandedPaths(next);
   },
 
@@ -353,7 +362,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
       get().expandPath(parentPath);
     }
     await get().loadTree();
-    set({ selectedPath: fullPath });
+    set({ selectedPath: fullPath, focusTargetPath: null });
   },
 
   createFolder: async (parentPath: string, name: string) => {
@@ -364,14 +373,14 @@ export const useTreeStore = create<TreeState>((set, get) => ({
       get().expandPath(parentPath);
     }
     await get().loadTree();
-    set({ selectedPath: fullPath });
+    set({ selectedPath: fullPath, focusTargetPath: null });
   },
 
   deletePage: async (path: string) => {
     await deletePageApi(path);
     const { selectedPath } = get();
     if (selectedPath === path) {
-      set({ selectedPath: null });
+      set({ selectedPath: null, focusTargetPath: null });
     }
 
     // The page (or its containing folder) is gone from disk. If it's open in
@@ -429,7 +438,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
         get().expandPath(toParentPath);
       }
       await get().loadTree();
-      set({ selectedPath: newPath });
+      set({ selectedPath: newPath, focusTargetPath: null });
 
       // The move renamed files underneath the editor. If the moved page is
       // open, follow it to the new path — otherwise the editor keeps the
@@ -490,7 +499,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
     const { newPath, references } = result;
     await get().loadTree();
     if (get().selectedPath === pagePath) {
-      set({ selectedPath: newPath });
+      set({ selectedPath: newPath, focusTargetPath: null });
     }
 
     // --- Open-editor reconciliation -------------------------------------
@@ -551,7 +560,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
                 }
                 await get().loadTree();
                 if (get().selectedPath === newPath) {
-                  set({ selectedPath: pagePath });
+                  set({ selectedPath: pagePath, focusTargetPath: null });
                 }
                 const ed = useEditorStore.getState();
                 if (ed.currentPath === newPath) {

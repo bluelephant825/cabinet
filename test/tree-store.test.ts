@@ -47,3 +47,35 @@ test("cabinet switch clears the shared sidebar tree cache and mounted nodes", ()
     });
   }
 });
+
+test("sidebar reveal targets only the explicit focusPath result", () => {
+  const target = "My Study/Notes/Eureka/Exclude-from-Wiki/diagram.drawio";
+  const previous = {
+    selectedPath: useTreeStore.getState().selectedPath,
+    expandedPaths: useTreeStore.getState().expandedPaths,
+    focusTick: useTreeStore.getState().focusTick,
+    focusTargetPath: useTreeStore.getState().focusTargetPath,
+  };
+
+  try {
+    useTreeStore.setState({ expandedPaths: new Set(), focusTick: 0 });
+
+    useTreeStore.getState().focusPath(target);
+    assert.equal(useTreeStore.getState().selectedPath, target);
+    assert.equal(useTreeStore.getState().focusTargetPath, target);
+    assert.equal(useTreeStore.getState().focusTick, 1);
+    assert.equal(
+      useTreeStore.getState().expandedPaths.has("My Study/Notes/Eureka"),
+      true
+    );
+
+    useTreeStore.getState().focusPath(target);
+    assert.equal(useTreeStore.getState().focusTargetPath, target);
+    assert.equal(useTreeStore.getState().focusTick, 2);
+
+    useTreeStore.getState().selectPage("other.md");
+    assert.equal(useTreeStore.getState().focusTargetPath, null);
+  } finally {
+    useTreeStore.setState(previous);
+  }
+});
