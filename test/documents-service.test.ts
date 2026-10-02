@@ -17,6 +17,9 @@ import { DocumentBroker } from "../server/documents/broker";
 import { DocumentError } from "../src/lib/documents/errors";
 import { revisionOf } from "../src/lib/documents/revision";
 import type { JobInfo } from "../src/lib/documents/types";
+import { suspendRoomHistoryCommits } from "./support/room-history-guard";
+
+suspendRoomHistoryCommits();
 
 const services: DocumentService[] = [];
 function makeService(concurrency = 2): DocumentService {
@@ -26,6 +29,10 @@ function makeService(concurrency = 2): DocumentService {
 }
 test.after(async () => {
   for (const s of services) await s.shutdown();
+  // Fixtures live under test-docs/ + test-imports/ so a direct `tsx --test`
+  // run (no isolated CABINET_DATA_DIR) never touches real room content.
+  await fs.rm(path.join(DATA_DIR, "test-docs"), { recursive: true, force: true });
+  await fs.rm(path.join(DATA_DIR, "test-imports"), { recursive: true, force: true });
 });
 
 // ── fixtures ──────────────────────────────────────────────────────────────
@@ -90,8 +97,8 @@ async function waitJob(svc: DocumentService, jobId: string, timeoutMs = 60000): 
 
 test("docx: open → inspect → patch → revision advances → reopen reflects edit", async () => {
   const svc = makeService();
-  await writeFixture("docs/a.docx", await docxBytes());
-  const opened = await svc.open({ virtualPath: "docs/a.docx" });
+  await writeFixture("test-docs/a.docx", await docxBytes());
+  const opened = await svc.open({ virtualPath: "test-docs/a.docx" });
   assert.equal(opened.format, "docx");
   assert.equal(opened.capabilities.edit, true);
 
@@ -113,10 +120,10 @@ test("docx: open → inspect → patch → revision advances → reopen reflects
     ],
   });
   assert.equal(patched.applied, 1);
-  assert.equal(patched.virtualPath, "docs/a.docx");
+  assert.equal(patched.virtualPath, "test-docs/a.docx");
   assert.notEqual(patched.revision, opened.revision);
 
-  const reopened = await svc.open({ virtualPath: "docs/a.docx" });
+  const reopened = await svc.open({ virtualPath: "test-docs/a.docx" });
   assert.equal(reopened.revision, patched.revision);
   const read = await svc.read({ sessionId: reopened.sessionId });
   assert.ok(read.text.includes("Alpha EDITED line"));
@@ -126,8 +133,8 @@ test("docx: open → inspect → patch → revision advances → reopen reflects
 test("pdf: text edit + image insert", async () => {
   const svc = makeService();
   const fx = await pdfBytes();
-  await writeFixture("docs/b.pdf", fx.bytes);
-  const opened = await svc.open({ virtualPath: "docs/b.pdf" });
+  await writeFixture("test-docs/b.pdf", fx.bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/b.pdf" });
   const inspected = await svc.inspect({ sessionId: opened.sessionId });
   assert.equal(inspected.format, "pdf");
   assert.equal(inspected.pageCount, 1);
@@ -179,8 +186,8 @@ test("pdf: text edit + image insert", async () => {
 test("docx expectedText mismatch → conflict, no write", async () => {
   const svc = makeService();
   const bytes = await docxBytes();
-  const abs = await writeFixture("docs/c.docx", bytes);
-  const opened = await svc.open({ virtualPath: "docs/c.docx" });
+  const abs = await writeFixture("test-docs/c.docx", bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/c.docx" });
   const inspected = await svc.inspect({ sessionId: opened.sessionId });
   if (inspected.format !== "docx") throw new Error();
   const target = inspected.paragraphs[0]!;
@@ -205,8 +212,8 @@ test("docx expectedText mismatch → conflict, no write", async () => {
 test("pdf skipped edit → invalid/verification-failed, file unchanged", async () => {
   const svc = makeService();
   const fx = await pdfBytes();
-  const abs = await writeFixture("docs/d.pdf", fx.bytes);
-  const opened = await svc.open({ virtualPath: "docs/d.pdf" });
+  const abs = await writeFixture("test-docs/d.pdf", fx.bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/d.pdf" });
   await assert.rejects(
     svc.applyPatch({
       sessionId: opened.sessionId,
@@ -232,8 +239,8 @@ test("pdf skipped edit → invalid/verification-failed, file unchanged", async (
 test("two concurrent patches with same baseRevision → one success, one conflict", async () => {
   const svc = makeService();
   const bytes = await docxBytes();
-  await writeFixture("docs/e.docx", bytes);
-  const opened = await svc.open({ virtualPath: "docs/e.docx" });
+  await writeFixture("test-docs/e.docx", bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/e.docx" });
   const inspected = await svc.inspect({ sessionId: opened.sessionId });
   if (inspected.format !== "docx") throw new Error();
   const target = inspected.paragraphs[0]!;
@@ -263,18 +270,18 @@ test("two concurrent patches with same baseRevision → one success, one conflic
 test("saveCopy collision naming", async () => {
   const svc = makeService();
   const bytes = await docxBytes();
-  await writeFixture("docs/src.docx", bytes);
-  await writeFixture("docs/copy.docx", bytes);
-  await writeFixture("docs/copy (2).docx", bytes);
-  const opened = await svc.open({ virtualPath: "docs/src.docx" });
+  await writeFixture("test-docs/src.docx", bytes);
+  await writeFixture("test-docs/copy.docx", bytes);
+  await writeFixture("test-docs/copy (2).docx", bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/src.docx" });
   const out = await svc.saveCopy({
-    virtualPath: "docs/src.docx",
-    destinationVirtualPath: "docs/copy.docx",
+    virtualPath: "test-docs/src.docx",
+    destinationVirtualPath: "test-docs/copy.docx",
     baseRevision: opened.revision,
   });
-  assert.equal(out.virtualPath, "docs/copy (3).docx");
+  assert.equal(out.virtualPath, "test-docs/copy (3).docx");
   assert.deepEqual(
-    await fs.readFile(path.join(DATA_DIR, "docs/copy (3).docx")),
+    await fs.readFile(path.join(DATA_DIR, "test-docs/copy (3).docx")),
     Buffer.from(bytes),
   );
 });
@@ -284,23 +291,23 @@ test("staged document and text imports are validated and collision-free", async 
   const pdf = await pdfBytes();
   const stage = path.join(os.tmpdir(), `cabinet-import-${Date.now()}.pdf`);
   await fs.writeFile(stage, pdf.bytes);
-  const imported = await svc.importStaged({ destinationVirtualPath: "imports/paper.pdf", tempPath: stage });
-  assert.equal(imported.virtualPath, "imports/paper.pdf");
+  const imported = await svc.importStaged({ destinationVirtualPath: "test-imports/paper.pdf", tempPath: stage });
+  assert.equal(imported.virtualPath, "test-imports/paper.pdf");
   assert.deepEqual(await fs.readFile(path.join(DATA_DIR, imported.virtualPath)), Buffer.from(pdf.bytes));
 
-  const text = await svc.importText({ destinationVirtualPath: "imports/page.md", bytes: Buffer.from("# Saved page\n") });
-  const collision = await svc.importText({ destinationVirtualPath: "imports/page.md", bytes: Buffer.from("# Second\n") });
-  assert.equal(text.virtualPath, "imports/page.md");
-  assert.equal(collision.virtualPath, "imports/page (2).md");
+  const text = await svc.importText({ destinationVirtualPath: "test-imports/page.md", bytes: Buffer.from("# Saved page\n") });
+  const collision = await svc.importText({ destinationVirtualPath: "test-imports/page.md", bytes: Buffer.from("# Second\n") });
+  assert.equal(text.virtualPath, "test-imports/page.md");
+  assert.equal(collision.virtualPath, "test-imports/page (2).md");
 
   const stageA = path.join(os.tmpdir(), `cabinet-import-a-${Date.now()}.pdf`);
   const stageB = path.join(os.tmpdir(), `cabinet-import-b-${Date.now()}.pdf`);
   await Promise.all([fs.writeFile(stageA, pdf.bytes), fs.writeFile(stageB, pdf.bytes)]);
   const raced = await Promise.all([
-    svc.importStaged({ destinationVirtualPath: "imports/race.pdf", tempPath: stageA }),
-    svc.importStaged({ destinationVirtualPath: "imports/race.pdf", tempPath: stageB }),
+    svc.importStaged({ destinationVirtualPath: "test-imports/race.pdf", tempPath: stageA }),
+    svc.importStaged({ destinationVirtualPath: "test-imports/race.pdf", tempPath: stageB }),
   ]);
-  assert.deepEqual(raced.map((entry) => entry.virtualPath), ["imports/race.pdf", "imports/race (2).pdf"]);
+  assert.deepEqual(raced.map((entry) => entry.virtualPath), ["test-imports/race.pdf", "test-imports/race (2).pdf"]);
 
   await assert.rejects(
     svc.importText({ destinationVirtualPath: "../escape.md", bytes: Buffer.from("no") }),
@@ -311,20 +318,20 @@ test("staged document and text imports are validated and collision-free", async 
 test("convert job → done, <stem>.docx created; stale revision → conflict", async () => {
   const svc = makeService();
   const fx = await pdfBytes();
-  await writeFixture("docs/conv.pdf", fx.bytes);
-  const opened = await svc.open({ virtualPath: "docs/conv.pdf" });
-  const { jobId } = await svc.convert({ virtualPath: "docs/conv.pdf", baseRevision: opened.revision });
+  await writeFixture("test-docs/conv.pdf", fx.bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/conv.pdf" });
+  const { jobId } = await svc.convert({ virtualPath: "test-docs/conv.pdf", baseRevision: opened.revision });
   const info = await waitJob(svc, jobId);
   assert.equal(info.status, "done");
-  assert.equal(info.result?.virtualPath, "docs/conv.docx");
+  assert.equal(info.result?.virtualPath, "test-docs/conv.docx");
   assert.equal(info.result?.pageCount, 1);
   assert.ok(info.result?.revision?.startsWith("sha256:"));
-  const docxAbs = path.join(DATA_DIR, "docs/conv.docx");
+  const docxAbs = path.join(DATA_DIR, "test-docs/conv.docx");
   const saved = await fs.readFile(docxAbs);
   assert.equal(saved.subarray(0, 2).toString("latin1"), "PK");
 
   await assert.rejects(
-    svc.convert({ virtualPath: "docs/conv.pdf", baseRevision: "sha256:stale" }),
+    svc.convert({ virtualPath: "test-docs/conv.pdf", baseRevision: "sha256:stale" }),
     (e) => e instanceof DocumentError && e.code === "conflict",
   );
 });
@@ -332,26 +339,26 @@ test("convert job → done, <stem>.docx created; stale revision → conflict", a
 test("convert pdf → md: frontmatter + text, no assets dir without images", async () => {
   const svc = makeService();
   const fx = await pdfBytes();
-  await writeFixture("docs/mdpdf.pdf", fx.bytes);
-  const opened = await svc.open({ virtualPath: "docs/mdpdf.pdf" });
+  await writeFixture("test-docs/mdpdf.pdf", fx.bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/mdpdf.pdf" });
   const { jobId } = await svc.convert({
-    virtualPath: "docs/mdpdf.pdf",
+    virtualPath: "test-docs/mdpdf.pdf",
     baseRevision: opened.revision,
     target: "md",
   });
   const info = await waitJob(svc, jobId);
   assert.equal(info.status, "done", JSON.stringify(info.error));
-  assert.equal(info.result?.virtualPath, "docs/mdpdf.md");
-  const md = await fs.readFile(path.join(DATA_DIR, "docs/mdpdf.md"), "utf8");
+  assert.equal(info.result?.virtualPath, "test-docs/mdpdf.md");
+  const md = await fs.readFile(path.join(DATA_DIR, "test-docs/mdpdf.md"), "utf8");
   assert.ok(md.startsWith("---"), md.slice(0, 200));
-  assert.ok(md.includes('source: "docs/mdpdf.pdf"'), md.slice(0, 400));
+  assert.ok(md.includes('source: "test-docs/mdpdf.pdf"'), md.slice(0, 400));
   assert.ok(md.includes("First pdf line"), md);
   assert.equal(info.result?.assetsVirtualPath, undefined);
-  assert.equal(await exists(path.join(DATA_DIR, "docs/mdpdf-assets")), false);
-  assert.deepEqual(info.result?.createdPaths, ["docs/mdpdf.md"]);
+  assert.equal(await exists(path.join(DATA_DIR, "test-docs/mdpdf-assets")), false);
+  assert.deepEqual(info.result?.createdPaths, ["test-docs/mdpdf.md"]);
 });
 
-test("convert pdf with image → md + docs/a-assets/img-01.png in createdPaths", async () => {
+test("convert pdf with image → md + test-docs/a-assets/img-01.png in createdPaths", async () => {
   const svc = makeService();
   const doc = await PDFDocument.create();
   const pg = doc.addPage([595, 842]);
@@ -364,110 +371,110 @@ test("convert pdf with image → md + docs/a-assets/img-01.png in createdPaths",
   const embedded = await doc.embedPng(PNG.sync.write(png));
   pg.drawImage(embedded, { x: 50, y: 400, width: 100, height: 100 });
   const bytes = await doc.save({ useObjectStreams: false });
-  await writeFixture("docs/a.pdf", bytes);
-  const opened = await svc.open({ virtualPath: "docs/a.pdf" });
+  await writeFixture("test-docs/a.pdf", bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/a.pdf" });
   const { jobId } = await svc.convert({
-    virtualPath: "docs/a.pdf",
+    virtualPath: "test-docs/a.pdf",
     baseRevision: opened.revision,
     target: "md",
   });
   const info = await waitJob(svc, jobId);
   assert.equal(info.status, "done", JSON.stringify(info.error));
-  assert.equal(info.result?.virtualPath, "docs/a.md");
-  assert.equal(info.result?.assetsVirtualPath, "docs/a-assets");
+  assert.equal(info.result?.virtualPath, "test-docs/a.md");
+  assert.equal(info.result?.assetsVirtualPath, "test-docs/a-assets");
   const created = info.result?.createdPaths ?? [];
-  assert.ok(created.includes("docs/a.md"), JSON.stringify(created));
+  assert.ok(created.includes("test-docs/a.md"), JSON.stringify(created));
   assert.ok(
-    created.some((p) => /^docs\/a-assets\/(img|page)-\d+\.(png|jpg)$/.test(p)),
+    created.some((p) => /^test-docs\/a-assets\/(img|page)-\d+\.(png|jpg)$/.test(p)),
     JSON.stringify(created),
   );
   assert.equal(await exists(path.join(DATA_DIR, created[1]!)), true);
-  const md = await fs.readFile(path.join(DATA_DIR, "docs/a.md"), "utf8");
+  const md = await fs.readFile(path.join(DATA_DIR, "test-docs/a.md"), "utf8");
   assert.ok(md.includes("./a-assets/"), md);
 });
 
 test("convert docx → md and docx → mdx", async () => {
   const svc = makeService();
-  await writeFixture("docs/srcmd.docx", await docxBytes());
-  const opened = await svc.open({ virtualPath: "docs/srcmd.docx" });
+  await writeFixture("test-docs/srcmd.docx", await docxBytes());
+  const opened = await svc.open({ virtualPath: "test-docs/srcmd.docx" });
   const { jobId } = await svc.convert({
-    virtualPath: "docs/srcmd.docx",
+    virtualPath: "test-docs/srcmd.docx",
     baseRevision: opened.revision,
     target: "md",
   });
   const info = await waitJob(svc, jobId);
   assert.equal(info.status, "done", JSON.stringify(info.error));
-  assert.equal(info.result?.virtualPath, "docs/srcmd.md");
-  const md = await fs.readFile(path.join(DATA_DIR, "docs/srcmd.md"), "utf8");
+  assert.equal(info.result?.virtualPath, "test-docs/srcmd.md");
+  const md = await fs.readFile(path.join(DATA_DIR, "test-docs/srcmd.md"), "utf8");
   assert.ok(md.includes("Alpha first line"), md);
 
-  const reopened = await svc.open({ virtualPath: "docs/srcmd.docx" });
+  const reopened = await svc.open({ virtualPath: "test-docs/srcmd.docx" });
   const { jobId: j2 } = await svc.convert({
-    virtualPath: "docs/srcmd.docx",
+    virtualPath: "test-docs/srcmd.docx",
     baseRevision: reopened.revision,
     target: "mdx",
   });
   const info2 = await waitJob(svc, j2);
   assert.equal(info2.status, "done", JSON.stringify(info2.error));
-  assert.equal(info2.result?.virtualPath, "docs/srcmd.mdx");
+  assert.equal(info2.result?.virtualPath, "test-docs/srcmd.mdx");
 });
 
 test("convert: unsupported pairs rejected; plan reports target + assets", async () => {
   const svc = makeService();
-  await writeFixture("docs/nop.docx", await docxBytes());
-  const opened = await svc.open({ virtualPath: "docs/nop.docx" });
+  await writeFixture("test-docs/nop.docx", await docxBytes());
+  const opened = await svc.open({ virtualPath: "test-docs/nop.docx" });
   await assert.rejects(
     svc.convert({
-      virtualPath: "docs/nop.docx",
+      virtualPath: "test-docs/nop.docx",
       baseRevision: opened.revision,
       target: "docx",
     }),
     (e) => e instanceof DocumentError && e.code === "unsupported",
   );
   await assert.rejects(
-    svc.convertPlan("docs/nop.docx", "docx"),
+    svc.convertPlan("test-docs/nop.docx", "docx"),
     (e) => e instanceof DocumentError && e.code === "unsupported",
   );
-  const plan = await svc.convertPlan("docs/nop.docx", "md");
+  const plan = await svc.convertPlan("test-docs/nop.docx", "md");
   assert.equal(plan.target, "md");
   assert.equal(plan.sourceFormat, "docx");
-  assert.equal(plan.destinationVirtualPath, "docs/nop.md");
-  assert.equal(plan.assetsVirtualPath, "docs/nop-assets");
+  assert.equal(plan.destinationVirtualPath, "test-docs/nop.md");
+  assert.equal(plan.assetsVirtualPath, "test-docs/nop-assets");
   assert.equal(plan.pageCount, 0);
   assert.deepEqual(plan.scannedPages, []);
 });
 
 test("convert markdown: name collision re-picks -1 for both md and assets", async () => {
   const svc = makeService();
-  await writeFixture("docs/coll.docx", await docxBytes());
-  await writeFixture("docs/coll.md", Buffer.from("taken", "utf8"));
-  const opened = await svc.open({ virtualPath: "docs/coll.docx" });
-  const plan = await svc.convertPlan("docs/coll.docx", "md");
-  assert.equal(plan.destinationVirtualPath, "docs/coll-1.md");
-  assert.equal(plan.assetsVirtualPath, "docs/coll-1-assets");
+  await writeFixture("test-docs/coll.docx", await docxBytes());
+  await writeFixture("test-docs/coll.md", Buffer.from("taken", "utf8"));
+  const opened = await svc.open({ virtualPath: "test-docs/coll.docx" });
+  const plan = await svc.convertPlan("test-docs/coll.docx", "md");
+  assert.equal(plan.destinationVirtualPath, "test-docs/coll-1.md");
+  assert.equal(plan.assetsVirtualPath, "test-docs/coll-1-assets");
   const { jobId } = await svc.convert({
-    virtualPath: "docs/coll.docx",
+    virtualPath: "test-docs/coll.docx",
     baseRevision: opened.revision,
     target: "md",
   });
   const info = await waitJob(svc, jobId);
   assert.equal(info.status, "done", JSON.stringify(info.error));
-  assert.equal(info.result?.virtualPath, "docs/coll-1.md");
+  assert.equal(info.result?.virtualPath, "test-docs/coll-1.md");
 });
 
 test("cancel a queued job → cancelled, no output file", async () => {
   const svc = makeService(1); // one worker → second convert queues behind first
   const fx = await pdfBytes();
-  await writeFixture("docs/c1.pdf", fx.bytes);
-  await writeFixture("docs/c2.pdf", fx.bytes);
-  const opened = await svc.open({ virtualPath: "docs/c1.pdf" });
-  const { jobId: first } = await svc.convert({ virtualPath: "docs/c1.pdf", baseRevision: opened.revision });
-  const { jobId: second } = await svc.convert({ virtualPath: "docs/c2.pdf", baseRevision: revisionOf(fx.bytes) });
+  await writeFixture("test-docs/c1.pdf", fx.bytes);
+  await writeFixture("test-docs/c2.pdf", fx.bytes);
+  const opened = await svc.open({ virtualPath: "test-docs/c1.pdf" });
+  const { jobId: first } = await svc.convert({ virtualPath: "test-docs/c1.pdf", baseRevision: opened.revision });
+  const { jobId: second } = await svc.convert({ virtualPath: "test-docs/c2.pdf", baseRevision: revisionOf(fx.bytes) });
   const cancelled = svc.cancel(second);
   assert.equal(cancelled.status, "cancelled");
   const firstInfo = await waitJob(svc, first);
   assert.equal(firstInfo.status, "done");
-  assert.equal(await exists(path.join(DATA_DIR, "docs/c2.docx")), false);
+  assert.equal(await exists(path.join(DATA_DIR, "test-docs/c2.docx")), false);
 });
 
 async function exists(p: string): Promise<boolean> {
@@ -539,8 +546,8 @@ test("path traversal → unauthorized; symlink escape → unauthorized; .odt →
     await fs.rm(outside, { recursive: true, force: true });
   }
 
-  await writeFixture("docs/slides.odt", new Uint8Array([1, 2, 3]));
-  await assert.rejects(svc.open({ virtualPath: "docs/slides.odt" }), (e) => {
+  await writeFixture("test-docs/slides.odt", new Uint8Array([1, 2, 3]));
+  await assert.rejects(svc.open({ virtualPath: "test-docs/slides.odt" }), (e) => {
     return e instanceof DocumentError && e.code === "unsupported";
   });
 });
@@ -549,8 +556,8 @@ test("worker crash → worker-failed, fresh worker handles next op", async () =>
   // Workers inherit process.env at spawn; enable the test-only op first.
   process.env.CABINET_DOC_TEST_OPS = "1";
   const svc = makeService();
-  await writeFixture("docs/crash.docx", await docxBytes());
-  const abs = path.join(DATA_DIR, "docs/crash.docx");
+  await writeFixture("test-docs/crash.docx", await docxBytes());
+  const abs = path.join(DATA_DIR, "test-docs/crash.docx");
   await assert.rejects(
     svc.runWorkerOp("__crash", {}),
     (e) => e instanceof DocumentError && e.code === "worker-failed",

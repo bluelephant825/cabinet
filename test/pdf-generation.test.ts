@@ -21,6 +21,9 @@ import { DocumentError } from "../src/lib/documents/errors";
 import { renderComposition } from "../server/documents/pdf-generation";
 import type { JobInfo } from "../src/lib/documents/types";
 import type { PdfComposition } from "../src/lib/documents/pdf-composition";
+import { suspendRoomHistoryCommits } from "./support/room-history-guard";
+
+suspendRoomHistoryCommits();
 
 const TEMPLATES_DIR = path.join(__dirname, "../src/lib/documents/pdf-templates");
 
@@ -32,6 +35,9 @@ function makeService(): DocumentService {
 }
 test.after(async () => {
   for (const s of services) await s.shutdown();
+  await fs.rm(path.join(DATA_DIR, "docs", "gen"), { recursive: true, force: true });
+  // Drop docs/ itself only if this run created it (empty ⇒ nothing else lives there).
+  await fs.rmdir(path.join(DATA_DIR, "docs")).catch(() => {});
 });
 
 const loadTemplate = (name: string): Record<string, unknown> =>

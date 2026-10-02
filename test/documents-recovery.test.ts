@@ -23,6 +23,10 @@ import {
 import { revisionOf } from "../src/lib/documents/revision";
 import JSZip from "jszip";
 
+import { suspendRoomHistoryCommits } from "./support/room-history-guard";
+
+suspendRoomHistoryCommits();
+
 /** Blank docx is deterministic — inject a marker part to get distinct bytes. */
 async function variantDocx(tag: string): Promise<Uint8Array> {
   const zip = await JSZip.loadAsync(await buildBlankDocx());
@@ -39,6 +43,9 @@ function makeService(): DocumentService {
 test.beforeEach(() => resetRecoverySessions());
 test.after(async () => {
   for (const s of services) await s.shutdown();
+  // rec/ fixtures must not linger when the file is run directly against a
+  // real DATA_DIR (the unit-suite launcher already isolates it).
+  await fs.rm(path.join(DATA_DIR, "rec"), { recursive: true, force: true });
 });
 
 function recoveryDir(absPath: string): string {
