@@ -8,6 +8,7 @@ import {
   execCli,
   resolveCliCommand,
 } from "../provider-cli";
+import { codexBrowserMcpArgs } from "@/lib/browser/mcp-launch";
 
 // Codex on Amazon Bedrock requires vendor-prefixed model IDs (e.g.
 // `openai.gpt-5.5`), but our model picker exposes the OpenAI-direct IDs
@@ -203,12 +204,13 @@ export const codexCliProvider: AgentProvider = {
   command: "codex",
   commandCandidates: buildCommandCandidates("codex"),
 
-  buildArgs(prompt: string, _workdir: string): string[] {
+  buildArgs(prompt: string): string[] {
     return [
       "exec",
       "--ephemeral",
       "--skip-git-repo-check",
       "--dangerously-bypass-approvals-and-sandbox",
+      ...codexBrowserMcpArgs(),
       prompt,
     ];
   },
@@ -239,7 +241,7 @@ export const codexCliProvider: AgentProvider = {
     // mode" were getting the non-interactive run piped through a PTY. The
     // interactive TUI is invoked with no subcommand (bare `codex`), and the
     // daemon pastes `initialPrompt` into the TUI once it's ready.
-    const args: string[] = [];
+    const args: string[] = [...codexBrowserMcpArgs()];
     if (opts?.resumeId) {
       // `codex resume <session-id>` rehydrates a prior interactive session.
       args.push("resume", opts.resumeId);

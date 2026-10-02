@@ -30,6 +30,13 @@ GenOffice NOTICE text:
 | `pdf-lib` | MIT | PDF inspection in tests/tools |
 | `jszip` | MIT OR GPL-3.0-or-later (MIT used) | DOCX container handling |
 
+## Browser automation packages
+
+| Package | License | Role |
+| --- | --- | --- |
+| AlohaJet v0.4.4 | Apache-2.0 | Optional browser actuator downloaded on explicit enablement; its `LICENSE` and `THIRD-PARTY-NOTICES` are retained beside the managed executable |
+| `@modelcontextprotocol/sdk` | MIT | MCP client/server transport for Cabinet and AlohaJet browser tools |
+
 ## Knowledge graph packages
 
 | Package | License | Role |

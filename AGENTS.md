@@ -14,6 +14,16 @@ Three processes and a data directory. Understanding the split is most of the bat
 **2. Daemon
 **3. Electron shell 
 
+## Browser automation
+
+Cabinet agents use the opt-in AlohaJet integration through `cabinet-browser mcp`
+or the equivalent CLI commands. AlohaJet attaches to the existing daemon-owned
+Chromium through the private capability bridge; never expose a Chromium debug
+port, launch a second agent browser, or write browser MCP entries into user-global
+CLI configs. Public downloads and imports are Cabinet-native and must keep the
+room path policy, SSRF checks, atomic document persistence, history, and tree
+refresh. See `docs/BROWSER.md`.
+
 ## PROGRESS.md
 
 After every change to this project, append an entry to `PROGRESS.md`:

@@ -1,5 +1,7 @@
 "use client";
 
+import type { BrowserAutomationSettings, BrowserAutomationStatus } from "./automation-types";
+
 /**
  * Client-side helpers for the Cabinet Browser sidecar, via the
  * /api/browser/[...op] proxy. Live updates arrive on the daemon "browser"
@@ -95,6 +97,9 @@ export const launch = () => post<{ ok: boolean; status: SidecarStatusName }>("la
 export const shutdown = () => post<{ ok: boolean; status: SidecarStatusName }>("shutdown");
 export const relaunchBrowser = () => post<{ ok: boolean; status: SidecarStatusName }>("relaunch");
 export const downloadBrowser = () => post<{ ok: boolean; status: SidecarStatusName }>("download");
+export const getBrowserAutomationStatus = () => api<BrowserAutomationStatus>("automation/status");
+export const updateBrowserAutomationSettings = (settings: Partial<BrowserAutomationSettings>) =>
+  post<{ settings: BrowserAutomationSettings; status: BrowserAutomationStatus }>("automation/settings", settings);
 
 export const listTabs = async () => (await api<{ tabs: SidecarTab[] }>("tabs")).tabs;
 export const openTab = async (url: string) =>

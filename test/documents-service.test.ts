@@ -279,6 +279,35 @@ test("saveCopy collision naming", async () => {
   );
 });
 
+test("staged document and text imports are validated and collision-free", async () => {
+  const svc = makeService();
+  const pdf = await pdfBytes();
+  const stage = path.join(os.tmpdir(), `cabinet-import-${Date.now()}.pdf`);
+  await fs.writeFile(stage, pdf.bytes);
+  const imported = await svc.importStaged({ destinationVirtualPath: "imports/paper.pdf", tempPath: stage });
+  assert.equal(imported.virtualPath, "imports/paper.pdf");
+  assert.deepEqual(await fs.readFile(path.join(DATA_DIR, imported.virtualPath)), Buffer.from(pdf.bytes));
+
+  const text = await svc.importText({ destinationVirtualPath: "imports/page.md", bytes: Buffer.from("# Saved page\n") });
+  const collision = await svc.importText({ destinationVirtualPath: "imports/page.md", bytes: Buffer.from("# Second\n") });
+  assert.equal(text.virtualPath, "imports/page.md");
+  assert.equal(collision.virtualPath, "imports/page (2).md");
+
+  const stageA = path.join(os.tmpdir(), `cabinet-import-a-${Date.now()}.pdf`);
+  const stageB = path.join(os.tmpdir(), `cabinet-import-b-${Date.now()}.pdf`);
+  await Promise.all([fs.writeFile(stageA, pdf.bytes), fs.writeFile(stageB, pdf.bytes)]);
+  const raced = await Promise.all([
+    svc.importStaged({ destinationVirtualPath: "imports/race.pdf", tempPath: stageA }),
+    svc.importStaged({ destinationVirtualPath: "imports/race.pdf", tempPath: stageB }),
+  ]);
+  assert.deepEqual(raced.map((entry) => entry.virtualPath), ["imports/race.pdf", "imports/race (2).pdf"]);
+
+  await assert.rejects(
+    svc.importText({ destinationVirtualPath: "../escape.md", bytes: Buffer.from("no") }),
+    /not allowed|escapes|Path/i,
+  );
+});
+
 test("convert job → done, <stem>.docx created; stale revision → conflict", async () => {
   const svc = makeService();
   const fx = await pdfBytes();

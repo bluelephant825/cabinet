@@ -11,8 +11,9 @@ import {
   classifyCommonError,
 } from "./error-classification";
 import type { AdapterSessionCodec, AgentExecutionAdapter } from "./types";
-import { agentRunEnv, getAdapterRuntimePath, runChildProcess } from "./utils";
+import { agentRunEnv, getAdapterRuntimePath, runChildProcess, withBrowserAutomationRun } from "./utils";
 import { readStringConfig, readEffortConfig } from "./_shared/cli-args";
+import { claudeBrowserMcpArgs } from "@/lib/browser/mcp-launch";
 
 const claudeSessionCodec: AdapterSessionCodec = {
   deserialize(raw) {
@@ -49,7 +50,7 @@ function buildClaudeArgs(
     "--verbose",
     ...(config.inferenceOnly === true
       ? ["--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence"]
-      : ["--dangerously-skip-permissions"]),
+      : ["--dangerously-skip-permissions", ...claudeBrowserMcpArgs()]),
   ];
 
   if (resumeSessionId && config.inferenceOnly !== true) {
@@ -151,7 +152,7 @@ export const claudeLocalAdapter: AgentExecutionAdapter = {
       },
     });
 
-    const result = await runChildProcess(command, args, {
+    const result = await withBrowserAutomationRun(ctx, () => runChildProcess(command, args, {
       cwd: ctx.cwd,
       env: agentRunEnv(ctx),
       stdin: ctx.prompt,
@@ -167,7 +168,7 @@ export const claudeLocalAdapter: AgentExecutionAdapter = {
         if (!chunk) return;
         void ctx.onLog("stderr", chunk);
       },
-    });
+    }));
 
     const trailingDisplay = flushClaudeStreamJson(accumulator);
     if (trailingDisplay) {

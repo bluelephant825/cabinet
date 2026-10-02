@@ -94,3 +94,21 @@ test("events dispatch with sessionId and method routing", async () => {
   assert.equal(nav.length, 1);
   client.close();
 });
+
+test("isolated session events do not reach native listeners", async () => {
+  const { client, readable } = makePair();
+  const native: string[] = [];
+  const isolated: string[] = [];
+  const handler = (event: { method: string }) => isolated.push(event.method);
+  client.onEvent("*", (event) => native.push(event.method));
+  client.claimIsolatedSession("PRIVATE", handler);
+
+  readable.write(encodeMessage({ method: "Target.targetCreated", sessionId: "PRIVATE", params: {} }));
+  readable.write(encodeMessage({ method: "Target.targetCreated", params: {} }));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(isolated, ["Target.targetCreated"]);
+  assert.deepEqual(native, ["Target.targetCreated"]);
+  client.releaseIsolatedSession("PRIVATE", handler);
+  client.close();
+});

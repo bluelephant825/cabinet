@@ -24,6 +24,14 @@ export function browserBinDir(): string {
   return join(browserAppDataDir(), "bin");
 }
 
+export function alohaJetDir(): string {
+  return join(browserAppDataDir(), "AlohaJet");
+}
+
+export function alohaJetExecutablePath(): string {
+  return join(alohaJetDir(), "alohajet");
+}
+
 export function browserProfileDir(): string {
   return join(browserAppDataDir(), "Profile");
 }

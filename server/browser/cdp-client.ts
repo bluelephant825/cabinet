@@ -20,6 +20,8 @@ export type CdpEventMessage = {
   sessionId?: string;
 };
 
+type IsolatedEventHandler = (event: CdpEventMessage) => void;
+
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
@@ -68,6 +70,7 @@ export class CDPClient extends EventEmitter {
   private nextId = 1;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly parser = new PipeParser();
+  private readonly isolatedSessions = new Map<string, IsolatedEventHandler>();
   private closed = false;
 
   constructor(
@@ -97,9 +100,12 @@ export class CDPClient extends EventEmitter {
       const entry = this.pending.get(id);
       if (!entry) return;
       this.pending.delete(id);
-      const error = message.error as { message?: string } | undefined;
+      const error = message.error as { code?: number; message?: string; data?: unknown } | undefined;
       if (error) {
-        entry.reject(new BrowserError("cdp", error.message || "CDP error"));
+        entry.reject(new BrowserError("cdp", error.message || "CDP error", {
+          ...(typeof error.code === "number" ? { cdpCode: error.code } : {}),
+          ...(error.data !== undefined ? { cdpData: error.data } : {}),
+        }));
       } else {
         entry.resolve(message.result);
       }
@@ -112,6 +118,13 @@ export class CDPClient extends EventEmitter {
         params: message.params as Record<string, unknown> | undefined,
         sessionId: message.sessionId as string | undefined,
       };
+      const isolated = eventMessage.sessionId
+        ? this.isolatedSessions.get(eventMessage.sessionId)
+        : undefined;
+      if (isolated) {
+        isolated(eventMessage);
+        return;
+      }
       this.emit("event", eventMessage);
       this.emit(method, eventMessage);
     }
@@ -158,6 +171,20 @@ export class CDPClient extends EventEmitter {
         }
       });
     });
+  }
+
+  claimIsolatedSession(sessionId: string, handler: IsolatedEventHandler): void {
+    const existing = this.isolatedSessions.get(sessionId);
+    if (existing && existing !== handler) {
+      throw new BrowserError("cdp", "CDP session is already owned");
+    }
+    this.isolatedSessions.set(sessionId, handler);
+  }
+
+  releaseIsolatedSession(sessionId: string, handler?: IsolatedEventHandler): void {
+    if (!handler || this.isolatedSessions.get(sessionId) === handler) {
+      this.isolatedSessions.delete(sessionId);
+    }
   }
 
   /** Subscribe to CDP events. `method` may be "*" for every event. */

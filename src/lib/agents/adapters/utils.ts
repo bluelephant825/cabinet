@@ -4,6 +4,7 @@ import path from "path";
 import { getNvmNodeBin } from "../nvm-path";
 import { readCabinetEnvFile } from "@/lib/runtime/cabinet-env";
 import { documentToolBinDir } from "@/lib/documents/tool-shim";
+import { registerBrowserAutomationRun, releaseBrowserAutomationRun } from "@/lib/browser/client";
 
 const nvmBin = getNvmNodeBin();
 
@@ -54,6 +55,18 @@ export function agentRunEnv(ctx: {
     CABINET_RUN_ID: ctx.runId,
     ...(ctx.cabinetPath ? { CABINET_CABINET_PATH: ctx.cabinetPath } : {}),
   };
+}
+
+export async function withBrowserAutomationRun<T>(
+  ctx: { runId: string; agentSlug?: string; cabinetPath?: string },
+  action: () => Promise<T>,
+): Promise<T> {
+  const registered = await registerBrowserAutomationRun(ctx);
+  try {
+    return await action();
+  } finally {
+    if (registered) await releaseBrowserAutomationRun(ctx.runId);
+  }
 }
 
 export interface RunChildProcessOptions {

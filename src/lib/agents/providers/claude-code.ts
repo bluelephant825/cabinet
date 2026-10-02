@@ -6,6 +6,7 @@ import {
   resolveCliCommand,
 } from "../provider-cli";
 import { getNvmNodeBin } from "../nvm-path";
+import { claudeBrowserMcpArgs } from "@/lib/browser/mcp-launch";
 
 // Effort levels per Claude Code docs: Fable 5, Opus 4.8/4.7, and Sonnet 5 all
 // support the full ladder including the `xhigh` rung. (Sonnet 4.6 stopped at
@@ -88,8 +89,8 @@ export const claudeCodeProvider: AgentProvider = {
   command: "claude",
   commandCandidates: buildCommandCandidates("claude", { nvmBin: nvmClaudePath }),
 
-  buildArgs(prompt: string, _workdir: string): string[] {
-    return ["--dangerously-skip-permissions", "-p", prompt, "--output-format", "text"];
+  buildArgs(prompt: string): string[] {
+    return ["--dangerously-skip-permissions", ...claudeBrowserMcpArgs(), "-p", prompt, "--output-format", "text"];
   },
 
   buildOneShotInvocation(prompt: string, workdir: string, opts) {
@@ -105,7 +106,7 @@ export const claudeCodeProvider: AgentProvider = {
   },
 
   buildSessionInvocation(prompt: string | undefined, _workdir: string, opts) {
-    const args = ["--dangerously-skip-permissions"];
+    const args = ["--dangerously-skip-permissions", ...claudeBrowserMcpArgs()];
     if (opts?.resumeId) {
       // `claude --resume <sessionId>` rehydrates the prior conversation so
       // the user's follow-up prompt reads into the same context.

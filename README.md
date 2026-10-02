@@ -132,6 +132,7 @@ Cabinet is built around a few principles that we think matter deeply for the fut
 | **Canvas** | View pages, folders, and supported documents as movable, resizable preview cards on a zoomable board. |
 | **LLM Wiki** | Opt in from Settings to build linked Wiki pages from selected notes with a configured AI agent, while keeping the originals editable. Inspect sources, track processing, and explore the generated knowledge graph. |
 | **Built-in Chromium Browser** | Use daemon-managed Chromium from local loopback source-mode clients or the macOS Chromium desktop host. Install supported Chrome extensions from the Chrome Web Store or an unpacked folder. Remote LAN clients are ineligible, and extension compatibility varies. |
+| **Agent Browser Automation** | Opt in from Settings to install the managed AlohaJet actuator and let agents read structured pages, use tabs, click, type, navigate, wait, download public documents, save pages as Markdown, and import PDFs in Cabinet's shared Chromium. |
 | **AI Agents** | Local provider adapters run tasks, jobs, and heartbeats with persisted conversations and memory. |
 | **Skills** | Browse and install from skills.sh or GitHub. Attach skills to agents, or `@`-mention one for a single task. |
 | **Scheduled Jobs** | Cron-based agent automation for recurring research, reports, and other work. |

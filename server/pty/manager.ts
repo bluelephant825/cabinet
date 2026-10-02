@@ -48,6 +48,8 @@ export interface PtyManagerDeps {
   resolveSessionCwd: (input?: string) => string;
   /** PATH the PTY subprocess should inherit (homebrew/nvm/~/.local/bin). */
   enrichedPath: string;
+  onSessionStart?: (input: SpawnPtyInput) => void;
+  onSessionEnd?: (sessionId: string) => void | Promise<void>;
 }
 
 export interface SpawnPtyInput {
@@ -223,6 +225,7 @@ export function createPtyManager(deps: PtyManagerDeps): PtyManager {
           : undefined,
     };
     deps.sessions.set(input.sessionId, session);
+    deps.onSessionStart?.(input);
 
     term.onData((data: string) => {
       const displayChunk = consumeStructuredOutput(session, data);
@@ -285,6 +288,7 @@ export function createPtyManager(deps: PtyManagerDeps): PtyManager {
         completedAt: Date.now(),
       });
       void deps.finalizeSessionConversation(session).catch(() => {});
+      void deps.onSessionEnd?.(input.sessionId);
 
       if (session.ws && session.ws.readyState === WebSocket.OPEN) {
         deps.sessions.delete(input.sessionId);

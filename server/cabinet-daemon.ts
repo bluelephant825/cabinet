@@ -52,6 +52,7 @@ import { handleDocumentsRequest } from "./documents/http";
 import { DocumentService, type DocumentChangeEvent } from "./documents/service";
 import { handleBrowserRequest } from "./browser/http";
 import { createBrowserDaemon } from "./browser/facade";
+import { BrowserDownloadService } from "./browser/download-service";
 import { ensureDocumentToolShim } from "../src/lib/documents/tool-shim";
 import { ensureGenofficeToolShim } from "../src/lib/documents/genoffice-tool-shim";
 import { ensureBrowserToolShim } from "../src/lib/browser/tool-shim";
@@ -316,6 +317,10 @@ const documentService = new DocumentService(undefined, {
     void recordDocumentAgentMutation(e);
   },
 });
+const browserDownloads = new BrowserDownloadService({ documentService });
+browserDaemon.automation.setNativeCall((context, name, args, readTab) =>
+  browserDownloads.call(context, name, args, readTab),
+);
 const managedSourceWatcher = new ManagedSourceWatcher(DATA_DIR, openActiveIngestionQueue, {
   onError: (message) => console.warn("[managed-source-watcher]", message),
 });
@@ -953,6 +958,11 @@ function createStructuredSession(input: {
     },
   };
   sessions.set(input.sessionId, session);
+  browserDaemon.automation.registerRun({
+    runId: input.sessionId,
+    agentSlug: input.agentSlug || "agent",
+    ...(input.cabinetPath ? { cabinetPath: input.cabinetPath } : {}),
+  });
 
   void (async () => {
     try {
@@ -1134,6 +1144,8 @@ function createStructuredSession(input: {
         sessions.delete(input.sessionId);
         session.ws.close();
       }
+    } finally {
+      await browserDaemon.automation.releaseRun(input.sessionId).catch(() => {});
     }
   })();
 
@@ -1154,6 +1166,12 @@ const ptyManager: PtyManager = createPtyManager({
   clearSessionStopFallbackTimer,
   resolveSessionCwd,
   enrichedPath,
+  onSessionStart: (input) => browserDaemon.automation.registerRun({
+    runId: input.sessionId,
+    agentSlug: input.agentSlug || "agent",
+    ...(input.cabinetPath ? { cabinetPath: input.cabinetPath } : {}),
+  }),
+  onSessionEnd: (sessionId) => browserDaemon.automation.releaseRun(sessionId),
 });
 
 function createSession(input: {
@@ -2034,7 +2052,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === "/browser" || url.pathname.startsWith("/browser/")) {
-    await handleBrowserRequest(req, res, browserDaemon.facade);
+    await handleBrowserRequest(req, res, browserDaemon.facade, browserDaemon.automation);
     return;
   }
 
@@ -2487,6 +2505,7 @@ async function shutdown(): Promise<void> {
   await managedSourceWatcher.close().catch((error) => console.warn("[managed-source-watcher] shutdown failed:", error));
   await inboxWatcher.close().catch((error) => console.warn("[inbox-watcher] shutdown failed:", error));
   await documentService.shutdown().catch((error) => console.warn("[documents] shutdown failed:", error));
+  await browserDaemon.automation.closeAll().catch((error) => console.warn("[browser-automation] shutdown failed:", error));
   await browserDaemon.manager.shutdown().catch((error) => console.warn("[browser] shutdown failed:", error));
   closeDb();
   server.close();

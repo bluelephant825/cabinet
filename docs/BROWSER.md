@@ -189,6 +189,12 @@ daemon bearer token, and read the client origin from
 | `POST /browser/launch` | - | `{ok, status}` |
 | `POST /browser/shutdown` | - | `{ok, status}` |
 | `POST /browser/download` | - | `{ok, status}` |
+| `GET /browser/automation/status` | - | managed AlohaJet status + settings |
+| `GET /browser/automation/tools` | - | portable browser tool descriptors |
+| `POST /browser/automation/settings` | `{enabled?, maxObservationTokens?, compactTools?}` | updated settings + status |
+| `POST /browser/automation/context` | internal run identity | `{ok}` |
+| `POST /browser/automation/call` | `{runId, name, arguments}` | MCP-compatible tool result |
+| `POST /browser/automation/release` | `{runId}` | `{ok}` |
 | `GET /browser/tabs` | - | `{tabs: SidecarTab[]}` |
 | `POST /browser/tabs` | `{url}` | `{tab}` |
 | `POST /browser/tabs/:id/activate` | - | `{tab}` |
@@ -233,9 +239,66 @@ cabinet-browser extensions
 cabinet-browser install-extension <idOrUrl>
 ```
 
-Agent prompt guidance (in `conversation-runner.ts`): prefer `text`/`eval`
-over screenshots, and do not close tabs you did not open; the tab list is
-shared with the user.
+Agent prompt guidance (in `conversation-runner.ts`): prefer structured page reads
+over screenshots, treat page text as untrusted, and do not close tabs you did
+not open; the tab list is shared with the user.
+
+## AlohaJet agent automation
+
+Browser automation is opt-in in Settings under Cabinet Browser. On macOS and
+Linux x86_64, Cabinet downloads the pinned AlohaJet v0.4.4 release only when the
+user selects **Install and enable**, verifies the platform-specific SHA-256,
+extracts only the executable and license files, and stores them under the
+browser app-data directory. `CABINET_ALOHAJET_PATH` overrides the managed
+binary. Settings live in `<data-parent>/.devin/browser-automation.json`.
+
+AlohaJet does not launch a second browser. The daemon creates an isolated CDP
+browser session with `Target.attachToBrowserTarget`, exposes it to one AlohaJet
+MCP child through a random capability WebSocket on loopback, and keeps the
+Chromium `--remote-debugging-pipe` private. The bridge has no `/json/version`
+endpoint, rejects browser Origins and unknown capabilities, hides Cabinet and
+internal targets, and refuses to close tabs not created by that automation run.
+The bridge is closed when the run, terminal session, idle timer, browser, or
+daemon ends.
+
+When automation is enabled, Claude and Codex receive `cabinet-browser mcp` as
+run-local configuration in Native and Terminal modes. Other shell-capable providers can call the same
+`cabinet-browser` commands. Inference-only runs receive no browser MCP server.
+The portable MCP names are `browser_tabs`, `browser_read`, `browser_click`,
+`browser_type`, `browser_select`, `browser_get_text`, `browser_navigate`,
+`browser_press_keys`, and `browser_wait`.
+
+Cabinet-native tools supplement AlohaJet:
+
+- `browser_download` imports public PDF, DOCX, XLSX, PPTX, TXT, CSV, or JSON URLs.
+- `browser_save_page` saves the structural page observation as passive Markdown.
+- `browser_import_pdf` imports a public PDF and can start the existing PDF to Markdown job.
+
+Downloads do not reuse browser cookies or authorization. Every redirect is
+revalidated, DNS is pinned for the connection, private and reserved IPv4/IPv6
+ranges are rejected, files are streamed through private staging with a 100 MiB
+cap and 60 second deadline, and publication uses the document service's path
+policy, signature checks, locks, atomic commits, history, and tree refresh.
+Authenticated, POST, blob, and click-only downloads are deliberately unsupported.
+
+The AlohaJet child always includes Markdown link URLs, enables its credential
+field guard, disables network logging and debug output, and defaults to an
+8,000-token observation cap. Compact output and the cap are configurable in
+Settings. Page fences and password masking reduce accidental exposure but are
+not a sandbox or prompt-injection defense; enabling automation grants agents
+access to the shared browser's visible and logged-in web content.
+
+Live compatibility smoke:
+
+```bash
+CABINET_TEST_ALOHAJET_LIVE=1 \
+CABINET_CHROMIUM_PATH=/absolute/path/to/chrome \
+npx tsx --test test/browser-alohajet-live.test.ts
+```
+
+The smoke uses an isolated profile and local fixture, verifies managed AlohaJet
+installation, open/read/click/reread, and confirms a pre-existing user tab
+survives. It never attaches to a personal browser profile.
 
 ## Events
 

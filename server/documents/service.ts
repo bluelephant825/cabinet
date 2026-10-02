@@ -124,6 +124,8 @@ export interface DocumentServiceCallbacks {
 }
 
 export class DocumentService {
+  private importQueue: Promise<void> = Promise.resolve();
+
   constructor(
     private readonly broker = new DocumentBroker(),
     private readonly callbacks: DocumentServiceCallbacks = {},
@@ -504,6 +506,55 @@ export class DocumentService {
     return committed;
   }
 
+  private async withImportQueue<T>(action: () => Promise<T>): Promise<T> {
+    const previous = this.importQueue;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    this.importQueue = previous.then(() => gate);
+    await previous;
+    try {
+      return await action();
+    } finally {
+      release();
+    }
+  }
+
+  async importStaged(input: {
+    destinationVirtualPath: string;
+    tempPath: string;
+    actor?: DocumentActor;
+  }): Promise<SaveCopyResult> {
+    return this.withImportQueue(async () => {
+      const actor = validateActor(input.actor);
+      const dest = await this.collisionFreePath(input.destinationVirtualPath);
+      await fs.mkdir(path.dirname(dest.absPath), { recursive: true });
+      const committed = await this.broker.withPathLock(dest.absPath, () =>
+        commitBytes({ absPath: dest.absPath, tempPath: input.tempPath, expectedRevision: null }),
+      );
+      await this.broker.recordCommit(dest.absPath, committed.revision, committed.size);
+      this.changed({ virtualPath: dest.virtualPath, revision: committed.revision, actor, op: "save-copy" });
+      return { virtualPath: dest.virtualPath, revision: committed.revision, size: committed.size };
+    });
+  }
+
+  async importText(input: {
+    destinationVirtualPath: string;
+    bytes: Uint8Array;
+    actor?: DocumentActor;
+  }): Promise<SaveCopyResult> {
+    return this.withImportQueue(async () => {
+      const actor = validateActor(input.actor);
+      const dest = await this.collisionFreeCompositionPath(input.destinationVirtualPath);
+      await fs.mkdir(path.dirname(dest.absPath), { recursive: true });
+      const committed = await this.broker.withPathLock(dest.absPath, () =>
+        commitBytes({ absPath: dest.absPath, bytes: input.bytes, expectedRevision: null, signatureCheck: "utf8" }),
+      );
+      await this.broker.recordCommit(dest.absPath, committed.revision, committed.size);
+      this.changed({ virtualPath: dest.virtualPath, revision: committed.revision, actor, op: "save-copy" });
+      return { virtualPath: dest.virtualPath, revision: committed.revision, size: committed.size };
+    });
+  }
+
   async saveCopy(input: SaveCopyRequest): Promise<SaveCopyResult> {
     validateActor(input.actor);
     const src = await authorizeDocumentPath(input.virtualPath, { write: false });
@@ -540,6 +591,17 @@ export class DocumentService {
       if (!(await fileExists(auth.absPath))) {
         return { virtualPath: candidate, absPath: auth.absPath };
       }
+    }
+    throw new DocumentError("invalid", "Could not find a free destination name");
+  }
+
+  private async collisionFreeCompositionPath(virtualPath: string): Promise<{ virtualPath: string; absPath: string }> {
+    const ext = path.posix.extname(virtualPath);
+    const stem = virtualPath.slice(0, virtualPath.length - ext.length);
+    for (let i = 0; i < 1000; i++) {
+      const candidate = i === 0 ? virtualPath : `${stem} (${i + 1})${ext}`;
+      const auth = await authorizeCompositionPath(candidate, { write: true });
+      if (!(await fileExists(auth.absPath))) return { virtualPath: candidate, absPath: auth.absPath };
     }
     throw new DocumentError("invalid", "Could not find a free destination name");
   }

@@ -18,6 +18,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDaemonUrl, getOrCreateDaemonTokenSync } from "@/lib/agents/daemon-auth";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { BROWSER_TOOL_DESCRIPTORS } from "@/lib/browser/automation-tools";
 
 class ToolError extends Error {
   constructor(
@@ -206,6 +210,89 @@ async function request(plan: PlannedRequest): Promise<unknown> {
   return json;
 }
 
+async function automationCall(name: string, args: Record<string, unknown>): Promise<unknown> {
+  const runId = process.env.CABINET_RUN_ID?.trim();
+  if (!runId) throw new ToolError("invalid", "CABINET_RUN_ID is required for browser automation");
+  const token = getOrCreateDaemonTokenSync();
+  const response = await fetch(`${getDaemonUrl()}/browser/automation/call`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "x-cabinet-client-origin": "http://127.0.0.1",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ runId, name, arguments: args }),
+  }).catch(() => {
+    throw new ToolError("daemon-unreachable", `Could not reach the Cabinet daemon at ${getDaemonUrl()}`);
+  });
+  const payload = await response.json().catch(() => ({})) as { error?: string };
+  if (!response.ok) throw new ToolError("request-failed", payload.error ?? `HTTP ${response.status}`);
+  return payload;
+}
+
+async function serveMcp(): Promise<void> {
+  const server = new Server(
+    { name: "cabinet-browser", version: "1.0.0" },
+    { capabilities: { tools: {} } },
+  );
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: BROWSER_TOOL_DESCRIPTORS }));
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    try {
+      return await automationCall(
+        request.params.name,
+        (request.params.arguments ?? {}) as Record<string, unknown>,
+      ) as never;
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: error instanceof Error ? error.message : "Browser tool failed" }],
+        isError: true,
+      };
+    }
+  });
+  await server.connect(new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 16 * 1024 * 1024 }));
+}
+
+export function automationCommand(cmd: string | undefined, args: string[]): { name: string; arguments: Record<string, unknown> } | null {
+  switch (cmd) {
+    case "tabs":
+      return { name: "browser_tabs", arguments: { action: "list" } };
+    case "open":
+      return { name: "browser_tabs", arguments: { action: "open", url: arg(args, 0, "url") } };
+    case "close":
+      return { name: "browser_tabs", arguments: { action: "close", tabId: arg(args, 0, "tab id") } };
+    case "activate":
+      return { name: "browser_tabs", arguments: { action: "use", tabId: arg(args, 0, "tab id") } };
+    case "navigate":
+      return { name: "browser_navigate", arguments: { tabId: arg(args, 0, "tab id"), action: "goto", url: arg(args, 1, "url") } };
+    case "back":
+      return { name: "browser_navigate", arguments: { tabId: arg(args, 0, "tab id"), action: "back" } };
+    case "read":
+      return { name: "browser_read", arguments: { tabId: arg(args, 0, "tab id"), includeScreenshot: args.includes("--screenshot") } };
+    case "click":
+      return { name: "browser_click", arguments: { tabId: arg(args, 0, "tab id"), alohaId: arg(args, 1, "aloha id") } };
+    case "type":
+      return { name: "browser_type", arguments: { tabId: arg(args, 0, "tab id"), alohaId: arg(args, 1, "aloha id"), text: arg(args, 2, "text"), submit: args.includes("--submit") } };
+    case "wait":
+      return { name: "browser_wait", arguments: { tabId: arg(args, 0, "tab id"), selector: arg(args, 1, "selector") } };
+    case "select": {
+      const indexFlag = args.indexOf("--index");
+      return { name: "browser_select", arguments: { tabId: arg(args, 0, "tab id"), alohaId: arg(args, 1, "aloha id"), ...(indexFlag >= 0 ? { index: Number(arg(args, indexFlag + 1, "index")) } : { text: arg(args, 2, "option text") }) } };
+    }
+    case "get-text":
+      return { name: "browser_get_text", arguments: { tabId: arg(args, 0, "tab id"), alohaId: arg(args, 1, "aloha id") } };
+    case "keys":
+      return { name: "browser_press_keys", arguments: { tabId: arg(args, 0, "tab id"), keys: arg(args, 1, "keys") } };
+    case "download":
+      return { name: "browser_download", arguments: { url: arg(args, 0, "url"), destinationDir: arg(args, 1, "destination directory"), ...(args[2] ? { filename: args[2] } : {}) } };
+    case "save-page":
+      return { name: "browser_save_page", arguments: { tabId: arg(args, 0, "tab id"), destinationDir: arg(args, 1, "destination directory"), ...(args[2] ? { title: args[2] } : {}) } };
+    case "import-pdf":
+      return { name: "browser_import_pdf", arguments: { url: arg(args, 0, "url"), destinationDir: arg(args, 1, "destination directory"), ...(args[2] && !args[2].startsWith("--") ? { filename: args[2] } : {}), convertToMarkdown: args.includes("--convert") } };
+    default:
+      return null;
+  }
+}
+
 const HELP = `cabinet-browser — drive the Cabinet Browser (a real Chrome for Testing
 window shared with the user, with the user's extensions installed).
 
@@ -223,6 +310,17 @@ Commands:
   screenshot <tabId> [outPath]  PNG capture (default /tmp/cabinet-browser-<tabId>-<ts>.png)
   extensions                    List installed extensions
   install-extension <idOrUrl>   Install a Chrome Web Store extension by id or URL
+  read <tabId> [--screenshot]   Structural Markdown with stable element references
+  click <tabId> <alohaId>       Click an element
+  type <tabId> <alohaId> <text> [--submit]
+  select <tabId> <alohaId> <text>|--index <n>
+  get-text <tabId> <alohaId>    Read visible element text
+  wait <tabId> <selector>       Wait for a CSS selector
+  keys <tabId> <keys>           Send a key or key chord
+  download <url> <dir> [name]   Import a public document or text file
+  save-page <tabId> <dir> [title]
+  import-pdf <url> <dir> [name] [--convert]
+  mcp                           Serve Cabinet browser tools over MCP stdio
 
 Every command prints JSON. Errors print {"error":{...}} and exit 1.
 `;
@@ -233,7 +331,16 @@ async function main(): Promise<void> {
     process.stdout.write(HELP);
     return;
   }
-  const result = await request(planCommand(cmd, args));
+  if (cmd === "mcp") {
+    await serveMcp();
+    return;
+  }
+  const automation = automationCommand(cmd, args);
+  const legacy = new Set(["tabs", "open", "close", "activate", "navigate", "back"]);
+  const useAutomation = automation && (!legacy.has(cmd) || Boolean(process.env.CABINET_RUN_ID?.trim()));
+  const result = useAutomation
+    ? await automationCall(automation.name, automation.arguments)
+    : await request(planCommand(cmd, args));
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 

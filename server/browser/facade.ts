@@ -9,10 +9,15 @@ import { BrowserError, type BrowserTab } from "./types";
 import { ChromiumManager, PINNED_CHROME_BUILD } from "./chromium-manager";
 import { ExtensionManager } from "./extension-manager";
 import type { BrowserFacade } from "./http";
+import { getAppOrigin } from "../../src/lib/runtime/runtime-config";
+import { AlohaJetManager } from "./alohajet-manager";
+import { BrowserAutomationService } from "./automation-service";
 
 export type BrowserDaemon = {
   manager: ChromiumManager;
   extensions: ExtensionManager;
+  automation: BrowserAutomationService;
+  alohaJet: AlohaJetManager;
   facade: BrowserFacade;
 };
 
@@ -50,7 +55,16 @@ export function createBrowserDaemon(): BrowserDaemon {
     },
   });
   const extensions = new ExtensionManager({ getCdp: () => manager.cdpClient });
+  const alohaJet = new AlohaJetManager();
+  const automation = new BrowserAutomationService({
+    manager: alohaJet,
+    ensureBrowser: async () => { await manager.ensureRunning(); },
+    getCdp: () => manager.cdpClient,
+    hiddenOrigin: getAppOrigin(),
+  });
   extensionsHolder.current = extensions;
+  manager.on("browser-exit", () => { void automation.closeAll(); });
+  manager.on("browser-launch-failed", () => { void automation.closeAll(); });
 
   manager.setLaunchHook(async (session) => {
     // Session events are per-launch; re-emit them on the manager so the
@@ -150,5 +164,5 @@ export function createBrowserDaemon(): BrowserDaemon {
     },
   };
 
-  return { manager, extensions, facade };
+  return { manager, extensions, automation, alohaJet, facade };
 }

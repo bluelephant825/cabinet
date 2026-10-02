@@ -71,11 +71,20 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade & {
 let server: http.Server;
 let base: string;
 let browser: ReturnType<typeof fakeBrowser>;
+const automationCalls: string[] = [];
+const automation = {
+  status: async () => ({ enabled: false, supported: true, installed: false }),
+  tools: () => [{ name: "browser_read" }],
+  updateSettings: async (settings: Record<string, unknown>) => (automationCalls.push(`settings:${JSON.stringify(settings)}`), settings),
+  registerRun: (context: { runId: string }) => automationCalls.push(`context:${context.runId}`),
+  releaseRun: async (runId: string) => { automationCalls.push(`release:${runId}`); },
+  call: async (_runId: string, name: string) => ({ content: [{ type: "text", text: name }] }),
+};
 
 test.before(async () => {
   browser = fakeBrowser();
   server = http.createServer((req, res) => {
-    void handleBrowserRequest(req, res, browser).then((handled) => {
+    void handleBrowserRequest(req, res, browser, automation as never).then((handled) => {
       if (!handled) res.writeHead(404).end();
     });
   });
@@ -237,6 +246,35 @@ test("POST /browser/window/focus works", async () => {
     body: "{}",
   });
   assert.equal(res.status, 200);
+});
+
+test("browser automation status is passive and remote clients are rejected", async () => {
+  const local = await fetch(`${base}/browser/automation/status`, { headers: auth() });
+  assert.equal(local.status, 200);
+  assert.equal((await local.json()).enabled, false);
+
+  const remote = await fetch(`${base}/browser/automation/status`, {
+    headers: auth({ "x-cabinet-client-origin": "http://10.0.0.8:4000" }),
+  });
+  assert.equal(remote.status, 403);
+});
+
+test("browser automation context and calls stay daemon-authenticated", async () => {
+  const context = await fetch(`${base}/browser/automation/context`, {
+    method: "POST",
+    headers: auth({ "content-type": "application/json" }),
+    body: JSON.stringify({ runId: "run-1", agentSlug: "researcher" }),
+  });
+  assert.equal(context.status, 200);
+  assert.ok(automationCalls.includes("context:run-1"));
+
+  const called = await fetch(`${base}/browser/automation/call`, {
+    method: "POST",
+    headers: auth({ "content-type": "application/json" }),
+    body: JSON.stringify({ runId: "run-1", name: "browser_read", arguments: { tabId: "T1" } }),
+  });
+  assert.equal(called.status, 200);
+  assert.equal((await called.json()).content[0].text, "browser_read");
 });
 
 test("non-/browser paths are not handled", async () => {

@@ -14,6 +14,7 @@ import {
   downloadBrowser,
   enableExtension,
   getStatus,
+  getBrowserAutomationStatus,
   installExtension,
   launch,
   loadUnpackedExtension,
@@ -21,9 +22,11 @@ import {
   openTab,
   shutdown,
   uninstallExtension,
+  updateBrowserAutomationSettings,
   type SidecarExtension,
   type SidecarStatus,
 } from "@/lib/browser/sidecar-client";
+import type { BrowserAutomationStatus } from "@/lib/browser/automation-types";
 
 function errorMessage(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
@@ -49,6 +52,8 @@ export function ExtensionsSection() {
   const [installing, setInstalling] = useState(false);
   const [loadingUnpacked, setLoadingUnpacked] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [automation, setAutomation] = useState<BrowserAutomationStatus | null>(null);
+  const [savingAutomation, setSavingAutomation] = useState(false);
   const [extensionUrlOrId, setExtensionUrlOrId] = useState("");
 
   const refreshStatus = useCallback(() => {
@@ -64,10 +69,17 @@ export function ExtensionsSection() {
       .finally(() => setLoading(false));
   }, []);
 
+  const refreshAutomation = useCallback(() => {
+    void getBrowserAutomationStatus()
+      .then(setAutomation)
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     refreshStatus();
     refreshExtensions();
-  }, [refreshStatus, refreshExtensions]);
+    refreshAutomation();
+  }, [refreshStatus, refreshExtensions, refreshAutomation]);
 
   // Live updates: status transitions, download progress, extension changes.
   const busEventRef = useRef<(data: Record<string, unknown>) => void>(() => {});
@@ -211,6 +223,27 @@ export function ExtensionsSection() {
     }
   };
 
+  const saveAutomation = async (patch: { enabled?: boolean; compactTools?: boolean; maxObservationTokens?: number }) => {
+    setSavingAutomation(true);
+    try {
+      const result = await updateBrowserAutomationSettings(patch);
+      setAutomation(result.status);
+      showToast(
+        "success",
+        patch.enabled === undefined
+          ? "Browser automation settings updated"
+          : result.status.enabled
+            ? "Browser automation enabled"
+            : "Browser automation disabled",
+      );
+    } catch (error) {
+      showError(errorMessage(error, "Failed to update browser automation"));
+      refreshAutomation();
+    } finally {
+      setSavingAutomation(false);
+    }
+  };
+
   const downloadPercent =
     status?.download && status.download.totalBytes > 0
       ? Math.min(100, Math.round((status.download.downloadedBytes / status.download.totalBytes) * 100))
@@ -291,6 +324,58 @@ export function ExtensionsSection() {
         <p className="mt-3 text-[11px] text-muted-foreground/70">
           Override the binary with CABINET_CHROMIUM_PATH or browser.chromiumPath in cabinet-config.json.
         </p>
+        <div className="mt-5 border-t pt-4 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[12px] font-medium">Agent browser automation</div>
+              <p className="mt-1 text-[11px] text-muted-foreground max-w-2xl">
+                Let Cabinet agents read and interact with pages in this shared browser. Agents can access open tabs and logged-in sites. Password entry is blocked, and existing user tabs cannot be closed.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={automation?.enabled ? "outline" : "default"}
+              disabled={savingAutomation || automation?.installing || automation?.supported === false}
+              onClick={() => void saveAutomation({ enabled: !automation?.enabled })}
+            >
+              {(savingAutomation || automation?.installing) && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {automation?.enabled ? "Disable" : automation?.installed ? "Enable" : "Install and enable"}
+            </Button>
+          </div>
+          {automation?.supported === false ? (
+            <p className="text-[11px] text-destructive">AlohaJet is currently available on macOS and Linux x86_64.</p>
+          ) : null}
+          {automation?.error ? <p className="text-[11px] text-destructive">{automation.error}</p> : null}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1 text-[11px] text-muted-foreground">
+              <span>Maximum observation tokens</span>
+              <Input
+                type="number"
+                min={1000}
+                max={100000}
+                step={1000}
+                value={automation?.maxObservationTokens ?? 8000}
+                disabled={savingAutomation}
+                onChange={(event) => setAutomation((current) => current ? { ...current, maxObservationTokens: Number(event.target.value) } : current)}
+                onBlur={(event) => void saveAutomation({ maxObservationTokens: Number(event.target.value) })}
+              />
+            </label>
+            <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+              <div>
+                <div className="text-[11px] font-medium text-foreground">Compact tool output</div>
+                <div className="text-[10px] text-muted-foreground">Use tighter defaults for smaller local models.</div>
+              </div>
+              <Switch
+                checked={automation?.compactTools ?? false}
+                disabled={savingAutomation}
+                onCheckedChange={(checked) => void saveAutomation({ compactTools: checked })}
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground/70">
+            AlohaJet {automation?.version ?? "0.4.4"} · {automation?.source === "override" ? "Custom executable" : automation?.installed ? "Managed installation" : "Not installed"}
+          </p>
+        </div>
       </div>
 
       <div className="bg-card rounded-xl border p-5 shadow-sm">

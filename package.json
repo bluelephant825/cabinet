@@ -1,6 +1,6 @@
 {
   "name": "cabinet",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Cabinet is an AI-first, self-hosted knowledge base and startup OS. Your files, your agents, on your machine.",
   "private": true,
   "license": "MIT",
@@ -53,6 +53,7 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "@google/model-viewer": "^4.3.1",
     "@highlighters/core": "^1.2.0",
+    "@modelcontextprotocol/sdk": "1.30.1",
     "@monaco-editor/react": "^4.7.0",
     "@puppeteer/browsers": "3.2.2",
     "@react-sigma/core": "^5.0.6",

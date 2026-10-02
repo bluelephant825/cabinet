@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { planCommand } from "../scripts/browser-tool";
+import { automationCommand, planCommand } from "../scripts/browser-tool";
 
 test("status/tabs/extensions are GET routes", () => {
   assert.deepEqual(planCommand("status", []), { method: "GET", path: "status" });
@@ -94,4 +94,31 @@ test("missing args and unknown commands are invalid", () => {
 test("extra trailing args are rejected", () => {
   assert.throws(() => planCommand("status", ["x"]), /Unexpected argument/);
   assert.throws(() => planCommand("open", ["https://a.b", "x"]), /Unexpected argument/);
+});
+
+test("AlohaJet and Cabinet import commands map to portable browser tools", () => {
+  assert.deepEqual(automationCommand("open", ["https://example.test"]), {
+    name: "browser_tabs",
+    arguments: { action: "open", url: "https://example.test" },
+  });
+  assert.deepEqual(automationCommand("close", ["T1"]), {
+    name: "browser_tabs",
+    arguments: { action: "close", tabId: "T1" },
+  });
+  assert.deepEqual(automationCommand("read", ["T1", "--screenshot"]), {
+    name: "browser_read",
+    arguments: { tabId: "T1", includeScreenshot: true },
+  });
+  assert.deepEqual(automationCommand("click", ["T1", "abc"]), {
+    name: "browser_click",
+    arguments: { tabId: "T1", alohaId: "abc" },
+  });
+  assert.deepEqual(automationCommand("download", ["https://example.test/a.pdf", "Research", "a.pdf"]), {
+    name: "browser_download",
+    arguments: { url: "https://example.test/a.pdf", destinationDir: "Research", filename: "a.pdf" },
+  });
+  assert.deepEqual(automationCommand("import-pdf", ["https://example.test/a.pdf", "Research", "--convert"]), {
+    name: "browser_import_pdf",
+    arguments: { url: "https://example.test/a.pdf", destinationDir: "Research", convertToMarkdown: true },
+  });
 });

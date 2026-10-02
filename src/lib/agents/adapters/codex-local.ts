@@ -16,7 +16,8 @@ import {
 import { readStringConfig, readEffortConfig } from "./_shared/cli-args";
 import type { AdapterSessionCodec, AgentExecutionAdapter } from "./types";
 import type { ConversationErrorClassification } from "@/types/conversations";
-import { agentRunEnv, getAdapterRuntimePath, runChildProcess } from "./utils";
+import { agentRunEnv, getAdapterRuntimePath, runChildProcess, withBrowserAutomationRun } from "./utils";
+import { codexBrowserMcpArgs } from "@/lib/browser/mcp-launch";
 
 /**
  * Match codex's backend-rejection events for "this model isn't available on
@@ -31,7 +32,6 @@ import { agentRunEnv, getAdapterRuntimePath, runChildProcess } from "./utils";
  */
 function classifyCodexModelUnavailable(
   stderr: string,
-  _exitCode: number | null
 ): ConversationErrorClassification | null {
   const text = (stderr || "").toLowerCase();
   if (!text.trim()) return null;
@@ -99,7 +99,7 @@ function buildCodexArgs(config: Record<string, unknown>): string[] {
       "-c", "mcp_servers={}", "-c", "project_doc_max_bytes=0",
       ...["shell_tool", "unified_exec", "apps", "plugins", "hooks", "multi_agent", "multi_agent_v2", "browser_use", "browser_use_external", "computer_use", "in_app_browser", "image_generation", "view_image", "skill_search"].flatMap((feature) => ["--disable", feature]),
       "--enable", "skip_host_skill_discovery",
-    ] : ["--dangerously-bypass-approvals-and-sandbox"]),
+    ] : ["--dangerously-bypass-approvals-and-sandbox", ...codexBrowserMcpArgs()]),
   ];
 
   const model = readStringConfig(config, "model");
@@ -178,7 +178,7 @@ export const codexLocalAdapter: AgentExecutionAdapter = {
       },
     });
 
-    const result = await runChildProcess(command, args, {
+    const result = await withBrowserAutomationRun(ctx, () => runChildProcess(command, args, {
       cwd: ctx.cwd,
       env: agentRunEnv(ctx),
       stdin: ctx.prompt,
@@ -195,7 +195,7 @@ export const codexLocalAdapter: AgentExecutionAdapter = {
         if (!display) return;
         void ctx.onLog("stderr", display);
       },
-    });
+    }));
 
     const trailingStdout = flushCodexJsonStream(stdoutAccumulator);
     if (trailingStdout) {

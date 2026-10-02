@@ -14,6 +14,7 @@ import {
 } from "../../src/lib/agents/daemon-auth";
 import { BrowserError, type BrowserExtensionRecord, type BrowserStatus, type BrowserTab } from "./types";
 import { isLoopbackOrigin } from "./chromium-manager";
+import type { BrowserAutomationService } from "./automation-service";
 
 type Json = Record<string, unknown>;
 
@@ -75,6 +76,11 @@ function sendJson(res: http.ServerResponse, status: number, body: unknown): void
   res.end(JSON.stringify(body));
 }
 
+function wireSafeMessage(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : fallback;
+  return /(?:\/Users\/|\/home\/|\/var\/|[A-Za-z]:\\)/.test(message) ? fallback : message;
+}
+
 function sendError(res: http.ServerResponse, err: unknown): void {
   if (err instanceof BrowserError) {
     sendJson(res, err.httpStatus, {
@@ -131,6 +137,7 @@ export async function handleBrowserRequest(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   browser: BrowserFacade,
+  automation?: BrowserAutomationService,
 ): Promise<boolean> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (!url.pathname.startsWith("/browser/") && url.pathname !== "/browser") return false;
@@ -189,6 +196,76 @@ export async function handleBrowserRequest(
     if (method === "POST" && parts[1] === "download") {
       await browser.download();
       sendJson(res, 200, { ok: true, status: browser.status() });
+      return true;
+    }
+
+    if (parts[1] === "automation") {
+      if (!automation) {
+        sendJson(res, 503, { error: "Browser automation is unavailable", code: "unavailable" });
+        return true;
+      }
+      const origin = clientOrigin(req);
+      if (origin && !isLoopbackOrigin(origin)) {
+        sendJson(res, 403, { error: "Browser automation is local-only", code: "unauthorized" });
+        return true;
+      }
+      if (method === "GET" && parts[2] === "status") {
+        sendJson(res, 200, await automation.status());
+        return true;
+      }
+      if (method === "GET" && parts[2] === "tools") {
+        sendJson(res, 200, { tools: automation.tools() });
+        return true;
+      }
+      if (method === "POST" && parts[2] === "context") {
+        const body = await readJson(req);
+        const runId = typeof body.runId === "string" ? body.runId : "";
+        const agentSlug = typeof body.agentSlug === "string" && body.agentSlug.trim() ? body.agentSlug : "agent";
+        const cabinetPath = typeof body.cabinetPath === "string" && body.cabinetPath.trim() ? body.cabinetPath : undefined;
+        if (!runId) throw new BrowserError("invalid", "runId is required");
+        automation.registerRun({ runId, agentSlug, ...(cabinetPath ? { cabinetPath } : {}) });
+        sendJson(res, 200, { ok: true });
+        return true;
+      }
+      if (method === "POST" && parts[2] === "settings") {
+        const body = await readJson(req);
+        let settings;
+        try {
+          settings = await automation.updateSettings({
+            ...(typeof body.enabled === "boolean" ? { enabled: body.enabled } : {}),
+            ...(typeof body.maxObservationTokens === "number" ? { maxObservationTokens: body.maxObservationTokens } : {}),
+            ...(typeof body.compactTools === "boolean" ? { compactTools: body.compactTools } : {}),
+          });
+        } catch (error) {
+          throw new BrowserError("download-failed", wireSafeMessage(error, "AlohaJet installation failed"));
+        }
+        sendJson(res, 200, { settings, status: await automation.status() });
+        return true;
+      }
+      if (method === "POST" && parts[2] === "call") {
+        const body = await readJson(req);
+        const runId = typeof body.runId === "string" ? body.runId : "";
+        const name = typeof body.name === "string" ? body.name : "";
+        const args = body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments)
+          ? body.arguments as Record<string, unknown>
+          : {};
+        if (!runId || !name) throw new BrowserError("invalid", "runId and name are required");
+        try {
+          sendJson(res, 200, await automation.call(runId, name, args));
+        } catch (error) {
+          throw new BrowserError("unavailable", wireSafeMessage(error, "Browser automation failed"));
+        }
+        return true;
+      }
+      if (method === "POST" && parts[2] === "release") {
+        const body = await readJson(req);
+        const runId = typeof body.runId === "string" ? body.runId : "";
+        if (!runId) throw new BrowserError("invalid", "runId is required");
+        await automation.releaseRun(runId);
+        sendJson(res, 200, { ok: true });
+        return true;
+      }
+      sendJson(res, 404, { error: "Unknown browser automation route", code: "not-found" });
       return true;
     }
 
