@@ -17,12 +17,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
 import { NavArrows } from "@/components/layout/nav-arrows";
 import { RoomSwitcher } from "./room-switcher";
 import { TreeView } from "./tree-view";
@@ -200,8 +194,8 @@ export function Sidebar() {
       <aside
         suppressHydrationWarning
         className={cn(
-          "flex bg-[var(--gutter)] h-full overflow-hidden transition-[width] duration-200 will-change-[width] [&_button]:cursor-pointer",
-          isMobile && "fixed inset-y-0 start-0 z-40",
+          "flex bg-(--gutter) h-full overflow-hidden transition-[width] duration-200 will-change-[width] [&_button]:cursor-pointer",
+          isMobile && "fixed inset-y-0 inset-s-0 z-40",
           !isMobile && !collapsed && "shrink-0"
         )}
         style={{ width: collapsed ? 0 : panelWidth }}
@@ -335,7 +329,7 @@ export function Sidebar() {
         </div>
       </aside>
       {!isMobile && !collapsed && (
-        <div className="relative -ms-px h-screen w-[2px] shrink-0 bg-transparent">
+        <div className="relative -ms-px h-screen w-0.5 shrink-0 bg-transparent">
           <div
             role="separator"
             aria-orientation="vertical"
@@ -360,7 +354,7 @@ export function Sidebar() {
                 setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
               }
             }}
-            className="absolute inset-y-0 inset-x-0 mx-auto w-[2px] bg-[#e8d7d1] cursor-col-resize focus-visible:outline-none focus-visible:bg-primary/40 before:content-[''] before:absolute before:inset-y-0 before:-inset-x-2 before:cursor-col-resize"
+            className="absolute inset-y-0 inset-x-0 mx-auto w-0.5 bg-[#e8d7d1] cursor-col-resize focus-visible:outline-none focus-visible:bg-primary/40 before:content-[''] before:absolute before:inset-y-0 before:-inset-x-2 before:cursor-col-resize"
           />
         </div>
       )}
@@ -370,7 +364,7 @@ export function Sidebar() {
         // toolbar button rather than a floating orphan. ViewerToolbar reserves
         // the matching inline-start gap via --sidebar-toggle-offset.
         <div
-          className="absolute top-[10px] z-20 flex h-10 items-center gap-1 animate-in fade-in zoom-in-95 duration-200"
+          className="absolute top-2.5 z-20 flex h-10 items-center gap-1 animate-in fade-in zoom-in-95 duration-200"
           style={{ insetInlineStart: "calc(1rem + var(--traffic-clearance, 0px))" }}
         >
           {/* Brand persists when the sidebar is collapsed — it otherwise

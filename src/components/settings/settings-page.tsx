@@ -971,7 +971,7 @@ export function SettingsPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
       <header
-        className="flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0 bg-[var(--gutter)]"
+        className="flex shrink-0 items-center justify-between gap-x-3 gap-y-2 px-3 py-1.5 transition-[padding] duration-200 md:h-10 md:py-0 bg-(--gutter)"
         style={{ paddingInlineStart: `calc(1rem + var(--sidebar-toggle-offset, 0px))` }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -2047,7 +2047,7 @@ export function SettingsPage() {
                                         <ProviderGlyph icon={provider.icon} asset={provider.iconAsset} className="h-7 w-7" />
                                       </div>
                                       <span className={cn(
-                                        "absolute -bottom-0.5 -end-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-card",
+                                        "absolute -bottom-0.5 -inset-e-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-card",
                                         isReady ? "bg-green-500" : isInstalled ? "bg-amber-500" : "bg-muted-foreground/40",
                                       )} />
                                     </div>
