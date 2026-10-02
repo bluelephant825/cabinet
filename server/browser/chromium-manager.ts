@@ -200,6 +200,26 @@ export function buildChromiumArgs(input: BuildArgsInput): string[] {
   return args;
 }
 
+/** Remove Chromium's own restore artifacts so only Cabinet's state.json drives
+ *  the next launch. Both the modern Sessions directories and the legacy
+ *  Current/Last Session/Tabs files can reopen stale tabs after an unclean
+ *  shutdown. */
+export async function clearChromiumSessionArtifacts(profileDir: string): Promise<void> {
+  const defaultDir = join(profileDir, "Default");
+  await Promise.all(
+    [
+      "Sessions",
+      "Sessions_Encrypted",
+      "Current Session",
+      "Current Tabs",
+      "Last Session",
+      "Last Tabs",
+    ].map((name) =>
+      fsp.rm(join(defaultDir, name), { recursive: true, force: true }).catch(() => {})
+    ),
+  );
+}
+
 /** Read CFBundleIdentifier from `<App>.app/Contents/Info.plist` next to an
  *  executable (exe = App.app/Contents/MacOS/bin). Null for plain binaries. */
 function readBundleId(executable: string): string | null {
@@ -440,15 +460,10 @@ export class ChromiumManager extends EventEmitter {
           return null;
         })
       : null;
-    // The daemon restores tabs itself via buildArgs(); clear Chrome's own
-    // session-restore data or an unclean shutdown stacks its restored tabs on
-    // top of ours (duplicates grow on every relaunch).
-    for (const dir of ["Sessions", "Sessions_Encrypted"]) {
-      const sessionsDir = join(profileDir, "Default", dir);
-      for (const name of await fsp.readdir(sessionsDir).catch(() => [] as string[])) {
-        await fsp.rm(join(sessionsDir, name), { force: true }).catch(() => {});
-      }
-    }
+    // The daemon restores tabs itself via buildArgs(); clear every Chromium
+    // session artifact or an unclean shutdown stacks its restored tabs on top
+    // of ours (duplicates/stale tabs grow on every relaunch).
+    await clearChromiumSessionArtifacts(profileDir);
 
     const args = this.buildArgs(initialUrl);
     this.bundleId = readBundleId(executable);

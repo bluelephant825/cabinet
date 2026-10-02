@@ -190,6 +190,8 @@ interface AppState {
   setTaskPanelConversation: (conversation: ConversationMeta | null) => void;
   openTaskPanelCompose: (context?: TaskPanelComposeContext) => void;
   closeTaskPanel: () => void;
+  reopenTaskPanel: () => void;
+  clearTaskPanelChat: () => void;
   toggleTaskPanelCompose: (context?: TaskPanelComposeContext) => void;
   swapToConversation: (conversation: ConversationMeta) => void;
   toggleTaskRail: () => void;
@@ -597,6 +599,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   closeTaskPanel: () => set({ taskPanelOpen: false, canvasSelectedCardPaths: [] }),
+
+  // Focus mode closes the drawer but must restore the same surface on exit:
+  // taskPanelMode/conversation/context deliberately survive closeTaskPanel.
+  reopenTaskPanel: () => set({ taskPanelOpen: true }),
+
+  // "Clear chat" means leave the current conversation in the drawer and show
+  // a fresh composer. The saved task/transcript stays available from Tasks.
+  clearTaskPanelChat: () =>
+    set({
+      taskPanelOpen: true,
+      taskPanelMode: "compose",
+      taskPanelConversation: null,
+      taskPanelComposeContext: null,
+      canvasSelectedCardPaths: [],
+    }),
 
   toggleTaskPanelCompose: (context) => {
     if (get().taskPanelOpen) {

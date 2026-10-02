@@ -9,7 +9,11 @@ import { handleBrowserRequest, type BrowserFacade } from "../server/browser/http
 import { BrowserError } from "../server/browser/types";
 import { BrowserSession } from "../server/browser/browser-session";
 import type { CDPClient } from "../server/browser/cdp-client";
-import { ChromiumManager, buildChromiumArgs } from "../server/browser/chromium-manager";
+import {
+  ChromiumManager,
+  buildChromiumArgs,
+  clearChromiumSessionArtifacts,
+} from "../server/browser/chromium-manager";
 
 process.env.CABINET_DAEMON_TOKEN ??= "test-browser-token";
 const TOKEN = process.env.CABINET_DAEMON_TOKEN;
@@ -255,6 +259,46 @@ test("hostMode is on with browser.hostMode in cabinet-config.json", () => {
     fs.rmSync(userData, { recursive: true, force: true });
   } finally {
     restore();
+  }
+});
+
+test("launch cleanup removes every Chromium session restore artifact", async () => {
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "cabinet-browser-profile-"));
+  try {
+    const defaultDir = path.join(profileDir, "Default");
+    for (const dir of ["Sessions", "Sessions_Encrypted"]) {
+      fs.mkdirSync(path.join(defaultDir, dir), { recursive: true });
+      fs.writeFileSync(path.join(defaultDir, dir, "Tabs_1"), "stale");
+    }
+    for (const name of [
+      "Current Session",
+      "Current Tabs",
+      "Last Session",
+      "Last Tabs",
+    ]) {
+      fs.writeFileSync(path.join(defaultDir, name), "stale");
+    }
+    fs.mkdirSync(path.join(defaultDir, "Session Storage"), { recursive: true });
+    fs.writeFileSync(path.join(defaultDir, "Session Storage", "origin"), "keep");
+
+    await clearChromiumSessionArtifacts(profileDir);
+
+    for (const name of [
+      "Sessions",
+      "Sessions_Encrypted",
+      "Current Session",
+      "Current Tabs",
+      "Last Session",
+      "Last Tabs",
+    ]) {
+      assert.equal(fs.existsSync(path.join(defaultDir, name)), false, name);
+    }
+    assert.equal(
+      fs.existsSync(path.join(defaultDir, "Session Storage", "origin")),
+      true,
+    );
+  } finally {
+    fs.rmSync(profileDir, { recursive: true, force: true });
   }
 });
 

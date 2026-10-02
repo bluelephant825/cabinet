@@ -39,7 +39,7 @@ export function ViewerFocusButton() {
   const { t } = useLocale();
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setAiPanelCollapsed = useAppStore((s) => s.setAiPanelCollapsed);
-  const openTaskPanelCompose = useAppStore((s) => s.openTaskPanelCompose);
+  const reopenTaskPanel = useAppStore((s) => s.reopenTaskPanel);
   const closeTaskPanel = useAppStore((s) => s.closeTaskPanel);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const aiPanelCollapsed = useAppStore((s) => s.aiPanelCollapsed);
@@ -74,7 +74,7 @@ export function ViewerFocusButton() {
           setSidebarCollapsed(prevStateRef.current.sidebarCollapsed);
           setAiPanelCollapsed(prevStateRef.current.aiPanelCollapsed);
           if (prevStateRef.current.taskPanelOpen) {
-            openTaskPanelCompose();
+            reopenTaskPanel();
           }
           prevStateRef.current = null;
         }

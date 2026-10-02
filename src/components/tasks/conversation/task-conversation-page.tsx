@@ -13,6 +13,7 @@ import {
   GitBranch,
   Link2,
   Loader2,
+  MessageSquareX,
   MoreHorizontal,
   Pause,
   Pencil,
@@ -69,6 +70,7 @@ import { compactTask, fetchTask, patchTask, postTurn } from "@/lib/agents/task-c
 import { subscribeConversationEvents } from "@/lib/agents/conversation-events-client";
 import { peekTaskIsTerminal } from "@/lib/agents/terminal-mode-cache";
 import { buildRuntimeLabel } from "@/lib/agents/runtime-format";
+import { useAppStore } from "@/stores/app-store";
 
 /** Map ConversationMeta.status from SSE payloads → Task UI status. */
 function conversationStatusToTaskStatus(status: string): TaskStatus | null {
@@ -454,6 +456,7 @@ export function TaskConversationPage({
   const { t } = useLocale();
   const isDemo = taskId === "demo";
   const isCompact = variant === "compact";
+  const clearTaskPanelChat = useAppStore((s) => s.clearTaskPanelChat);
   const [task, setTask] = useState<Task | null>(isDemo ? MOCK_TASK : null);
   const [turnAgent, setTurnAgent] = useState<TurnBlockAgent | null>(null);
   const userState = useUserProfile();
@@ -1544,6 +1547,12 @@ export function TaskConversationPage({
                 <ExternalLink className="mr-2 size-3.5" />
                 Open transcript
               </DropdownMenuItem>
+              {isCompact ? (
+                <DropdownMenuItem onClick={clearTaskPanelChat}>
+                  <MessageSquareX className="mr-2 size-3.5" />
+                  Clear chat
+                </DropdownMenuItem>
+              ) : null}
               {task && taskStatus !== "running" && !isDemo ? (
                 <DropdownMenuItem onClick={() => void handleRestart()}>
                   <RotateCcw className="mr-2 size-3.5" />
@@ -1718,6 +1727,12 @@ export function TaskConversationPage({
           <ExternalLink className="mr-2 size-3.5" />
           Open transcript
         </DropdownMenuItem>
+        {isCompact ? (
+          <DropdownMenuItem onClick={clearTaskPanelChat}>
+            <MessageSquareX className="mr-2 size-3.5" />
+            Clear chat
+          </DropdownMenuItem>
+        ) : null}
         {task.meta.status !== "running" && !isDemo ? (
           <DropdownMenuItem onClick={() => void handleRestart()}>
             <RotateCcw className="mr-2 size-3.5" />
