@@ -1,4 +1,5 @@
 import type { AdapterUsageSummary } from "./types";
+import { wrapToolOutput } from "../tool-output-markers";
 
 interface CodexTurnCompletedPayload {
   type?: string;
@@ -173,10 +174,7 @@ function consumeCodexEvent(
     if (payload.type === "item.started" && payload.item.type === "command_execution") {
       if (!itemId) return "";
       accumulator.startedCommands.add(itemId);
-      return appendDisplay(
-        accumulator,
-        normalizeCommandStart(payload.item.command || "")
-      );
+      return "";
     }
 
     if (payload.type === "item.completed" && payload.item.type === "agent_message") {
@@ -187,16 +185,11 @@ function consumeCodexEvent(
     }
 
     if (payload.type === "item.completed" && payload.item.type === "command_execution") {
-      let display = "";
-      if (itemId && !accumulator.startedCommands.has(itemId)) {
-        display += normalizeCommandStart(payload.item.command || "");
-      }
       if (itemId) {
         accumulator.startedCommands.delete(itemId);
       }
-
-      display += normalizeCommandOutput(payload.item.aggregated_output || "");
-      return appendDisplay(accumulator, display);
+      const display = `${normalizeCommandStart(payload.item.command || "")}${normalizeCommandOutput(payload.item.aggregated_output || "")}`;
+      return display ? appendDisplay(accumulator, wrapToolOutput(display)) : "";
     }
   } catch {
     return "";

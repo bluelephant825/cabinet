@@ -117,6 +117,7 @@ export function alohaToolCall(name: string, args: Record<string, unknown>): {
           action: args.action,
           ...(args.tabId ? { tab_id: args.tabId } : {}),
           ...(args.url ? { url: args.url } : {}),
+          ...(args.action === "open" ? { use: false } : {}),
         },
       };
     case "browser_read":

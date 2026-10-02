@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { automationCommand, planCommand } from "../scripts/browser-tool";
+import { alohaToolCall } from "../src/lib/browser/automation-tools";
 
 test("status/tabs/extensions are GET routes", () => {
   assert.deepEqual(planCommand("status", []), { method: "GET", path: "status" });
@@ -121,4 +122,14 @@ test("AlohaJet and Cabinet import commands map to portable browser tools", () =>
     name: "browser_import_pdf",
     arguments: { url: "https://example.test/a.pdf", destinationDir: "Research", convertToMarkdown: true },
   });
+});
+
+test("opening an automation tab skips the initial page snapshot", () => {
+  assert.deepEqual(
+    alohaToolCall("browser_tabs", { action: "open", url: "https://example.test" }),
+    {
+      name: "manage_tabs",
+      arguments: { action: "open", url: "https://example.test", use: false },
+    },
+  );
 });

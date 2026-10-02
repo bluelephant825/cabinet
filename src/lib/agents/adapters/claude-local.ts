@@ -6,6 +6,7 @@ import {
   consumeClaudeStreamJson,
   flushClaudeStreamJson,
 } from "./claude-stream";
+import { stripToolOutput } from "../tool-output-markers";
 import {
   classifyChain,
   classifyCommonError,
@@ -176,7 +177,7 @@ export const claudeLocalAdapter: AgentExecutionAdapter = {
     }
 
     const output = accumulator.streamedText || accumulator.finalText || null;
-    const summaryLine = output ? firstNonEmptyLine(output)?.slice(0, 300) || null : null;
+    const summaryLine = output ? firstNonEmptyLine(stripToolOutput(output))?.slice(0, 300) || null : null;
 
     return {
       exitCode: result.exitCode,

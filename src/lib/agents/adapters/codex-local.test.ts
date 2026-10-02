@@ -4,6 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { codexLocalAdapter } from "./codex-local";
+import { parseTranscript } from "../transcript-parser";
+import { wrapToolOutput } from "../tool-output-markers";
 
 async function createExecutableScript(source: string): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cabinet-codex-local-test-"));
@@ -44,7 +46,12 @@ printf '%s\n' \
 
   assert.ok(result);
   assert.equal(result.exitCode, 0);
-  assert.equal(result.output, "Running pwd now.\n\n$ /bin/zsh -lc pwd\n/Users/jane/cabinet\nOK");
+  const fencedCommand = wrapToolOutput("\n$ /bin/zsh -lc pwd\n/Users/jane/cabinet\n");
+  assert.equal(result.output, `Running pwd now.\n${fencedCommand}OK`);
+  assert.deepEqual(
+    parseTranscript(result.output).map((block) => block.type),
+    ["text", "tool", "text"],
+  );
   assert.equal(result.summary, "OK");
   assert.equal(result.provider, "codex-cli");
   assert.equal(result.model, "gpt-5.4");
@@ -56,7 +63,7 @@ printf '%s\n' \
     cachedInputTokens: 10,
   });
   assert.deepEqual(chunks, [
-    { stream: "stdout", chunk: "Running pwd now.\n\n$ /bin/zsh -lc pwd\n/Users/jane/cabinet\nOK\n" },
+    { stream: "stdout", chunk: `Running pwd now.\n${fencedCommand}OK\n` },
     { stream: "stderr", chunk: "Meaningful stderr line\n" },
   ]);
 });

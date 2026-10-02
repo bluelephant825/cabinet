@@ -1,4 +1,5 @@
 import { applyBedrockModelPrefix, codexCliProvider } from "../providers/codex-cli";
+import { stripToolOutput } from "../tool-output-markers";
 import { resolveCliCommand } from "../provider-cli";
 import { providerStatusToEnvironmentTest } from "./environment";
 import {
@@ -210,7 +211,7 @@ export const codexLocalAdapter: AgentExecutionAdapter = {
     const filteredStderr = filterCodexStderr(result.stderr);
     const output = (ctx.config.inferenceOnly === true ? stdoutAccumulator.lastAgentMessage : stdoutAccumulator.display)?.trim() || null;
     const summaryLine =
-      firstNonEmptyLine(stdoutAccumulator.lastAgentMessage || output || "")?.slice(0, 300) || null;
+      firstNonEmptyLine(stdoutAccumulator.lastAgentMessage || stripToolOutput(output || ""))?.slice(0, 300) || null;
     const streamError = stdoutAccumulator.errorMessage?.trim() || null;
     const synthesizedExitCode =
       streamError && (result.exitCode ?? 0) === 0 && !result.timedOut
