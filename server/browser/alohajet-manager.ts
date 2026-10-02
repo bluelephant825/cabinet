@@ -231,17 +231,17 @@ export class AlohaJetManager extends EventEmitter {
         await fsp.writeFile(path.join(stage, "alohajet"), entries.get("alohajet")!, { mode: 0o755 });
         await fsp.writeFile(path.join(stage, "LICENSE"), entries.get("LICENSE")!, { mode: 0o644 });
         await fsp.writeFile(path.join(stage, "THIRD-PARTY-NOTICES"), entries.get("THIRD-PARTY-NOTICES")!, { mode: 0o644 });
-        await this.verifyExecutable(path.join(stage, "alohajet"));
         const backup = `${this.installDir}.old-${randomBytes(4).toString("hex")}`;
         const existing = await this.fileExists(this.installDir);
         if (existing) await fsp.rename(this.installDir, backup);
         try {
           await fsp.rename(stage, this.installDir);
-          if (existing) await fsp.rm(backup, { recursive: true, force: true });
         } catch (error) {
           if (existing && !(await this.fileExists(this.installDir))) await fsp.rename(backup, this.installDir);
           throw error;
         }
+        await this.verifyExecutable(this.executablePath);
+        if (existing) await fsp.rm(backup, { recursive: true, force: true });
       } finally {
         await fsp.rm(stage, { recursive: true, force: true }).catch(() => {});
       }
@@ -266,7 +266,9 @@ export class AlohaJetManager extends EventEmitter {
         maxBuffer: 1024 * 1024,
       }));
     } catch {
-      throw new Error("AlohaJet executable could not be started");
+      throw new Error(this.platform === "darwin"
+        ? "AlohaJet was downloaded and checksum-verified, but macOS blocked it from starting. Open System Settings > Privacy & Security, allow alohajet, then retry."
+        : "AlohaJet executable could not be started");
     }
     if (!stdout.includes(ALOHAJET_VERSION)) {
       throw new Error(`AlohaJet ${ALOHAJET_VERSION} is required`);

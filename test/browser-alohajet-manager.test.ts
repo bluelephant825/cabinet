@@ -104,6 +104,30 @@ test("enable performs one checksum-verified atomic installation", async () => {
   await fsp.rm(paths.root, { recursive: true, force: true });
 });
 
+test("macOS launch denial preserves the verified executable for approval", async () => {
+  const paths = await tempPaths();
+  const archive = tar({
+    alohajet: "#!/bin/sh\nexit 1\n",
+    LICENSE: "license",
+    "THIRD-PARTY-NOTICES": "notices",
+  });
+  const manager = new AlohaJetManager({
+    ...paths,
+    platform: "darwin",
+    arch: "arm64",
+    release: {
+      url: "https://example.test/alohajet.tar.gz",
+      sha256: createHash("sha256").update(archive).digest("hex"),
+    },
+    fetchImpl: async () => new Response(new Uint8Array(archive), { status: 200 }),
+  });
+  await assert.rejects(manager.updateSettings({ enabled: true }), /Privacy & Security/);
+  assert.equal(manager.readSettings().enabled, false);
+  assert.equal((await manager.status()).installed, true);
+  assert.match(await fsp.readFile(path.join(paths.installDir, "alohajet"), "utf8"), /exit 1/);
+  await fsp.rm(paths.root, { recursive: true, force: true });
+});
+
 test("checksum mismatch leaves automation disabled", async () => {
   const paths = await tempPaths();
   const archive = tar({

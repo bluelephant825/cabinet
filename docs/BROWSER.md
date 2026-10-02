@@ -251,6 +251,10 @@ user selects **Install and enable**, verifies the platform-specific SHA-256,
 extracts only the executable and license files, and stores them under the
 browser app-data directory. `CABINET_ALOHAJET_PATH` overrides the managed
 binary. Settings live in `<data-parent>/.devin/browser-automation.json`.
+macOS may block the unsigned binary during the first health check. The
+checksum-verified executable remains installed; approve `alohajet` in System
+Settings > Privacy & Security, then retry. Cabinet does not remove quarantine
+or bypass Gatekeeper automatically.
 
 AlohaJet does not launch a second browser. The daemon creates an isolated CDP
 browser session with `Target.attachToBrowserTarget`, exposes it to one AlohaJet
