@@ -1,5 +1,7 @@
 # Progress
 
+[2026-10-02] Refreshed the draft `v0.6.4` GitHub release from the latest `main`, including the browse-mode audio controls, dedicated LLM Wiki settings tab, and Tailwind cleanup. Rebuilt the standalone app and repackaged the Chromium host as `Cabinet-0.6.4-macos-arm64.zip` (600,919,881 bytes, SHA-256 `39d99d379439b75e0ca5e605480a6ef3be74d81465db26184e9e77e434f9e376`), verified the ad-hoc bundle signature and single-top-level ZIP layout, and replaced the draft release asset.
+
 [2026-10-02] Resolved the latest IDE-reported Tailwind canonicalization warnings in Settings, Wiki, and Sidebar code. Converted CSS-variable backgrounds to Tailwind 4 shorthand, logical inset offsets to `inset-*` utilities, fixed-size widths and offsets to spacing-scale utilities, and `break-words` to `wrap-break-word`. Removed four stale dropdown-menu imports from `sidebar.tsx` that focused ESLint surfaced after the class cleanup. TypeScript, focused ESLint, and `git diff --check` pass.
 
 [2026-10-02] Moved LLM Wiki configuration out of the Storage settings page and into its own Workspace tab. The new `llm-wiki` tab appears between Skills and Storage, keeps the existing `WikiSection` behavior, and only polls the Wiki workflow while the tab is active. Removed the now-unnecessary top divider from the standalone section. Verified the live Settings navigation renders LLM Wiki on `#/settings/llm-wiki` and no longer mounts it under Storage; TypeScript, focused ESLint, and `git diff --check` pass.
