@@ -202,7 +202,7 @@ function ActionsBlock({ block }: { block: Extract<Block, { type: "actions" }> })
               </div>
               <div
                 dir="auto"
-                className="mt-0.5 whitespace-pre-wrap break-words text-[11px] text-foreground/70 [unicode-bidi:plaintext]"
+                className="mt-0.5 whitespace-pre-wrap wrap-break-word text-[11px] text-foreground/70 [unicode-bidi:plaintext]"
               >
                 {action.type !== "SEND_EMAIL" ? action.prompt : action.body}
               </div>

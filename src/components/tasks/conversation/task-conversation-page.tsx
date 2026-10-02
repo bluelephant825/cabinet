@@ -340,8 +340,8 @@ function WrapUpCard({
   onDismiss: () => void;
 }) {
   return (
-    <div className="mx-auto my-5 w-full max-w-[36rem] px-6">
-      <div className="rounded-2xl bg-emerald-500/[0.07] px-4 py-3.5 dark:bg-emerald-400/[0.06]">
+    <div className="mx-auto my-5 w-full max-w-xl px-6">
+      <div className="rounded-2xl bg-emerald-500/[0.07] px-4 py-3.5 dark:bg-emerald-400/6">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-medium text-foreground">
@@ -1159,7 +1159,7 @@ export function TaskConversationPage({
     return (
       <div className="relative flex h-full items-center justify-center bg-background text-foreground">
         {chromeActions ? (
-          <div className="absolute end-2 top-2 flex items-center gap-1">{chromeActions}</div>
+          <div className="absolute inset-e-2 top-2 flex items-center gap-1">{chromeActions}</div>
         ) : null}
         <div className="max-w-sm rounded-2xl border border-border/70 bg-card px-6 py-5 text-center">
           <p className="text-[13px] font-medium">Couldn&rsquo;t load task</p>
@@ -1179,7 +1179,7 @@ export function TaskConversationPage({
     return (
       <div className="relative flex h-full items-center justify-center bg-background text-muted-foreground">
         {chromeActions ? (
-          <div className="absolute end-2 top-2 flex items-center gap-1">{chromeActions}</div>
+          <div className="absolute inset-e-2 top-2 flex items-center gap-1">{chromeActions}</div>
         ) : null}
         <Loader2 className="size-5 animate-spin" />
       </div>
@@ -1538,7 +1538,7 @@ export function TaskConversationPage({
             >
               <MoreHorizontal className="size-4" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[200px]">
+            <DropdownMenuContent align="end" className="min-w-50">
               <DropdownMenuItem onClick={() => void handleCopyLink()}>
                 <Link2 className="mr-2 size-3.5" />
                 Copy link
@@ -1710,7 +1710,7 @@ export function TaskConversationPage({
       >
         <MoreHorizontal className="size-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[200px]">
+      <DropdownMenuContent align="end" className="min-w-50">
         {/* Compact has no room for a standalone Compact button, so it lives
             in the menu there; the full bar keeps the visible button. */}
         {isCompact && !isDemo && task.turns.length >= 2 ? (
@@ -1818,8 +1818,8 @@ export function TaskConversationPage({
               "overflow-hidden text-[14px] font-semibold leading-snug text-foreground transition-[max-height]",
               COLLAPSE_EASE,
               summaryOpen
-                ? "max-h-[12rem] whitespace-normal"
-                : "max-h-[1.5rem] truncate",
+                ? "max-h-48 whitespace-normal"
+                : "max-h-6 truncate",
               titleIsToggle && "cursor-pointer select-text"
             )}
           >
@@ -2029,7 +2029,7 @@ export function TaskConversationPage({
                         <span>{t("tasks:conversation.terminalLive")}</span>
                       </div>
                     ) : null}
-                    <div className="[&_textarea]:bg-zinc-900 [&_textarea]:text-zinc-100 [&_textarea]:placeholder:text-zinc-500 [&_textarea]:border-zinc-800 [&_*]:!text-zinc-100">
+                    <div className="[&_textarea]:bg-zinc-900 [&_textarea]:text-zinc-100 [&_textarea]:placeholder:text-zinc-500 [&_textarea]:border-zinc-800 **:text-zinc-100!">
                       <TaskComposerPanel
                         awaitingInput={task.meta.status === "awaiting-input"}
                         compact={isCompact}
@@ -2062,13 +2062,13 @@ export function TaskConversationPage({
           <>
           <div ref={chatScrollRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
             {tokenPct >= 80 && task.meta.status !== "done" && !readOnly ? (
-              <div className="mx-auto mx-6 my-4 max-w-3xl">
+              <div className="mx-6 my-4 max-w-3xl sm:mx-auto">
                 <div
                   className={cn(
                     "flex items-center gap-3 rounded-lg border px-4 py-3 text-[13px]",
                     tokenPct >= 95
-                      ? "border-red-500/40 bg-red-500/[0.04] text-red-700 dark:text-red-400"
-                      : "border-amber-500/40 bg-amber-500/[0.04] text-amber-700 dark:text-amber-400"
+                      ? "border-red-500/40 bg-red-500/4 text-red-700 dark:text-red-400"
+                      : "border-amber-500/40 bg-amber-500/4 text-amber-700 dark:text-amber-400"
                   )}
                 >
                   <RefreshCw className="size-4 shrink-0" />
@@ -2296,7 +2296,7 @@ function TerminalPromptHeader({
               </span>
             )}
           </div>
-          <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-zinc-100">
+          <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap wrap-break-word font-mono text-[12px] leading-relaxed text-zinc-100">
             {prompt || "(no prompt)"}
           </pre>
         </div>

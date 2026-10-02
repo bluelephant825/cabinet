@@ -306,7 +306,7 @@ export function TaskDetailPanel() {
           {highlights.map((h) => (
             <div
               key={h.id}
-              className="p-3 rounded-md border border-border/40 text-[13px] leading-relaxed break-words font-medium space-y-2 flex flex-col"
+              className="p-3 rounded-md border border-border/40 text-[13px] leading-relaxed wrap-break-word font-medium space-y-2 flex flex-col"
               style={{
                 backgroundColor: getHighlightBgColor(h.color),
                 color: "#0f172a",
