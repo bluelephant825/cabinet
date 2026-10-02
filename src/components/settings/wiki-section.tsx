@@ -92,7 +92,7 @@ export function WikiSection() {
   const activity = !status?.running ? status?.busy ? "Pausing current operation…" : "Paused"
     : status.busy ? "Processing notes…" : waiting ? "Waiting for the next operation…"
       : needsAttention ? "Finished processing; some operations need attention" : "Watching registered notes";
-  return <section className="space-y-4 border-t border-border pt-6" aria-label="LLM Wiki">
+  return <section className="space-y-4" aria-label="LLM Wiki">
     <div><h3 className="text-sm font-semibold">LLM Wiki</h3><p className="mt-1 text-sm text-muted-foreground">Build linked knowledge from existing notes in {status?.cabinetName ?? "this Cabinet"}. Your originals stay editable.</p></div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {connectionError && <p role="alert" className="text-sm text-destructive">Cannot refresh progress. The background service may still be processing. Showing the last received status; reconnecting automatically.</p>}

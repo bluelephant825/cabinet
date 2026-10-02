@@ -35,6 +35,7 @@ import {
   ShieldAlert,
   Plug,
   ToyBrick,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,9 +134,9 @@ import {
 
 type ColorPalettesMap = Record<string, string[]>;
 
-type Tab = "profile" | "providers" | "skills" | "storage" | "integrations" | "notifications" | "appearance" | "updates" | "about" | "extensions";
+type Tab = "profile" | "providers" | "skills" | "storage" | "llm-wiki" | "integrations" | "notifications" | "appearance" | "updates" | "about" | "extensions";
 
-const VALID_TABS: Tab[] = ["profile", "providers", "skills", "storage", "integrations", "notifications", "appearance", "extensions", "updates", "about"];
+const VALID_TABS: Tab[] = ["profile", "providers", "skills", "storage", "llm-wiki", "integrations", "notifications", "appearance", "extensions", "updates", "about"];
 
 type SetupStep = { title: string; detail: string; command?: string; openTerminal?: boolean; link?: { label: string; url: string } };
 
@@ -953,6 +954,7 @@ export function SettingsPage() {
           onSelect: () => useAppStore.getState().setSection({ type: "integrations" }),
         },
         { id: "skills", label: t("settings:tabs.skills"), icon: <Asterisk className="h-3.5 w-3.5" /> },
+        { id: "llm-wiki", label: "LLM Wiki", icon: <BookOpen className="h-3.5 w-3.5" /> },
         { id: "storage", label: t("settings:tabs.storage"), icon: <HardDrive className="h-3.5 w-3.5" /> },
         { id: "extensions", label: "Extensions", icon: <Blocks className="h-3.5 w-3.5" /> },
       ],
@@ -1699,7 +1701,6 @@ export function SettingsPage() {
               </div>
 
               <StorageBackendSection />
-              <WikiSection />
               <InboxSection />
 
               <div className="border-t border-border pt-6">
@@ -1837,6 +1838,9 @@ export function SettingsPage() {
               <DiagnosticsSection />
             </div>
           )}
+
+          {/* LLM Wiki Tab */}
+          {tab === "llm-wiki" && <WikiSection />}
 
           {tab === "updates" && update && (
             <UpdateSummary
