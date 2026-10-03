@@ -34,3 +34,6 @@ After every change to this project, append an entry to `PROGRESS.md`:
 
 This is mandatory and is the project's running changelog. Existing entries are detailed (what changed,
 why, what was verified) — match that.
+
+Entries must stay in chronological order: oldest at the top, newest at the bottom. Always append new
+entries at the end of the file, never prepend them at the top.
