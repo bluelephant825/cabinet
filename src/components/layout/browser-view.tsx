@@ -1254,7 +1254,9 @@ export function BrowserView() {
       }
       void createBrowserView(useAppStore.getState().browseUrl || "about:blank")
         .then((result) => {
-          if (cancelled) return;
+          if (cancelled) {
+            return result?.viewId ? destroyBrowserView(result.viewId) : undefined;
+          }
           if (!result?.ok || !result.viewId) {
             failToIframe();
             return;

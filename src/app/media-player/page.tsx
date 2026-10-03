@@ -39,11 +39,28 @@ function AudioPlayer({ src }: { src: string }) {
     objectUrlRef.current = null;
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     return () => {
+      sourceVersionRef.current += 1;
       const latest = objectUrlRef.current;
       objectUrlRef.current = null;
       if (latest) URL.revokeObjectURL(latest);
     };
   }, [src]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    let cancelled = false;
+    audio.src = resolvedSrc;
+    void audio.play().catch(() => {
+      if (!cancelled) setIsPlaying(!audio.paused);
+    });
+    return () => {
+      cancelled = true;
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    };
+  }, [resolvedSrc]);
 
   const retryWithBlob = async () => {
     if (retriedBlobRef.current || retryingRef.current) return;
@@ -77,7 +94,7 @@ function AudioPlayer({ src }: { src: string }) {
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
-      void audio.play().catch(() => setIsPlaying(audio.paused));
+      void audio.play().catch(() => setIsPlaying(!audio.paused));
       return;
     }
     audio.pause();
@@ -97,8 +114,6 @@ function AudioPlayer({ src }: { src: string }) {
       </div>
       <audio
         ref={audioRef}
-        src={resolvedSrc}
-        autoPlay
         preload="metadata"
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
