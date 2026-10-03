@@ -11,15 +11,15 @@ export const DATA_DIR = getManagedDataDir();
 // (bookmarks.json, .home/, .cabinet-state/, backups) that must not be scoped
 // to a single cabinet.
 export const DATA_PARENT_DIR = getManagedDataParentDir();
-export const CABINET_INTERNAL_DIR = path.join(DATA_PARENT_DIR, ".cabinet-state");
-export const ROOT_INSTALL_METADATA_PATH = path.join(PROJECT_ROOT, ".cabinet-install.json");
-export const DATA_INSTALL_METADATA_PATH = path.join(CABINET_INTERNAL_DIR, "install.json");
-export const PROJECT_RELEASE_MANIFEST_PATH = path.join(PROJECT_ROOT, "cabinet-release.json");
-export const UPDATE_STATUS_PATH = path.join(CABINET_INTERNAL_DIR, "update-status.json");
-export const FILE_SCHEMA_STATE_PATH = path.join(CABINET_INTERNAL_DIR, "file-schema.json");
+export const CABINET_INTERNAL_DIR = path.join(/*turbopackIgnore: true*/ DATA_PARENT_DIR, ".cabinet-state");
+export const ROOT_INSTALL_METADATA_PATH = path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, ".cabinet-install.json");
+export const DATA_INSTALL_METADATA_PATH = path.join(/*turbopackIgnore: true*/ CABINET_INTERNAL_DIR, "install.json");
+export const PROJECT_RELEASE_MANIFEST_PATH = path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, "cabinet-release.json");
+export const UPDATE_STATUS_PATH = path.join(/*turbopackIgnore: true*/ CABINET_INTERNAL_DIR, "update-status.json");
+export const FILE_SCHEMA_STATE_PATH = path.join(/*turbopackIgnore: true*/ CABINET_INTERNAL_DIR, "file-schema.json");
 export const BACKUP_ROOT = isDesktopRuntime()
-  ? path.join(path.dirname(DATA_PARENT_DIR), "cabinet-backups")
-  : path.resolve(PROJECT_ROOT, "..", ".cabinet-backups", path.basename(PROJECT_ROOT));
+  ? path.join(/*turbopackIgnore: true*/ path.dirname(DATA_PARENT_DIR), "cabinet-backups")
+  : path.resolve(/*turbopackIgnore: true*/ PROJECT_ROOT, "..", ".cabinet-backups", path.basename(PROJECT_ROOT));
 
 /**
  * Single source of truth for an agent's spawn cwd (#178). `workdir` is a
@@ -30,17 +30,17 @@ export const BACKUP_ROOT = isDesktopRuntime()
  * failed for pre-Rooms migrated agents while manual Retry worked.
  */
 export function resolveAgentCwd(cabinetPath?: string, workdir?: string): string {
-  const baseCwd = cabinetPath ? path.join(DATA_DIR, cabinetPath) : DATA_DIR;
+  const baseCwd = cabinetPath ? path.join(/*turbopackIgnore: true*/ DATA_DIR, cabinetPath) : DATA_DIR;
   const sub = (workdir ?? "").replace(/^\/+/, "");
   if (!sub || sub === "data") return baseCwd;
-  const scoped = path.join(baseCwd, sub);
+  const scoped = path.join(/*turbopackIgnore: true*/ baseCwd, sub);
   // ponytail: a stale pre-Rooms workdir (cabinetPath already ends in the
   // subfolder) makes `scoped` a doubled, non-existent path — spawning there
   // yields ENOENT that gets mislabeled cli_not_found. Fall back to the room
   // root rather than into a missing cwd; the migration backfills the data so
   // this rarely fires. Upgrade path if workdirs ever legitimately point at a
   // not-yet-created folder: mkdir it here instead of falling back.
-  return fs.existsSync(scoped) ? scoped : baseCwd;
+  return fs.existsSync(/*turbopackIgnore: true*/ scoped) ? scoped : baseCwd;
 }
 
 export function resolveContentPath(virtualPath: string): string {
@@ -50,10 +50,10 @@ export function resolveContentPath(virtualPath: string): string {
     // gracefully once the (auto-)restarted process comes up.
     throw new StaleProcessError();
   }
-  const dataDir = path.resolve(DATA_DIR);
+  const dataDir = path.resolve(/*turbopackIgnore: true*/ DATA_DIR);
 
-  const resolved = path.resolve(dataDir, normalizeVirtualPath(virtualPath));
-  const relative = path.relative(dataDir, resolved);
+  const resolved = path.resolve(/*turbopackIgnore: true*/ dataDir, normalizeVirtualPath(virtualPath));
+  const relative = path.relative(/*turbopackIgnore: true*/ dataDir, resolved);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error("Path traversal detected");
   }
@@ -61,7 +61,7 @@ export function resolveContentPath(virtualPath: string): string {
 }
 
 export function virtualPathFromFs(fsPath: string): string {
-  return normalizeVirtualPath(path.relative(DATA_DIR, fsPath));
+  return normalizeVirtualPath(path.relative(/*turbopackIgnore: true*/ DATA_DIR, fsPath));
 }
 
 export function sanitizeFilename(name: string): string {

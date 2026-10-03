@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execFile } from "node:child_process";
+import childProcess from "node:child_process";
 import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
@@ -14,7 +14,7 @@ import {
   parseExportLayout,
 } from "@/lib/export/myst-layout";
 
-const execFileAsync = promisify(execFile);
+const execFileAsync = promisify(childProcess.execFile);
 const allowedFormats = ["pdf", "docx", "tex", "html"] as const;
 type ExportFormat = (typeof allowedFormats)[number];
 

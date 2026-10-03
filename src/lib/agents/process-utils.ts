@@ -1,5 +1,4 @@
-import { execFile } from "child_process";
-import type { ChildProcess } from "child_process";
+import childProcess, { type ChildProcess } from "child_process";
 
 type TerminateChildProcessOptions = {
   platform?: NodeJS.Platform;
@@ -14,7 +13,7 @@ function killDirectly(proc: ChildProcess): void {
 
 async function defaultTaskkill(command: string, args: string[]): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    execFile(command, args, { windowsHide: true }, (error) => {
+    childProcess.execFile(command, args, { windowsHide: true }, (error) => {
       if (error) {
         reject(error);
         return;

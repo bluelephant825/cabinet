@@ -36,6 +36,7 @@ import {
   Plug,
   ToyBrick,
   BookOpen,
+  Rss,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +99,7 @@ import { AGENT_PALETTE } from "@/lib/themes";
 import { StorageBackendSection } from "@/components/settings/storage-backend-section";
 import { WikiSection } from "@/components/settings/wiki-section";
 import { InboxSection } from "@/components/settings/inbox-section";
+import { RssSection } from "@/components/settings/rss-section";
 import { DiagnosticsSection } from "@/components/settings/diagnostics-section";
 import { version as pkgVersion } from "../../../package.json";
 import releaseJson from "../../../cabinet-release.json";
@@ -134,9 +136,9 @@ import {
 
 type ColorPalettesMap = Record<string, string[]>;
 
-type Tab = "profile" | "providers" | "skills" | "storage" | "llm-wiki" | "integrations" | "notifications" | "appearance" | "updates" | "about" | "extensions";
+type Tab = "profile" | "providers" | "skills" | "storage" | "llm-wiki" | "integrations" | "notifications" | "appearance" | "updates" | "about" | "extensions" | "rss";
 
-const VALID_TABS: Tab[] = ["profile", "providers", "skills", "storage", "llm-wiki", "integrations", "notifications", "appearance", "extensions", "updates", "about"];
+const VALID_TABS: Tab[] = ["profile", "providers", "skills", "storage", "llm-wiki", "integrations", "notifications", "appearance", "extensions", "updates", "about", "rss"];
 
 type SetupStep = { title: string; detail: string; command?: string; openTerminal?: boolean; link?: { label: string; url: string } };
 
@@ -955,6 +957,7 @@ export function SettingsPage() {
         },
         { id: "skills", label: t("settings:tabs.skills"), icon: <Asterisk className="h-3.5 w-3.5" /> },
         { id: "llm-wiki", label: "LLM Wiki", icon: <BookOpen className="h-3.5 w-3.5" /> },
+        { id: "rss", label: "RSS", icon: <Rss className="h-3.5 w-3.5" /> },
         { id: "storage", label: t("settings:tabs.storage"), icon: <HardDrive className="h-3.5 w-3.5" /> },
         { id: "extensions", label: "Extensions", icon: <Blocks className="h-3.5 w-3.5" /> },
       ],
@@ -1841,6 +1844,7 @@ export function SettingsPage() {
 
           {/* LLM Wiki Tab */}
           {tab === "llm-wiki" && <WikiSection />}
+          {tab === "rss" && <RssSection />}
 
           {tab === "updates" && update && (
             <UpdateSummary

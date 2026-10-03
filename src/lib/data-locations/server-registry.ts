@@ -19,7 +19,7 @@ export function getServerDataLocations(): DataLocation[] {
     {
       id: "sqlite-index",
       label: "SQLite index",
-      pathOrKey: path.join(DATA_DIR, ".cabinet.db"),
+      pathOrKey: path.join(/* turbopackIgnore: true */ DATA_DIR, ".cabinet.db"),
       contains:
         "Cached index of files in the data folder. Rebuilt automatically from disk on demand.",
       leavesDevice: false,
@@ -49,7 +49,7 @@ export function getServerDataLocations(): DataLocation[] {
     {
       id: "api-keys-env",
       label: "API keys",
-      pathOrKey: path.join(PROJECT_ROOT, ".cabinet.env"),
+      pathOrKey: path.join(/* turbopackIgnore: true */ PROJECT_ROOT, ".cabinet.env"),
       contains:
         "Provider API keys (OpenAI, Anthropic, etc.) you set in Settings → Integrations → API Keys.",
       leavesDevice: false,
@@ -61,24 +61,24 @@ export function getServerDataLocations(): DataLocation[] {
 
 async function statFsLocation(absPath: string): Promise<DataLocationStats> {
   try {
-    const stat = await fs.stat(absPath);
+    const stat = await fs.stat(/* turbopackIgnore: true */ absPath);
     if (stat.isDirectory()) {
       let total = 0;
       let count = 0;
       const walk = async (dir: string) => {
         let entries: import("fs").Dirent[] = [];
         try {
-          entries = await fs.readdir(dir, { withFileTypes: true });
+          entries = await fs.readdir(/* turbopackIgnore: true */ dir, { withFileTypes: true });
         } catch {
           return;
         }
         for (const e of entries) {
-          const p = path.join(dir, e.name);
+          const p = path.join(/* turbopackIgnore: true */ dir, e.name);
           if (e.isDirectory()) {
             await walk(p);
           } else if (e.isFile()) {
             try {
-              const s = await fs.stat(p);
+              const s = await fs.stat(/* turbopackIgnore: true */ p);
               total += s.size;
               count += 1;
             } catch {

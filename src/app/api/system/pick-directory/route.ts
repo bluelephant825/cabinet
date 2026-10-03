@@ -1,4 +1,5 @@
-import { spawn } from "child_process";
+import { spawn, type ChildProcessByStdio } from "child_process";
+import type { Readable } from "stream";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -11,44 +12,47 @@ function sanitizePrompt(value: unknown): string {
   return cleaned || DEFAULT_PROMPT;
 }
 
-function getPickerCommand(prompt: string): {
-  command: string;
-  args: string[];
-  env?: NodeJS.ProcessEnv;
-} {
+function startPicker(prompt: string): ChildProcessByStdio<null, Readable, Readable> {
   switch (process.platform) {
     case "darwin": {
       // The prompt is embedded in an AppleScript string literal.
       const escaped = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-      return {
-        command: "osascript",
-        args: [
+      return spawn(
+        "osascript",
+        [
           "-e",
           `set chosenFolder to choose folder with prompt "${escaped}"`,
           "-e",
           "POSIX path of chosenFolder",
         ],
-      };
+        { stdio: ["ignore", "pipe", "pipe"] }
+      );
     }
     case "win32":
-      return {
-        command: "powershell",
-        args: [
+      return spawn(
+        "powershell",
+        [
           "-NoProfile",
           "-Command",
           "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = $env:CABINET_PICKER_PROMPT; $dialog.UseDescriptionForTitle = $true; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }",
         ],
-        env: { ...process.env, CABINET_PICKER_PROMPT: prompt },
-      };
+        {
+          stdio: ["ignore", "pipe", "pipe"],
+          env: { ...process.env, CABINET_PICKER_PROMPT: prompt },
+        }
+      );
     default:
-      return {
-        command: "sh",
-        args: [
+      return spawn(
+        "sh",
+        [
           "-lc",
           'if command -v zenity >/dev/null 2>&1; then zenity --file-selection --directory --title="$CABINET_PICKER_PROMPT"; elif command -v kdialog >/dev/null 2>&1; then kdialog --getexistingdirectory ~ "$CABINET_PICKER_PROMPT"; else exit 127; fi',
         ],
-        env: { ...process.env, CABINET_PICKER_PROMPT: prompt },
-      };
+        {
+          stdio: ["ignore", "pipe", "pipe"],
+          env: { ...process.env, CABINET_PICKER_PROMPT: prompt },
+        }
+      );
   }
 }
 
@@ -56,13 +60,8 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as { prompt?: unknown };
     const prompt = sanitizePrompt(body?.prompt);
-    const { command, args, env } = getPickerCommand(prompt);
-
     const selectedPath = await new Promise<string>((resolve, reject) => {
-      const proc = spawn(command, args, {
-        stdio: ["ignore", "pipe", "pipe"],
-        env,
-      });
+      const proc = startPicker(prompt);
 
       let stdout = "";
       let stderr = "";

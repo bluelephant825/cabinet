@@ -48,6 +48,8 @@ import { openActiveIngestionQueue } from "./ingestion/queue";
 import { WikiWorkflow } from "./ingestion/wiki-workflow";
 import { handleWikiRequest } from "./ingestion/wiki-http";
 import { handleInboxRequest } from "./ingestion/inbox-http";
+import { createRssService } from "./rss/runtime";
+import { handleRssRequest } from "./rss/http";
 import { handleDocumentsRequest } from "./documents/http";
 import { DocumentService, type DocumentChangeEvent } from "./documents/service";
 import { handleBrowserRequest } from "./browser/http";
@@ -247,6 +249,7 @@ const searchIndex = new SearchIndex();
 let searchIndexReady = false;
 const wikiWorkflow = new WikiWorkflow(DATA_DIR, openActiveIngestionQueue, undefined, isProcessStale);
 const inboxWatcher = new InboxWatcher(DATA_DIR, openActiveIngestionQueue);
+const rssService = createRssService();
 
 // ===== Cabinet Browser (Chromium sidecar) =====
 // /browser/* HTTP routes plus bus events on the "browser" channel. The sidecar
@@ -2046,6 +2049,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith("/rss/")) {
+    await handleRssRequest(req, res, rssService);
+    return;
+  }
+
   if (url.pathname.startsWith("/documents/")) {
     await handleDocumentsRequest(req, res, documentService);
     return;
@@ -2425,6 +2433,7 @@ server.listen(PORT, () => {
 
   void reloadSchedules();
   wikiWorkflow.start();
+  rssService.start();
   void managedSourceWatcher.start().catch((error) => console.warn("[managed-source-watcher] startup failed:", error));
   void inboxWatcher.start().catch((error) => console.warn("[inbox-watcher] startup failed:", error));
   void cleanupStaleRunningConversations();
@@ -2502,6 +2511,7 @@ async function shutdown(): Promise<void> {
   void scheduleWatcher.close();
   void shutdownTelegramGateway();
   await wikiWorkflow.close();
+  await rssService.close();
   await managedSourceWatcher.close().catch((error) => console.warn("[managed-source-watcher] shutdown failed:", error));
   await inboxWatcher.close().catch((error) => console.warn("[inbox-watcher] shutdown failed:", error));
   await documentService.shutdown().catch((error) => console.warn("[documents] shutdown failed:", error));

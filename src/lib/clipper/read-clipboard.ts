@@ -3,11 +3,11 @@
  * Cloud tenants have no reachable clipboard, so the read is refused there.
  */
 
-import { execFile } from "node:child_process";
+import childProcess from "node:child_process";
 import { promisify } from "node:util";
 import { isCloud } from "@/lib/cloud/tier";
 
-const exec = promisify(execFile);
+const exec = promisify(childProcess.execFile);
 
 export class ClipboardUnavailableError extends Error {}
 

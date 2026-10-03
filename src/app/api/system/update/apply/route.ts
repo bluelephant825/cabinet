@@ -1,5 +1,5 @@
 import path from "path";
-import { spawn } from "child_process";
+import childProcess from "child_process";
 import { NextResponse } from "next/server";
 import { DATA_DIR } from "@/lib/storage/path-utils";
 import { PROJECT_ROOT } from "@/lib/runtime/runtime-config";
@@ -40,7 +40,7 @@ export async function POST() {
     log: [`Queueing Cabinet ${update.latest.version} upgrade`],
   });
 
-  const child = spawn(
+  const child = childProcess.spawn(
     process.execPath,
     [
       cliEntry,

@@ -201,6 +201,7 @@ interface CreateConversationInput {
   jobId?: string;
   jobName?: string;
   scheduledAt?: string;
+  rssBriefRunId?: string;
   startedAt?: string;
   initialStatus?: ConversationStatus;
 }
@@ -596,6 +597,7 @@ export async function createConversation(
     jobId: input.jobId,
     jobName: input.jobName,
     scheduledAt: input.scheduledAt,
+    rssBriefRunId: input.rssBriefRunId,
     providerId: input.providerId,
     adapterType: input.adapterType,
     adapterConfig: input.adapterConfig,

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import childProcess, { type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface, type Interface } from 'node:readline'
 
 const PROTOCOL_VERSION = 1
@@ -237,7 +237,7 @@ export class XlsxSidecarClient {
     if (this.process && !this.process.killed) return this.process
     let child: ChildProcessWithoutNullStreams
     try {
-      child = spawn(this.binaryPath, [], {
+      child = childProcess.spawn(this.binaryPath, [], {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       })

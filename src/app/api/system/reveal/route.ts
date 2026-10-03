@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "child_process";
+import childProcess from "child_process";
 import path from "path";
 import { resolveContentPath } from "@/lib/storage/path-utils";
 import { fileExists } from "@/lib/storage/fs-operations";
@@ -7,18 +7,18 @@ import { fileExists } from "@/lib/storage/fs-operations";
 // Reveal a file in the OS file manager, selecting it where the platform supports
 // it. Uses spawn() with an argv array (no shell) so filenames can't be interpreted
 // as shell syntax.
-function getRevealCommand(target: string): { command: string; args: string[] } {
-  switch (process.platform) {
-    case "darwin":
-      return { command: "open", args: ["-R", target] };
-    case "win32":
-      // explorer.exe wants `/select,<path>` as a single token; it also exits with a
-      // non-zero code even on success, so we never await/inspect its exit (issue #94 §7).
-      return { command: "explorer.exe", args: [`/select,${target}`] };
-    default:
-      // Linux/other: no portable "reveal & select", so open the containing folder.
-      return { command: "xdg-open", args: [path.dirname(target)] };
+function revealPath(target: string) {
+  const options = { stdio: "ignore" as const, detached: true };
+  if (process.platform === "darwin") {
+    return childProcess.spawn("open", ["-R", target], options);
   }
+  if (process.platform === "win32") {
+    // explorer.exe wants `/select,<path>` as a single token; it also exits with a
+    // non-zero code even on success, so we never await/inspect its exit (issue #94 §7).
+    return childProcess.spawn("explorer.exe", [`/select,${target}`], options);
+  }
+  // Linux/other: no portable "reveal & select", so open the containing folder.
+  return childProcess.spawn("xdg-open", [path.dirname(target)], options);
 }
 
 export async function POST(req: NextRequest) {
@@ -33,10 +33,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    const { command, args } = getRevealCommand(resolved);
     // Detach so the file manager outlives this request; swallow spawn errors
     // (e.g. xdg-open missing) rather than 500-ing a best-effort convenience action.
-    const child = spawn(command, args, { stdio: "ignore", detached: true });
+    const child = revealPath(resolved);
     child.on("error", () => {});
     child.unref();
 

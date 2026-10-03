@@ -10,13 +10,13 @@ async function getGit(): Promise<SimpleGit | null> {
 
   const gitDir = path.join(/*turbopackIgnore: true*/ DATA_DIR, ".git");
   if (await fileExists(gitDir)) {
-    git = simpleGit(DATA_DIR);
+    git = simpleGit(/*turbopackIgnore: true*/ DATA_DIR);
     return git;
   }
 
   // Initialize git in data dir if not exists
   try {
-    git = simpleGit(DATA_DIR);
+    git = simpleGit(/*turbopackIgnore: true*/ DATA_DIR);
     await git.init();
     await git.addConfig("user.email", "kb@cabinet.dev");
     await git.addConfig("user.name", "Cabinet");

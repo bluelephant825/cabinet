@@ -121,6 +121,7 @@ export interface SafeFetchOptions {
   headers?: Record<string, string>;
   /** Abort after this many ms (default 8000). */
   timeoutMs?: number;
+  signal?: AbortSignal;
   /** Max redirect hops to follow, each re-validated (default 5). */
   maxRedirects?: number;
 }
@@ -138,13 +139,13 @@ export interface SafeFetchResult {
 
 function requestOnce(
   url: URL,
-  opts: { method: string; headers?: Record<string, string>; timeoutMs: number }
+  opts: { method: string; headers?: Record<string, string>; timeoutMs: number; signal?: AbortSignal }
 ): Promise<http.IncomingMessage> {
   return new Promise((resolve, reject) => {
     const mod = url.protocol === "https:" ? https : http;
     const req = mod.request(
       url,
-      { method: opts.method, headers: opts.headers, lookup: guardedLookup },
+      { method: opts.method, headers: opts.headers, lookup: guardedLookup, signal: opts.signal },
       (res) => resolve(res)
     );
     req.on("error", reject);
@@ -188,11 +189,12 @@ function readStreamCapped(stream: http.IncomingMessage, maxBytes: number): Promi
  * http(s) address.
  */
 export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}): Promise<SafeFetchResult> {
-  const { method = "GET", headers, timeoutMs = 8000, maxRedirects = 5 } = options;
+  const { method = "GET", timeoutMs = 8000, maxRedirects = 5, signal } = options;
+  let headers = options.headers;
   let current = assertPublicHttpUrl(rawUrl);
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    const res = await requestOnce(current, { method, headers, timeoutMs });
+    const res = await requestOnce(current, { method, headers, timeoutMs, signal });
     const status = res.statusCode ?? 0;
     const location = res.headers.location;
 
@@ -200,7 +202,11 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
       // Drain + close the intermediate response so the socket isn't leaked.
       res.resume();
       res.destroy();
-      current = assertPublicHttpUrl(new URL(location, current).toString());
+      const next = assertPublicHttpUrl(new URL(location, current).toString());
+      if (next.origin !== current.origin && headers) {
+        headers = Object.fromEntries(Object.entries(headers).filter(([key]) => !["authorization", "cookie", "if-none-match", "if-modified-since"].includes(key.toLowerCase())));
+      }
+      current = next;
       continue;
     }
 

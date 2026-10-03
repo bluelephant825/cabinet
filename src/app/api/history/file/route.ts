@@ -24,17 +24,20 @@ function resolveExisting(virtualPath: string): string | null {
     virtualPath,
   ];
   for (const candidate of candidates) {
-    const abs = path.join(DATA_DIR, candidate);
+    const abs = path.join(/*turbopackIgnore: true*/ DATA_DIR, candidate);
     try {
-      if (fs.existsSync(abs) && fs.statSync(abs).isFile()) return abs;
+      if (
+        fs.existsSync(/*turbopackIgnore: true*/ abs) &&
+        fs.statSync(/*turbopackIgnore: true*/ abs).isFile()
+      ) return abs;
     } catch {
       // keep trying
     }
   }
   // Directory page without index.md (folders, embedded apps)
-  const absDir = path.join(DATA_DIR, virtualPath);
+  const absDir = path.join(/*turbopackIgnore: true*/ DATA_DIR, virtualPath);
   try {
-    if (fs.existsSync(absDir)) return absDir;
+    if (fs.existsSync(/*turbopackIgnore: true*/ absDir)) return absDir;
   } catch {
     // gone
   }
@@ -55,7 +58,7 @@ export async function GET(req: NextRequest) {
   const abs = resolveExisting(virtualPath);
   if (abs) {
     try {
-      const s = fs.statSync(abs);
+      const s = fs.statSync(/*turbopackIgnore: true*/ abs);
       stat = {
         createdAt: s.birthtime.toISOString(),
         modifiedAt: s.mtime.toISOString(),

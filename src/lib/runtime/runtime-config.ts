@@ -40,9 +40,9 @@ function defaultElectronDataDir(): string {
   // hidden app-data dirs. macOS/Windows → ~/Documents/Cabinet, Linux → ~/Cabinet
   // (Linux distros vary on whether ~/Documents exists; home-root is safer).
   if (process.platform === "darwin" || process.platform === "win32") {
-    return path.join(os.homedir(), "Documents", "Cabinet");
+    return path.join(/* turbopackIgnore: true */ os.homedir(), "Documents", "Cabinet");
   }
-  return path.join(os.homedir(), "Cabinet");
+  return path.join(/* turbopackIgnore: true */ os.homedir(), "Cabinet");
 }
 
 export function getCabinetRuntime(): "source" | "electron" | "chromium" {
@@ -64,7 +64,7 @@ export function isDesktopRuntime(): boolean {
 }
 
 /** Path to the project-root config file that persists settings like dataDir. */
-export const INSTALL_CONFIG_PATH = path.join(PROJECT_ROOT, ".cabinet-install.json");
+export const INSTALL_CONFIG_PATH = path.join(/* turbopackIgnore: true */ PROJECT_ROOT, ".cabinet-install.json");
 
 /**
  * Name of the cabinet used when none is configured yet (fresh install) and the
@@ -76,7 +76,7 @@ export const DEFAULT_CABINET_NAME = "Cabinet";
 
 function readPersistedDataDir(): string | null {
   try {
-    const raw = fs.readFileSync(INSTALL_CONFIG_PATH, "utf-8");
+    const raw = fs.readFileSync(/* turbopackIgnore: true */ INSTALL_CONFIG_PATH, "utf-8");
     const json = JSON.parse(raw);
     const dir = json?.dataDir?.trim();
     return dir || null;
@@ -94,29 +94,29 @@ function readPersistedDataDir(): string | null {
 export function getManagedDataParentDir(): string {
   // 1. Env var takes highest priority
   const configured = process.env.CABINET_DATA_DIR?.trim();
-  if (configured) return resolveDataParent(path.resolve(configured));
+  if (configured) return resolveDataParent(path.resolve(/* turbopackIgnore: true */ configured));
 
   // 2. Persisted config file
   const persisted = readPersistedDataDir();
-  if (persisted) return resolveDataParent(path.resolve(persisted));
+  if (persisted) return resolveDataParent(path.resolve(/* turbopackIgnore: true */ persisted));
 
   // 3. Platform defaults
   return resolveDataParent(isDesktopRuntime()
     ? defaultElectronDataDir()
-    : path.join(PROJECT_ROOT, "data"));
+    : path.join(/* turbopackIgnore: true */ PROJECT_ROOT, "data"));
 }
 
 function resolveDataParent(dir: string): string {
   let manifest: string | null = null;
   try {
-    manifest = fs.readFileSync(path.join(dir, ".cabinet"), "utf8");
+    manifest = fs.readFileSync(path.join(/* turbopackIgnore: true */ dir, ".cabinet"), "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   if (manifest && /^kind:\s*home\s*$/m.test(manifest)) return dir;
   const parent = path.dirname(dir);
   try {
-    const home = JSON.parse(fs.readFileSync(path.join(parent, ".home", "home.json"), "utf8"));
+    const home = JSON.parse(fs.readFileSync(path.join(/* turbopackIgnore: true */ parent, ".home", "home.json"), "utf8"));
     if ((home.activeCabinet || home.activeVault) === path.basename(dir)) return parent;
   } catch (error) {
     if (manifest && (error as NodeJS.ErrnoException).code === "ENOENT") return dir;
@@ -144,8 +144,8 @@ export function getActiveCabinetName(): string {
   }
   let resolved = DEFAULT_CABINET_NAME;
   try {
-    const homePath = path.join(getManagedDataParentDir(), ".home", "home.json");
-    const parsed = JSON.parse(fs.readFileSync(homePath, "utf-8"));
+    const homePath = path.join(/* turbopackIgnore: true */ getManagedDataParentDir(), ".home", "home.json");
+    const parsed = JSON.parse(fs.readFileSync(/* turbopackIgnore: true */ homePath, "utf-8"));
     const activeVal = parsed ? (parsed.activeCabinet || parsed.activeVault) : null;
     const name = typeof activeVal === "string" && activeVal.trim()
       ? activeVal.trim()
@@ -163,9 +163,9 @@ export const BOOT_CABINET_NAME = getActiveCabinetName();
 
 export function isProcessStale(): boolean {
   try {
-    const homePath = path.join(getManagedDataParentDir(), ".home", "home.json");
-    if (!fs.existsSync(homePath)) return false;
-    const parsed = JSON.parse(fs.readFileSync(homePath, "utf-8"));
+    const homePath = path.join(/* turbopackIgnore: true */ getManagedDataParentDir(), ".home", "home.json");
+    if (!fs.existsSync(/* turbopackIgnore: true */ homePath)) return false;
+    const parsed = JSON.parse(fs.readFileSync(/* turbopackIgnore: true */ homePath, "utf-8"));
     const activeVal = parsed ? (parsed.activeCabinet || parsed.activeVault) : null;
     const name = typeof activeVal === "string" && activeVal.trim()
       ? activeVal.trim()
@@ -186,21 +186,21 @@ export function isProcessStale(): boolean {
 export function getManagedDataDir(): string {
   const parent = getManagedDataParentDir();
   try {
-    const manifest = fs.readFileSync(path.join(parent, ".cabinet"), "utf8");
+    const manifest = fs.readFileSync(path.join(/* turbopackIgnore: true */ parent, ".cabinet"), "utf8");
     if (!/^kind:\s*home\s*$/m.test(manifest) &&
-        !fs.existsSync(path.join(path.dirname(parent), ".home", "home.json"))) return parent;
+        !fs.existsSync(path.join(/* turbopackIgnore: true */ path.dirname(parent), ".home", "home.json"))) return parent;
   } catch {}
-  return path.join(parent, getActiveCabinetName());
+  return path.join(/* turbopackIgnore: true */ parent, getActiveCabinetName());
 }
 
 function getRuntimePortsPath(): string {
   // Runtime ports are a single-server, cabinet-independent concern → shared dir.
-  return path.join(getManagedDataParentDir(), ".cabinet-state", "runtime-ports.json");
+  return path.join(/* turbopackIgnore: true */ getManagedDataParentDir(), ".cabinet-state", "runtime-ports.json");
 }
 
 function readRuntimePorts(): RuntimePortsState {
   try {
-    const raw = fs.readFileSync(getRuntimePortsPath(), "utf-8");
+    const raw = fs.readFileSync(/* turbopackIgnore: true */ getRuntimePortsPath(), "utf-8");
     const parsed = JSON.parse(raw) as RuntimePortsState;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {

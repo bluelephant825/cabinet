@@ -28,9 +28,9 @@ const LEVEL_RANK: Record<LogLevel, number> = {
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // rotate at 5 MB
 const MAX_LINE_CHARS = 8 * 1024; // one runaway line can't eat the budget
 
-export const LOGS_DIR = path.join(CABINET_INTERNAL_DIR, "logs");
-const CONFIG_FILE = path.join(LOGS_DIR, "config.json");
-const CRASH_MARKER_FILE = path.join(LOGS_DIR, "last-crash.json");
+export const LOGS_DIR = path.join(/* turbopackIgnore: true */ CABINET_INTERNAL_DIR, "logs");
+const CONFIG_FILE = path.join(/* turbopackIgnore: true */ LOGS_DIR, "config.json");
+const CRASH_MARKER_FILE = path.join(/* turbopackIgnore: true */ LOGS_DIR, "last-crash.json");
 
 let procName: LogProcess = "next";
 let minLevel: LogLevel = "info";
@@ -55,7 +55,7 @@ function readConfiguredLevel(): LogLevel {
   const env = process.env.CABINET_LOG_LEVEL;
   if (isLevel(env)) return env;
   try {
-    const raw = fs.readFileSync(CONFIG_FILE, "utf-8");
+    const raw = fs.readFileSync(/* turbopackIgnore: true */ CONFIG_FILE, "utf-8");
     const parsed = JSON.parse(raw) as { level?: string };
     if (isLevel(parsed.level)) return parsed.level;
   } catch {
@@ -72,24 +72,24 @@ export function getLogLevel(): LogLevel {
 export function setLogLevel(level: LogLevel): void {
   minLevel = level;
   try {
-    fs.mkdirSync(LOGS_DIR, { recursive: true });
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify({ level }, null, 2));
+    fs.mkdirSync(/* turbopackIgnore: true */ LOGS_DIR, { recursive: true });
+    fs.writeFileSync(/* turbopackIgnore: true */ CONFIG_FILE, JSON.stringify({ level }, null, 2));
   } catch {
     // config persistence is best-effort
   }
 }
 
 function logFile(proc: LogProcess): string {
-  return path.join(LOGS_DIR, `${proc}.log`);
+  return path.join(/* turbopackIgnore: true */ LOGS_DIR, `${proc}.log`);
 }
 
 function rotateIfNeeded(file: string): void {
   try {
-    const stat = fs.statSync(file);
+    const stat = fs.statSync(/* turbopackIgnore: true */ file);
     if (stat.size < MAX_FILE_BYTES) return;
     const prev = file.replace(/\.log$/, ".1.log");
-    fs.rmSync(prev, { force: true });
-    fs.renameSync(file, prev);
+    fs.rmSync(/* turbopackIgnore: true */ prev, { force: true });
+    fs.renameSync(/* turbopackIgnore: true */ file, prev);
   } catch {
     // missing file or fs error — append will create / fail silently
   }
@@ -114,7 +114,7 @@ function serializeError(err: unknown): LogLine["err"] {
 
 function appendLine(proc: LogProcess, line: LogLine): void {
   try {
-    fs.mkdirSync(LOGS_DIR, { recursive: true });
+    fs.mkdirSync(/* turbopackIgnore: true */ LOGS_DIR, { recursive: true });
     const file = logFile(proc);
     rotateIfNeeded(file);
     let payload = JSON.stringify(line);
@@ -128,7 +128,7 @@ function appendLine(proc: LogProcess, line: LogLine): void {
           : undefined,
       });
     }
-    fs.appendFileSync(file, payload + "\n", "utf-8");
+    fs.appendFileSync(/* turbopackIgnore: true */ file, payload + "\n", "utf-8");
   } catch {
     // never throw from the logger
   }
@@ -248,13 +248,13 @@ export interface CrashMarker {
 
 function writeCrashMarker(message: string): void {
   try {
-    fs.mkdirSync(LOGS_DIR, { recursive: true });
+    fs.mkdirSync(/* turbopackIgnore: true */ LOGS_DIR, { recursive: true });
     const marker: CrashMarker = {
       ts: new Date().toISOString(),
       proc: procName,
       message: message.slice(0, 500),
     };
-    fs.writeFileSync(CRASH_MARKER_FILE, JSON.stringify(marker, null, 2));
+    fs.writeFileSync(/* turbopackIgnore: true */ CRASH_MARKER_FILE, JSON.stringify(marker, null, 2));
   } catch {
     // best-effort
   }
@@ -262,7 +262,7 @@ function writeCrashMarker(message: string): void {
 
 export function readCrashMarker(): CrashMarker | null {
   try {
-    return JSON.parse(fs.readFileSync(CRASH_MARKER_FILE, "utf-8")) as CrashMarker;
+    return JSON.parse(fs.readFileSync(/* turbopackIgnore: true */ CRASH_MARKER_FILE, "utf-8")) as CrashMarker;
   } catch {
     return null;
   }
@@ -270,7 +270,7 @@ export function readCrashMarker(): CrashMarker | null {
 
 export function clearCrashMarker(): void {
   try {
-    fs.rmSync(CRASH_MARKER_FILE, { force: true });
+    fs.rmSync(/* turbopackIgnore: true */ CRASH_MARKER_FILE, { force: true });
   } catch {
     // best-effort
   }
@@ -352,7 +352,7 @@ export function getLogTail(proc: LogProcess, lines: number): string {
   const chunks: string[] = [];
   for (const file of [logFile(proc).replace(/\.log$/, ".1.log"), logFile(proc)]) {
     try {
-      chunks.push(fs.readFileSync(file, "utf-8"));
+      chunks.push(fs.readFileSync(/* turbopackIgnore: true */ file, "utf-8"));
     } catch {
       // stream may not exist yet
     }
@@ -366,9 +366,9 @@ export function getLogTail(proc: LogProcess, lines: number): string {
 export function listLogFiles(): string[] {
   try {
     return fs
-      .readdirSync(LOGS_DIR)
+      .readdirSync(/* turbopackIgnore: true */ LOGS_DIR)
       .filter((f) => f.endsWith(".log"))
-      .map((f) => path.join(LOGS_DIR, f));
+      .map((f) => path.join(/* turbopackIgnore: true */ LOGS_DIR, f));
   } catch {
     return [];
   }

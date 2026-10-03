@@ -122,6 +122,7 @@ function buildHash(section: SectionState, pagePath: string | null): string {
   if (section.type === "tasks") {
     return buildTasksHash(cabinetPath);
   }
+  if (section.type === "rss") return `#/rss/${encodePathSegment(cabinetPath)}`;
   if (section.type === "settings") {
     return section.slug
       ? `#/settings/${encodePathSegment(section.slug)}`
@@ -145,6 +146,8 @@ function parseHash(hash: string): RouteState {
   if (parts.length === 0 || parts[0] === "home") {
     return { section: { type: "home" }, pagePath: null };
   }
+
+  if (parts[0] === "rss") return { section: { type: "rss", cabinetPath: decodePathSegment(parts.slice(1).join("/")) }, pagePath: null };
 
   // New canonical short forms (audit #122)
   if (parts[0] === "p") {
@@ -392,6 +395,11 @@ async function applyCleanRoute(route: CleanRoute): Promise<void> {
       return goGlobal({ type: "help" });
     case "registry":
       return goGlobal({ type: "registry" });
+    case "rss":
+      setSection({ type: "rss", cabinetPath: route.cabinetPath });
+      selectPage(null);
+      clear();
+      return;
     case "agents":
       setSection({ type: "agents", cabinetPath: route.cabinetPath, agentsTab: route.agentsTab });
       return scopeTo(route.cabinetPath);

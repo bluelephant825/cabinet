@@ -32,7 +32,7 @@
  * dev. This is a local, single-instance feature — no cross-process store needed.
  */
 
-import { execFile } from "child_process";
+import childProcess from "child_process";
 import { randomUUID } from "crypto";
 import * as pty from "node-pty";
 import type { IPty } from "node-pty";
@@ -190,7 +190,7 @@ export function readServerAuthDetail(
   hint?: string,
 ): Promise<{ state: ServerAuthState; detail?: string }> {
   return new Promise((resolve) => {
-    execFile(
+    childProcess.execFile(
       claudeCommand(),
       ["mcp", "get", serverName],
       { env: claudeEnv(), timeout: 8000 },
@@ -250,12 +250,12 @@ export function registerConfidentialOAuthClient(opts: {
   const json = JSON.stringify({ type: "http", url, oauth });
   return new Promise((resolve, reject) => {
     // Best-effort remove of any prior entry so add-json doesn't error on conflict.
-    execFile(
+    childProcess.execFile(
       claudeCommand(),
       ["mcp", "remove", "--scope", "user", serverName],
       { env: claudeEnv(), timeout: 15_000 },
       () => {
-        execFile(
+        childProcess.execFile(
           claudeCommand(),
           ["mcp", "add-json", "--scope", "user", "--client-secret", serverName, json],
           { env: { ...claudeEnv(), MCP_CLIENT_SECRET: clientSecret }, timeout: 30_000 },

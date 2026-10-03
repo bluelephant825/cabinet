@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "child_process";
+import childProcess from "child_process";
 import path from "path";
 import { getServerDataLocations } from "@/lib/data-locations/server-registry";
 
 export const dynamic = "force-dynamic";
 
-function openCommand(targetPath: string): { command: string; args: string[] } {
-  switch (process.platform) {
-    case "darwin":
-      return { command: "open", args: [targetPath] };
-    case "win32":
-      return { command: "explorer.exe", args: [targetPath] };
-    default:
-      return { command: "xdg-open", args: [targetPath] };
-  }
+function openPath(targetPath: string): void {
+  const options = { stdio: "ignore" as const, detached: true };
+  const child =
+    process.platform === "darwin"
+      ? childProcess.spawn("open", [targetPath], options)
+      : process.platform === "win32"
+        ? childProcess.spawn("explorer.exe", [targetPath], options)
+        : childProcess.spawn("xdg-open", [targetPath], options);
+  child.unref();
 }
 
 export async function POST(req: NextRequest) {
@@ -23,18 +23,17 @@ export async function POST(req: NextRequest) {
     if (!target) {
       return NextResponse.json({ error: "Missing path" }, { status: 400 });
     }
-    const resolved = path.resolve(target);
+    const resolved = path.resolve(/* turbopackIgnore: true */ target);
     const allowed = getServerDataLocations()
       .filter((row) => row.scope === "fs")
-      .map((row) => path.resolve(row.pathOrKey));
+      .map((row) => path.resolve(/* turbopackIgnore: true */ row.pathOrKey));
     if (!allowed.includes(resolved)) {
       return NextResponse.json(
         { error: "Path is not in the data-locations registry" },
         { status: 403 }
       );
     }
-    const { command, args } = openCommand(resolved);
-    spawn(command, args, { stdio: "ignore", detached: true }).unref();
+    openPath(resolved);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

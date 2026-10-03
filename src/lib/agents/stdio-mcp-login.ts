@@ -21,7 +21,7 @@
  * survives Next.js HMR in dev (same pattern as claude-mcp-login.ts).
  */
 
-import { spawn, type ChildProcess } from "child_process";
+import childProcess, { type ChildProcess, type SpawnOptions } from "child_process";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import os from "os";
@@ -62,7 +62,9 @@ const COMPLETED_TTL_MS = 5 * 60 * 1000;
 const STATUS_POLL_MS = 2500;
 
 function expandHome(p: string): string {
-  return p.startsWith("~") ? path.join(os.homedir(), p.slice(1)) : p;
+  return p.startsWith("~")
+    ? path.join(/*turbopackIgnore: true*/ os.homedir(), /*turbopackIgnore: true*/ p.slice(1))
+    : p;
 }
 
 /**
@@ -74,9 +76,9 @@ function expandHome(p: string): string {
 export function tokenDirAuthenticated(tokenDir: string, email?: string): boolean {
   try {
     const dir = expandHome(tokenDir);
-    if (!fs.existsSync(dir)) return false;
+    if (!fs.existsSync(/*turbopackIgnore: true*/ dir)) return false;
     const tokenFiles = fs
-      .readdirSync(dir)
+      .readdirSync(/*turbopackIgnore: true*/ dir)
       .filter((f) => f.endsWith(".json") && f !== "oauth_states.json");
     // Scope to the configured account when known: a leftover token for a
     // different USER_GOOGLE_EMAIL must not read as authenticated.
@@ -161,8 +163,11 @@ function resolveServerSpec(
   let command = entry.command ?? "";
   let args = argsOverride ? [...argsOverride] : entry.args ? [...entry.args] : [];
   if (entry.localBuild) {
-    const local = path.join(PROJECT_ROOT, entry.localBuild);
-    if (fs.existsSync(local)) {
+    const local = path.join(
+      PROJECT_ROOT,
+      /*turbopackIgnore: true*/ entry.localBuild
+    );
+    if (fs.existsSync(/*turbopackIgnore: true*/ local)) {
       command = "node";
       args = [local];
     }
@@ -187,6 +192,26 @@ function parseAuthorizeUrl(text: string): string | undefined {
  * token already exists). The process stays alive so its loopback catches the
  * callback; poll `getStdioLoginStatus`.
  */
+function spawnStdioServer(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv
+): ChildProcess {
+  const options: SpawnOptions = { env, stdio: ["pipe", "pipe", "pipe"] };
+  switch (command) {
+    case "node":
+      return childProcess.spawn("node", args, options);
+    case "npx":
+      return childProcess.spawn("npx", args, options);
+    case "uvx":
+      return childProcess.spawn("uvx", args, options);
+    case "pipx":
+      return childProcess.spawn("pipx", args, options);
+    default:
+      throw new Error(`Unsupported stdio login command: ${command}`);
+  }
+}
+
 export async function startStdioLogin(entry: CatalogEntry): Promise<McpLoginStartResult> {
   sweepSessions();
   const cfg = entry.connectAuth;
@@ -224,7 +249,7 @@ export async function startStdioLogin(entry: CatalogEntry): Promise<McpLoginStar
     ...(email ? { user_google_email: email } : {}),
   };
 
-  const proc = spawn(command, args, { env, stdio: ["pipe", "pipe", "pipe"] });
+  const proc = spawnStdioServer(command, args, env);
   const id = randomUUID();
   const session: StdioLoginSession = {
     id,

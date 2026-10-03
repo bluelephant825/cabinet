@@ -43,6 +43,7 @@ export interface JobConfig {
   until?: string;
   /** Conversation id that dispatched this job via an agent action. */
   ownerTaskId?: string;
+  rssBriefId?: string;
 }
 
 export interface JobRun {

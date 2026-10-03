@@ -1,4 +1,5 @@
-import { spawn } from "child_process";
+import { spawn, type ChildProcessByStdio } from "child_process";
+import type { Readable } from "stream";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -8,12 +9,15 @@ export const dynamic = "force-dynamic";
  * Returns the chosen file's absolute path so callers can hand it to a server
  * route by path (no HTTP upload). `?ext=zip` filters by extension.
  */
-function getPickerCommand(ext: string, title: string): { command: string; args: string[] } {
+function startPicker(
+  ext: string,
+  title: string
+): ChildProcessByStdio<null, Readable, Readable> {
   switch (process.platform) {
     case "darwin":
-      return {
-        command: "osascript",
-        args: [
+      return spawn(
+        "osascript",
+        [
           "-e",
           ext
             ? `set chosenFile to choose file with prompt "${title}" of type {"${ext}"}`
@@ -21,22 +25,24 @@ function getPickerCommand(ext: string, title: string): { command: string; args: 
           "-e",
           "POSIX path of chosenFile",
         ],
-      };
+        { stdio: ["ignore", "pipe", "pipe"] }
+      );
     case "win32":
-      return {
-        command: "powershell",
-        args: [
+      return spawn(
+        "powershell",
+        [
           "-NoProfile",
           "-Command",
           `Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; ${
             ext ? `$d.Filter = '${ext.toUpperCase()} (*.${ext})|*.${ext}';` : ""
           } $d.Title = '${title}'; if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.FileName }`,
         ],
-      };
+        { stdio: ["ignore", "pipe", "pipe"] }
+      );
     default:
-      return {
-        command: "sh",
-        args: [
+      return spawn(
+        "sh",
+        [
           "-lc",
           `if command -v zenity >/dev/null 2>&1; then zenity --file-selection ${
             ext ? `--file-filter='*.${ext}'` : ""
@@ -44,7 +50,8 @@ function getPickerCommand(ext: string, title: string): { command: string; args: 
             ext ? `*.${ext}` : "*"
           }'; else exit 127; fi`,
         ],
-      };
+        { stdio: ["ignore", "pipe", "pipe"] }
+      );
   }
 }
 
@@ -53,10 +60,9 @@ export async function POST(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const ext = (searchParams.get("ext") || "").replace(/[^a-z0-9]/gi, "");
     const title = "Select your Notion export (.zip)";
-    const { command, args } = getPickerCommand(ext, title);
 
     const selectedPath = await new Promise<string>((resolve, reject) => {
-      const proc = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+      const proc = startPicker(ext, title);
       let stdout = "";
       let stderr = "";
       proc.stdout.on("data", (c: Buffer) => (stdout += c.toString()));

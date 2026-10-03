@@ -6,14 +6,14 @@ import {
 import { DATA_DIR } from "./path-utils";
 
 export async function readFileContent(absPath: string): Promise<string> {
-  return fs.readFile(absPath, "utf-8");
+  return fs.readFile(/*turbopackIgnore: true*/ absPath, "utf-8");
 }
 
 export async function writeFileContent(
   absPath: string,
   content: string
 ): Promise<void> {
-  await fs.writeFile(absPath, content, "utf-8");
+  await fs.writeFile(/*turbopackIgnore: true*/ absPath, content, "utf-8");
 }
 
 /**
@@ -31,22 +31,22 @@ export async function writeFileAtomic(
     .toString(36)
     .slice(2)}`;
   try {
-    await fs.writeFile(tmpPath, content, "utf-8");
-    await fs.rename(tmpPath, absPath);
+    await fs.writeFile(/*turbopackIgnore: true*/ tmpPath, content, "utf-8");
+    await fs.rename(/*turbopackIgnore: true*/ tmpPath, /*turbopackIgnore: true*/ absPath);
   } catch (err) {
-    await fs.rm(tmpPath, { force: true }).catch(() => {});
+    await fs.rm(/*turbopackIgnore: true*/ tmpPath, { force: true }).catch(() => {});
     throw err;
   }
 }
 
 export async function deleteFileOrDir(absPath: string): Promise<void> {
-  await fs.rm(absPath, { recursive: true, force: true });
+  await fs.rm(/*turbopackIgnore: true*/ absPath, { recursive: true, force: true });
 }
 
 export async function listDirectory(
   absPath: string
 ): Promise<{ name: string; isDirectory: boolean; isSymlink: boolean }[]> {
-  const entries = await fs.readdir(absPath, { withFileTypes: true });
+  const entries = await fs.readdir(/*turbopackIgnore: true*/ absPath, { withFileTypes: true });
   return Promise.all(
     entries.map(async (entry) => {
       let isDirectory = entry.isDirectory();
@@ -54,7 +54,9 @@ export async function listDirectory(
 
       if (!isDirectory && isSymlink) {
         try {
-          const stat = await fs.stat(path.join(absPath, entry.name));
+          const stat = await fs.stat(
+            /*turbopackIgnore: true*/ path.join(absPath, entry.name)
+          );
           isDirectory = stat.isDirectory();
         } catch {
           isDirectory = false;
@@ -68,24 +70,29 @@ export async function listDirectory(
 
 export async function unlinkSymlink(absPath: string): Promise<void> {
   try {
-    const target = await fs.readlink(absPath);
-    const resolvedTarget = path.resolve(path.dirname(absPath), target);
+    const target = await fs.readlink(/*turbopackIgnore: true*/ absPath);
+    const resolvedTarget = path.resolve(
+      /*turbopackIgnore: true*/ path.dirname(absPath),
+      /*turbopackIgnore: true*/ target
+    );
     for (const filename of CABINET_LINK_META_CANDIDATES) {
-      await fs.unlink(path.join(resolvedTarget, filename)).catch(() => {});
+      await fs.unlink(
+        /*turbopackIgnore: true*/ path.join(resolvedTarget, filename)
+      ).catch(() => {});
     }
   } catch {
     // target may be broken — still remove the symlink
   }
-  await fs.unlink(absPath);
+  await fs.unlink(/*turbopackIgnore: true*/ absPath);
 }
 
 export async function ensureDirectory(absPath: string): Promise<void> {
-  await fs.mkdir(absPath, { recursive: true });
+  await fs.mkdir(/*turbopackIgnore: true*/ absPath, { recursive: true });
 }
 
 export async function fileExists(absPath: string): Promise<boolean> {
   try {
-    await fs.access(absPath);
+    await fs.access(/*turbopackIgnore: true*/ absPath);
     return true;
   } catch {
     return false;

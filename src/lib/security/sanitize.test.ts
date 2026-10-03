@@ -182,6 +182,12 @@ test("svg: mermaid's real output shape survives — <style>, foreignObject label
 
 // ----------------------------------------------------------------------- code
 
+test("rss: preserves prose but blocks trackers, embeds, scripts and non-http links", () => {
+  const clean = sanitizeHtml('<p>News <a href="https://example.com/article">source</a></p><img src="https://tracker.example/pixel"><iframe src="https://example.com"></iframe><a href="/api/system">local</a><a href="file:///tmp/test">file</a><svg onload="alert(1)"></svg><script>alert(1)</script>', "rss");
+  assert.ok(clean.includes('href="https://example.com/article"'));
+  assert.ok(!/<(img|iframe|svg|script)\b|href="(\/|file:)/.test(clean));
+});
+
 test("code: keeps lowlight spans, drops everything else", () => {
   const clean = sanitizeHtml('<span class="hljs-keyword">const</span> x = 1;', "code");
   assert.equal(clean, '<span class="hljs-keyword">const</span> x = 1;');

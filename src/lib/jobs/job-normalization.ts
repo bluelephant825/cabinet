@@ -130,6 +130,9 @@ export function normalizeJobConfig(
     ...(typeof input.until === "string" && input.until.trim()
       ? { until: input.until.trim() }
       : {}),
+    ...(typeof input.rssBriefId === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(input.rssBriefId)
+      ? { rssBriefId: input.rssBriefId }
+      : {}),
     ...(typeof input.ownerTaskId === "string" && input.ownerTaskId.trim()
       ? { ownerTaskId: input.ownerTaskId.trim() }
       : {}),

@@ -151,7 +151,15 @@ const LATEX: Config = {
   FORBID_ATTR: BASE_FORBID_ATTR.filter((attr) => attr !== "style"),
 };
 
-export type SanitizeProfile = "rich" | "svg" | "code" | "table" | "latex";
+const RSS: Config = {
+  ALLOWED_TAGS: ["p", "br", "a", "strong", "b", "em", "i", "u", "s", "blockquote", "pre", "code", "ul", "ol", "li", "h1", "h2", "h3", "h4", "hr", "table", "thead", "tbody", "tr", "th", "td"],
+  ALLOWED_ATTR: ["href", "title", "colspan", "rowspan"],
+  ALLOWED_URI_REGEXP: /^https?:\/\//i,
+  FORBID_TAGS: [...BASE_FORBID_TAGS, "iframe", "img", "video", "audio", "svg", "math"],
+  FORBID_ATTR: BASE_FORBID_ATTR,
+};
+
+export type SanitizeProfile = "rich" | "svg" | "code" | "table" | "latex" | "rss";
 
 const PROFILES: Record<SanitizeProfile, Config> = {
   rich: RICH,
@@ -159,6 +167,7 @@ const PROFILES: Record<SanitizeProfile, Config> = {
   code: CODE,
   table: TABLE,
   latex: LATEX,
+  rss: RSS,
 };
 
 /**

@@ -89,6 +89,13 @@ test("round-trip: parsePath(buildPath(x)) is stable for nested paths", () => {
   }
 });
 
+test("RSS routes round-trip with room scope and legacy root support", () => {
+  assert.equal(buildPath({ type: "rss", cabinetPath: "research" }, null), "/room/research/-/rss");
+  assert.deepEqual(parsePath("/room/research/-/rss"), { kind: "rss", cabinetPath: "research" });
+  assert.equal(buildPath({ type: "rss", cabinetPath: "." }, null), "/rss");
+  assert.deepEqual(parsePath("/rss"), { kind: "rss", cabinetPath: "." });
+});
+
 test("a content path that itself contains 'tasks'/'agents' is not mis-split", () => {
   // No /-/ marker → whole thing is content, even though it contains 'agents'.
   assert.deepEqual(parsePath("/room/work/agents/notes"), { kind: "content", path: "work/agents/notes" });

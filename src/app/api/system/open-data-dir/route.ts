@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import childProcess from "child_process";
 import { existsSync } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
@@ -19,28 +19,28 @@ function resolveOnDisk(resolved: string): string {
   // `<page>/index.md` (container pages) take priority; only then fall back to
   // the bare path (real directories / real-extension files) and its parent.
   const withMd = `${resolved}.md`;
-  if (existsSync(withMd)) return withMd;
-  const indexMd = path.join(resolved, "index.md");
-  if (existsSync(indexMd)) return indexMd;
-  if (existsSync(resolved)) return resolved;
+  if (existsSync(/* turbopackIgnore: true */ withMd)) return withMd;
+  const indexMd = path.join(/* turbopackIgnore: true */ resolved, "index.md");
+  if (existsSync(/* turbopackIgnore: true */ indexMd)) return indexMd;
+  if (existsSync(/* turbopackIgnore: true */ resolved)) return resolved;
   const parent = path.dirname(resolved);
-  if (existsSync(parent)) return parent;
+  if (existsSync(/* turbopackIgnore: true */ parent)) return parent;
   return resolved;
 }
 
-function getOpenCommand(targetPath: string, reveal?: boolean): { command: string; args: string[] } {
-  switch (process.platform) {
-    case "darwin":
-      return reveal
-        ? { command: "open", args: ["-R", targetPath] }
-        : { command: "open", args: [targetPath] };
-    case "win32":
-      return reveal
-        ? { command: "explorer.exe", args: ["/select,", targetPath] }
-        : { command: "explorer.exe", args: [targetPath] };
-    default:
-      return { command: "xdg-open", args: [targetPath] };
+function spawnOpenCommand(targetPath: string, reveal: boolean) {
+  const options = { stdio: "ignore" as const };
+  if (process.platform === "darwin") {
+    return childProcess.spawn("open", reveal ? ["-R", targetPath] : [targetPath], options);
   }
+  if (process.platform === "win32") {
+    return childProcess.spawn(
+      "explorer.exe",
+      reveal ? ["/select,", targetPath] : [targetPath],
+      options
+    );
+  }
+  return childProcess.spawn("xdg-open", [targetPath], options);
 }
 
 export async function POST(request: Request) {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     // Optional subpath to open a specific item
     const body = await request.json().catch(() => null);
     if (body?.subpath) {
-      const resolved = path.resolve(DATA_DIR, body.subpath);
+      const resolved = path.resolve(/* turbopackIgnore: true */ DATA_DIR, body.subpath);
       if (resolved !== DATA_DIR && !resolved.startsWith(DATA_DIR + path.sep)) {
         return NextResponse.json({ error: "Invalid path" }, { status: 400 });
       }
@@ -64,12 +64,8 @@ export async function POST(request: Request) {
     }
 
     // Reveal in Finder when opening a specific subpath
-    const { command, args } = getOpenCommand(targetPath, !!body?.subpath);
-
     await new Promise<void>((resolve, reject) => {
-      const proc = spawn(command, args, {
-        stdio: "ignore",
-      });
+      const proc = spawnOpenCommand(targetPath, !!body?.subpath);
 
       proc.on("error", (error) => {
         reject(error);

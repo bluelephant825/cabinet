@@ -32,6 +32,7 @@ export type CleanRoute =
   | { kind: "content"; path: string }
   | { kind: "agents"; cabinetPath: string; agentsTab?: AgentsTab }
   | { kind: "agent"; cabinetPath: string; slug: string }
+  | { kind: "rss"; cabinetPath: string }
   | { kind: "tasks"; cabinetPath: string }
   | { kind: "task"; cabinetPath: string; taskId: string };
 
@@ -90,6 +91,8 @@ export function buildPath(
       return cab && section.slug
         ? `/room/${enc(cab)}/${VIEW_MARKER}/agents/${enc(section.slug)}`
         : "/";
+    case "rss":
+      return cab ? `/room/${enc(cab)}/${VIEW_MARKER}/rss` : "/rss";
     case "tasks":
       return cab ? `/room/${enc(cab)}/${VIEW_MARKER}/tasks` : "/";
     case "task":
@@ -122,6 +125,7 @@ export function parsePath(pathname: string): CleanRoute {
   if (head === "home") return { kind: "home" };
   if (head === "help") return { kind: "help" };
   if (head === "registry") return { kind: "registry" };
+  if (head === "rss") return { kind: "rss", cabinetPath: ROOT_CABINET_PATH };
   if (head === "settings") return { kind: "settings", slug: rest[0] };
   if (head === "integrations") return { kind: "integrations", slug: rest[0] };
 
@@ -142,6 +146,7 @@ export function parsePath(pathname: string): CleanRoute {
       if (arg) return { kind: "agent", cabinetPath, slug: arg };
       return { kind: "agents", cabinetPath };
     }
+    if (view === "rss") return { kind: "rss", cabinetPath };
     if (view === "tasks") {
       if (arg) return { kind: "task", cabinetPath, taskId: arg };
       return { kind: "tasks", cabinetPath };

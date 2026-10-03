@@ -15,7 +15,7 @@ export const STANDARD_AGENT_SUBDIRECTORIES = [
 export async function ensureAgentScaffold(agentDir: string): Promise<void> {
   await Promise.all(
     STANDARD_AGENT_SUBDIRECTORIES.map((subdir) =>
-      ensureDirectory(path.join(agentDir, subdir))
+      ensureDirectory(path.join(/* turbopackIgnore: true */ agentDir, subdir))
     )
   );
 }

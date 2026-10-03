@@ -98,7 +98,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       // cannot point outside it (e.g. /mount/link -> /etc/passwd).
       let realNormalized: string;
       try {
-        realNormalized = await fs.realpath(normalized);
+        realNormalized = await fs.realpath(/*turbopackIgnore: true*/ normalized);
       } catch {
         return NextResponse.json({ error: "File not found" }, { status: 404 });
       }
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       // Resolve each mount's real path for an apples-to-apples comparison.
       const mountRealpaths = await Promise.all(
         mountPaths.map(async (p) => {
-          try { return await fs.realpath(p); } catch { return p; }
+          try { return await fs.realpath(/*turbopackIgnore: true*/ p); } catch { return p; }
         })
       );
       const inMount = mountRealpaths.some(
@@ -123,7 +123,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       }
 
       try {
-        const stat = await fs.stat(realNormalized);
+        const stat = await fs.stat(/*turbopackIgnore: true*/ realNormalized);
         if (stat.isDirectory()) {
           return NextResponse.json({ error: "Path is a directory" }, { status: 400 });
         }
@@ -165,7 +165,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
               end < totalSize &&
               start <= end
             ) {
-              const fh = await fs.open(realNormalized, "r");
+              const fh = await fs.open(/*turbopackIgnore: true*/ realNormalized, "r");
               try {
                 const size = end - start + 1;
                 const buf = Buffer.alloc(size);
@@ -192,7 +192,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           }
         }
 
-        const buffer = await fs.readFile(realNormalized);
+        const buffer = await fs.readFile(/*turbopackIgnore: true*/ realNormalized);
         return new NextResponse(buffer, {
           headers: {
             "Content-Type": contentType,
@@ -222,7 +222,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    const stat = await fs.stat(resolved);
+    const stat = await fs.stat(/*turbopackIgnore: true*/ resolved);
     if (stat.isDirectory()) {
       return NextResponse.json({ error: "Path is a directory" }, { status: 400 });
     }
@@ -265,7 +265,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           end < totalSize &&
           start <= end
         ) {
-          const fh = await fs.open(resolved, "r");
+          const fh = await fs.open(/*turbopackIgnore: true*/ resolved, "r");
           try {
             const size = end - start + 1;
             const buf = Buffer.alloc(size);
@@ -293,7 +293,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const buffer = await fs.readFile(resolved);
+    const buffer = await fs.readFile(/*turbopackIgnore: true*/ resolved);
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": contentType,
@@ -345,11 +345,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     }
     if (isDir) {
-      await fs.mkdir(resolved, { recursive: true });
+      await fs.mkdir(/*turbopackIgnore: true*/ resolved, { recursive: true });
     } else {
-      await fs.mkdir(path.dirname(resolved), { recursive: true });
+      await fs.mkdir(
+        /*turbopackIgnore: true*/ path.dirname(resolved),
+        { recursive: true }
+      );
       const body = await req.text();
-      await fs.writeFile(resolved, body, "utf-8");
+      await fs.writeFile(/*turbopackIgnore: true*/ resolved, body, "utf-8");
     }
     
     invalidateTreeCache();
@@ -378,11 +381,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       resolved = mdxPath;
     }
     if (await fileExists(resolved)) {
-      const stat = await fs.stat(resolved);
+      const stat = await fs.stat(/*turbopackIgnore: true*/ resolved);
       if (stat.isDirectory()) {
-        await fs.rm(resolved, { recursive: true, force: true });
+        await fs.rm(/*turbopackIgnore: true*/ resolved, { recursive: true, force: true });
       } else {
-        await fs.unlink(resolved);
+        await fs.unlink(/*turbopackIgnore: true*/ resolved);
       }
       invalidateTreeCache();
       autoCommit(virtualPath, "Delete");

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { execFileSync, spawn } from "child_process";
+import childProcess, { execFileSync } from "child_process";
 import type { AgentProvider } from "./provider-interface";
 import { withAdapterRuntimeEnv } from "./adapters/utils";
 import { documentToolBinDir } from "@/lib/documents/tool-shim";
@@ -38,11 +38,11 @@ function isSafeCommandName(candidate: string): boolean {
 
 function candidateExistsAndIsRunnable(candidate: string, platform: NodeJS.Platform): boolean {
   if (platform === "win32") {
-    return fs.existsSync(candidate);
+    return fs.existsSync(/*turbopackIgnore: true*/ candidate);
   }
 
   try {
-    fs.accessSync(candidate, fs.constants.X_OK);
+    fs.accessSync(/*turbopackIgnore: true*/ candidate, fs.constants.X_OK);
     return true;
   } catch {
     return false;
@@ -76,18 +76,20 @@ function packageManagerBinDirs(
   const dirs: string[] = [];
 
   const pnpmHome = env.PNPM_HOME?.trim();
-  if (pnpmHome) dirs.push(pathApi.normalize(pnpmHome));
+  if (pnpmHome) dirs.push(pathApi.normalize(/*turbopackIgnore: true*/ pnpmHome));
 
   if (platform === "win32") {
-    if (env.LOCALAPPDATA) dirs.push(pathApi.join(env.LOCALAPPDATA, "pnpm"));
-    dirs.push(pathApi.join(homeDir, ".bun", "bin"));
+    if (env.LOCALAPPDATA) {
+      dirs.push(pathApi.join(/*turbopackIgnore: true*/ env.LOCALAPPDATA, "pnpm"));
+    }
+    dirs.push(pathApi.join(/*turbopackIgnore: true*/ homeDir, ".bun", "bin"));
   } else if (platform === "darwin") {
-    dirs.push(pathApi.join(homeDir, "Library", "pnpm"));
-    dirs.push(pathApi.join(homeDir, ".local", "share", "pnpm")); // linux-style fallback
-    dirs.push(pathApi.join(homeDir, ".bun", "bin"));
+    dirs.push(pathApi.join(/*turbopackIgnore: true*/ homeDir, "Library", "pnpm"));
+    dirs.push(pathApi.join(/*turbopackIgnore: true*/ homeDir, ".local", "share", "pnpm")); // linux-style fallback
+    dirs.push(pathApi.join(/*turbopackIgnore: true*/ homeDir, ".bun", "bin"));
   } else {
-    dirs.push(pathApi.join(homeDir, ".local", "share", "pnpm"));
-    dirs.push(pathApi.join(homeDir, ".bun", "bin"));
+    dirs.push(pathApi.join(/*turbopackIgnore: true*/ homeDir, ".local", "share", "pnpm"));
+    dirs.push(pathApi.join(/*turbopackIgnore: true*/ homeDir, ".bun", "bin"));
   }
 
   // Dedupe so `PNPM_HOME` pointing at the platform default doesn't repeat.
@@ -109,10 +111,10 @@ export function buildRuntimePath(options?: {
     const homeDir = resolveHomeDir(env);
     return [
       documentToolBinDir(),
-      env.APPDATA ? pathApi.join(env.APPDATA, "npm") : "",
-      pathApi.join(homeDir, ".local", "bin"),
+      env.APPDATA ? pathApi.join(/*turbopackIgnore: true*/ env.APPDATA, "npm") : "",
+      pathApi.join(/*turbopackIgnore: true*/ homeDir, ".local", "bin"),
       ...pmDirs,
-      ...(runtimeNvmBin ? [pathApi.normalize(runtimeNvmBin)] : []),
+      ...(runtimeNvmBin ? [pathApi.normalize(/*turbopackIgnore: true*/ runtimeNvmBin)] : []),
       env.PATH || "",
     ].filter(Boolean).join(delimiter);
   }
@@ -123,7 +125,7 @@ export function buildRuntimePath(options?: {
     "/usr/local/bin",
     "/opt/homebrew/bin",
     ...pmDirs,
-    ...(runtimeNvmBin ? [pathApi.normalize(runtimeNvmBin)] : []),
+    ...(runtimeNvmBin ? [pathApi.normalize(/*turbopackIgnore: true*/ runtimeNvmBin)] : []),
     env.PATH || "",
   ].filter(Boolean).join(delimiter);
 }
@@ -180,10 +182,16 @@ export function buildCommandCandidates(
   if (platform === "win32") {
     const homeDir = resolveHomeDir(env);
     return [
-      env.APPDATA ? pathApi.join(env.APPDATA, "npm", `${command}${suffix}`) : "",
-      pathApi.join(homeDir, ".local", "bin", `${command}${suffix}`),
-      ...pmDirs.map((dir) => pathApi.join(dir, `${command}${suffix}`)),
-      ...(runtimeNvmBin ? [pathApi.join(runtimeNvmBin, `${command}${suffix}`)] : []),
+      env.APPDATA
+        ? pathApi.join(/*turbopackIgnore: true*/ env.APPDATA, "npm", `${command}${suffix}`)
+        : "",
+      pathApi.join(/*turbopackIgnore: true*/ homeDir, ".local", "bin", `${command}${suffix}`),
+      ...pmDirs.map((dir) =>
+        pathApi.join(/*turbopackIgnore: true*/ dir, `${command}${suffix}`)
+      ),
+      ...(runtimeNvmBin
+        ? [pathApi.join(/*turbopackIgnore: true*/ runtimeNvmBin, `${command}${suffix}`)]
+        : []),
       command,
     ].filter(Boolean);
   }
@@ -192,8 +200,10 @@ export function buildCommandCandidates(
     `${env.HOME || ""}/.local/bin/${command}`,
     `/usr/local/bin/${command}`,
     `/opt/homebrew/bin/${command}`,
-    ...pmDirs.map((dir) => pathApi.join(dir, command)),
-    ...(runtimeNvmBin ? [pathApi.join(runtimeNvmBin, command)] : []),
+    ...pmDirs.map((dir) => pathApi.join(/*turbopackIgnore: true*/ dir, command)),
+    ...(runtimeNvmBin
+      ? [pathApi.join(/*turbopackIgnore: true*/ runtimeNvmBin, command)]
+      : []),
     command,
   ].filter(Boolean);
 }
@@ -278,12 +288,12 @@ export async function checkCliProviderAvailable(provider: AgentProvider): Promis
     const env = withAdapterRuntimeEnv({ ...process.env, PATH: getRuntimePath() });
     const proc =
       process.platform === "win32"
-        ? spawn(buildWindowsShellCommand(command, ["--version"]), {
+        ? childProcess.spawn(buildWindowsShellCommand(command, ["--version"]), {
             env,
             shell: true,
             stdio: ["ignore", "pipe", "pipe"],
           })
-        : spawn(command, ["--version"], {
+        : childProcess.spawn(command, ["--version"], {
             env,
             stdio: ["ignore", "pipe", "pipe"],
           });
@@ -321,12 +331,12 @@ export async function execCli(
     const env = withAdapterRuntimeEnv({ ...process.env, PATH: getRuntimePath() });
     const proc =
       process.platform === "win32"
-        ? spawn(buildWindowsShellCommand(command, args), {
+        ? childProcess.spawn(buildWindowsShellCommand(command, args), {
             env,
             shell: true,
             stdio: ["ignore", "pipe", options.captureStderr ? "pipe" : "ignore"],
           })
-        : spawn(command, args, {
+        : childProcess.spawn(command, args, {
             env,
             stdio: ["ignore", "pipe", options.captureStderr ? "pipe" : "ignore"],
           });

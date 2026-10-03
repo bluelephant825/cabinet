@@ -119,6 +119,10 @@ const SettingsPage = dynamic(
   () => import("@/components/settings/settings-page").then((m) => m.SettingsPage),
   { ssr: false }
 );
+const RssReader = dynamic(
+  () => import("@/components/rss/rss-reader").then((m) => m.RssReader),
+  { ssr: false }
+);
 const HelpPage = dynamic(
   () => import("@/components/help/help-page").then((m) => m.HelpPage),
   { ssr: false }
@@ -492,6 +496,9 @@ export function AppShell() {
         break;
       case "registry":
         title = `Registry – ${base}`;
+        break;
+      case "rss":
+        title = `RSS – ${base}`;
         break;
       case "integrations":
         title = `Integrations – ${base}`;
@@ -951,6 +958,7 @@ export function AppShell() {
     if (section.type === "settings" && appMode === "browse") return <BrowserView />;
     if (section.type === "settings" && appMode === "canvas") return <CanvasView />;
     if (section.type === "settings") return <SettingsPage />;
+    if (section.type === "rss") return <RssReader />;
     if (section.type === "integrations") return <IntegrationsHubPage />;
     if (section.type === "help") return <HelpPage />;
     if ((section.type === "cabinet" || section.type === "page") && appMode === "browse") {
@@ -1250,6 +1258,7 @@ export function AppShell() {
     isDefaultEditor ||
     isSelfSheetedViewer ||
     section.type === "tasks" ||
+    section.type === "rss" ||
     section.type === "agents" ||
     (section.type === "settings" && appMode === "edit") ||
     // The room/cabinet dashboard puts its header on the desk and wraps its body

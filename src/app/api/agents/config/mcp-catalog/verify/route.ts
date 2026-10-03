@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { execFile } from "node:child_process";
+import childProcess from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     `If the tools error, reply with the exact error text and nothing else.`;
 
   const summary = await new Promise<string>((resolve) => {
-    execFile(
+    childProcess.execFile(
       resolveCliCommand(claudeCodeProvider),
       [
         "-p",

@@ -45,7 +45,7 @@ async function testDiscord(token: string): Promise<{ valid: boolean; detail: str
 
 async function testServiceAccountFile(p: string): Promise<{ valid: boolean; detail: string }> {
   try {
-    const raw = await fs.readFile(p, "utf8");
+    const raw = await fs.readFile(/*turbopackIgnore: true*/ p, "utf8");
     const json = JSON.parse(raw) as Record<string, unknown>;
     const type = json.type;
     if (type === "service_account" || type === "authorized_user") {

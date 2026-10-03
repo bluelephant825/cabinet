@@ -24,7 +24,7 @@ import { PROJECT_ROOT } from "./runtime-config";
 const CABINET_ENV_FILENAME = ".cabinet.env";
 
 export function cabinetEnvPath(): string {
-  return path.join(PROJECT_ROOT, CABINET_ENV_FILENAME);
+  return path.join(/* turbopackIgnore: true */ PROJECT_ROOT, CABINET_ENV_FILENAME);
 }
 
 interface ParsedFile {
@@ -60,7 +60,7 @@ function parseEnvText(text: string): Record<string, string> {
 
 function statMtime(file: string): number | null {
   try {
-    return fs.statSync(file).mtimeMs;
+    return fs.statSync(/* turbopackIgnore: true */ file).mtimeMs;
   } catch {
     return null;
   }
@@ -79,7 +79,7 @@ export function readCabinetEnvFile(): ParsedFile {
     return cache;
   }
   try {
-    const raw = fs.readFileSync(file, "utf-8");
+    const raw = fs.readFileSync(/* turbopackIgnore: true */ file, "utf-8");
     cache = { values: parseEnvText(raw), mtime };
   } catch {
     cache = { values: {}, mtime };
@@ -128,8 +128,8 @@ function ensureGitignoreCovers(): void {
   // future edit removes the explicit rule — secrets in the repo would be
   // much worse than a noisy log line. Best-effort; never throws.
   try {
-    const gi = path.join(PROJECT_ROOT, ".gitignore");
-    const text = fs.readFileSync(gi, "utf-8");
+    const gi = path.join(/* turbopackIgnore: true */ PROJECT_ROOT, ".gitignore");
+    const text = fs.readFileSync(/* turbopackIgnore: true */ gi, "utf-8");
     // Match any of: an explicit `.cabinet.env` line, or `.cabinet.env*` glob,
     // or a leading `**/` form. NOT `.env*` — that pattern doesn't match
     // `.cabinet.env` (the glob anchors at the start of the basename).
@@ -146,11 +146,11 @@ function ensureGitignoreCovers(): void {
 
 function atomicWrite(file: string, contents: string): void {
   const dir = path.dirname(file);
-  const tmp = path.join(dir, `.cabinet.env.${process.pid}.${Date.now()}.tmp`);
-  fs.writeFileSync(tmp, contents, { encoding: "utf-8", mode: 0o600 });
-  fs.renameSync(tmp, file);
+  const tmp = path.join(/* turbopackIgnore: true */ dir, `.cabinet.env.${process.pid}.${Date.now()}.tmp`);
+  fs.writeFileSync(/* turbopackIgnore: true */ tmp, contents, { encoding: "utf-8", mode: 0o600 });
+  fs.renameSync(/* turbopackIgnore: true */ tmp, file);
   try {
-    fs.chmodSync(file, 0o600);
+    fs.chmodSync(/* turbopackIgnore: true */ file, 0o600);
   } catch {
     /* best-effort on Windows / weird FS */
   }

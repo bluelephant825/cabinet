@@ -89,7 +89,7 @@ let realDataDir: string | null = null;
 function getRealDataDir(): string {
   if (realDataDir) return realDataDir;
   try {
-    realDataDir = fs.realpathSync(DATA_DIR);
+    realDataDir = fs.realpathSync(/*turbopackIgnore: true*/ DATA_DIR);
   } catch {
     realDataDir = DATA_DIR;
   }
@@ -106,7 +106,11 @@ export function cabinetRootForVirtualPath(virtualPath: string): string {
   for (let i = parts.length; i > 0; i--) {
     const candidate = parts.slice(0, i).join("/");
     try {
-      if (fs.existsSync(path.join(DATA_DIR, candidate, CABINET_MANIFEST_FILE))) {
+      if (
+        fs.existsSync(
+          /*turbopackIgnore: true*/ path.join(DATA_DIR, candidate, CABINET_MANIFEST_FILE)
+        )
+      ) {
         return candidate;
       }
     } catch {
@@ -128,7 +132,7 @@ export interface HistoryConfig {
 export function readHistoryConfig(cabinetRootVirtual: string): HistoryConfig {
   try {
     const raw = fs.readFileSync(
-      path.join(
+      /*turbopackIgnore: true*/ path.join(
         DATA_DIR,
         normalizeCabinetRoot(cabinetRootVirtual),
         ".cabinet-state",
@@ -152,12 +156,15 @@ export function writeHistoryConfig(
   config: HistoryConfig
 ): void {
   const dir = path.join(
-    DATA_DIR,
+    /*turbopackIgnore: true*/ DATA_DIR,
     normalizeCabinetRoot(cabinetRootVirtual),
     ".cabinet-state"
   );
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "history.json"), JSON.stringify(config, null, 2));
+  fs.mkdirSync(/*turbopackIgnore: true*/ dir, { recursive: true });
+  fs.writeFileSync(
+    /*turbopackIgnore: true*/ path.join(dir, "history.json"),
+    JSON.stringify(config, null, 2)
+  );
 }
 
 // --------------------------------------------------------- text/binary
@@ -186,7 +193,9 @@ function commitAllowed(
 ): boolean {
   let size = 0;
   try {
-    size = fs.statSync(path.join(repoRoot, relPath)).size;
+    size = fs.statSync(
+      /*turbopackIgnore: true*/ path.join(repoRoot, relPath)
+    ).size;
   } catch {
     // deleted file — always commit the deletion
     return true;
@@ -224,7 +233,7 @@ const JOURNAL_MAX_BYTES = 5 * 1024 * 1024;
 // the per-room internal-state convention and is excluded from commits.
 function journalFile(cabinetRootVirtual: string): string {
   return path.join(
-    DATA_DIR,
+    /*turbopackIgnore: true*/ DATA_DIR,
     normalizeCabinetRoot(cabinetRootVirtual),
     ".cabinet-state",
     "file-history.jsonl"
@@ -237,19 +246,25 @@ export function appendHistoryEvent(
 ): void {
   try {
     const file = journalFile(cabinetRootVirtual);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.mkdirSync(
+      /*turbopackIgnore: true*/ path.dirname(file),
+      { recursive: true }
+    );
     try {
-      const stat = fs.statSync(file);
+      const stat = fs.statSync(/*turbopackIgnore: true*/ file);
       if (stat.size > JOURNAL_MAX_BYTES) {
         // Keep the newest half. The journal is a regenerable index — git
         // remains the authoritative record (PRD §4.1).
-        const lines = fs.readFileSync(file, "utf-8").split("\n").filter(Boolean);
-        fs.writeFileSync(file, lines.slice(Math.floor(lines.length / 2)).join("\n") + "\n");
+        const lines = fs.readFileSync(/*turbopackIgnore: true*/ file, "utf-8").split("\n").filter(Boolean);
+        fs.writeFileSync(
+          /*turbopackIgnore: true*/ file,
+          lines.slice(Math.floor(lines.length / 2)).join("\n") + "\n"
+        );
       }
     } catch {
       // no journal yet
     }
-    fs.appendFileSync(file, JSON.stringify(event) + "\n", "utf-8");
+    fs.appendFileSync(/*turbopackIgnore: true*/ file, JSON.stringify(event) + "\n", "utf-8");
   } catch {
     // journaling must never break the mutation it records
   }
@@ -262,7 +277,10 @@ export function readHistoryEvents(
 ): HistoryEvent[] {
   try {
     const lines = fs
-      .readFileSync(journalFile(cabinetRootVirtual), "utf-8")
+      .readFileSync(
+        /*turbopackIgnore: true*/ journalFile(cabinetRootVirtual),
+        "utf-8"
+      )
       .split("\n")
       .filter(Boolean);
     const events: HistoryEvent[] = [];
@@ -296,7 +314,9 @@ const repoCache = new Map<string, RepoHandle | null>();
 function findEnclosingRepoRoot(startDir: string): string | null {
   let dir = startDir;
   for (let i = 0; i < 40; i++) {
-    if (fs.existsSync(path.join(dir, ".git"))) return dir;
+    if (
+      fs.existsSync(/*turbopackIgnore: true*/ path.join(dir, ".git"))
+    ) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -316,7 +336,7 @@ async function isManagedRepo(git: SimpleGit, root: string): Promise<boolean> {
 
 async function initManagedRepo(root: string): Promise<RepoHandle | null> {
   try {
-    const git = simpleGit(root);
+    const git = simpleGit(/*turbopackIgnore: true*/ root);
     await git.init();
     await git.addConfig("user.email", "kb@cabinet.dev");
     await git.addConfig("user.name", "Cabinet");
@@ -349,10 +369,10 @@ export async function repoForCabinetRoot(
 
   let handle: RepoHandle | null = null;
   try {
-    const fsRoot = path.join(DATA_DIR, normalized);
+    const fsRoot = path.join(/*turbopackIgnore: true*/ DATA_DIR, normalized);
     let real: string;
     try {
-      real = fs.realpathSync(fsRoot);
+      real = fs.realpathSync(/*turbopackIgnore: true*/ fsRoot);
     } catch {
       repoCache.set(cacheKey, null);
       return null;
@@ -361,10 +381,12 @@ export async function repoForCabinetRoot(
     if (real === getRealDataDir() || real.startsWith(getRealDataDir() + path.sep)) {
       // Plain directory inside the data tree — one repo at DATA_DIR.
       const dataRepoRoot = getRealDataDir();
-      if (!fs.existsSync(path.join(dataRepoRoot, ".git"))) {
+      if (
+        !fs.existsSync(/*turbopackIgnore: true*/ path.join(dataRepoRoot, ".git"))
+      ) {
         handle = await initManagedRepo(dataRepoRoot);
       } else {
-        const git = simpleGit(dataRepoRoot);
+        const git = simpleGit(/*turbopackIgnore: true*/ dataRepoRoot);
         handle = { git, root: dataRepoRoot, managed: true };
         // Backfill scale guards on existing installs (idempotent).
         git.addConfig("core.untrackedCache", "true").catch(() => {});
@@ -373,7 +395,7 @@ export async function repoForCabinetRoot(
       // Symlink-mounted cabinet. Use the nearest enclosing repo if any.
       const enclosing = findEnclosingRepoRoot(real);
       if (enclosing) {
-        const git = simpleGit(enclosing);
+        const git = simpleGit(/*turbopackIgnore: true*/ enclosing);
         handle = {
           git,
           root: enclosing,
@@ -420,13 +442,21 @@ const EXCLUDE_MAX_BYTES = 1024 * 1024;
 function maintainExcludes(repoRoot: string, relPaths: string[]): void {
   if (!relPaths.length) return;
   try {
-    const file = path.join(repoRoot, ".git", "info", "exclude");
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const file = path.join(
+      /*turbopackIgnore: true*/ repoRoot,
+      ".git",
+      "info",
+      "exclude"
+    );
+    fs.mkdirSync(
+      /*turbopackIgnore: true*/ path.dirname(file),
+      { recursive: true }
+    );
     let existing = "";
     try {
-      const stat = fs.statSync(file);
+      const stat = fs.statSync(/*turbopackIgnore: true*/ file);
       if (stat.size > EXCLUDE_MAX_BYTES) return; // cap reached — stop growing
-      existing = fs.readFileSync(file, "utf-8");
+      existing = fs.readFileSync(/*turbopackIgnore: true*/ file, "utf-8");
     } catch {
       // no exclude file yet
     }
@@ -434,7 +464,13 @@ function maintainExcludes(repoRoot: string, relPaths: string[]): void {
     const fresh = relPaths
       .map((p) => `/${p}`)
       .filter((line) => !present.has(line));
-    if (fresh.length) fs.appendFileSync(file, fresh.join("\n") + "\n", "utf-8");
+    if (fresh.length) {
+      fs.appendFileSync(
+        /*turbopackIgnore: true*/ file,
+        fresh.join("\n") + "\n",
+        "utf-8"
+      );
+    }
   } catch {
     // exclude maintenance is best-effort
   }
@@ -479,18 +515,21 @@ function actorKey(actor: HistoryActor): string {
 /** repo-relative path for a DATA_DIR virtual path, or null if outside. */
 function repoRelative(handle: RepoHandle, virtualPath: string): string | null {
   try {
-    const abs = path.join(DATA_DIR, virtualPath);
+    const abs = path.join(/*turbopackIgnore: true*/ DATA_DIR, virtualPath);
     // realpath the nearest existing ancestor so deleted paths still resolve
     let probe = abs;
     let suffix = "";
-    while (!fs.existsSync(probe)) {
+    while (!fs.existsSync(/*turbopackIgnore: true*/ probe)) {
       suffix = path.join(path.basename(probe), suffix);
       const parent = path.dirname(probe);
       if (parent === probe) return null;
       probe = parent;
     }
-    const real = path.join(fs.realpathSync(probe), suffix);
-    const rel = path.relative(handle.root, real);
+    const real = path.join(
+      /*turbopackIgnore: true*/ fs.realpathSync(probe),
+      suffix
+    );
+    const rel = path.relative(/*turbopackIgnore: true*/ handle.root, real);
     if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
     return rel === "" ? "." : rel.split(path.sep).join("/");
   } catch {
@@ -511,7 +550,12 @@ async function flushBucket(bucket: CommitBucket): Promise<void> {
     // Raw is immutable evidence, not user-facing history. Keep it ignored and
     // remove it from any mutation bucket before status/add can enumerate it.
     try {
-      const cabinet = await readWikiCabinet(path.join(DATA_DIR, normalizeCabinetRoot(bucket.cabinetRootVirtual)));
+      const cabinet = await readWikiCabinet(
+        path.join(
+          /*turbopackIgnore: true*/ DATA_DIR,
+          normalizeCabinetRoot(bucket.cabinetRootVirtual)
+        )
+      );
       if (cabinet) {
         maintainExcludes(handle.root, [cabinet.config.paths.raw]);
         const rawPath = repoRelative(handle, cabinet.config.paths.raw);
@@ -566,7 +610,10 @@ const FLUSH_DEBOUNCE_MS = 5000;
 /** Commit only Wiki pages produced by a completed publication. Raw evidence
  * and Wiki runtime state stay outside Git history. */
 export async function commitWikiPublication(rootPath: string, wikiRoot: string, virtualPaths: string[], jobId: string): Promise<void> {
-  const cabinetRootVirtual = path.relative(DATA_DIR, rootPath).split(path.sep).filter(Boolean).join("/");
+  const cabinetRootVirtual = path.relative(
+    /*turbopackIgnore: true*/ DATA_DIR,
+    rootPath
+  ).split(path.sep).filter(Boolean).join("/");
   const handle = await repoForCabinetRoot(cabinetRootVirtual);
   if (!handle || !handle.managed) return;
   const config = readHistoryConfig(cabinetRootVirtual);

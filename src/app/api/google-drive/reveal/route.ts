@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "child_process";
+import childProcess from "child_process";
 import fs from "fs/promises";
 import path from "path";
 import { resolveAuthorizedMountPaths } from "@/lib/knowledge-sources/store";
@@ -16,16 +16,16 @@ export const dynamic = "force-dynamic";
  *
  * Accepts { path: "gdrive:/abs/path" } or { path: "/abs/path" }.
  */
-function revealCommand(filePath: string): { command: string; args: string[] } {
-  switch (process.platform) {
-    case "darwin":
-      return { command: "open", args: ["-R", filePath] };
-    case "win32":
-      return { command: "explorer.exe", args: [`/select,${filePath}`] };
-    default:
-      // xdg-open doesn't support reveal; open the parent directory instead.
-      return { command: "xdg-open", args: [path.dirname(filePath)] };
-  }
+function revealPath(filePath: string): void {
+  const options = { stdio: "ignore" as const, detached: true };
+  const child =
+    process.platform === "darwin"
+      ? childProcess.spawn("open", ["-R", filePath], options)
+      : process.platform === "win32"
+        ? childProcess.spawn("explorer.exe", [`/select,${filePath}`], options)
+        // xdg-open doesn't support reveal; open the parent directory instead.
+        : childProcess.spawn("xdg-open", [path.dirname(filePath)], options);
+  child.unref();
 }
 
 export async function POST(req: NextRequest) {
@@ -62,14 +62,14 @@ export async function POST(req: NextRequest) {
     // cannot point outside it.
     let realPath: string;
     try {
-      realPath = await fs.realpath(normalized);
+      realPath = await fs.realpath(/*turbopackIgnore: true*/ normalized);
     } catch {
       return NextResponse.json({ error: "Path not found" }, { status: 404 });
     }
 
     const mountRealpaths = await Promise.all(
       mountPaths.map(async (p) => {
-        try { return await fs.realpath(p); } catch { return p; }
+        try { return await fs.realpath(/*turbopackIgnore: true*/ p); } catch { return p; }
       })
     );
     const inMount = mountRealpaths.some(
@@ -82,8 +82,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { command, args } = revealCommand(realPath);
-    spawn(command, args, { stdio: "ignore", detached: true }).unref();
+    revealPath(realPath);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

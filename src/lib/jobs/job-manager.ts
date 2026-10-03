@@ -213,7 +213,7 @@ export function scheduleJob(job: JobConfig): void {
 
 export async function executeJob(
   job: JobConfig,
-  options: { scheduledAt?: string } = {}
+  options: { scheduledAt?: string; rssRetryRunId?: string } = {}
 ): Promise<JobRun> {
   const run = await startJobConversation(job, options);
   runHistory.set(run.id, run);

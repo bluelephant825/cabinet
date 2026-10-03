@@ -19,10 +19,10 @@ export async function PUT(req: NextRequest) {
 
     const resolved = resolveContentPath(virtualPath);
     const activeCabinetName = getActiveCabinetName();
-    const guestRoomPath = path.join(DATA_PARENT_DIR, "Guest Room");
+    const guestRoomPath = path.join(/*turbopackIgnore: true*/ DATA_PARENT_DIR, "Guest Room");
 
     // Try finding the actual file
-    const indexPath = path.join(resolved, "index.md");
+    const indexPath = path.join(/*turbopackIgnore: true*/ resolved, "index.md");
     const mdPath = resolved.endsWith(".md") ? resolved : `${resolved}.md`;
     const mdxPath = resolved.endsWith(".mdx") ? resolved : `${resolved}.mdx`;
 
@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest) {
       filePath = indexPath;
       targetIsMarkdown = true;
     } else if (await fileExists(resolved)) {
-      const stat = await fs.stat(resolved);
+      const stat = await fs.stat(/*turbopackIgnore: true*/ resolved);
       if (stat.isDirectory()) {
         isDir = true;
         // Check for sibling folder page
@@ -69,7 +69,7 @@ export async function PUT(req: NextRequest) {
     if (!targetIsMarkdown && !isDir) {
       const dir = path.dirname(filePath);
       const base = path.basename(filePath);
-      metaFilePath = path.join(dir, `.${base}.md`);
+      metaFilePath = path.join(/*turbopackIgnore: true*/ dir, `.${base}.md`);
     }
 
     // Update frontmatter
@@ -77,7 +77,7 @@ export async function PUT(req: NextRequest) {
     let fileContent = "";
 
     if (await fileExists(metaFilePath)) {
-      const raw = await fs.readFile(metaFilePath, "utf-8");
+      const raw = await fs.readFile(/*turbopackIgnore: true*/ metaFilePath, "utf-8");
       const parsed = matter(raw);
       currentFm = parsed.data || {};
       fileContent = parsed.content || "";
@@ -91,30 +91,43 @@ export async function PUT(req: NextRequest) {
     }
 
     const newFileContent = matter.stringify(fileContent, currentFm);
-    await fs.writeFile(metaFilePath, newFileContent, "utf-8");
+    await fs.writeFile(/*turbopackIgnore: true*/ metaFilePath, newFileContent, "utf-8");
 
     // Copy or delete the file in Guest Room cabinet
-    const relativePath = path.relative(DATA_DIR, filePath);
-    const targetPath = path.join(guestRoomPath, activeCabinetName, relativePath);
+    const relativePath = path.relative(/*turbopackIgnore: true*/ DATA_DIR, filePath);
+    const targetPath = path.join(
+      /*turbopackIgnore: true*/ guestRoomPath,
+      activeCabinetName,
+      relativePath
+    );
 
     if (isPublic) {
-      await fs.mkdir(guestRoomPath, { recursive: true });
+      await fs.mkdir(/*turbopackIgnore: true*/ guestRoomPath, { recursive: true });
       await scaffoldCabinet(guestRoomPath, { name: "Guest Room", kind: "root", skipExisting: true });
 
-      await fs.mkdir(path.dirname(targetPath), { recursive: true });
-      await fs.copyFile(filePath, targetPath);
+      await fs.mkdir(
+        /*turbopackIgnore: true*/ path.dirname(targetPath),
+        { recursive: true }
+      );
+      await fs.copyFile(
+        /*turbopackIgnore: true*/ filePath,
+        /*turbopackIgnore: true*/ targetPath
+      );
     } else {
       try {
         if (await fileExists(targetPath)) {
-          await fs.unlink(targetPath);
+          await fs.unlink(/*turbopackIgnore: true*/ targetPath);
         }
         // Clean up empty directories recursively up to guestRoomActiveCabinetPath
         let currentDir = path.dirname(targetPath);
-        const limitDir = path.join(guestRoomPath, activeCabinetName);
+        const limitDir = path.join(
+          /*turbopackIgnore: true*/ guestRoomPath,
+          activeCabinetName
+        );
         while (currentDir !== limitDir && currentDir.startsWith(limitDir)) {
-          const files = await fs.readdir(currentDir);
+          const files = await fs.readdir(/*turbopackIgnore: true*/ currentDir);
           if (files.length === 0) {
-            await fs.rmdir(currentDir);
+            await fs.rmdir(/*turbopackIgnore: true*/ currentDir);
             currentDir = path.dirname(currentDir);
           } else {
             break;

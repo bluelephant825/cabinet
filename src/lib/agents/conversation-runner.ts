@@ -46,6 +46,7 @@ import { renderPersonaBody } from "./persona-templating";
 import { getDefaultProviderId } from "./provider-runtime";
 import { looksLikeAwaitingInput } from "./task-heuristics";
 import { emit as emitTelemetry } from "@/lib/telemetry";
+import { rssDaemonRequest, type RssPreparation } from "@/lib/rss/daemon-client";
 
 export interface ConversationCompletion {
   meta: ConversationMeta;
@@ -78,6 +79,7 @@ interface StartConversationInput {
   jobId?: string;
   jobName?: string;
   scheduledAt?: string;
+  rssBriefRunId?: string;
   cabinetPath?: string;
   cwd?: string;
   timeoutSeconds?: number;
@@ -632,7 +634,11 @@ export async function startConversationRun(
     jobId: input.jobId,
     jobName: input.jobName,
     scheduledAt: input.scheduledAt,
+    rssBriefRunId: input.rssBriefRunId,
   });
+  if (input.rssBriefRunId) {
+    await rssDaemonRequest("bind", { room: input.cabinetPath, runId: input.rssBriefRunId, conversationId: meta.id });
+  }
 
   // Composer attachments: kickoff turns upload to a staging dir keyed by
   // `stagingClientUuid`. Move them into the real conversation dir now that
@@ -1030,11 +1036,13 @@ async function processPostActions(
 
 export async function startJobConversation(
   job: JobConfig,
-  options: { scheduledAt?: string } = {}
+  options: { scheduledAt?: string; rssRetryRunId?: string } = {}
 ): Promise<JobRun> {
   const persona = job.agentSlug ? await readPersona(job.agentSlug, job.cabinetPath) : null;
   const defaultProviderId = getDefaultProviderId();
-  const jobPrompt = substituteTemplateVars(job.prompt, job);
+  const rss = job.rssBriefId ? await rssDaemonRequest<RssPreparation>("prepare", { room: job.cabinetPath, briefId: job.rssBriefId, jobId: job.id, agentSlug: job.agentSlug, scheduledAt: options.scheduledAt, retryRunId: options.rssRetryRunId }) : null;
+  if (rss?.skip) return { id: rss.runId, jobId: job.id, status: "completed", startedAt: new Date().toISOString(), output: `RSS brief: ${rss.status}` };
+  const jobPrompt = rss ? rss.prompt : substituteTemplateVars(job.prompt, job);
   const baseCwd = job.cabinetPath ? path.join(DATA_DIR, job.cabinetPath) : DATA_DIR;
   // A job overrides cwd only when it names a non-root workdir; otherwise the
   // persona's workdir wins (preserved from the original precedence).
@@ -1087,10 +1095,15 @@ export async function startJobConversation(
     jobId: job.id,
     jobName: job.name,
     scheduledAt: options.scheduledAt,
+    rssBriefRunId: rss?.runId,
     cabinetPath: job.cabinetPath,
     cwd,
     timeoutSeconds: job.timeout || 600,
     onComplete: async (completion) => {
+      if (rss) {
+        await rssDaemonRequest("complete", { room: job.cabinetPath, runId: rss.runId, status: completion.status, output: completion.output });
+        return;
+      }
       if (completion.status === "completed") {
         await processPostActions(job.on_complete, job);
       } else {

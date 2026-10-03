@@ -59,13 +59,16 @@ function formatForPath(absPath: string): DocumentFormat {
 }
 
 function isInside(child: string, parent: string): boolean {
-  const rel = path.relative(parent, child);
+  const rel = path.relative(
+    /*turbopackIgnore: true*/ parent,
+    /*turbopackIgnore: true*/ child
+  );
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
 async function realpathSafe(p: string): Promise<string | null> {
   try {
-    return await fs.realpath(p);
+    return await fs.realpath(/*turbopackIgnore: true*/ p);
   } catch {
     return null;
   }
@@ -83,14 +86,14 @@ async function canonicalPath(resolved: string): Promise<string> {
   for (;;) {
     const real = await realpathSafe(dir);
     if (real !== null) {
-      const stat = await fs.stat(real).catch(() => null);
+      const stat = await fs.stat(/*turbopackIgnore: true*/ real).catch(() => null);
       if (stat?.isDirectory()) {
-        return path.join(real, ...suffix.reverse());
+        return path.join(/* turbopackIgnore: true */ real, ...suffix.reverse());
       }
       if (suffix.length === 0) return real; // existing file
       // Existing non-dir with a suffix beneath it — invalid, but keep the
       // canonical form so the caller fails cleanly downstream.
-      return path.join(real, ...suffix.reverse());
+      return path.join(/* turbopackIgnore: true */ real, ...suffix.reverse());
     }
     suffix.push(path.basename(dir));
     const parent = path.dirname(dir);
@@ -213,7 +216,9 @@ async function authorizeFsPath(
   }
 
   const real = await canonicalPath(resolved);
-  const dataRoot = (await realpathSafe(DATA_DIR)) ?? path.resolve(DATA_DIR);
+  const dataRoot =
+    (await realpathSafe(DATA_DIR)) ??
+    path.resolve(/*turbopackIgnore: true*/ DATA_DIR);
   if (!isInside(real, dataRoot)) {
     const outside = await authorizedOutsideRoots(cabinetPath);
     if (!outside.some((root) => isInside(real, root))) {

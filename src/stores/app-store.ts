@@ -22,6 +22,7 @@ export type SectionType =
   | "settings"
   | "registry"
   | "integrations"
+  | "rss"
   | "help";
 
 const CABINET_VISIBILITY_STORAGE_KEY = "cabinet.visibility.modes";

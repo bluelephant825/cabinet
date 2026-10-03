@@ -1,4 +1,4 @@
-import { execFile, execFileSync, spawn } from "child_process";
+import childProcess, { execFile, execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { getNvmNodeBin } from "../nvm-path";
@@ -178,12 +178,12 @@ export async function runChildProcess(
   });
   const child =
     process.platform === "win32"
-      ? spawn(env.ComSpec || "cmd.exe", ["/d", "/s", "/c", [command, ...args].map(quoteWindowsCmdArg).join(" ")], {
+      ? childProcess.spawn(env.ComSpec || "cmd.exe", ["/d", "/s", "/c", [command, ...args].map(quoteWindowsCmdArg).join(" ")], {
           cwd: options.cwd,
           env,
           stdio: ["pipe", "pipe", "pipe"],
         })
-      : spawn(command, args, {
+      : childProcess.spawn(command, args, {
           cwd: options.cwd,
           env,
           stdio: ["pipe", "pipe", "pipe"],

@@ -46,7 +46,10 @@ function humanize(slug: string): string {
 
 async function readManifest(dir: string): Promise<Record<string, unknown> | null> {
   try {
-    const raw = await fs.readFile(path.join(dir, CABINET_MANIFEST_FILE), "utf-8");
+    const raw = await fs.readFile(
+      /*turbopackIgnore: true*/ path.join(dir, CABINET_MANIFEST_FILE),
+      "utf-8"
+    );
     const parsed = yaml.load(raw);
     return parsed && typeof parsed === "object"
       ? (parsed as Record<string, unknown>)
@@ -65,11 +68,18 @@ async function writeManifestAtomic(
   dir: string,
   manifest: Record<string, unknown>
 ): Promise<void> {
-  const target = path.join(dir, CABINET_MANIFEST_FILE);
+  const target = path.join(/*turbopackIgnore: true*/ dir, CABINET_MANIFEST_FILE);
   const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(tmp, yaml.dump(manifest, { lineWidth: -1 }), "utf-8");
-  await fs.rename(tmp, target);
+  await fs.mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
+  await fs.writeFile(
+    /*turbopackIgnore: true*/ tmp,
+    yaml.dump(manifest, { lineWidth: -1 }),
+    "utf-8"
+  );
+  await fs.rename(
+    /*turbopackIgnore: true*/ tmp,
+    /*turbopackIgnore: true*/ target
+  );
 }
 
 function roomFromManifest(
@@ -100,7 +110,10 @@ function roomFromManifest(
 export async function listRooms(): Promise<RoomMeta[]> {
   let entries: import("fs").Dirent[] = [];
   try {
-    entries = await fs.readdir(DATA_DIR, { withFileTypes: true });
+    entries = await fs.readdir(
+      /*turbopackIgnore: true*/ DATA_DIR,
+      { withFileTypes: true }
+    );
   } catch {
     return [];
   }
@@ -112,7 +125,9 @@ export async function listRooms(): Promise<RoomMeta[]> {
 
   const rooms: RoomMeta[] = [];
   for (const dirName of dirNames) {
-    const manifest = await readManifest(path.join(DATA_DIR, dirName));
+    const manifest = await readManifest(
+      path.join(/*turbopackIgnore: true*/ DATA_DIR, dirName)
+    );
     if (!manifest) continue; // no manifest → content folder, not a room
     if (manifest.kind === "home") continue; // never list the home container
     rooms.push(roomFromManifest(dirName, dirName, manifest));
@@ -138,12 +153,19 @@ export interface HomeConfig {
 
 // home.json lives in the shared data folder (parent of all cabinets): it carries
 // the cross-cabinet `activeCabinet` pointer and must not be scoped to one cabinet.
-const HOME_CONFIG_PATH = path.join(DATA_PARENT_DIR, ".home", "home.json");
+const HOME_CONFIG_PATH = path.join(
+  /*turbopackIgnore: true*/ DATA_PARENT_DIR,
+  ".home",
+  "home.json"
+);
 
 /** Read the home container config (`data/.home/home.json`). */
 export async function getHomeConfig(): Promise<HomeConfig> {
   try {
-    const raw = await fs.readFile(HOME_CONFIG_PATH, "utf-8");
+    const raw = await fs.readFile(
+      /*turbopackIgnore: true*/ HOME_CONFIG_PATH,
+      "utf-8"
+    );
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return {
       defaultRoom:
@@ -180,10 +202,13 @@ export async function getHomeConfig(): Promise<HomeConfig> {
  */
 async function patchHomeConfig(patch: Partial<HomeConfig>): Promise<void> {
   const dir = path.dirname(HOME_CONFIG_PATH);
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
   let current: Record<string, unknown> = {};
   try {
-    const raw = await fs.readFile(HOME_CONFIG_PATH, "utf-8");
+    const raw = await fs.readFile(
+      /*turbopackIgnore: true*/ HOME_CONFIG_PATH,
+      "utf-8"
+    );
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object") current = parsed;
   } catch {
@@ -213,8 +238,15 @@ async function patchHomeConfig(patch: Partial<HomeConfig>): Promise<void> {
     }
   }
   const tmp = `${HOME_CONFIG_PATH}.tmp-${process.pid}-${Date.now()}`;
-  await fs.writeFile(tmp, JSON.stringify(current, null, 2), "utf-8");
-  await fs.rename(tmp, HOME_CONFIG_PATH);
+  await fs.writeFile(
+    /*turbopackIgnore: true*/ tmp,
+    JSON.stringify(current, null, 2),
+    "utf-8"
+  );
+  await fs.rename(
+    /*turbopackIgnore: true*/ tmp,
+    /*turbopackIgnore: true*/ HOME_CONFIG_PATH
+  );
 }
 
 /**
@@ -325,7 +357,10 @@ export async function resolveReopen(): Promise<ReopenTarget | null> {
 
 function resolveRoomDir(normalizedPath: string): string {
   if (normalizedPath === ROOT_CABINET_PATH) return DATA_DIR;
-  const resolved = path.resolve(DATA_DIR, normalizedPath);
+  const resolved = path.resolve(
+    /*turbopackIgnore: true*/ DATA_DIR,
+    normalizedPath
+  );
   // Path-traversal guard (CLAUDE.md key rule 4): never escape the data dir.
   if (resolved !== DATA_DIR && !resolved.startsWith(DATA_DIR + path.sep)) {
     throw new Error("invalid room path");
@@ -453,24 +488,30 @@ export async function deleteRoom(cabinetPath: string): Promise<DeleteRoomResult>
   }
 
   const slug = path.basename(dir);
-  const trashDir = path.join(DATA_DIR, ".trash");
-  await fs.mkdir(trashDir, { recursive: true });
+  const trashDir = path.join(/*turbopackIgnore: true*/ DATA_DIR, ".trash");
+  await fs.mkdir(/*turbopackIgnore: true*/ trashDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const trashTarget = path.join(trashDir, `${slug}-${stamp}`);
+  const trashTarget = path.join(
+    /*turbopackIgnore: true*/ trashDir,
+    `${slug}-${stamp}`
+  );
   // De-collide in the (vanishingly unlikely) case of identical stamps.
   let finalTarget = trashTarget;
   let suffix = 1;
   let collision = true;
   while (collision) {
     try {
-      await fs.access(finalTarget);
+      await fs.access(/*turbopackIgnore: true*/ finalTarget);
       finalTarget = `${trashTarget}-${suffix++}`;
     } catch {
       collision = false;
     }
   }
 
-  await fs.rename(dir, finalTarget);
+  await fs.rename(
+    /*turbopackIgnore: true*/ dir,
+    /*turbopackIgnore: true*/ finalTarget
+  );
 
   // Repoint home.json if the deleted slug was the default / last-active /
   // owner of the last-active path (§10.3 step 8, §10.5).
@@ -491,14 +532,18 @@ export async function deleteRoom(cabinetPath: string): Promise<DeleteRoomResult>
   // unrelated dirty files are left alone. The soft-delete already moved the
   // directory, so any git failure here is non-fatal (recoverable from .trash).
   try {
-    if (await fileExists(path.join(DATA_DIR, ".git"))) {
-      const git = simpleGit(DATA_DIR);
+    if (
+      await fileExists(
+        path.join(/*turbopackIgnore: true*/ DATA_DIR, ".git")
+      )
+    ) {
+      const git = simpleGit(/*turbopackIgnore: true*/ DATA_DIR);
       await git.raw([
         "add",
         "--all",
         "--",
         normalized,
-        path.relative(DATA_DIR, finalTarget),
+        path.relative(/*turbopackIgnore: true*/ DATA_DIR, finalTarget),
         path.join(".home", "home.json"),
       ]);
       await git.commit(`delete room ${slug}`);
@@ -508,7 +553,7 @@ export async function deleteRoom(cabinetPath: string): Promise<DeleteRoomResult>
   }
 
   return {
-    trashPath: path.relative(DATA_DIR, finalTarget),
+    trashPath: path.relative(/*turbopackIgnore: true*/ DATA_DIR, finalTarget),
     nextDefaultRoom: homeConfigUpdated ? nextDefault : home.defaultRoom ?? nextDefault,
     homeConfigUpdated,
   };

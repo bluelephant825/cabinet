@@ -52,7 +52,7 @@ export async function resolveAgentTemplateDir(slug: string): Promise<string | nu
   const libraryDir = await resolveAgentLibraryDir();
   if (!libraryDir) return null;
 
-  const templateDir = path.join(libraryDir, slug);
+  const templateDir = path.join(/* turbopackIgnore: true */ libraryDir, slug);
   if (!(await fileExists(path.join(templateDir, "persona.md")))) {
     return null;
   }
@@ -134,7 +134,7 @@ async function copyDirRecursive(src: string, dest: string): Promise<void> {
 export async function ensureGlobalAgents(): Promise<void> {
   await ensureDirectory(GLOBAL_AGENTS_DIR);
   for (const slug of GLOBAL_AGENT_SLUGS) {
-    const targetDir = path.join(GLOBAL_AGENTS_DIR, slug);
+    const targetDir = path.join(/* turbopackIgnore: true */ GLOBAL_AGENTS_DIR, slug);
     if (await fileExists(path.join(targetDir, "persona.md"))) continue;
     const templateDir = await resolveAgentTemplateDir(slug);
     if (!templateDir) {

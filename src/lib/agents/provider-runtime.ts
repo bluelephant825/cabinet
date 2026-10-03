@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import childProcess from "child_process";
 import type { AgentProvider, CliProviderInvocation } from "./provider-interface";
 import { providerRegistry } from "./provider-registry";
 import { buildWindowsShellCommand, getRuntimePath, resolveCliCommand } from "./provider-cli";
@@ -164,13 +164,13 @@ export async function runOneShotProviderPrompt(input: {
     };
     const proc =
       process.platform === "win32"
-        ? spawn(buildWindowsShellCommand(launch.command, launch.args), {
+        ? childProcess.spawn(buildWindowsShellCommand(launch.command, launch.args), {
             cwd: input.cwd,
             env,
             shell: true,
             stdio: ["ignore", "pipe", "pipe"],
           })
-        : spawn(launch.command, launch.args, {
+        : childProcess.spawn(launch.command, launch.args, {
             cwd: input.cwd,
             env,
             stdio: ["ignore", "pipe", "pipe"],

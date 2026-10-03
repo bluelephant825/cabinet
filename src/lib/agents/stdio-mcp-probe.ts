@@ -16,7 +16,7 @@
  * when the probe ends.
  */
 
-import { spawn, type ChildProcess } from "child_process";
+import childProcess, { type ChildProcess, type SpawnOptions } from "child_process";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import os from "os";
@@ -88,17 +88,17 @@ function resolveArgsWithTempConfig(entry: CatalogEntry): {
   let tmpFile: string | undefined;
   if (entry.configFile && args.some((a) => a.includes("${CONFIG_FILE}"))) {
     tmpFile = path.join(
-      os.tmpdir(),
+      /*turbopackIgnore: true*/ os.tmpdir(),
       `cabinet-probe-${randomUUID()}-${entry.configFile.name}`,
     );
-    fs.writeFileSync(tmpFile, entry.configFile.contents, "utf8");
+    fs.writeFileSync(/*turbopackIgnore: true*/ tmpFile, entry.configFile.contents, "utf8");
     const resolved = tmpFile;
     args = args.map((a) => a.replaceAll("${CONFIG_FILE}", resolved));
   }
   const cleanup = () => {
     if (tmpFile) {
       try {
-        fs.unlinkSync(tmpFile);
+        fs.unlinkSync(/*turbopackIgnore: true*/ tmpFile);
       } catch {
         /* best effort */
       }
@@ -120,6 +120,26 @@ function lastMeaningfulLine(text: string): string {
  * Spawn the server, run `initialize`, and resolve to a pass/fail with a
  * human-readable detail. Best-effort and self-cleaning; never throws.
  */
+function spawnProbeProcess(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv
+): ChildProcess {
+  const options: SpawnOptions = { env, stdio: ["pipe", "pipe", "pipe"] };
+  switch (command) {
+    case "node":
+      return childProcess.spawn("node", args, options);
+    case "npx":
+      return childProcess.spawn("npx", args, options);
+    case "uvx":
+      return childProcess.spawn("uvx", args, options);
+    case "pipx":
+      return childProcess.spawn("pipx", args, options);
+    default:
+      throw new Error(`Unsupported stdio probe command: ${command}`);
+  }
+}
+
 export async function probeStdioMcp(
   entry: CatalogEntry,
   credsOverride: Record<string, string>,
@@ -134,8 +154,11 @@ export async function probeStdioMcp(
 
   // Dev bootstrap: run a first-party source build directly, matching the writer.
   if (entry.localBuild) {
-    const local = path.join(PROJECT_ROOT, entry.localBuild);
-    if (fs.existsSync(local)) {
+    const local = path.join(
+      PROJECT_ROOT,
+      /*turbopackIgnore: true*/ entry.localBuild
+    );
+    if (fs.existsSync(/*turbopackIgnore: true*/ local)) {
       command = "node";
       args.length = 0;
       args.push(local);
@@ -166,7 +189,7 @@ export async function probeStdioMcp(
 
     let proc: ChildProcess;
     try {
-      proc = spawn(command, args, { env, stdio: ["pipe", "pipe", "pipe"] });
+      proc = spawnProbeProcess(command, args, env);
     } catch (err) {
       cleanup();
       resolve({

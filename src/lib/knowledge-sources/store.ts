@@ -59,14 +59,22 @@ function sourcesFilePath(cabinetPath: string): string {
   const normalized = normalizeCabinetPath(cabinetPath, true) || ROOT_CABINET_PATH;
   const rel = normalized === ROOT_CABINET_PATH ? "" : normalized;
   const roomDir = resolveContentPath(rel); // "" → DATA_DIR
-  return path.join(roomDir, ".agents", ".config", "knowledge-sources.json");
+  return path.join(
+    /*turbopackIgnore: true*/ roomDir,
+    ".agents",
+    ".config",
+    "knowledge-sources.json"
+  );
 }
 
 export async function readKnowledgeSources(
   cabinetPath: string,
 ): Promise<KnowledgeSource[]> {
   try {
-    const raw = await fs.readFile(sourcesFilePath(cabinetPath), "utf-8");
+    const raw = await fs.readFile(
+      /*turbopackIgnore: true*/ sourcesFilePath(cabinetPath),
+      "utf-8"
+    );
     const parsed = JSON.parse(raw) as Partial<SourcesFile>;
     if (!parsed || !Array.isArray(parsed.sources)) return [];
     return parsed.sources.filter(
@@ -83,11 +91,21 @@ async function writeKnowledgeSources(
   sources: KnowledgeSource[],
 ): Promise<void> {
   const file = sourcesFilePath(cabinetPath);
-  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.mkdir(
+    /*turbopackIgnore: true*/ path.dirname(file),
+    { recursive: true }
+  );
   const payload: SourcesFile = { version: 1, sources };
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
-  await fs.writeFile(tmp, JSON.stringify(payload, null, 2), "utf-8");
-  await fs.rename(tmp, file);
+  await fs.writeFile(
+    /*turbopackIgnore: true*/ tmp,
+    JSON.stringify(payload, null, 2),
+    "utf-8"
+  );
+  await fs.rename(
+    /*turbopackIgnore: true*/ tmp,
+    /*turbopackIgnore: true*/ file
+  );
   invalidateSourcesCache();
 }
 

@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import childProcess from "child_process";
 import { NextResponse } from "next/server";
 import { providerRegistry } from "@/lib/agents/provider-registry";
 import { withAdapterRuntimeEnv } from "@/lib/agents/adapters/utils";
@@ -216,12 +216,12 @@ function runShellCommand(command: string): Promise<{
     const env = withAdapterRuntimeEnv(process.env);
     const child =
       process.platform === "win32"
-        ? spawn(command, {
+        ? childProcess.spawn(command, {
             env,
             shell: true,
             stdio: ["ignore", "pipe", "pipe"],
           })
-        : spawn("/bin/sh", ["-c", command], {
+        : childProcess.spawn("/bin/sh", ["-c", command], {
             env,
             stdio: ["ignore", "pipe", "pipe"],
           });

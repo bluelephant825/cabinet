@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     // Validate that localPath is either empty or does not exist
     const exists = await fileExists(localPath);
     if (exists) {
-      const files = await fs.readdir(localPath).catch(() => []);
+      const files = await fs.readdir(/*turbopackIgnore: true*/ localPath).catch(() => []);
       if (files.length > 0) {
         return NextResponse.json(
           { error: "Local clone directory already exists and is not empty." },
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     targetDir = resolveContentPath(relativePath);
 
     // Check if symlink target already exists
-    const existing = await fs.lstat(targetDir).catch(() => null);
+    const existing = await fs.lstat(/*turbopackIgnore: true*/ targetDir).catch(() => null);
     if (existing) {
       return NextResponse.json(
         { error: `A Knowledge Base folder named "${folderName}" already exists.` },
@@ -163,11 +163,13 @@ export async function POST(req: NextRequest) {
     await ensureDirectory(path.dirname(targetDir));
 
     // Create the symlink only if localPath is different from targetDir
-    const isLocalClonedInline = path.resolve(localPath) === path.resolve(targetDir);
+    const isLocalClonedInline =
+      path.resolve(/*turbopackIgnore: true*/ localPath) ===
+      path.resolve(/*turbopackIgnore: true*/ targetDir);
     if (!isLocalClonedInline) {
       await fs.symlink(
-        localPath,
-        targetDir,
+        /*turbopackIgnore: true*/ localPath,
+        /*turbopackIgnore: true*/ targetDir,
         process.platform === "win32" ? "junction" : "dir"
       );
       symlinkCreated = true;
@@ -183,13 +185,13 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     // Cleanup on failure
     if (symlinkCreated && targetDir) {
-      await fs.unlink(targetDir).catch(() => {});
+      await fs.unlink(/*turbopackIgnore: true*/ targetDir).catch(() => {});
     }
     for (const f of writtenFiles) {
-      await fs.unlink(f).catch(() => {});
+      await fs.unlink(/*turbopackIgnore: true*/ f).catch(() => {});
     }
     if (folderCloned && localPath) {
-      await fs.rm(localPath, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(/*turbopackIgnore: true*/ localPath, { recursive: true, force: true }).catch(() => {});
     }
 
     const message = error instanceof Error ? error.message : "Unknown error";

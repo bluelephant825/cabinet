@@ -22,7 +22,7 @@ export function contentTypeForExt(ext: string): string {
 
 /** Ensures `resolved` is inside DATA_DIR; throws otherwise. */
 export function assertInsideDataDir(resolved: string): void {
-  const root = path.resolve(DATA_DIR);
+  const root = path.resolve(/*turbopackIgnore: true*/ DATA_DIR);
   if (!resolved.startsWith(root)) {
     throw new Error("Path traversal detected");
   }
@@ -35,7 +35,7 @@ export async function clearAvatarFiles(
 ): Promise<void> {
   for (const e of ALLOWED_AVATAR_EXT) {
     await fs.unlink(
-      path.join(
+      /*turbopackIgnore: true*/ path.join(
         /*turbopackIgnore: true*/ dir,
         /*turbopackIgnore: true*/ `${prefix}.${e}`
       )
@@ -52,7 +52,7 @@ export async function readAvatarFile(
   if (!ALLOWED_AVATAR_EXT.has(ext)) return null;
   try {
     return await fs.readFile(
-      path.join(
+      /*turbopackIgnore: true*/ path.join(
         /*turbopackIgnore: true*/ dir,
         /*turbopackIgnore: true*/ `${prefix}.${ext}`
       )
@@ -75,11 +75,11 @@ export async function writeAvatarFile(
   if (!ext) {
     return { ok: false, status: 415, error: "Unsupported type" };
   }
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(/*turbopackIgnore: true*/ dir, { recursive: true });
   await clearAvatarFiles(dir, prefix);
   const buf = Buffer.from(await file.arrayBuffer());
   await fs.writeFile(
-    path.join(
+    /*turbopackIgnore: true*/ path.join(
       /*turbopackIgnore: true*/ dir,
       /*turbopackIgnore: true*/ `${prefix}.${ext}`
     ),

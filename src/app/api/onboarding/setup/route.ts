@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       sanitizeFilename(workspaceName) ||
       sanitizeFilename(roomConfig.label) ||
       "home";
-    const roomDir = path.join(DATA_DIR, roomSlug);
+    const roomDir = path.join(/* turbopackIgnore: true */ DATA_DIR, roomSlug);
     const ROOM_AGENTS_DIR = path.join(roomDir, ".agents");
     const ROOM_CHAT_DIR = path.join(roomDir, ".chat");
 

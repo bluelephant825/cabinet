@@ -109,6 +109,7 @@ export interface ConversationMeta {
   jobId?: string;
   jobName?: string;
   scheduledAt?: string;
+  rssBriefRunId?: string;
   providerId?: string;
   adapterType?: string;
   adapterConfig?: Record<string, unknown>;

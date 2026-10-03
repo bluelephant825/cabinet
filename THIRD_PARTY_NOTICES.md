@@ -37,6 +37,14 @@ GenOffice NOTICE text:
 | AlohaJet v0.4.4 | Apache-2.0 | Optional browser actuator downloaded on explicit enablement; its `LICENSE` and `THIRD-PARTY-NOTICES` are retained beside the managed executable |
 | `@modelcontextprotocol/sdk` | MIT | MCP client/server transport for Cabinet and AlohaJet browser tools |
 
+## RSS reader packages
+
+| Package | License | Role |
+| --- | --- | --- |
+| `feedsmith` 3.0.1 | MIT | RSS, Atom, RDF, JSON Feed parsing and OPML subscription exchange (github.com/macieklamberski/feedsmith) |
+| `fast-xml-parser` 5.11.1 | MIT | FeedSmith XML parsing; shared with Cabinet's existing document runtime |
+| `entities` 7.0.1 | BSD-2-Clause | FeedSmith entity decoding |
+
 ## Knowledge graph packages
 
 | Package | License | Role |

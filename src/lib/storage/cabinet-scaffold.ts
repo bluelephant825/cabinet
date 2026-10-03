@@ -29,7 +29,7 @@ const GETTING_STARTED_DIRNAME = "getting-started";
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
-    await fs.access(targetPath);
+    await fs.access(/*turbopackIgnore: true*/ targetPath);
     return true;
   } catch {
     return false;
@@ -37,12 +37,12 @@ async function pathExists(targetPath: string): Promise<boolean> {
 }
 
 async function copyDirectoryMerge(src: string, dest: string): Promise<void> {
-  await fs.mkdir(dest, { recursive: true });
+  await fs.mkdir(/*turbopackIgnore: true*/ dest, { recursive: true });
   const entries = await fs.readdir(src, { withFileTypes: true });
 
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+    const destPath = path.join(/*turbopackIgnore: true*/ dest, entry.name);
 
     if (entry.isDirectory()) {
       await copyDirectoryMerge(srcPath, destPath);
@@ -53,8 +53,11 @@ async function copyDirectoryMerge(src: string, dest: string): Promise<void> {
       continue;
     }
 
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
-    await fs.copyFile(srcPath, destPath);
+    await fs.mkdir(
+      /*turbopackIgnore: true*/ path.dirname(destPath),
+      { recursive: true }
+    );
+    await fs.copyFile(srcPath, /*turbopackIgnore: true*/ destPath);
   }
 }
 
@@ -62,7 +65,10 @@ async function resolveGettingStartedSeedDir(
   targetDir: string,
   locale: string | undefined,
 ): Promise<string | null> {
-  const destinationDir = path.resolve(targetDir, GETTING_STARTED_DIRNAME);
+  const destinationDir = path.resolve(
+    /*turbopackIgnore: true*/ targetDir,
+    GETTING_STARTED_DIRNAME
+  );
 
   // Try locale-specific seed first (e.g. getting-started-he) then fall
   // back to the canonical English seed. The English seed always exists;
@@ -93,7 +99,7 @@ export async function seedGettingStartedDir(
 
   await copyDirectoryMerge(
     sourceDir,
-    path.join(targetDir, GETTING_STARTED_DIRNAME)
+    path.join(/*turbopackIgnore: true*/ targetDir, GETTING_STARTED_DIRNAME)
   );
 }
 
@@ -112,9 +118,18 @@ export async function scaffoldCabinet(
   const { name, kind, description = "", body = "", tags = [], skipExisting = false, locale } = options;
 
   // Directories — always idempotent
-  await fs.mkdir(path.join(targetDir, ".agents"), { recursive: true });
-  await fs.mkdir(path.join(targetDir, ".jobs"), { recursive: true });
-  await fs.mkdir(path.join(targetDir, ".cabinet-state"), { recursive: true });
+  await fs.mkdir(
+    /*turbopackIgnore: true*/ path.join(targetDir, ".agents"),
+    { recursive: true }
+  );
+  await fs.mkdir(
+    /*turbopackIgnore: true*/ path.join(targetDir, ".jobs"),
+    { recursive: true }
+  );
+  await fs.mkdir(
+    /*turbopackIgnore: true*/ path.join(targetDir, ".cabinet-state"),
+    { recursive: true }
+  );
 
   // .cabinet manifest
   const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -130,7 +145,7 @@ export async function scaffoldCabinet(
 
   const writeManifest = () =>
     fs.writeFile(
-      path.join(targetDir, ".cabinet"),
+      /*turbopackIgnore: true*/ path.join(targetDir, ".cabinet"),
       yaml.dump(manifest, { lineWidth: -1 }),
       skipExisting ? { encoding: "utf-8", flag: "wx" } : "utf-8"
     );
@@ -166,7 +181,7 @@ export async function scaffoldCabinet(
 
   const writeIndex = () =>
     fs.writeFile(
-      path.join(targetDir, "index.md"),
+      /*turbopackIgnore: true*/ path.join(targetDir, "index.md"),
       indexContent,
       skipExisting ? { flag: "wx" } : "utf-8"
     );
