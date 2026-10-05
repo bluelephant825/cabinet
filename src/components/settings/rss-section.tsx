@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRssState, useRssText, type RssAction } from "@/components/rss/use-rss";
 import { useRoomsStore } from "@/stores/rooms-store";
 import { useAppStore } from "@/stores/app-store";
@@ -29,6 +30,20 @@ function RoomRssSettings({ room }: { room: string }) {
   const [opml, setOpml] = useState<{ content: string; added: RssFeed[]; duplicates: number; invalid: number } | null>(null);
   const [fileError, setFileError] = useState("");
   const [report, setReport] = useState<{ imported: number; duplicates: number; invalid: number } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<RssFeed | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
+  useEffect(() => { if (removeTarget && error) setRemoveError(error); }, [removeTarget, error]);
+  const removeFeed = async () => {
+    if (!removeTarget || !state || removing || busy) return;
+    setRemoveError(""); setRemoving(true);
+    try {
+      if (await act({ action: "feed-remove", id: removeTarget.id, revision: state.config.revision })) {
+        if (draft?.id === removeTarget.id) setDraft(null);
+        setRemoveTarget(null);
+      }
+    } finally { setRemoving(false); }
+  };
   if (!state) return <div>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : <p role="status">{text("loading")}</p>}</div>;
   const config = state.config;
   return <div className="space-y-6">{(error || fileError) && <p role="alert" className="text-sm text-destructive">{error || fileError}</p>}
@@ -36,7 +51,7 @@ function RoomRssSettings({ room }: { room: string }) {
     <RefreshSettings key={config.revision} config={config} act={act} busy={busy} />
     <section className="space-y-3" aria-label={text("subscriptions")}><h3 className="font-semibold">{text("subscriptions")}</h3>
       {!state.feeds.length && <p className="text-sm text-muted-foreground">{text("noFeeds")}</p>}
-      {state.feeds.map((feed) => <div key={feed.id} className="rounded border p-3 space-y-2"><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 flex-1 font-medium"><input type="checkbox" checked={feed.enabled} disabled={busy} onChange={() => void act({ action: "feed-save", ...feed, enabled: !feed.enabled, revision: config.revision })} />{feed.name}</label><span className="text-xs text-muted-foreground">{text("unread")}: {feed.unread}{feed.folder && ` · ${feed.folder}`}</span><Button size="sm" variant="ghost" onClick={() => { setDraft(feed); setDraftRevision(config.revision); }}>{text("edit")}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => { if (window.confirm(text("removeConfirm"))) void act({ action: "feed-remove", id: feed.id, revision: config.revision }); }}>{text("remove")}</Button><Button size="sm" variant="outline" disabled={busy || feed.refreshing || !feed.enabled} onClick={() => void act({ action: "refresh", feedId: feed.id })}>{text("refresh")}</Button></div><p className="text-xs text-muted-foreground break-all">{feed.url}</p>{feed.checkedAt && <p className="text-xs text-muted-foreground">{new Date(feed.checkedAt).toLocaleString()}</p>}{feed.error && <p className="text-xs text-destructive">{feed.error}</p>}</div>)}
+      {state.feeds.map((feed) => <div key={feed.id} className="rounded border p-3 space-y-2"><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 flex-1 font-medium"><input type="checkbox" checked={feed.enabled} disabled={busy} onChange={() => void act({ action: "feed-save", ...feed, enabled: !feed.enabled, revision: config.revision })} />{feed.name}</label><span className="text-xs text-muted-foreground">{text("unread")}: {feed.unread}{feed.folder && ` · ${feed.folder}`}</span><Button size="sm" variant="ghost" onClick={() => { setDraft(feed); setDraftRevision(config.revision); }}>{text("edit")}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => { setRemoveError(""); setRemoveTarget(feed); }}>{text("remove")}</Button><Button size="sm" variant="outline" disabled={busy || feed.refreshing || !feed.enabled} onClick={() => void act({ action: "refresh", feedId: feed.id })}>{text("refresh")}</Button></div><p className="text-xs text-muted-foreground break-all">{feed.url}</p>{feed.checkedAt && <p className="text-xs text-muted-foreground">{new Date(feed.checkedAt).toLocaleString()}</p>}{feed.error && <p className="text-xs text-destructive">{feed.error}</p>}</div>)}
       {!draft ? <Button variant="outline" onClick={() => { setDraft({ name: "", url: "", folder: "", enabled: true }); setDraftRevision(config.revision); }}>{text("addFeed")}</Button> : <form className="space-y-3 rounded-lg border p-3" onSubmit={async (event) => { event.preventDefault(); if (await act({ action: "feed-save", ...draft, revision: draftRevision })) setDraft(null); }}>
         <label className="block text-sm">{text("url")}<Input required type="url" maxLength={4000} value={draft.url || ""} onChange={(event) => setDraft({ ...draft, url: event.target.value })} /></label>
         <label className="block text-sm">{text("name")}<Input maxLength={200} value={draft.name || ""} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -47,8 +62,19 @@ function RoomRssSettings({ room }: { room: string }) {
       {opml && <div className="rounded border p-3 text-sm space-y-2"><p>{text("count")}: {opml.added.length} · {text("duplicates")}: {opml.duplicates} · {text("invalid")}: {opml.invalid}</p><ul className="max-h-32 overflow-auto">{opml.added.slice(0, 50).map((feed) => <li key={feed.id}>{feed.folder ? `${feed.folder}/` : ""}{feed.name}</li>)}</ul><Button disabled={busy || !opml.added.length} onClick={async () => { const result = await act<{ report: { imported: number; duplicates: number; invalid: number } }>({ action: "opml-import", content: opml.content, revision: config.revision }); if (result) { setReport(result.report); setOpml(null); } }}>{text("importConfirm")}</Button><Button variant="ghost" onClick={() => setOpml(null)}>{text("cancel")}</Button></div>}
       {report && <p role="status" className="text-sm">{text("imported")}: {report.imported} · {text("duplicates")}: {report.duplicates} · {text("invalid")}: {report.invalid}</p>}
     </section>
+    <Dialog open={!!removeTarget} onOpenChange={(open) => { if (!open && !removing) setRemoveTarget(null); }}>
+      <DialogContent showCloseButton={!removing}>
+        <DialogHeader><DialogTitle>{text("remove")}</DialogTitle><DialogDescription>{text("removeConfirm")}</DialogDescription></DialogHeader>
+        <p className="text-sm font-medium wrap-break-word">{removeTarget?.name}</p>
+        {removeError && <p role="alert" className="text-sm text-destructive">{removeError}</p>}
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={removing || busy} onClick={() => setRemoveTarget(null)}>{text("cancel")}</Button>
+          <Button type="button" variant="destructive" disabled={removing || busy} onClick={() => void removeFeed()}>{removing ? text("loading") : text("remove")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <RssFiltersSection config={config} act={act} busy={busy} />
-    <RssBriefsSection state={state} act={act} busy={busy} />
+    <RssBriefsSection state={state} act={act} busy={busy} error={error} />
   </div>;
 }
 export function RssSection() {

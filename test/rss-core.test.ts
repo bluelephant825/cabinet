@@ -17,6 +17,19 @@ test("RSS rules are reversible and have explicit missing/array semantics", () =>
   assert.deepEqual(matchingRules(article, [{ ...rule, conditions: [{ field: "author", operator: "not-equals", value: "Alice" }] }], ""), []);
   assert.deepEqual(matchingRules(article, [{ ...rule, feedIds: ["other"] }], ""), []);
 });
+test("RSS Contains matches literal case-insensitive fragments, not wildcard patterns", () => {
+  const gamesRule: RssRule = { ...rule, name: "Games", conditions: [{ field: "title", operator: "contains", value: "gam" }] };
+  for (const title of ["New GAME release", "Video games news", "Gaming hardware"]) {
+    assert.deepEqual(matchingRules({ ...article, title }, [gamesRule], ""), ["Games"]);
+    assert.deepEqual(matchingRules({ ...article, title }, [{ ...gamesRule, conditions: [{ field: "title", operator: "contains", value: "gam*" }] }], ""), []);
+  }
+  assert.deepEqual(matchingRules({ ...article, title: "A literal gam* query" }, [{ ...gamesRule, conditions: [{ field: "title", operator: "contains", value: "gam*" }] }], ""), ["Games"]);
+  const cityGames = { ...article, title: "City building games have a Soul Problem pt.2" };
+  for (const value of ["gam", " gam"]) assert.deepEqual(matchingRules(cityGames, [{ ...gamesRule, conditions: [{ field: "title", operator: "contains", value }] }], ""), ["Games"]);
+  const bodyOnly = { ...article, title: "New controller review", text: "Gaming hardware" };
+  assert.deepEqual(matchingRules(bodyOnly, [gamesRule], ""), []);
+  assert.deepEqual(matchingRules(bodyOnly, [{ ...gamesRule, conditions: [{ field: "body", operator: "contains", value: "gam" }] }], ""), ["Games"]);
+});
 test("FeedSmith normalizes formats and preserves stable identities", () => {
   const rss = '<rss version="2.0"><channel><title>Test</title><link>https://example.com</link><description>Test</description><language>en</language><item><guid>one</guid><title>News</title><link>/article</link><category>Tech</category><description>&lt;p&gt;Text&lt;/p&gt;</description></item></channel></rss>';
   const result = normalizeFeed(rss, "https://example.com/rss", "f");

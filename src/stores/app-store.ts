@@ -157,6 +157,10 @@ interface AppState {
   /** Top-level app surface: the page editor, in-app browser, or canvas. */
   appMode: "edit" | "browse" | "canvas";
   browseUrl: string | null;
+  browseNavigationVersion: number;
+  browseNavigationRequest: { version: number; url: string } | null;
+  completeBrowseNavigation: (version: number) => void;
+  syncBrowseUrl: (url: string) => void;
   setAppMode: (mode: "edit" | "browse" | "canvas", url?: string | null) => void;
   loadProviders: () => Promise<void>;
   /**
@@ -280,10 +284,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   providerSetupId: null,
   appMode: "edit",
   browseUrl: null,
+  browseNavigationVersion: 0,
+  browseNavigationRequest: null,
+  completeBrowseNavigation: (version) => set((state) => state.browseNavigationRequest?.version === version ? { browseNavigationRequest: null } : {}),
+  syncBrowseUrl: (url) => set((state) => state.browseNavigationRequest ? {} : { browseUrl: url }),
   setAppMode: (mode, url) =>
     set((state) => ({
       appMode: mode,
       browseUrl: url !== undefined ? url : state.browseUrl,
+      browseNavigationVersion: mode === "browse" && typeof url === "string" ? state.browseNavigationVersion + 1 : state.browseNavigationVersion,
+      browseNavigationRequest: mode === "browse" && typeof url === "string" ? { version: state.browseNavigationVersion + 1, url } : null,
     })),
 
   openProviderSetup: (providerId) => set({ providerSetupId: providerId }),
@@ -428,7 +438,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   goBack: () => {
     if (typeof window === "undefined") return;
-    const { navHistory, navIndex } = get();
+    const { navHistory, navIndex, appMode, section } = get();
+    if (appMode === "browse" && section.type === "rss") {
+      set({ appMode: "edit", browseNavigationRequest: null });
+      return;
+    }
     if (navIndex <= 0) return;
     const nextIndex = navIndex - 1;
     set({

@@ -39,7 +39,7 @@ export interface RssBrief {
   maxBytes: number;
 }
 export interface RssConfig { version: 1; revision: number; automatic: boolean; intervalMinutes: number; retention: number; feeds: RssFeed[]; rules: RssRule[]; briefs: RssBrief[] }
-export interface RssCache { version: 1; articles: RssArticle[]; seen: string[]; checkedAt: string | null; etag?: string; lastModified?: string; error: string | null; nextAttemptAt?: string; failures?: number }
+export interface RssCache { version: 1; articles: RssArticle[]; seen: string[]; deleted?: string[]; checkedAt: string | null; etag?: string; lastModified?: string; error: string | null; nextAttemptAt?: string; failures?: number }
 export type BriefStatus = "preparing" | "running" | "uncertain" | "publish-pending" | "completed" | "failed" | "no-input";
 export interface RssBriefRun {
   id: string;

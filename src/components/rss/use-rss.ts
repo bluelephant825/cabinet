@@ -10,10 +10,13 @@ export function useRssText() {
   const { t } = useLocale();
   return useCallback((key: keyof typeof rssLabels) => t(`settings:rss.${key}`, { defaultValue: rssLabels[key] }), [t]);
 }
+export class RssRequestError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
 export async function rssGet<T>(operation: string, room: string, params: Record<string, string> = {}, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api/rss/${operation}?${new URLSearchParams({ room, ...params })}`, { signal, cache: "no-store" });
   const value = await response.json();
-  if (!response.ok) throw new Error(value.error || "RSS service is unavailable");
+  if (!response.ok) throw new RssRequestError(value.error || "RSS service is unavailable", response.status);
   return value as T;
 }
 export function useRssState(room: string) {

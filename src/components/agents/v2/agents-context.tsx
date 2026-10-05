@@ -19,7 +19,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { fetchCabinetOverviewClient } from "@/lib/cabinets/overview-client";
+import { fetchCabinetOverviewClient, invalidateCabinetOverview } from "@/lib/cabinets/overview-client";
 import { ROOT_CABINET_PATH } from "@/lib/cabinets/paths";
 import { showError, showInfo, showSuccess } from "@/lib/ui/toast";
 import { useAppStore } from "@/stores/app-store";
@@ -166,21 +166,33 @@ export function AgentsContextProvider({
 
   const toggleAgentActive = useCallback(
     async (agent: CabinetAgentSummary) => {
+      const next = !agent.active;
+      const cabinetPath = agent.cabinetPath || effectivePath;
       setAgents((prev) =>
         prev.map((a) =>
-          a.slug === agent.slug ? { ...a, active: !a.active } : a
+          a.scopedId === agent.scopedId ? { ...a, active: next } : a
         )
       );
-      await fetch(`/api/agents/personas/${agent.slug}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "toggle",
-          cabinetPath: agent.cabinetPath || effectivePath,
-        }),
-      }).catch(() => {});
+      try {
+        const response = await fetch(`/api/agents/personas/${agent.slug}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "toggle", cabinetPath }),
+        });
+        const result = await response.json();
+        if (!response.ok || result.active !== next) throw new Error("Agent status update failed");
+        invalidateCabinetOverview(cabinetPath);
+        await refresh();
+      } catch {
+        setAgents((prev) =>
+          prev.map((a) =>
+            a.scopedId === agent.scopedId ? { ...a, active: agent.active } : a
+          )
+        );
+        showError(`Couldn't update ${agent.name}'s status. Refresh the Team view and try again.`);
+      }
     },
-    [effectivePath]
+    [effectivePath, refresh]
   );
 
   const toggleHeartbeatEnabled = useCallback(

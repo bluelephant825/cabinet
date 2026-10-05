@@ -38,6 +38,23 @@ test("refresh coalesces, preserves concurrent reading state and filters apply af
     assert.equal((await service.articles("room")).total, 1);
   } finally { release(); await service.close(); await f.close(); }
 });
+test("deleted articles stay tombstoned and are not restored by later refreshes", async () => {
+  const f = await fixture();
+  let calls = 0;
+  const service = new RssService(f.store, async () => { calls++; return { articles: [article], etag: undefined, lastModified: undefined }; }, () => now);
+  try {
+    await f.store.saveCache("room", feed.id, { version: 1, articles: [article], seen: [article.id], checkedAt: null, error: null });
+    await service.act("room", { action: "article-delete", feedId: feed.id, id: article.id });
+    assert.equal((await service.articles("room")).total, 0);
+    assert.deepEqual((await f.store.cache("room", feed.id)).deleted, [article.id]);
+    await assert.rejects(service.articles("room", { id: article.id }), /Article not found/);
+    service.queue("room", feed);
+    await service.idle();
+    assert.equal(calls, 1);
+    assert.equal((await f.store.cache("room", feed.id)).articles.length, 0);
+    assert.deepEqual((await f.store.cache("room", feed.id)).deleted, [article.id]);
+  } finally { await service.close(); await f.close(); }
+});
 test("automatic refresh is opt-in and concurrent fetches remain bounded", async () => {
   const f = await fixture();
   const feeds = Array.from({ length: 8 }, (_, index) => ({ ...feed, id: `feed${index}`, url: `https://example.com/feed${index}` }));

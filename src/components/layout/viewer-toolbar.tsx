@@ -167,7 +167,7 @@ export function ViewerModeButtons({ path }: { path?: string }) {
   }, [sourcePath, sourceNode?.type]);
 
   const openBrowseMode = () => {
-    setAppMode("browse", browseModeUrl);
+    setAppMode("browse", useAppStore.getState().section.type === "page" ? browseModeUrl ?? undefined : undefined);
   };
 
   return (

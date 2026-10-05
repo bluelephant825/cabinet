@@ -111,6 +111,21 @@ export class RssService {
           await this.store.saveCache(room, feed.id, cache);
         }
         return;
+      } else if (action === "article-delete") {
+        const id = identifier(input.id);
+        let deleted = false;
+        for (const feed of config.feeds.filter((f) => !input.feedId || f.id === input.feedId)) {
+          const cache = await this.store.cache(room, feed.id);
+          const index = cache.articles.findIndex((article) => article.id === id);
+          if (index < 0) continue;
+          cache.articles.splice(index, 1);
+          cache.deleted = [...new Set([...(cache.deleted || []), id])];
+          await this.store.saveCache(room, feed.id, cache);
+          deleted = true;
+          break;
+        }
+        if (!deleted) throw new RssError("Article not found in this room", 404);
+        return;
       } else throw new RssError("Unknown RSS action");
       config.revision++; await this.store.save(room, config);
     });
@@ -151,7 +166,13 @@ export class RssService {
         if (result.articles) {
           const articles = new Map(cache.articles.map((a) => [a.id, a]));
           const seen = new Set(cache.seen);
-          for (const article of result.articles) { const old = articles.get(article.id); articles.set(article.id, { ...article, firstSeenAt: old?.firstSeenAt || article.firstSeenAt, read: old?.read ?? seen.has(article.id) }); seen.add(article.id); }
+          const deleted = new Set(cache.deleted || []);
+          for (const article of result.articles) {
+            if (deleted.has(article.id)) continue;
+            const old = articles.get(article.id);
+            articles.set(article.id, { ...article, firstSeenAt: old?.firstSeenAt || article.firstSeenAt, read: old?.read ?? seen.has(article.id) });
+            seen.add(article.id);
+          }
           let totalBytes = 0;
           cache.articles = [...articles.values()].sort((a, b) => (b.publishedAt || b.firstSeenAt).localeCompare(a.publishedAt || a.firstSeenAt)).slice(0, config.retention).filter((article) => { totalBytes += Buffer.byteLength(JSON.stringify(article)); return totalBytes <= 20 * 1024 * 1024; });
           cache.seen = [...seen].slice(-10000);

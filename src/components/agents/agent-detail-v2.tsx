@@ -53,6 +53,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { startCase } from "@/components/cabinets/cabinet-utils";
 import { buildPath } from "@/lib/navigation/route-scheme";
 import { showError } from "@/lib/ui/toast";
 import { confirmDialog } from "@/lib/ui/confirm";
@@ -930,26 +931,16 @@ function Hero({
             </h1>
             <StatusChip status={status} color={palette.text} />
           </div>
-          <p className="text-[13px] text-muted-foreground mt-0.5 truncate flex items-center gap-2">
-            <span>{persona.role}</span>
-            {persona.department && (
-              <>
-                <span className="opacity-40">·</span>
-                <span>{persona.department}</span>
-              </>
-            )}
-            {persona.scope === "global" && (
-              <>
-                <span className="opacity-40">·</span>
-                <span
-                  className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[11px] text-violet-300"
-                  title={t("agents:detail.sharedAcrossCabinetsHint")}
-                >
-                  Global
-                </span>
-              </>
-            )}
-          </p>
+          <p className="text-[13px] text-muted-foreground mt-0.5 truncate">{persona.role}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <span
+              className={cn("rounded-full px-2 py-0.5", persona.scope === "global" ? "bg-violet-500/15 text-violet-700 dark:text-violet-300" : "bg-muted/50")}
+              title={persona.scope === "global" ? t("agents:detail.sharedAcrossCabinetsHint") : t("agents:workspace.roomScopeHint", { room: persona.cabinetPath || "." })}
+            >
+              {persona.scope === "global" ? t("agents:workspace.globalScope") : t("agents:workspace.roomScope")}
+            </span>
+            {persona.department && <span>{t("agents:workspace.departmentTag", { department: startCase(persona.department) })}</span>}
+          </div>
         </div>
       </div>
     </div>

@@ -17,6 +17,7 @@ import { getTemplateRecommendedSkills } from "@/lib/agents/library-manager";
 import { startManualHeartbeat } from "@/lib/agents/heartbeat";
 import { updateGoal, getGoalHistory } from "@/lib/agents/goal-manager";
 import { reloadDaemonSchedules } from "@/lib/agents/daemon-client";
+import { invalidateCabinetOverviewCache } from "@/lib/cabinets/overview";
 
 type RouteParams = { params: Promise<{ slug: string }> };
 
@@ -92,6 +93,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const persona = await readPersona(slug, cabinetPath);
     if (!persona) return NextResponse.json({ error: "Not found" }, { status: 404 });
     await writePersona(slug, { active: !persona.active }, cabinetPath);
+    invalidateCabinetOverviewCache();
     await reloadDaemonSchedules().catch(() => {});
     return NextResponse.json({ ok: true, active: !persona.active });
   }
@@ -123,6 +125,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
   // Default: update persona
   await writePersona(slug, body, cabinetPath);
+  invalidateCabinetOverviewCache();
   await reloadDaemonSchedules().catch(() => {});
   return NextResponse.json({ ok: true });
 }
@@ -131,6 +134,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const { slug } = await params;
   const cabinetPath = req.nextUrl.searchParams.get("cabinetPath") || undefined;
   await deletePersona(slug, cabinetPath);
+  invalidateCabinetOverviewCache();
   await reloadDaemonSchedules().catch(() => {});
   return NextResponse.json({ ok: true });
 }

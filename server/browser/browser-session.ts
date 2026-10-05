@@ -144,6 +144,7 @@ export class BrowserSession extends EventEmitter {
       const info = this.targets.get(targetId);
       if (!info || info.url === frame.url) return;
       info.url = frame.url;
+      info.title = "";
       this.emitTab("tab-updated", targetId);
     });
     this.cdp.onEvent("Runtime.bindingCalled", (event) => {
@@ -459,10 +460,14 @@ export class BrowserSession extends EventEmitter {
   }
 
   async navigate(id: string, url: string): Promise<BrowserTab> {
-    this.requireTarget(id);
+    const previousUrl = this.requireTarget(id).url;
     const sessionId = await this.sessionFor(id);
-    await this.cdp.send("Page.navigate", { url }, sessionId);
-    return this.toTab(this.targets.get(id))!;
+    const result = await this.cdp.send("Page.navigate", { url }, sessionId) as { errorText?: string } | undefined;
+    if (result?.errorText) throw new BrowserError("cdp", result.errorText);
+    const target = this.requireTarget(id);
+    if (target.url === previousUrl && previousUrl !== url) { target.url = url; target.title = ""; }
+    this.emitTab("tab-updated", id);
+    return this.toTab(target)!;
   }
 
   private async navigateHistory(id: string, delta: -1 | 1): Promise<{ ok: true; skipped?: boolean }> {

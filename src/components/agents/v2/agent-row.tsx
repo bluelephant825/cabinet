@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { startCase } from "@/components/cabinets/cabinet-utils";
 import { cronToHuman } from "@/lib/agents/cron-utils";
+import { useLocale } from "@/i18n/use-locale";
 import type { CabinetAgentSummary, CabinetJobSummary } from "@/types/cabinets";
 
 /** Agent card used in the Agents tab grid. The name is the hero — it wraps to
@@ -23,11 +24,14 @@ export function AgentRow({
   onToggleActive: () => void | Promise<void>;
   onOpen: () => void;
 }) {
+  const { t } = useLocale();
   const [toggling, setToggling] = useState(false);
   const heartbeatOn = agent.active && agent.heartbeatEnabled !== false;
   const heartbeatLabel = agent.heartbeat ? cronToHuman(agent.heartbeat) : "off";
   const routinesOff = routines.filter((r) => !r.enabled).length;
   const hasFooter =
+    agent.scope === "global" ||
+    !!agent.cabinetPath ||
     !agent.active ||
     !!agent.department ||
     !!agent.heartbeat ||
@@ -47,6 +51,8 @@ export function AgentRow({
 
   return (
     <div
+      role="group"
+      aria-label={agent.name}
       onClick={onOpen}
       className={cn(
         "group flex h-full cursor-pointer flex-col gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-all",
@@ -115,9 +121,15 @@ export function AgentRow({
           </span>
         ) : null}
 
+        <span
+          className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-medium", agent.scope === "global" ? "bg-violet-500/15 text-violet-700 dark:text-violet-300" : "bg-muted/50 text-muted-foreground")}
+          title={agent.scope === "global" ? t("agents:workspace.sharedAcrossCabinets") : t("agents:workspace.roomScopeHint", { room: agent.cabinetName })}
+        >
+          {agent.scope === "global" ? t("agents:workspace.globalScope") : t("agents:workspace.roomScope")}
+        </span>
         {agent.department ? (
           <span className="whitespace-nowrap rounded-full bg-muted/50 px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
-            {startCase(agent.department)}
+            {t("agents:workspace.departmentTag", { department: startCase(agent.department) })}
           </span>
         ) : null}
 

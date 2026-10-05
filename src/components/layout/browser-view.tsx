@@ -619,7 +619,7 @@ function persistBrowserSessionState(state: BrowserSessionState): void {
   } catch {}
 }
 
-export function BrowserView() {
+export function BrowserView({ onReturnToSource }: { onReturnToSource?: () => void }) {
   const { t } = useLocale();
   const host = getHost();
   // The chromium fork hosts the app inside the browser window itself: real
@@ -632,6 +632,10 @@ export function BrowserView() {
   const bridge: Partial<ElectronHostExtras> = host.electron ?? {};
   const url = useAppStore((s) => s.browseUrl);
   const setAppMode = useAppStore((s) => s.setAppMode);
+  const navigationRequest = useAppStore((s) => s.browseNavigationRequest);
+  const completeBrowseNavigation = useAppStore((s) => s.completeBrowseNavigation);
+  const syncBrowseUrl = useAppStore((s) => s.syncBrowseUrl);
+  const restoreSidecarSessionRef = useRef(!navigationRequest);
   const selectedPath = useTreeStore((s) => s.selectedPath);
   const initialSessionRef = useRef<BrowserSessionState>(loadBrowserSessionState());
   const [addressValue, setAddressValue] = useState(toAddressBarValue(url ?? initialSessionRef.current.url ?? ""));
@@ -693,7 +697,6 @@ export function BrowserView() {
   const [preferNative, setPreferNative] = useState(false);
   const [sidecarFailedUrl, setSidecarFailedUrl] = useState<string | null>(null);
   const [sidecarTabs, setSidecarTabs] = useState<SidecarTab[]>([]);
-  const suppressNextSidecarLoadRef = useRef(false);
   const sidecarPaneRef = useRef<HTMLDivElement | null>(null);
   // The content region inside the sidecar pane, below the in-app tab strip.
   // On the chromium host this is the rect the tab's WebContents is
@@ -704,6 +707,10 @@ export function BrowserView() {
   // True once listTabs() has completed for the current running session; until
   // then the nav effect must not trust the empty ref and open a duplicate tab.
   const sidecarTabsLoadedRef = useRef(false);
+  const sidecarTabLoadRef = useRef<Promise<SidecarTab[]> | null>(null);
+  const sidecarTabsDirtyRef = useRef(false);
+  const sidecarNavigationRef = useRef<{ version: number; promise: Promise<SidecarTab> } | null>(null);
+  const syncActiveSidecarTabRef = useRef<(url: string) => void>(() => {});
   // Last url we sent openTab() for while the browser was not yet running, so a
   // status flicker cannot fire the lazy launch twice for the same url.
   const pendingSidecarOpenRef = useRef<string | null>(null);
@@ -727,7 +734,7 @@ export function BrowserView() {
   // tabs, so the in-app strip is needed there too.
   const isDesktopBridge = host.kind === "electron";
   const activeEngine: "sidecar" | "native" =
-    isSidecarUrl(url) &&
+    (isSidecarUrl(url) || sidecarTabs.some((tab) => tab.active && tab.url === url)) &&
     sidecarStatus?.eligible === true &&
     !preferNative &&
     sidecarFailedUrl !== url
@@ -735,6 +742,9 @@ export function BrowserView() {
       : "native";
   const activeEngineRef = useRef(activeEngine);
   activeEngineRef.current = activeEngine;
+  useEffect(() => {
+    if (navigationRequest && activeEngine === "native" && (!isSidecarUrl(navigationRequest.url) || sidecarStatusLoaded)) completeBrowseNavigation(navigationRequest.version);
+  }, [navigationRequest, activeEngine, sidecarStatusLoaded, completeBrowseNavigation]);
 
   // When the current page is a Chrome Web Store extension detail page, the
   // toolbar offers a one-click install that goes through the same daemon
@@ -1036,6 +1046,10 @@ export function BrowserView() {
   };
 
   const navigateBack = () => {
+    if (onReturnToSource) {
+      onReturnToSource();
+      return;
+    }
     if (activeEngine === "sidecar") {
       const active = sidecarTabsRef.current.find((tab) => tab.active);
       if (active) {
@@ -1591,13 +1605,13 @@ export function BrowserView() {
       recordNavigation(nextUrl);
       if (useAppStore.getState().browseUrl !== nextUrl) {
         suppressNextElectronLoadRef.current = true;
-        setAppMode("browse", nextUrl);
+        syncBrowseUrl(nextUrl);
       }
     });
     return () => {
       unsubscribe();
     };
-  }, [setAppMode, selectedPath]);
+  }, [syncBrowseUrl, selectedPath]);
 
   // Load model when selectedPath changes while Three.js editor is active
   useEffect(() => {
@@ -1622,12 +1636,35 @@ export function BrowserView() {
   // daemon channel; tab echoes keep the address bar, history and app-mode URL
   // in sync with what the user does inside the Chromium window.
 
-  const refreshSidecarTabs = useCallback(() => {
-    if (sidecarStatusRef.current?.status !== "running") return;
-    void listSidecarTabs()
-      .then(setSidecarTabs)
-      .catch(() => {});
+  const loadSidecarTabs = useCallback(function loadTabs(): Promise<SidecarTab[]> {
+    if (sidecarTabLoadRef.current) return sidecarTabLoadRef.current;
+    sidecarTabsDirtyRef.current = false;
+    const version = useAppStore.getState().browseNavigationVersion;
+    const loading: Promise<SidecarTab[]> = listSidecarTabs().then((tabs) => {
+      if (version !== useAppStore.getState().browseNavigationVersion) {
+        if (sidecarTabLoadRef.current === loading) sidecarTabLoadRef.current = null;
+        return loadTabs();
+      }
+      sidecarTabsRef.current = tabs;
+      sidecarTabsLoadedRef.current = true;
+      setSidecarTabs(tabs);
+      return tabs;
+    });
+    sidecarTabLoadRef.current = loading;
+    void loading.finally(() => { if (sidecarTabLoadRef.current === loading) sidecarTabLoadRef.current = null; }).catch(() => {});
+    return loading;
   }, []);
+  const refreshSidecarTabs = useCallback(function refreshTabs() {
+    if (sidecarStatusRef.current?.status !== "running") return;
+    sidecarTabsDirtyRef.current = true;
+    if (useAppStore.getState().browseNavigationRequest) return;
+    void loadSidecarTabs().then((tabs) => {
+      if (useAppStore.getState().browseNavigationRequest) { sidecarTabsDirtyRef.current = true; return; }
+      const active = tabs.find((tab) => tab.active);
+      if (active) syncActiveSidecarTabRef.current(active.url);
+      if (sidecarTabsDirtyRef.current) refreshTabs();
+    }).catch(() => {});
+  }, [loadSidecarTabs]);
 
   // Ask the daemon to scale the active sidecar page to its viewport when the
   // content is wider (fit-width emulation). Two passes: late-loading
@@ -1664,22 +1701,19 @@ export function BrowserView() {
   // the content area is handled where the new bounds are sent.
   useEffect(() => {
     if (activeEngine !== "sidecar") return;
-    if (!sidecarTabs.some((tab) => tab.active)) return;
+    const active = sidecarTabs.find((tab) => tab.active);
+    if (!active) return;
+    syncActiveSidecarTabRef.current(active.url);
     scheduleFitWidthCheck();
   }, [sidecarTabs, activeEngine, scheduleFitWidthCheck]);
 
   const syncActiveSidecarTab = (tabUrl: string) => {
-    if (activeEngineRef.current !== "sidecar") return;
+    if (activeEngineRef.current !== "sidecar" || useAppStore.getState().browseNavigationRequest) return;
     const normalized = normalizeSessionUrl(tabUrl);
     recordNavigation(normalized);
-    if (
-      isSidecarUrl(normalized) &&
-      useAppStore.getState().browseUrl !== normalized
-    ) {
-      suppressNextSidecarLoadRef.current = true;
-      setAppMode("browse", normalized);
-    }
+    if (useAppStore.getState().browseUrl !== normalized) syncBrowseUrl(normalized);
   };
+  syncActiveSidecarTabRef.current = syncActiveSidecarTab;
 
   const handleBrowserEventRef = useRef<(data: Record<string, unknown>) => void>(() => {});
   handleBrowserEventRef.current = (data) => {
@@ -1705,13 +1739,7 @@ export function BrowserView() {
       );
       return;
     }
-    if (type === "browser:tab") {
-      const tab = data.tab as SidecarTab | undefined;
-      if (tab?.active && typeof tab.url === "string" && tab.url) {
-        syncActiveSidecarTab(tab.url);
-      }
-      refreshSidecarTabs();
-    }
+    if (type === "browser:tab") refreshSidecarTabs();
   };
   const browserChannelHandler = useCallback(
     (data: Record<string, unknown>) => handleBrowserEventRef.current(data),
@@ -1738,71 +1766,88 @@ export function BrowserView() {
   // Refresh the tab list whenever the sidecar (re)enters running state.
   useEffect(() => {
     if (sidecarStatus?.status !== "running") {
+      sidecarTabsRef.current = [];
       setSidecarTabs([]);
       sidecarTabsLoadedRef.current = false;
       return;
     }
     let cancelled = false;
-    void listSidecarTabs()
+    void loadSidecarTabs()
       .then((tabs) => {
-        if (cancelled) return;
-        setSidecarTabs(tabs);
-        sidecarTabsLoadedRef.current = true;
+        if (cancelled || !sidecarStatus.eligible || !restoreSidecarSessionRef.current || useAppStore.getState().browseNavigationRequest) return;
+        const active = tabs.find((tab) => tab.active);
+        if (active) {
+          restoreSidecarSessionRef.current = false;
+          syncBrowseUrl(active.url);
+        }
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [sidecarStatus?.status]);
+  }, [sidecarStatus?.status, sidecarStatus?.eligible, loadSidecarTabs, syncBrowseUrl]);
+
+  useEffect(() => {
+    if (!restoreSidecarSessionRef.current || !sidecarStatusLoaded || useAppStore.getState().browseNavigationRequest) return;
+    if (sidecarStatus?.status === "running" && (!sidecarTabsLoadedRef.current || sidecarTabs.some((tab) => tab.active))) return;
+    restoreSidecarSessionRef.current = false;
+    const savedUrl = url || initialSessionRef.current.url;
+    if (savedUrl && savedUrl !== "about:blank") setAppMode("browse", savedUrl);
+  }, [sidecarStatusLoaded, sidecarStatus?.status, sidecarTabs, url, setAppMode]);
 
   // Sidecar navigation: the app-store URL is the intent; in sidecar mode we
   // drive the active Chromium tab (or open one, which lazily downloads and
   // launches the browser) instead of loading into the WebContentsView/iframe.
   useEffect(() => {
-    if (activeEngine !== "sidecar" || !url) return;
-    if (suppressNextSidecarLoadRef.current) {
-      suppressNextSidecarLoadRef.current = false;
-      return;
-    }
+    if (activeEngine !== "sidecar" || !navigationRequest) return;
+    restoreSidecarSessionRef.current = false;
+    const request = navigationRequest;
     let cancelled = false;
-    void (async () => {
-      // The pane can mount while Chromium is already running but before the
-      // tab list has been fetched: fetch it first or we open a duplicate tab.
-      if (
-        sidecarStatusRef.current?.status === "running" &&
-        !sidecarTabsLoadedRef.current
-      ) {
+    let command = sidecarNavigationRef.current;
+    if (!command || command.version !== request.version) {
+      const promise = (async () => {
+        // The pane can mount while Chromium is already running but before the
+        // tab list has been fetched: fetch it first or we open a duplicate tab.
+        if (sidecarStatusRef.current?.status === "running" && !sidecarTabsLoadedRef.current) {
+          try {
+            await loadSidecarTabs();
+          } catch {
+            // Fall through and open: a transient list failure should not block.
+          }
+        }
+        if (useAppStore.getState().browseNavigationRequest?.version !== request.version) throw new Error("Navigation superseded");
+        const active = sidecarTabsRef.current.find((tab) => tab.active);
+        if (active) return active.url === request.url ? active : (await navigateSidecarTab(active.id, request.url)).tab;
+        pendingSidecarOpenRef.current = request.url;
         try {
-          const tabs = await listSidecarTabs();
-          if (cancelled) return;
-          setSidecarTabs(tabs);
-          sidecarTabsLoadedRef.current = true;
-        } catch {
-          // Fall through and open: a transient list failure should not block.
+          return await openSidecarTab(request.url);
+        } finally {
+          if (pendingSidecarOpenRef.current === request.url) pendingSidecarOpenRef.current = null;
         }
-      }
-      if (cancelled) return;
-      const active = sidecarTabsRef.current.find((tab) => tab.active);
-      if (active) {
-        if (active.url !== url) {
-          void navigateSidecarTab(active.id, url).catch(() => {});
-        }
-      } else {
-        if (pendingSidecarOpenRef.current === url) return;
-        pendingSidecarOpenRef.current = url;
-        void openSidecarTab(url)
-          .catch(() => {})
-          .finally(() => {
-            if (pendingSidecarOpenRef.current === url) {
-              pendingSidecarOpenRef.current = null;
-            }
-          });
-      }
-    })();
+      })();
+      command = { version: request.version, promise };
+      sidecarNavigationRef.current = command;
+    }
+    void command.promise.then((tab) => {
+      if (cancelled || useAppStore.getState().browseNavigationRequest?.version !== request.version) return;
+      const settledUrl = tab.url && tab.url !== "about:blank" ? tab.url : request.url;
+      const tabs = sidecarTabsRef.current.map((entry) => entry.id === tab.id ? { ...entry, ...tab, url: settledUrl, active: true } : { ...entry, active: false });
+      if (!tabs.some((entry) => entry.id === tab.id)) tabs.push({ ...tab, url: settledUrl, active: true });
+      sidecarTabsRef.current = tabs;
+      sidecarTabsLoadedRef.current = true;
+      setSidecarTabs(tabs);
+      completeBrowseNavigation(request.version);
+      syncBrowseUrl(settledUrl);
+      refreshSidecarTabs();
+    }).catch(() => {
+      if (cancelled || useAppStore.getState().browseNavigationRequest?.version !== request.version) return;
+      completeBrowseNavigation(request.version);
+      setSidecarFailedUrl(request.url);
+    });
     return () => {
       cancelled = true;
     };
-  }, [url, activeEngine]);
+  }, [navigationRequest, activeEngine, loadSidecarTabs, completeBrowseNavigation, syncBrowseUrl, refreshSidecarTabs]);
 
   // Sidecar failure: toast once per URL and fall back to the native engine.
   useEffect(() => {
@@ -2271,20 +2316,19 @@ export function BrowserView() {
 
   const selectSidecarTab = (tab: SidecarTab) => {
     if (sidecarStatusRef.current?.status !== "running") return;
-    setSidecarTabs((prev) => prev.map((entry) => ({ ...entry, active: entry.id === tab.id })));
+    const pending = useAppStore.getState().browseNavigationRequest;
+    if (pending) completeBrowseNavigation(pending.version);
+    const tabs = sidecarTabsRef.current.map((entry) => ({ ...entry, active: entry.id === tab.id }));
+    if (!tabs.some((entry) => entry.id === tab.id)) tabs.push({ ...tab, active: true });
+    sidecarTabsRef.current = tabs;
+    setSidecarTabs(tabs);
     // Fit while the tab is still hidden so a wide page is first shown already
     // scaled rather than snapping from its natural size a moment later.
     void fitWidthSidecarTab(tab.id, sidecarPaneViewport())
       .catch(() => {})
       .then(() => activateSidecarTabRequest(tab.id))
       .catch(() => {});
-    if (
-      isSidecarUrl(tab.url) &&
-      useAppStore.getState().browseUrl !== tab.url
-    ) {
-      suppressNextSidecarLoadRef.current = true;
-      setAppMode("browse", tab.url);
-    }
+    if (useAppStore.getState().browseUrl !== tab.url) syncBrowseUrl(normalizeSessionUrl(tab.url));
     setAddressValue(toAddressBarValue(tab.url));
     focusSidecar();
   };
@@ -2726,7 +2770,7 @@ export function BrowserView() {
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header />
       <div className="flex flex-1 min-h-0 flex-col overflow-hidden bg-(--gutter)">
-        <div className="grid grid-cols-[1fr_minmax(0,720px)_1fr] items-center gap-3 border-b border-border/70 bg-[#F1E4D3] px-4 py-2 text-sm text-muted-foreground">
+        <div className="grid grid-cols-1 items-center gap-3 border-b border-border/70 bg-[#F1E4D3] px-4 py-2 text-sm text-muted-foreground lg:grid-cols-[auto_minmax(0,1fr)_auto]">
           <div className="flex items-center gap-2 truncate">
             <button
               type="button"
@@ -2793,7 +2837,6 @@ export function BrowserView() {
                 // Consume any pending echo suppression so a queued tab echo
                 // cannot swallow this explicit navigation.
                 suppressNextElectronLoadRef.current = false;
-                suppressNextSidecarLoadRef.current = false;
                 setAppMode("browse", nextUrl);
                 setAddressValue(toAddressBarValue(nextUrl));
                 if (activeEngine === "sidecar") {
@@ -2801,7 +2844,7 @@ export function BrowserView() {
                 }
               }}
               placeholder={t("editor:browser.noUrl")}
-              className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground shadow-sm outline-none ring-offset-background focus:ring-2 focus:ring-ring"
+              className="h-9 w-full min-w-0 rounded-md border border-border bg-background px-3 text-sm text-foreground shadow-sm outline-none ring-offset-background focus:ring-2 focus:ring-ring"
             />
               <button
                 type="button"
@@ -2944,6 +2987,60 @@ export function BrowserView() {
             </div>
           </div>
         ) : null}
+        {/* On electron the real Chromium window covers this pane and its
+            own tab strip is the UI. This strip is the controller on web
+            (free-floating window) and on the chromium fork, which hides
+            its native tabstrip for shell-hosted tabs. */}
+        {!isDesktopBridge && (activeEngine === "sidecar" || (sidecarStatus?.status === "running" && sidecarTabs.length > 0)) && (
+          <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 bg-muted/40 px-2 py-1">
+            {sidecarTabs.map((tab) => (
+              <div
+                key={tab.id}
+                className={`group flex max-w-48 shrink-0 items-center rounded-md border text-xs ${
+                  activeEngine === "sidecar" && tab.active
+                    ? "border-border bg-background text-foreground"
+                    : "border-transparent text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    selectSidecarTab(tab);
+                  }}
+                  className="min-w-0 truncate px-2 py-1.5"
+                  title={tab.url}
+                >
+                  {tab.title || tab.url || "New tab"}
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void closeSidecarTab(tab.id).then(refreshSidecarTabs).catch(() => {});
+                  }}
+                  className="mr-1 hidden h-4 w-4 items-center justify-center rounded hover:bg-foreground/10 group-hover:inline-flex"
+                  aria-label="Close tab"
+                  title="Close tab"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                void openSidecarTab("about:blank").then(selectSidecarTab).catch(() => {});
+              }}
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+              aria-label="New tab"
+              title="New tab"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         <div
           ref={containerRef}
           className="relative flex-1 min-h-0 rounded-[20px] overflow-hidden bg-background"
@@ -2959,60 +3056,6 @@ export function BrowserView() {
               className="flex h-full w-full flex-col bg-background"
               onClick={focusSidecar}
             >
-              {/* On electron the real Chromium window covers this pane and its
-                  own tab strip is the UI. This strip is the controller on web
-                  (free-floating window) and on the chromium fork, which hides
-                  its native tabstrip for shell-hosted tabs. */}
-              {!isDesktopBridge && (
-              <div className="flex items-center gap-1 overflow-x-auto border-b border-border/70 bg-muted/40 px-2 py-1">
-                {sidecarTabs.map((tab) => (
-                  <div
-                    key={tab.id}
-                    className={`group flex max-w-48 shrink-0 items-center rounded-md border text-xs ${
-                      tab.active
-                        ? "border-border bg-background text-foreground"
-                        : "border-transparent text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        selectSidecarTab(tab);
-                      }}
-                      className="min-w-0 truncate px-2 py-1.5"
-                      title={tab.url}
-                    >
-                      {tab.title || tab.url || "New tab"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void closeSidecarTab(tab.id).then(refreshSidecarTabs).catch(() => {});
-                      }}
-                      className="mr-1 hidden h-4 w-4 items-center justify-center rounded hover:bg-foreground/10 group-hover:inline-flex"
-                      aria-label="Close tab"
-                      title="Close tab"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void openSidecarTab("about:blank").catch(() => {});
-                  }}
-                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-                  aria-label="New tab"
-                  title="New tab"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              )}
               <div
                 ref={sidecarContentRef}
                 className="flex flex-1 items-center justify-center p-6 text-center"

@@ -12,7 +12,8 @@ export function NavArrows() {
   const navHistoryLength = useAppStore((s) => s.navHistory.length);
   const goBack = useAppStore((s) => s.goBack);
   const goForward = useAppStore((s) => s.goForward);
-  const canGoBack = navIndex > 0;
+  const canReturnToRss = useAppStore((s) => s.appMode === "browse" && s.section.type === "rss");
+  const canGoBack = navIndex > 0 || canReturnToRss;
   const canGoForward = navIndex >= 0 && navIndex < navHistoryLength - 1;
 
   return (

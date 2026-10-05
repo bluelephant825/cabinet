@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } fr
 import { Loader2, Minimize2 } from "lucide-react";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { Header } from "@/components/layout/header";
+import { NavArrows } from "@/components/layout/nav-arrows";
+import { ReturnToChip } from "@/components/layout/return-to-chip";
 import { KBEditor } from "@/components/editor/editor";
 import { BrowserView } from "@/components/layout/browser-view";
 import { CanvasView } from "@/components/layout/canvas-view";
@@ -430,7 +432,7 @@ export function AppShell() {
   // Browse mode only makes sense over a page/cabinet/home/settings surface;
   // leaving those sections (help, etc.) drops back to the editor.
   useEffect(() => {
-    if (section.type !== "page" && section.type !== "cabinet" && section.type !== "home" && section.type !== "settings" && appMode !== "edit") {
+    if (section.type !== "page" && section.type !== "cabinet" && section.type !== "home" && section.type !== "settings" && !(section.type === "rss" && appMode === "browse") && appMode !== "edit") {
       setAppMode("edit");
     }
   }, [section.type, appMode, setAppMode]);
@@ -958,7 +960,14 @@ export function AppShell() {
     if (section.type === "settings" && appMode === "browse") return <BrowserView />;
     if (section.type === "settings" && appMode === "canvas") return <CanvasView />;
     if (section.type === "settings") return <SettingsPage />;
-    if (section.type === "rss") return <RssReader />;
+    if (section.type === "rss") {
+      return (
+        <div className="flex flex-1 min-h-0 flex-col">
+          <div className={appMode === "browse" ? "hidden" : "contents"}><RssReader /></div>
+          {appMode === "browse" && <BrowserView onReturnToSource={() => setAppMode("edit")} />}
+        </div>
+      );
+    }
     if (section.type === "integrations") return <IntegrationsHubPage />;
     if (section.type === "help") return <HelpPage />;
     if ((section.type === "cabinet" || section.type === "page") && appMode === "browse") {
@@ -1046,10 +1055,16 @@ export function AppShell() {
     }
     if (section.type === "task" && section.taskId) {
       return (
-        <TaskConversationPage
-          taskId={section.taskId}
-          cabinetPath={section.cabinetPath}
-        />
+        <div className="flex flex-1 min-h-0 flex-col">
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b px-4" style={{ paddingInlineStart: "calc(1rem + var(--sidebar-toggle-offset, 0px))" }}>
+            <NavArrows />
+            <ReturnToChip fullLabel />
+          </div>
+          <TaskConversationPage
+            taskId={section.taskId}
+            cabinetPath={section.cabinetPath}
+          />
+        </div>
       );
     }
 

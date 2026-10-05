@@ -17,6 +17,7 @@ type FakeCdp = CDPClient & {
   calls: CdpCall[];
   emitTarget: (targetInfo: Record<string, unknown>) => void;
   emitTargetDestroyed: (targetId: string) => void;
+  emitEvent: (method: string, params: Record<string, unknown>, sessionId?: string) => void;
   targets: Record<string, unknown>[];
 };
 
@@ -80,6 +81,9 @@ function fakeCdp(metrics?: {
         params: { targetInfo },
       });
     },
+    emitEvent: (method: string, params: Record<string, unknown>, sessionId?: string) => {
+      handlers.get(method)?.({ method, params, sessionId });
+    },
     emitTargetDestroyed: (targetId: string) => {
       handlers.get("Target.targetDestroyed")?.({
         method: "Target.targetDestroyed",
@@ -141,6 +145,62 @@ test("open() with no tracked targets opens a fresh window", async () => {
   const create = cdp.calls.find((c) => c.method === "Target.createTarget");
   assert.ok(create);
   assert.equal(create!.params?.newWindow, true);
+});
+
+test("navigate() acknowledges the requested URL before target-info events arrive", async () => {
+  tmpUserData();
+  const cdp = fakeCdp();
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "wiki", type: "page", url: "https://www.wikiwand.com/extension-installed", title: "Wikiwand" });
+  const updates: string[] = [];
+  session.on("tab-updated", (tab) => updates.push(tab.url));
+  const tab = await session.navigate("wiki", "https://offrun.dev/");
+  assert.equal(tab.url, "https://offrun.dev/");
+  assert.equal(tab.title, "");
+  assert.equal(session.listTabs().find((entry) => entry.id === "wiki")?.url, "https://offrun.dev/");
+  assert.ok(updates.includes("https://offrun.dev/"));
+});
+
+test("page title updates replace old metadata and a new top-frame navigation clears it", async () => {
+  tmpUserData();
+  const cdp = fakeCdp();
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "page", type: "page", url: "https://www.wikiwand.com/extension-installed", title: "Wikiwand" });
+  await session.navigate("page", "https://offrun.dev/");
+  cdp.emitEvent("Target.targetInfoChanged", { targetInfo: { targetId: "page", type: "page", url: "https://offrun.dev/", title: "Offrun" } });
+  assert.equal(session.listTabs()[0].title, "Offrun");
+  cdp.emitEvent("Page.frameNavigated", { frame: { url: "https://example.com/next" } }, "sess-page");
+  assert.equal(session.listTabs()[0].url, "https://example.com/next");
+  assert.equal(session.listTabs()[0].title, "");
+});
+
+test("navigate() preserves a redirect that arrives before the navigation acknowledgement", async () => {
+  tmpUserData();
+  const cdp = fakeCdp();
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "page", type: "page", url: "https://example.com/old", title: "Old" });
+  const send = cdp.send.bind(cdp);
+  cdp.send = async (...args) => {
+    const result = await send(...args);
+    if (args[0] === "Page.navigate") cdp.emitTarget({ targetId: "page", type: "page", url: "https://example.com/redirected", title: "Redirected" });
+    return result;
+  };
+  assert.equal((await session.navigate("page", "https://example.com/requested")).url, "https://example.com/redirected");
+});
+
+test("a rejected navigation does not replace the existing tab URL", async () => {
+  tmpUserData();
+  const cdp = fakeCdp();
+  const session = new BrowserSession(cdp);
+  await session.start();
+  cdp.emitTarget({ targetId: "page", type: "page", url: "https://example.com/old", title: "Old" });
+  const send = cdp.send.bind(cdp);
+  cdp.send = async (...args) => args[0] === "Page.navigate" ? { errorText: "net::ERR_NAME_NOT_RESOLVED" } : send(...args);
+  await assert.rejects(session.navigate("page", "https://example.com/requested"), /ERR_NAME_NOT_RESOLVED/);
+  assert.equal(session.listTabs().find((tab) => tab.id === "page")?.url, "https://example.com/old");
 });
 
 test("fitWidth() scales overflowing content to the full viewport without resizing the native tab view", async () => {

@@ -52,6 +52,10 @@
       "viewOrgChart": "צפייה בצוות כתרשים ארגוני (במסך מלא)",
       "hideIntro": "הסתרת ההקדמה",
       "sharedAcrossCabinets": "משותף בין כל הארוניות",
+      "globalScope": "טווח: גלובלי",
+      "roomScope": "טווח: חדר",
+      "roomScopeHint": "שייך לחדר: {{room}}",
+      "departmentTag": "מחלקה: {{department}}",
       "expandSchedule": "הרחבת לוח הזמנים",
       "heartbeatsOnAgentPage": "פעימות מוגדרות בדף של כל סוכן",
       "exitFullscreen": "יציאה ממסך מלא",
@@ -2121,6 +2125,7 @@
       "cabinet": "Cabinet",
       "home": "בית",
       "settings": "הגדרות",
+      "rssSettings": "הגדרות RSS",
       "registry": "מאגר",
       "back": "חזרה",
       "backTo": "חזרה ל{{label}}"
