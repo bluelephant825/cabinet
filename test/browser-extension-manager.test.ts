@@ -458,3 +458,148 @@ test("installUnpacked surfaces CDP errors without leaking the path", async () =>
   assert.match(err.message, /bad manifest/i);
   assert.ok(!err.message.includes(srcDir), "error must not leak the absolute path");
 });
+
+test("reload re-reads updated manifest from disk and re-loads via CDP", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir({ version: "0.1.0", name: "Initial Name" });
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  const installed = await mgr.installUnpacked(srcDir);
+  assert.equal(installed.version, "0.1.0");
+  assert.equal(installed.name, "Initial Name");
+
+  // User updates extension on disk
+  fs.writeFileSync(
+    path.join(srcDir, "manifest.json"),
+    JSON.stringify({
+      manifest_version: 3,
+      name: "Updated Name",
+      version: "0.2.0",
+      description: "updated description",
+    }),
+  );
+
+  calls.length = 0;
+  const reloaded = await mgr.reload(installed.id);
+  assert.equal(reloaded.name, "Updated Name");
+  assert.equal(reloaded.version, "0.2.0");
+  assert.equal(reloaded.description, "updated description");
+  assert.equal(reloaded.unpacked, true);
+
+  // Verifies uninstall followed by loadUnpacked was issued
+  assert.ok(calls.some((c) => c.method === "Extensions.uninstall" && c.params?.id === installed.runtimeId));
+  assert.ok(calls.some((c) => c.method === "Extensions.loadUnpacked" && c.params?.path === srcDir));
+});
+
+test("reload preserves prefs like pinned", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir({ version: "1.0.0" });
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  const installed = await mgr.installUnpacked(srcDir);
+  await mgr.setPinned(installed.id, true);
+
+  const reloaded = await mgr.reload(installed.id);
+  assert.equal(reloaded.pinned, true);
+  assert.equal(reloaded.enabled, true);
+});
+
+test("reload with browser stopped refreshes metadata and keeps runtimeId null", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir({ version: "1.0.0" });
+  const mgr = new ExtensionManager({ getCdp: () => null });
+  const installed = await mgr.installUnpacked(srcDir);
+  assert.equal(installed.runtimeId, null);
+
+  fs.writeFileSync(
+    path.join(srcDir, "manifest.json"),
+    JSON.stringify({
+      manifest_version: 3,
+      name: "Dev Extension",
+      version: "1.1.0",
+    }),
+  );
+
+  const reloaded = await mgr.reload(installed.id);
+  assert.equal(reloaded.version, "1.1.0");
+  assert.equal(reloaded.runtimeId, null);
+});
+
+test("reload of disabled extension updates metadata but skips CDP loadUnpacked", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir({ version: "1.0.0" });
+  const calls: CdpCall[] = [];
+  const mgr = new ExtensionManager({
+    getCdp: () => fakeCdp(calls),
+    fetchFn: fakeFetch(await extensionZip()),
+  });
+  const installed = await mgr.installUnpacked(srcDir);
+  await mgr.disable(installed.id);
+  calls.length = 0;
+
+  fs.writeFileSync(
+    path.join(srcDir, "manifest.json"),
+    JSON.stringify({
+      manifest_version: 3,
+      name: "Dev Extension",
+      version: "1.2.0",
+    }),
+  );
+
+  const reloaded = await mgr.reload(installed.id);
+  assert.equal(reloaded.version, "1.2.0");
+  assert.equal(reloaded.enabled, false);
+  assert.ok(!calls.some((c) => c.method === "Extensions.loadUnpacked"));
+});
+
+test("reload rejects if folder or manifest is missing or invalid", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir();
+  const mgr = new ExtensionManager({ getCdp: () => null });
+  const installed = await mgr.installUnpacked(srcDir);
+
+  // Missing extension id
+  await assert.rejects(() => mgr.reload("nonexistentid123"), /not found/i);
+
+  // Invalid JSON in manifest
+  fs.writeFileSync(path.join(srcDir, "manifest.json"), "{broken");
+  await assert.rejects(() => mgr.reload(installed.id), /not valid JSON/i);
+
+  // Missing required fields
+  fs.writeFileSync(path.join(srcDir, "manifest.json"), JSON.stringify({ manifest_version: 3 }));
+  await assert.rejects(() => mgr.reload(installed.id), /manifest_version, name/i);
+
+  // Deleted folder
+  fs.rmSync(srcDir, { recursive: true, force: true });
+  await assert.rejects(() => mgr.reload(installed.id), /folder no longer exists/i);
+});
+
+test("reload surfaces CDP errors without leaking the path", async () => {
+  tmpUserData();
+  const srcDir = makeUnpackedDir();
+  let failLoad = false;
+  const mgr = new ExtensionManager({
+    getCdp: () =>
+      ({
+        send: async (method: string) => {
+          if (failLoad && method === "Extensions.loadUnpacked") {
+            throw new Error(`Cannot load extension at ${srcDir}: compilation error in bg.js`);
+          }
+          return { id: "test-runtime-id" };
+        },
+      }) as unknown as CDPClient,
+  });
+  const installed = await mgr.installUnpacked(srcDir);
+
+  failLoad = true;
+  const err = await mgr.reload(installed.id).catch((e) => e);
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /compilation error in bg.js/i);
+  assert.ok(!err.message.includes(srcDir), "error must not leak the absolute path");
+});

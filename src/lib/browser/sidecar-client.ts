@@ -140,6 +140,8 @@ export const enableExtension = async (id: string) =>
   (await post<{ extension: SidecarExtension }>(`extensions/${encodeURIComponent(id)}/enable`)).extension;
 export const disableExtension = async (id: string) =>
   (await post<{ extension: SidecarExtension }>(`extensions/${encodeURIComponent(id)}/disable`)).extension;
+export const reloadExtension = async (id: string) =>
+  (await post<{ extension: SidecarExtension }>(`extensions/${encodeURIComponent(id)}/reload`)).extension;
 export const pinExtension = async (id: string, pinned: boolean) =>
   (await post<{ extension: SidecarExtension }>(
     `extensions/${encodeURIComponent(id)}/${pinned ? "pin" : "unpin"}`,

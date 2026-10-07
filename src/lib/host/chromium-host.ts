@@ -37,6 +37,7 @@ import {
   navigateTab,
   openTab,
   pinExtension,
+  reloadExtension,
   reloadTab,
   relaunchBrowser,
   setWindowBounds,
@@ -226,6 +227,7 @@ export function createChromiumHost(): CabinetHost {
       uninstall: uninstallExtension,
       enable: enableExtension,
       disable: disableExtension,
+      reload: reloadExtension,
       setPinned: pinExtension,
       triggerAction: (id, anchor) => {
         const triggerAction = getBinding()?.extensions?.triggerAction;

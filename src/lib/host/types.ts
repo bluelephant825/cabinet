@@ -201,6 +201,7 @@ export interface CabinetHost {
     uninstall(id: string): Promise<{ ok: boolean }>;
     enable(id: string): Promise<SidecarExtension>;
     disable(id: string): Promise<SidecarExtension>;
+    reload?(id: string): Promise<SidecarExtension>;
     setPinned(id: string, pinned: boolean): Promise<SidecarExtension>;
     /**
      * Run the extension's toolbar action as if its pinned button were

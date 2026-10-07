@@ -61,6 +61,15 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade & {
     uninstallExtension: async () => ({ ok: true }),
     enableExtension: async () => { throw new BrowserError("not-found", "Extension not found"); },
     disableExtension: async () => { throw new BrowserError("not-found", "Extension not found"); },
+    reloadExtension: async (id) =>
+      (calls.push(`reload:${id}`),
+      {
+        id,
+        name: "x", version: "2", path: "/x", description: "",
+        iconDataUrl: null, popupHtml: null, optionsPage: null,
+        contentScriptMatches: [], enabled: true, pinned: false, runtimeId: null,
+        unpacked: true,
+      }),
     pinExtension: async () => { throw new BrowserError("not-found", "Extension not found"); },
     setWindowBounds: async () => ({ ok: true }),
     focusWindow: async () => ({ ok: true }),
@@ -226,6 +235,18 @@ test("POST /browser/extensions/:id/enable surfaces not-found as 404", async () =
   assert.equal(res.status, 404);
   const body = await res.json();
   assert.equal(body.code, "not-found");
+});
+
+test("POST /browser/extensions/:id/reload reloads extension after ensureRunning", async () => {
+  const res = await fetch(`${base}/browser/extensions/test-id/reload`, {
+    method: "POST",
+    headers: auth(),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.extension.version, "2");
+  assert.ok(browser.calls.includes("ensureRunning"));
+  assert.ok(browser.calls.includes("reload:test-id"));
 });
 
 test("POST /browser/relaunch is atomic shutdown+launch", async () => {

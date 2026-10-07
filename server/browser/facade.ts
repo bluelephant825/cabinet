@@ -145,6 +145,7 @@ export function createBrowserDaemon(): BrowserDaemon {
     uninstallExtension: (id) => extensions.uninstall(id),
     enableExtension: (id) => extensions.enable(id),
     disableExtension: (id) => extensions.disable(id),
+    reloadExtension: (id) => extensions.reload(id),
     pinExtension: (id, pinned) => extensions.setPinned(id, pinned),
     setWindowBounds: async (bounds) => {
       // Host mode lays tab content out inside the fork's own window, so the

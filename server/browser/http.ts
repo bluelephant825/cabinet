@@ -60,6 +60,7 @@ export type BrowserFacade = {
   uninstallExtension(id: string): Promise<unknown>;
   enableExtension(id: string): Promise<BrowserExtensionRecord>;
   disableExtension(id: string): Promise<BrowserExtensionRecord>;
+  reloadExtension(id: string): Promise<BrowserExtensionRecord>;
   pinExtension(id: string, pinned: boolean): Promise<BrowserExtensionRecord>;
   setWindowBounds(bounds: {
     x?: number;
@@ -398,6 +399,10 @@ export async function handleBrowserRequest(
             return true;
           case "disable":
             sendJson(res, 200, { extension: await browser.disableExtension(extId) });
+            return true;
+          case "reload":
+            await browser.ensureRunning();
+            sendJson(res, 200, { extension: await browser.reloadExtension(extId) });
             return true;
           case "pin":
             sendJson(res, 200, { extension: await browser.pinExtension(extId, true) });

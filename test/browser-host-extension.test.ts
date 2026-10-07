@@ -351,6 +351,7 @@ function fakeBrowser(overrides: Partial<BrowserFacade> = {}): BrowserFacade {
     uninstallExtension: async () => ({ ok: true }),
     enableExtension: async () => { throw new BrowserError("not-found", "x"); },
     disableExtension: async () => { throw new BrowserError("not-found", "x"); },
+    reloadExtension: async () => { throw new BrowserError("not-found", "x"); },
     pinExtension: async () => { throw new BrowserError("not-found", "x"); },
     setWindowBounds: async () => ({ ok: true }),
     focusWindow: async () => ({ ok: true }),

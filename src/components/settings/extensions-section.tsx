@@ -20,6 +20,7 @@ import {
   loadUnpackedExtension,
   listExtensions,
   openTab,
+  reloadExtension,
   shutdown,
   uninstallExtension,
   updateBrowserAutomationSettings,
@@ -55,6 +56,7 @@ export function ExtensionsSection() {
   const [automation, setAutomation] = useState<BrowserAutomationStatus | null>(null);
   const [savingAutomation, setSavingAutomation] = useState(false);
   const [extensionUrlOrId, setExtensionUrlOrId] = useState("");
+  const [reloadingId, setReloadingId] = useState<string | null>(null);
 
   const refreshStatus = useCallback(() => {
     void getStatus()
@@ -179,6 +181,22 @@ export function ExtensionsSection() {
       setExtensions((prev) => prev.map((entry) => (entry.id === id ? ext : entry)));
     } catch (e) {
       showError(errorMessage(e, "Failed to toggle extension"));
+    }
+  };
+
+  const handleReload = async (id: string) => {
+    setReloadingId(id);
+    try {
+      const ext = await reloadExtension(id);
+      setExtensions((prev) =>
+        prev.map((entry) => (entry.id === id || entry.id === ext.id ? ext : entry)),
+      );
+      showToast("success", `Extension reloaded: ${ext.name}`);
+      refreshExtensions();
+    } catch (e) {
+      showError(errorMessage(e, "Failed to reload extension"));
+    } finally {
+      setReloadingId(null);
     }
   };
 
@@ -478,6 +496,25 @@ export function ExtensionsSection() {
                       }
                     >
                       <Settings className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {ext.unpacked && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={!ext.enabled || reloadingId === ext.id}
+                      onClick={() => void handleReload(ext.id)}
+                      title={
+                        !ext.enabled
+                          ? "Enable the extension to reload"
+                          : "Reload extension"
+                      }
+                    >
+                      {reloadingId === ext.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RotateCw className="w-4 h-4" />
+                      )}
                     </Button>
                   )}
                   <Switch

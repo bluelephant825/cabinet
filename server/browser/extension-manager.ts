@@ -440,6 +440,78 @@ export class ExtensionManager extends EventEmitter {
     return rec;
   }
 
+  async reload(id: string): Promise<BrowserExtensionRecord> {
+    const records = await this.loadRecords();
+    const rec = this.record(id, records);
+    const resolved = path.resolve(rec.path);
+    const stat = await fsp.stat(resolved).catch(() => null);
+    if (!stat?.isDirectory()) {
+      throw new BrowserError("not-found", "The extension folder no longer exists.");
+    }
+    const manifestPath = path.join(resolved, "manifest.json");
+    if (!fs.existsSync(manifestPath)) {
+      throw new BrowserError("invalid", "No manifest.json found in the extension folder.");
+    }
+    let manifest: Record<string, unknown>;
+    try {
+      manifest = JSON.parse(await fsp.readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    } catch {
+      throw new BrowserError("invalid", "manifest.json is not valid JSON.");
+    }
+    if (
+      typeof manifest.manifest_version !== "number" ||
+      typeof manifest.name !== "string" ||
+      !manifest.name.trim()
+    ) {
+      throw new BrowserError(
+        "invalid",
+        "manifest.json is missing required fields (manifest_version, name).",
+      );
+    }
+
+    Object.assign(rec, this.describeExtension(resolved, manifest));
+
+    if (rec.enabled && this.deps.getCdp()) {
+      if (rec.runtimeId) {
+        await this.uninstallRuntime(rec.runtimeId);
+      }
+      try {
+        const runtimeId = await this.loadUnpacked(resolved);
+        if (runtimeId) {
+          rec.runtimeId = runtimeId;
+          rec.id = runtimeId;
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (/already|duplicate/i.test(message)) {
+          try {
+            await this.uninstallRuntime(rec.id);
+            const runtimeId = await this.loadUnpacked(resolved);
+            if (runtimeId) {
+              rec.runtimeId = runtimeId;
+              rec.id = runtimeId;
+            }
+          } catch (retryErr) {
+            const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+            throw new BrowserError(
+              "cdp",
+              `Chromium could not load the extension: ${retryMsg.replaceAll(resolved, "…")}`,
+            );
+          }
+        } else {
+          throw new BrowserError(
+            "cdp",
+            `Chromium could not load the extension: ${message.replaceAll(resolved, "…")}`,
+          );
+        }
+      }
+    }
+
+    await this.saveRecords();
+    this.emit("updated", rec);
+    return rec;
+  }
+
   async setPinned(id: string, pinned: boolean): Promise<BrowserExtensionRecord> {
     const records = await this.loadRecords();
     const rec = this.record(id, records);
