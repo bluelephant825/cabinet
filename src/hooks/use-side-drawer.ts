@@ -11,10 +11,12 @@ export interface UseSideDrawerOptions {
   minWidth?: number;
   maxWidth?: number;
   defaultWidth?: number;
+  keepMounted?: boolean;
 }
 
 export interface UseSideDrawer {
   isMobile: boolean;
+  isOpen: boolean;
   /**
    * Whether the drawer should render at all. Mobile is a fixed overlay
    * (nothing to push) so it unmounts immediately; desktop stays mounted
@@ -49,6 +51,7 @@ export function useSideDrawer({
   minWidth = 380,
   maxWidth = 760,
   defaultWidth = 480,
+  keepMounted = false,
 }: UseSideDrawerOptions): UseSideDrawer {
   const isMobile = useIsMobile();
 
@@ -153,17 +156,19 @@ export function useSideDrawer({
       if (
         event.target === event.currentTarget &&
         event.propertyName === "width" &&
-        !isOpen
+        !isOpen &&
+        !keepMounted
       ) {
         setPresent(false);
       }
     },
-    [isOpen]
+    [isOpen, keepMounted]
   );
 
   return {
     isMobile,
-    shouldRender: isMobile ? isOpen : present,
+    isOpen,
+    shouldRender: isMobile && !keepMounted ? isOpen : present,
     expanded,
     resizing,
     panelWidth,

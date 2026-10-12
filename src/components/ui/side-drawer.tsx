@@ -24,6 +24,7 @@ export function SideDrawer({ drawer, onScrimClick, children }: SideDrawerProps) 
   const { t } = useLocale();
   const {
     isMobile,
+    isOpen,
     expanded,
     resizing,
     panelWidth,
@@ -45,11 +46,17 @@ export function SideDrawer({ drawer, onScrimClick, children }: SideDrawerProps) 
     return (
       <>
         <div
+          hidden={!isOpen}
           className="ai-scrim-anim fixed inset-0 z-40 bg-black/40"
           onClick={onScrimClick}
           aria-hidden="true"
         />
-        <div className="ai-drawer-anim-up fixed inset-0 z-50 flex flex-col bg-background pb-[max(env(safe-area-inset-bottom),0px)]">
+        <div
+          hidden={!isOpen}
+          inert={!isOpen}
+          aria-hidden={!isOpen}
+          className={cn("ai-drawer-anim-up fixed inset-0 z-50 flex-col bg-background pb-[max(env(safe-area-inset-bottom),0px)]", isOpen ? "flex" : "hidden")}
+        >
           {children}
         </div>
       </>
@@ -62,10 +69,13 @@ export function SideDrawer({ drawer, onScrimClick, children }: SideDrawerProps) 
     <div
       className={cn(
         "relative shrink-0 self-stretch",
+        !expanded && "overflow-hidden",
         !resizing &&
           "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
       )}
       style={{ width: expanded ? panelWidth : 0 }}
+      inert={!isOpen}
+      aria-hidden={!isOpen}
       onTransitionEnd={onWrapperTransitionEnd}
     >
       {/* Manila Arc: a floating sheet pinned to the inline-end. Inset from the

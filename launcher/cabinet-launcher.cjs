@@ -758,6 +758,19 @@ async function startBackends() {
 
   await waitForHealth(`${appOrigin}/api/health`);
 
+  try {
+    const hostScript = packagedStandalonePath("server", "clipper-native-host.cjs");
+    const load = require("node:module").createRequire(hostScript);
+    await load(hostScript).registerNativeHost({
+      userDataDir,
+      nodePath: packagedStandalonePath("bin", "node"),
+      hostScript,
+      launcherPath: path.join(execDir, "Cabinet"),
+    });
+  } catch (error) {
+    console.warn("launcher: clipper native bridge registration failed:", error.message);
+  }
+
   // Shell must be serving before the fork loads --cabinet-ui-url.
   const token = ensureDaemonToken();
   void launchBrowser(daemonOrigin, token);

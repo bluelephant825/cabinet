@@ -179,9 +179,10 @@ export function TaskComposeBody({ context }: TaskComposeBodyProps) {
             }
       );
 
-      // The user may have closed the drawer mid-create; only swap if it's
-      // still open. The conversation still exists (reachable from Tasks).
-      if (useAppStore.getState().taskPanelOpen) {
+      // The user may have closed the drawer mid-create; retain the conversation
+      // without reopening it. The conversation is also reachable from Tasks.
+      const panelState = useAppStore.getState();
+      if (panelState.taskPanelMode === "compose" && panelState.taskPanelComposeContext === context) {
         swapToConversation(data.conversation);
       }
     },

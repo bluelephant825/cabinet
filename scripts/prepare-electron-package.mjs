@@ -236,6 +236,7 @@ async function stageDaemonRuntime() {
   await removeDanglingTracedSymlinks(tracedNodeModulesDir);
 
   await bundleDaemon();
+  await copyFile(path.join(projectRoot, "launcher", "clipper-native-host.cjs"), path.join(standaloneServerDir, "clipper-native-host.cjs"));
   // The `cabinet-documents` / `cabinet-browser` agent helpers: staged next to
   // the daemon bundle — the tool-shim modules resolve these siblings at
   // runtime.

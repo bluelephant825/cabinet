@@ -132,6 +132,7 @@ export function TaskDetailPanel() {
   const drawer = useSideDrawer({
     isOpen: taskPanelOpen,
     storageKey: "cabinet-task-panel-width",
+    keepMounted: true,
   });
 
   useEffect(() => {
@@ -261,6 +262,7 @@ export function TaskDetailPanel() {
     ) : (
       <div className="flex min-h-0 flex-1 flex-col">
         <TaskConversationPage
+          key={conversation.id}
           taskId={conversation.id}
           cabinetPath={conversation.cabinetPath}
           variant="compact"
@@ -562,7 +564,9 @@ export function TaskDetailPanel() {
 
       {/* Pane Content */}
       <div className="flex min-h-0 flex-1 flex-col">
-        {activeTab === "chat" && chatContent}
+        <div hidden={activeTab !== "chat"} className={cn("min-h-0 flex-1 flex-col", activeTab === "chat" ? "flex" : "hidden")}>
+          {chatContent}
+        </div>
         {activeTab === "highlights" && highlightsContent}
         {activeTab === "tags" && tagsContent}
         {activeTab === "links" && linksContent}

@@ -109,6 +109,7 @@ if (!existsSync(join(chromiumApp, "Contents", "MacOS", "Chromium"))) {
 for (const rel of [
   "server.js",
   join("server", "cabinet-daemon.cjs"),
+  join("server", "clipper-native-host.cjs"),
   join("bin", "node"),
 ]) {
   if (!existsSync(join(standalone, rel))) {

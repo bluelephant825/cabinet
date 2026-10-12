@@ -471,13 +471,19 @@ async function buildTreeRecursive(
 // globalThis is one object per process, so all route bundles share this cache.
 const globalForTree = globalThis as unknown as {
   __cabinetTreeCache?: TtlCache<TreeNode[]>;
+  __cabinetTreeMutationVersion?: number;
 };
 const treeCache =
   globalForTree.__cabinetTreeCache ??
   (globalForTree.__cabinetTreeCache = createTtlCache<TreeNode[]>({ ttlMs: 5000 }));
 
+export function getTreeMutationVersion(): number {
+  return globalForTree.__cabinetTreeMutationVersion ?? 0;
+}
+
 export function invalidateTreeCache() {
   treeCache.invalidate();
+  globalForTree.__cabinetTreeMutationVersion = getTreeMutationVersion() + 1;
 }
 
 export async function buildTree(

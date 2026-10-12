@@ -633,6 +633,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleTaskPanelCompose: (context) => {
     if (get().taskPanelOpen) {
       set({ taskPanelOpen: false, canvasSelectedCardPaths: [] });
+    } else if (get().taskPanelConversation || get().taskPanelComposeContext) {
+      get().reopenTaskPanel();
     } else {
       get().openTaskPanelCompose(context);
     }
@@ -644,7 +646,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       taskPanelConversation: conversation,
       taskPanelMode: "conversation",
-      taskPanelOpen: true,
       canvasSelectedCardPaths: [],
       recentlyOpenedTaskIds: rememberOpenedTask(
         get().recentlyOpenedTaskIds,

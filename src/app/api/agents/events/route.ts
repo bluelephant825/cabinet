@@ -6,6 +6,7 @@ import { getRespondingAgents } from "@/lib/agents/responding-state";
 import fs from "fs/promises";
 import path from "path";
 import { DATA_DIR } from "@/lib/storage/path-utils";
+import { getTreeMutationVersion } from "@/lib/storage/tree-builder";
 import { getRunningConversationCounts, drainConversationNotifications } from "@/lib/agents/conversation-store";
 
 async function getDataDirVersion(): Promise<string> {
@@ -22,7 +23,7 @@ async function getDataDirVersion(): Promise<string> {
       agentsSig = `${agentStat.mtimeMs}-${agentEntries.length}`;
     } catch { /* ignore if .agents doesn't exist yet */ }
 
-    return `${stat.mtimeMs}-${entries.length}-${agentsSig}`;
+    return `${stat.mtimeMs}-${entries.length}-${agentsSig}-${getTreeMutationVersion()}`;
   } catch {
     return "0";
   }
