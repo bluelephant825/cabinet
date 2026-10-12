@@ -1,6 +1,6 @@
 # Progress
 
-## 2026-02-10 — Fix "Create new…" menu blanking the page (invisible click-blocker exclusion)
+[2026-02-10] — Fix "Create new…" menu blanking the page (invisible click-blocker exclusion)
 
 The top-toolbar "Create new…" menu (Base UI) still blanked the web page after
 the exclusion-rect work: opening it mounted Base UI's `data-base-ui-inert`
@@ -27,7 +27,7 @@ over a fully visible Example Domain page; page click dismisses the menu;
 Bookmarks dropdown unchanged (renders over visible page). `tsc` clean;
 1007 tests / 1005 pass / 0 fail.
 
-## 2026-02-10 — Rounded exclusion holes matching menu shape (shadow clip fix)
+[2026-02-10] — Rounded exclusion holes matching menu shape (shadow clip fix)
 
 The exclusion holes punched in the native tab overlay were hard axis-aligned
 rectangles exactly matching each floating element's border-box. Two artifacts
@@ -2219,3 +2219,5 @@ Bridge e2e (packaged `cabinet-bridge-validation/Cabinet.app`, isolated via `laun
 [2026-10-12] Replaced Tailwind arbitrary-value and legacy logical/flex utilities with their shorthand/modern equivalents to clear IDE warnings: in `src/components/ui/side-drawer.tsx` `bottom-[10px]` → `bottom-2.5`, `end-0` → `inset-e-0`, `rounded-[var(--sheet-radius)]` → `rounded-(--sheet-radius)`, and `start-0` → `inset-s-0`; in `src/components/wiki/knowledge-graph-viewer.tsx` `break-words` → `wrap-break-word` and `w-[32rem]` → `w-lg`. `viewer-toolbar.tsx` was already in the requested `bg-(--gutter)` form, so no change was needed. No behavioral change.
 
 [2026-10-12] Cleared the IDE-reported select and knowledge-graph viewer warnings. Replaced `end-2` with Tailwind's canonical `inset-e-2` for the select indicator. Graph loading is now derived from request results tagged with the current path and retry attempt instead of synchronously setting state in an effect; WebGL support is detected in a lazy state initializer in the client-only viewer. Obsolete fetch callbacks now ignore successful responses as well as errors after cleanup, preserving shared StrictMode request deduplication without applying stale graph data or fallback callbacks. Verified focused ESLint with zero warnings, TypeScript (`tsc --noEmit --incremental false`), and all six knowledge-graph model tests. Existing working-tree changes were preserved.
+
+[2026-10-12] Rebuilt Cabinet 0.6.5 from clean source commit 10452590 and refreshed the existing GitHub draft release in bluelephant825/cabinet. Reused the unchanged October 5 Chromium 153.0.8010.47 release engine, rebuilt Next standalone/postbuild tools, daemon/document bundles, native helpers, and the launcher, and packaged a new ad-hoc-signed macOS arm64 Cabinet.app at /Users/odebroqueville/Developer/cabinet-builds/release-0.6.5-chat-continuity-2026-10-12/Cabinet.app. Verified 22 focused chat/drawer/native-clipper/tree-version tests, focused ESLint, TypeScript, bundled daemon syntax and Node execution, presence of the chat-retention frontend and native-messaging helper, absence of the root .env.local, strict deep code-signature validation, ZIP integrity, and successful ditto round-trip extraction with a valid signature and no AppleDouble or __MACOSX litter. Replaced Cabinet-0.6.5-macos-arm64.zip on draft v0.6.5 with the 585,381,885-byte archive; GitHub's asset digest matches local SHA-256 446b3a847122172fd604f4b7de9ffc935b3cc5162ba1ffc1e9b1899c738f5581. Preserved existing installation notes and added the chat-continuity, native-clipper, and graph-loading fixes plus build provenance and checksum. Confirmed the release remains unpublished and retains only the intended ZIP asset. Prior build directories and /Applications/Cabinet.app were preserved; no packaged browser was launched, user data changed, commits created, or source pushed.
