@@ -27,12 +27,17 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
 }
 
 export default function KnowledgeGraphViewer({ path, onNotGraph }: { path: string; title: string; onNotGraph: () => void }) {
-  const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  const [result, setResult] = useState<{ path: string; attempt: number; phase: Phase } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const phase: Phase = result?.path === path && result.attempt === attempt ? result.phase : { kind: "loading" };
   const [filters, setFilters] = useState<GraphFilters>(defaultFilters);
   const [selected, setSelected] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
-  const [webgl, setWebgl] = useState(true);
+  const [webgl] = useState(() => {
+    if (typeof document === "undefined") return true;
+    const canvas = document.createElement("canvas");
+    return !!canvas.getContext("webgl2") || !!canvas.getContext("webgl");
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<Sigma | null>(null);
   const stateRef = useRef({ filters, selected, hovered, palette: new Map<number, string>() });
@@ -65,12 +70,13 @@ export default function KnowledgeGraphViewer({ path, onNotGraph }: { path: strin
 
   useEffect(() => {
     const controller = new AbortController();
-    setPhase({ kind: "loading" });
+    const setPhase = (phase: Phase) => setResult({ path, attempt, phase });
     // No signal on the shared request: a StrictMode remount must not abort the
     // in-flight fetch the second mount joins.
     dedupFetch(`/api/llm-wiki/graph?path=${encodeURIComponent(path)}`, { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
+        if (controller.signal.aborted) return;
         if (!response.ok) {
           if (body.error === "Not a Wiki graph") { onNotGraphRef.current(); return; }
           if (body.error === "No knowledge graph yet") { setPhase({ kind: "empty" }); return; }
@@ -85,11 +91,6 @@ export default function KnowledgeGraphViewer({ path, onNotGraph }: { path: strin
       });
     return () => controller.abort();
   }, [path, attempt]);
-
-  useEffect(() => {
-    const canvas = document.createElement("canvas");
-    setWebgl(!!canvas.getContext("webgl2") || !!canvas.getContext("webgl"));
-  }, []);
 
   // Sigma lifecycle: created once per graph; filters/hover flow through reducers.
   useEffect(() => {
@@ -266,7 +267,7 @@ export default function KnowledgeGraphViewer({ path, onNotGraph }: { path: strin
     return (
       <div className="space-y-4 p-4 text-sm">
         <div>
-          <h2 className="font-semibold break-words">{node.name}</h2>
+          <h2 className="font-semibold wrap-break-word">{node.name}</h2>
           <p className="text-xs text-muted-foreground">{node.type}{node.pageKind ? ` · ${node.pageKind}` : ""}{node.category ? ` · ${node.category}` : ""}</p>
         </div>
         {node.summary && <p className="text-xs text-muted-foreground">{node.summary}</p>}
@@ -280,7 +281,7 @@ export default function KnowledgeGraphViewer({ path, onNotGraph }: { path: strin
             <ul className="space-y-2">
               {entries.map(({ edge, other, outgoing }, index) => (
                 <li key={index} className="text-xs">
-                  <button type="button" className="text-left underline break-words" onClick={() => other && setSelected(other.id)}>
+                  <button type="button" className="text-left underline wrap-break-word" onClick={() => other && setSelected(other.id)}>
                     {outgoing ? "→" : "←"} {other?.name ?? (outgoing ? edge.target : edge.source)}
                   </button>
                   <span className={`ml-1 rounded px-1 py-0.5 text-[10px] ${edge.provenance === "explicit" ? "bg-muted" : "bg-amber-100 dark:bg-amber-900"}`}>{edge.provenance}</span>
@@ -308,7 +309,7 @@ export default function KnowledgeGraphViewer({ path, onNotGraph }: { path: strin
           {!!data?.warnings.length && (
             <details className="relative text-xs">
               <summary className="cursor-pointer select-none rounded-md px-2 py-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground">Warnings ({data.warnings.length})</summary>
-              <pre className="absolute right-0 top-full z-10 max-h-64 w-[32rem] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-popover p-2 text-muted-foreground shadow-md">{data.warnings.slice(0, 50).join("\n")}</pre>
+              <pre className="absolute right-0 top-full z-10 max-h-64 w-lg overflow-auto whitespace-pre-wrap rounded-md border border-border bg-popover p-2 text-muted-foreground shadow-md">{data.warnings.slice(0, 50).join("\n")}</pre>
             </details>
           )}
         </ViewerToolbar>

@@ -86,7 +86,7 @@ export function SideDrawer({ drawer, onScrimClick, children }: SideDrawerProps) 
           slides in on open (transform, so its fixed width never reflows). */}
       <div
         className={cn(
-          "absolute top-0 bottom-[10px] end-0 flex flex-col overflow-hidden rounded-[var(--sheet-radius)] bg-background",
+          "absolute top-0 bottom-2.5 inset-e-0 flex flex-col overflow-hidden rounded-(--sheet-radius) bg-background",
           !resizing &&
             "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
         )}
@@ -106,7 +106,7 @@ export function SideDrawer({ drawer, onScrimClick, children }: SideDrawerProps) 
           title={t("sidebar:resetWidth")}
           onPointerDown={startResize}
           onDoubleClick={resetWidth}
-          className="absolute inset-y-0 start-0 z-30 w-1.5 cursor-col-resize bg-transparent transition-colors hover:bg-primary/40"
+          className="absolute inset-y-0 inset-s-0 z-30 w-1.5 cursor-col-resize bg-transparent transition-colors hover:bg-primary/40"
         />
         {children}
       </div>
